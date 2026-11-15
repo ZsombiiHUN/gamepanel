@@ -314,6 +314,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List backups */
+        get: operations["listBackups"];
+        put?: never;
+        /** Start a backup (runs in the background) */
+        post: operations["createBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/backups/{backup}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a backup */
+        delete: operations["deleteBackup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/backups/{backup}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Lock or unlock a backup (locked backups cannot be deleted or rotated out) */
+        put: operations["lockBackup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/backups/{backup}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a backup over the server's files (server must be stopped) */
+        post: operations["restoreBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/command": {
         parameters: {
             query?: never;
@@ -401,6 +470,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List schedules */
+        get: operations["listSchedules"];
+        put?: never;
+        /** Create a schedule */
+        post: operations["createSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/schedules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a schedule and its tasks */
+        put: operations["updateSchedule"];
+        post?: never;
+        /** Delete a schedule */
+        delete: operations["deleteSchedule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/schedules/{id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a schedule's tasks now */
+        post: operations["runSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -436,6 +558,60 @@ export interface components {
             id: number;
             ip: string;
             target: string;
+        };
+        Backup: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/Backup.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            completed_at: number;
+            /** Format: int64 */
+            created_at: number;
+            error?: string;
+            /** @description newline separated ignore patterns */
+            ignore: string;
+            locked: boolean;
+            name: string;
+            server_uuid: string;
+            sha256: string;
+            /** Format: int64 */
+            size: number;
+            /** @description running|ok|failed */
+            status: string;
+            uuid: string;
+        };
+        BackupCreateInBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/BackupCreateInBody.json
+             */
+            readonly $schema?: string;
+            /** @description patterns to leave out, one per line (e.g. logs, *.tmp, cache/) */
+            ignore?: string;
+            name?: string;
+        };
+        BackupLockInBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/BackupLockInBody.json
+             */
+            readonly $schema?: string;
+            locked: boolean;
+        };
+        BackupRestoreInBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/BackupRestoreInBody.json
+             */
+            readonly $schema?: string;
+            /** @description delete all current files first */
+            truncate?: boolean;
         };
         CommandInBody: {
             /**
@@ -672,6 +848,45 @@ export interface components {
             code: string;
             password: string;
         };
+        Schedule: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/Schedule.json
+             */
+            readonly $schema?: string;
+            cron: string;
+            enabled: boolean;
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            last_run: number;
+            last_status: string;
+            name: string;
+            /**
+             * Format: int64
+             * @description unix seconds, 0 = not scheduled
+             */
+            next_run: number;
+            only_when_online: boolean;
+            server_uuid: string;
+            tasks: components["schemas"]["Task"][];
+        };
+        ScheduleBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/ScheduleBody.json
+             */
+            readonly $schema?: string;
+            /** @description 5 fields (UTC): minute hour day-of-month month day-of-week */
+            cron: string;
+            enabled: boolean;
+            name: string;
+            /** @description skip runs while the server is not running */
+            only_when_online?: boolean;
+            tasks: components["schemas"]["TaskIn"][] | null;
+        };
         ServerCreateInBody: {
             /**
              * Format: uri
@@ -740,6 +955,27 @@ export interface components {
             /** Format: int64 */
             mem_bytes: number;
             uuid: string;
+        };
+        Task: {
+            /** @enum {string} */
+            action: "command" | "power" | "backup";
+            continue_on_failure: boolean;
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            offset_seconds: number;
+            /** @description command text, power action (start|stop|restart|kill), or backup ignore patterns */
+            payload: string;
+            /** Format: int64 */
+            seq: number;
+        };
+        TaskIn: {
+            /** @enum {string} */
+            action: "command" | "power" | "backup";
+            continue_on_failure?: boolean;
+            /** Format: int64 */
+            offset_seconds?: number;
+            payload?: string;
         };
         TotpEnableInBody: {
             /**
@@ -1490,6 +1726,170 @@ export interface operations {
             };
         };
     };
+    listBackups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backup"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backup"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                backup: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    lockBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                backup: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupLockInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    restoreBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                backup: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupRestoreInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     sendCommand: {
         parameters: {
             query?: never;
@@ -1692,6 +2092,168 @@ export interface operations {
             header?: never;
             path: {
                 uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listSchedules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updateSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    runSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
             };
             cookie?: never;
         };

@@ -27,6 +27,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pressly/goose/v3 v3.30.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sethvargo/go-retry v0.5.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect

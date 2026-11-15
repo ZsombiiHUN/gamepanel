@@ -22,6 +22,9 @@ const (
 	ReqServerDelete = "server.delete"
 	// ReqServerReinstall re-runs the egg install script for an offline server.
 	ReqServerReinstall = "server.reinstall"
+	ReqBackupCreate    = "backup.create"
+	ReqBackupRestore   = "backup.restore"
+	ReqBackupDelete    = "backup.delete"
 	ReqFilesList       = "files.list"
 	ReqFilesRead       = "files.read"
 	ReqFilesWrite      = "files.write"
@@ -117,4 +120,18 @@ type Stats struct {
 func Marshal(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// BackupReq addresses one backup archive on a node.
+type BackupReq struct {
+	UUID     string   `json:"uuid"`      // server
+	BackupID string   `json:"backup_id"` // backup uuid
+	Ignore   []string `json:"ignore,omitempty"`
+	Truncate bool     `json:"truncate,omitempty"` // restore: empty the server dir first
+}
+
+// BackupResult is the reply to backup.create.
+type BackupResult struct {
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
 }

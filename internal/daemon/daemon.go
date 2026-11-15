@@ -327,6 +327,12 @@ func (d *Daemon) dispatch(ctx context.Context, env proto.Envelope) (json.RawMess
 			return nil, err
 		}
 		return nil, d.reinstall(ctx, u.UUID)
+	case proto.ReqBackupCreate, proto.ReqBackupRestore, proto.ReqBackupDelete:
+		var b proto.BackupReq
+		if err := json.Unmarshal(env.Data, &b); err != nil {
+			return nil, err
+		}
+		return d.backup(ctx, env.Type, b)
 	case proto.ReqServerInput:
 		var in proto.Input
 		if err := json.Unmarshal(env.Data, &in); err != nil {
@@ -589,5 +595,6 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	d.mu.Unlock()
 	_ = os.Remove(d.statePath(uuid))
 	_ = os.Remove(d.installedPath(uuid))
+	_ = os.RemoveAll(filepath.Join(d.cfg.DataDir, "backups", uuid))
 	return os.RemoveAll(d.serverDir(uuid))
 }

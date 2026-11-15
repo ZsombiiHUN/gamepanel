@@ -1,8 +1,13 @@
 package fsx
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -85,4 +90,89 @@ func FuzzClean(f *testing.F) {
 			t.Fatalf("clean(%q)=%q escapes", s, out)
 		}
 	})
+}
+
+func TestArchiveRoundTripIgnoreAndSymlinks(t *testing.T) {
+	outside := t.TempDir()
+	os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("top secret"), 0o600)
+	src := filepath.Join(t.TempDir(), "src")
+	d, _ := Open(src)
+	defer d.Close()
+	d.Write("a.txt", []byte("A"))
+	d.Write("world/level.dat", []byte("LEVEL"))
+	d.Write("logs/latest.log", []byte("noise"))
+	d.Write("cache/x/y.bin", []byte("noise"))
+	os.Symlink(outside, filepath.Join(src, "link-dir"))
+	os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(src, "link-file"))
+
+	var buf bytes.Buffer
+	if err := d.Archive(&buf, []string{"logs", "cache/", "*.tmp"}); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(t.TempDir(), "dst")
+	e, _ := Open(dst)
+	defer e.Close()
+	if err := e.Extract(&buf, false, 0); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"a.txt", "world/level.dat"} {
+		if _, err := os.Stat(filepath.Join(dst, p)); err != nil {
+			t.Errorf("%s missing from restore: %v", p, err)
+		}
+	}
+	for _, p := range []string{"logs", "cache", "link-dir", "link-file"} {
+		if _, err := os.Lstat(filepath.Join(dst, p)); err == nil {
+			t.Errorf("%s must not be in the backup", p)
+		}
+	}
+}
+
+func TestExtractRejectsEscapesAndBombs(t *testing.T) {
+	mk := func(entries map[string]string) *bytes.Buffer {
+		var b bytes.Buffer
+		gz := gzip.NewWriter(&b)
+		tw := tar.NewWriter(gz)
+		for n, c := range entries {
+			tw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: n, Size: int64(len(c)), Mode: 0o644})
+			tw.Write([]byte(c))
+		}
+		tw.Close()
+		gz.Close()
+		return &b
+	}
+	base := t.TempDir()
+	d, _ := Open(filepath.Join(base, "data"))
+	defer d.Close()
+	for _, name := range []string{"../evil.txt", "/abs.txt", "a/../../evil.txt"} {
+		if err := d.Extract(mk(map[string]string{name: "x"}), false, 0); err == nil {
+			t.Errorf("accepted %q", name)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(base, "evil.txt")); err == nil {
+		t.Fatal("file escaped the root")
+	}
+	// symlink + file written through it must not escape either
+	var b bytes.Buffer
+	gz := gzip.NewWriter(&b)
+	tw := tar.NewWriter(gz)
+	tw.WriteHeader(&tar.Header{Typeflag: tar.TypeSymlink, Name: "ln", Linkname: base})
+	tw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: "ln/pwned", Size: 1, Mode: 0o644})
+	tw.Write([]byte("x"))
+	tw.Close()
+	gz.Close()
+	d.Extract(&b, false, 0)
+	if _, err := os.Stat(filepath.Join(base, "pwned")); err == nil {
+		t.Fatal("wrote through an archived symlink")
+	}
+	if err := d.Extract(mk(map[string]string{"big": strings.Repeat("a", 1000)}), false, 100); !errors.Is(err, ErrArchiveTooLarge) {
+		t.Fatalf("size cap not enforced: %v", err)
+	}
+	// truncate empties the directory first
+	d.Write("old.txt", []byte("old"))
+	if err := d.Extract(mk(map[string]string{"new.txt": "n"}), true, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(base, "data", "old.txt")); err == nil {
+		t.Fatal("truncate left old files")
+	}
 }

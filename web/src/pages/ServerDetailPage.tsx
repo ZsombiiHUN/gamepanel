@@ -9,14 +9,18 @@ import { ConsoleTerminal, type TerminalHandle } from "../components/Terminal";
 import { ErrorBox, OnlineDot, Spinner, StateBadge } from "../components/ui";
 const FilesTab = lazy(() => import("./FilesTab").then((m) => ({ default: m.FilesTab })));
 import { SettingsTab } from "./SettingsTab";
+import { BackupsTab } from "./BackupsTab";
+import { SchedulesTab } from "./SchedulesTab";
 import { formatBytes } from "../lib/format";
 
-export type Tab = "console" | "files" | "settings";
+export type Tab = "console" | "files" | "backups" | "schedules" | "settings";
 type PowerAction = "start" | "stop" | "restart" | "kill";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "console", label: "Console" },
   { id: "files", label: "Files" },
+  { id: "backups", label: "Backups" },
+  { id: "schedules", label: "Schedules" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -122,6 +126,8 @@ export function ServerDetailPage() {
           <FilesTab uuid={uuid} />
         </Suspense>
       )}
+      {tab === "backups" && <BackupsTab uuid={uuid} />}
+      {tab === "schedules" && <SchedulesTab uuid={uuid} />}
       {tab === "settings" && <SettingsTab server={s} />}
     </div>
   );
