@@ -20,20 +20,61 @@ export function ErrorBox({ error }: { error: unknown }) {
   );
 }
 
-const stateStyles: Record<string, string> = {
-  running: "bg-emerald-900/60 text-emerald-300 border-emerald-700",
-  starting: "bg-amber-900/60 text-amber-300 border-amber-700",
-  stopping: "bg-amber-900/60 text-amber-300 border-amber-700",
-  installing: "bg-sky-900/60 text-sky-300 border-sky-700",
-  install_failed: "bg-red-900/60 text-red-300 border-red-700",
-  offline: "bg-zinc-800 text-zinc-300 border-zinc-700",
-  unknown: "bg-zinc-800 text-zinc-400 border-zinc-700",
+type Tone = "ok" | "warn" | "off" | "bad";
+const stateTone: Record<string, Tone> = {
+  running: "ok", starting: "warn", stopping: "warn", installing: "warn", install_failed: "bad", offline: "off", unknown: "off",
+};
+const toneCls: Record<Tone, string> = {
+  ok: "bg-[#12261a] text-[#7bdb9c]",
+  warn: "bg-[#2a2010] text-[#f0b35a]",
+  off: "bg-[#1b1f24] text-[#9ba2aa]",
+  bad: "bg-[#2a1411] text-[#ff8a7a]",
+};
+const stateLabel: Record<string, string> = {
+  running: "Running", starting: "Starting", stopping: "Stopping", installing: "Installing", install_failed: "Install failed", offline: "Stopped", unknown: "Unknown",
 };
 
+/** Status mark. Shape carries the meaning as well as colour: filled dot, square, ring, triangle. */
+export function StateMark({ state }: { state: string }) {
+  const tone = stateTone[state] ?? "off";
+  if (tone === "ok") return <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[#4cc27a]" aria-hidden />;
+  if (tone === "warn") return <span className="inline-block h-2 w-2 shrink-0 rounded-[2px] bg-[#e8a33d]" aria-hidden />;
+  if (tone === "bad") return <span className="inline-block h-0 w-0 shrink-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-[#ff8a7a]" aria-hidden />;
+  return <span className="inline-block h-2 w-2 shrink-0 rounded-full border-[1.5px] border-zinc-500" aria-hidden />;
+}
+
 export function StateBadge({ state }: { state: string }) {
+  const tone = stateTone[state] ?? "off";
   return (
-    <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${stateStyles[state] ?? stateStyles.unknown}`}>
-      {state.replace("_", " ")}
+    <span className={`inline-flex min-h-[26px] items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium ${toneCls[tone]}`}>
+      <StateMark state={state} />
+      {stateLabel[state] ?? state.replace("_", " ")}
+    </span>
+  );
+}
+
+/** Deterministic blocky icon, unique per server name. Never a game logo (trademarks). */
+export function ServerIcon({ name, size = 44 }: { name: string; size?: number }) {
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 16777619) >>> 0;
+  const next = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0; return (h ^= h >>> 16) >>> 0; };
+  const hue = next() % 360;
+  const cells: React.ReactNode[] = [];
+  for (let r = 0; r < 5; r++)
+    for (let c = 0; c < 3; c++) {
+      const v = next();
+      if (v % 100 >= 56) continue;
+      const fill = v % 2 ? `hsl(${hue} 70% 72%)` : `hsl(${(hue + 28) % 360} 62% 55%)`;
+      for (const cc of new Set([c, 4 - c]))
+        cells.push(<rect key={`${r}-${cc}`} x={3 + cc * 7} y={3 + r * 7} width={6} height={6} rx={1.2} fill={fill} />);
+    }
+  return (
+    <span
+      aria-hidden
+      className="inline-block shrink-0"
+      style={{ width: size, height: size, padding: size * 0.14, borderRadius: size * 0.24, boxSizing: "border-box", background: `hsl(${hue} 38% 15%)`, boxShadow: `inset 0 0 0 1px hsl(${hue} 50% 60% / .22)` }}
+    >
+      <svg viewBox="0 0 38 38" width="100%" height="100%">{cells}</svg>
     </span>
   );
 }
@@ -41,7 +82,7 @@ export function StateBadge({ state }: { state: string }) {
 export function OnlineDot({ online, label }: { online: boolean; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-zinc-300">
-      <span className={`h-2 w-2 rounded-full ${online ? "bg-emerald-400" : "bg-red-500"}`} aria-hidden />
+      <span className={`h-2 w-2 rounded-full ${online ? "bg-[#4cc27a]" : "bg-[#ff8a7a]"}`} aria-hidden />
       {label}: {online ? "online" : "offline"}
     </span>
   );
@@ -126,5 +167,22 @@ export function ConfirmDialog({
         </button>
       </div>
     </dialog>
+  );
+}
+
+/** Labelled thin bar. Turns amber when `pct` is at or above `warnAt`. */
+export function Meter({ label, text, pct, warnAt = 85 }: { label: string; text: string; pct: number | null; warnAt?: number }) {
+  const warn = pct !== null && pct >= warnAt;
+  const w = pct === null ? 0 : Math.max(0, Math.min(100, pct));
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex justify-between text-[12.5px]">
+        <span className="text-zinc-500">{label}</span>
+        <span className={`font-mono ${warn ? "text-[#f0b35a]" : "text-zinc-200"}`}>{text}</span>
+      </div>
+      <div className="h-1 rounded-full bg-[#23282e]" role="presentation">
+        <div className={`h-full rounded-full ${warn ? "bg-[#e8a33d]" : "bg-indigo-400"}`} style={{ width: `${w}%` }} />
+      </div>
+    </div>
   );
 }

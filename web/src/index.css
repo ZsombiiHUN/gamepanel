@@ -1,16 +1,52 @@
 @import "tailwindcss";
 @import "@xterm/xterm/css/xterm.css";
+@import "@fontsource-variable/onest";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/jetbrains-mono";
+
+@theme {
+  --font-sans: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Onest Variable", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Tinted dark neutrals: the whole app uses zinc, so re-pointing it re-themes every page. */
+  --color-zinc-50: #f4f5f6;
+  --color-zinc-100: #e8eaed;
+  --color-zinc-200: #c9ced4;
+  --color-zinc-300: #b3b9c0;
+  --color-zinc-400: #8b929a;
+  --color-zinc-500: #6d747c;
+  --color-zinc-600: #3a4148;
+  --color-zinc-700: #2b3138;
+  --color-zinc-800: #1f242a;
+  --color-zinc-900: #14171b;
+  --color-zinc-950: #0e1013;
+
+  --color-indigo-300: #a9bbff;
+  --color-indigo-400: #8fa6ff;
+  --color-indigo-500: #7c97ff;
+  --color-indigo-600: #6c85f0;
+
+  --color-side: #0b0d0f;
+  --color-well: #090b0d;
+}
 
 :root { color-scheme: dark; }
-body { @apply bg-zinc-950 text-zinc-100 antialiased; font-family: ui-sans-serif, system-ui, sans-serif; }
+body { @apply bg-zinc-950 text-zinc-100 antialiased; font-family: var(--font-sans); font-size: 15px; }
+h1, h2 { text-wrap: balance; }
 
 @layer components {
-  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm font-medium text-zinc-100 hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400; }
-  .btn-primary { @apply border-indigo-500 bg-indigo-600 hover:bg-indigo-500; }
-  .btn-danger { @apply border-red-700 bg-red-700 hover:bg-red-600; }
+  .btn { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-sm font-medium text-zinc-100 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500; }
+  .btn-primary { @apply border-zinc-100 bg-zinc-100 font-semibold text-zinc-950 hover:bg-white; }
+  .btn-danger { @apply border-red-900 bg-transparent text-red-300 hover:bg-red-950/60; }
   .btn-ghost { @apply border-transparent bg-transparent hover:bg-zinc-800; }
-  .input { @apply w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-400; }
-  .label { @apply mb-1 block text-sm font-medium text-zinc-300; }
-  .card { @apply rounded-lg border border-zinc-800 bg-zinc-900 p-4; }
-  .link { @apply rounded text-indigo-300 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-400; }
+  .input { @apply w-full min-h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500; }
+  .label { @apply mb-1.5 block text-sm font-medium text-zinc-300; }
+  .card { @apply rounded-2xl border border-zinc-800 bg-zinc-900 p-5; }
+  .link { @apply rounded text-indigo-400 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500; }
+  .h-display { font-family: var(--font-display); letter-spacing: -0.03em; }
+}
+
+@layer components {
+  .menu-item { @apply flex min-h-9 items-center gap-2 rounded-lg px-3 text-left text-sm text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-indigo-500; }
 }
