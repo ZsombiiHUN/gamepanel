@@ -1,0 +1,5 @@
+/bin/
+*.db
+*.db-*
+daemon-data/
+web/node_modules/
