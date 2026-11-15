@@ -1,21 +1,15 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
-import { eggsQuery, nodesQuery } from "../api/queries";
-import { AdminOnly } from "../components/AdminOnly";
+import { eggsQuery, invalidates, keys, nodesQuery } from "../api/queries";
 import { ErrorBox, Field, PageHeader, Section, ServerIcon, Spinner } from "../components/ui";
 import { LimitsFields, defaultLimitsForm, formToLimits, type LimitsForm } from "../components/LimitsFields";
 
 export function CreateServerPage() {
-  return <AdminOnly><CreateServer /></AdminOnly>;
-}
-
-function CreateServer() {
   const nodes = useQuery(nodesQuery);
   const eggs = useQuery(eggsQuery);
-  const qc = useQueryClient();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -23,14 +17,12 @@ function CreateServer() {
   const [eggId, setEggId] = useState("");
   const [limits, setLimits] = useState<LimitsForm>(defaultLimitsForm);
   const [port, setPort] = useState("");
-  const [env, setEnv] = useState<Record<string, string>>({});
+  // Variables start from the egg's defaults; what the admin typed is kept per egg, so picking another egg starts clean.
+  const [typed, setTyped] = useState<{ egg: string; values: Record<string, string> }>({ egg: "", values: {} });
 
   const egg = useMemo(() => eggs.data?.find((e) => String(e.id) === eggId), [eggs.data, eggId]);
 
-  // Reset env overrides to the egg's defaults whenever the egg changes.
-  useEffect(() => {
-    setEnv(Object.fromEntries((egg?.variables ?? []).map((v) => [v.env, v.default])));
-  }, [egg]);
+  const env = { ...Object.fromEntries((egg?.variables ?? []).map((v) => [v.env, v.default])), ...(typed.egg === eggId ? typed.values : {}) };
 
   const create = useMutation({
     mutationFn: () =>
@@ -46,8 +38,8 @@ function CreateServer() {
           },
         }),
       ),
-    onSuccess: async (s) => {
-      await qc.invalidateQueries({ queryKey: ["servers"] });
+    meta: invalidates(keys.servers),
+    onSuccess: (s) => {
       void navigate({ to: "/servers/$uuid", params: { uuid: s.uuid }, search: { tab: "console" } });
     },
   });
@@ -107,7 +99,7 @@ function CreateServer() {
             <div className="grid gap-4 sm:grid-cols-2">
               {(egg.variables ?? []).map((v) => (
                 <Field key={v.env} label={v.name} hint={v.description || v.env}>
-                  {(id) => <input id={id} className="input font-mono text-[13px]" value={env[v.env] ?? ""} onChange={(e) => setEnv((prev) => ({ ...prev, [v.env]: e.target.value }))} />}
+                  {(id) => <input id={id} className="input font-mono text-[13px]" value={env[v.env] ?? ""} onChange={(e) => setTyped({ egg: eggId, values: { ...env, [v.env]: e.target.value } })} />}
                 </Field>
               ))}
             </div>

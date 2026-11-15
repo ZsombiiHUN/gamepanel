@@ -1,41 +1,32 @@
 import { useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Database, Loader2, Lock, LockOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
-import { serverQuery } from "../api/queries";
+import { backupsQuery, invalidates, keys, serverQuery } from "../api/queries";
 import { ErrorBox, Field } from "../components/ui";
 import { formatBytes } from "../lib/format";
 
 export function BackupsTab({ uuid }: { uuid: string }) {
-  const qc = useQueryClient();
   const server = useQuery(serverQuery(uuid));
-  const key = ["backups", uuid];
+  const meta = invalidates(keys.backups(uuid));
   const [name, setName] = useState("");
   const [ignore, setIgnore] = useState("");
   const [truncate, setTruncate] = useState(false);
-  const list = useQuery({
-    queryKey: key,
-    queryFn: () => call(api.GET("/servers/{uuid}/backups", { params: { path: { uuid } } })),
-    // Poll only while something is running.
-    refetchInterval: (q) => (q.state.data?.some((b) => b.status === "running") ? 2000 : false),
-  });
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  const list = useQuery(backupsQuery(uuid));
 
   const create = useMutation({
     mutationFn: () => call(api.POST("/servers/{uuid}/backups", { params: { path: { uuid } }, body: { name, ignore } })),
-    onSuccess: () => {
-      setName("");
-      return refresh();
-    },
+    meta,
+    onSuccess: () => setName(""),
   });
   const remove = useMutation({
     mutationFn: (backup: string) => call(api.DELETE("/servers/{uuid}/backups/{backup}", { params: { path: { uuid, backup } } })),
-    onSuccess: refresh,
+    meta,
   });
   const lock = useMutation({
     mutationFn: (v: { backup: string; locked: boolean }) =>
       call(api.PUT("/servers/{uuid}/backups/{backup}/lock", { params: { path: { uuid, backup: v.backup } }, body: { locked: v.locked } })),
-    onSuccess: refresh,
+    meta,
   });
   const restore = useMutation({
     mutationFn: (backup: string) =>
@@ -103,7 +94,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
                 </div>
                 <div className="mt-0.5 text-[13px] text-zinc-400">
                   {new Date(b.created_at * 1000).toLocaleString()}
-                  {b.status === "ok" && <span className="ml-2 font-mono text-xs text-zinc-600" title="SHA-256">{b.sha256.slice(0, 12)}</span>}
+                  {b.status === "ok" && <span className="ml-2 font-mono text-xs text-zinc-500" title="SHA-256">{b.sha256.slice(0, 12)}</span>}
                 </div>
                 {b.error && <div className="mt-0.5 text-xs text-[#ff8a7a]">{b.error}</div>}
               </div>

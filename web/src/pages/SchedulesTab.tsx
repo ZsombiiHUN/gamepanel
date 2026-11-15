@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Database, Loader2, Play, Plus, Power, Terminal, Trash2, X } from "lucide-react";
 import { api, call } from "../api/client";
+import { invalidates, keys, refreshLater, schedulesQuery } from "../api/queries";
 import { ErrorBox, Field } from "../components/ui";
 
 type Action = "command" | "power" | "backup";
@@ -21,9 +22,8 @@ function humanCron(c: string): string {
 
 export function SchedulesTab({ uuid }: { uuid: string }) {
   const qc = useQueryClient();
-  const key = ["schedules", uuid];
-  const list = useQuery({ queryKey: key, queryFn: () => call(api.GET("/servers/{uuid}/schedules", { params: { path: { uuid } } })) });
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  const list = useQuery(schedulesQuery(uuid));
+  const meta = invalidates(keys.schedules(uuid));
 
   const [name, setName] = useState("");
   const [cron, setCron] = useState("0 4 * * *");
@@ -41,19 +41,17 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
           tasks: tasks.map((t) => (t.action === "backup" ? { ...t, payload: t.payload.split(",").map((x) => x.trim()).filter(Boolean).join("\n") } : t)),
         },
       })),
-    onSuccess: () => {
-      setName("");
-      return refresh();
-    },
+    meta,
+    onSuccess: () => setName(""),
   });
   const remove = useMutation({
     mutationFn: (id: number) => call(api.DELETE("/servers/{uuid}/schedules/{id}", { params: { path: { uuid, id } } })),
-    onSuccess: refresh,
+    meta,
   });
   const run = useMutation({
     mutationFn: (id: number) => call(api.POST("/servers/{uuid}/schedules/{id}/run", { params: { path: { uuid, id } } })),
     // Tasks run in the background; look again shortly for the result.
-    onSuccess: () => setTimeout(() => void refresh(), 2500),
+    onSuccess: () => refreshLater(qc, keys.schedules(uuid), 2500),
   });
 
   const submit = (e: FormEvent) => {
@@ -70,7 +68,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
           tasks: s.tasks.map((t) => ({ action: t.action, payload: t.payload, offset_seconds: t.offset_seconds, continue_on_failure: t.continue_on_failure })),
         },
       })),
-    onSuccess: refresh,
+    meta,
   });
   const ghost = "inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500";
 
