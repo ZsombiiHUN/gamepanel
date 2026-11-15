@@ -2,10 +2,13 @@ package runtime
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -201,4 +204,19 @@ func (f *Fake) List(context.Context) ([]string, error) {
 		out = append(out, id)
 	}
 	return out, nil
+}
+
+// Install pretends to run the script. A script containing "#fail" fails, so
+// tests can exercise both outcomes.
+func (f *Fake) Install(_ context.Context, r InstallRun, out io.Writer) error {
+	b, err := os.ReadFile(filepath.Join(r.ScriptDir, "install.sh"))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "[fake-install] %s %s\r\n", r.Entrypoint, r.Image)
+	if bytes.Contains(b, []byte("#fail")) {
+		fmt.Fprint(out, "[fake-install] failing\r\n")
+		return errors.New("installer exited with code 1")
+	}
+	return os.WriteFile(filepath.Join(r.DataDir, "installed.txt"), b, 0o644)
 }

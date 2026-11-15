@@ -25,6 +25,12 @@ import (
 
 const Version = "0.1.0"
 
+// Install states, reported through the normal state events.
+const (
+	StateInstalling    = "installing"
+	StateInstallFailed = "install_failed"
+)
+
 var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 type Config struct {
@@ -36,7 +42,8 @@ type Config struct {
 type managed struct {
 	spec     proto.ServerSpec
 	stdin    io.Writer
-	attached bool // a console reader is active for the current run
+	attached bool   // a console reader is active for the current run
+	install  string // "", StateInstalling or StateInstallFailed; "" = ready
 }
 
 type Daemon struct {
@@ -67,6 +74,10 @@ func (d *Daemon) statePath(uuid string) string {
 	return filepath.Join(d.cfg.DataDir, "state", uuid+".json")
 }
 
+func (d *Daemon) installedPath(uuid string) string {
+	return filepath.Join(d.cfg.DataDir, "state", uuid+".installed")
+}
+
 // loadState restores specs persisted by earlier runs so a daemon restart does
 // not forget its servers.
 func (d *Daemon) loadState() {
@@ -78,7 +89,15 @@ func (d *Daemon) loadState() {
 		}
 		var s proto.ServerSpec
 		if json.Unmarshal(b, &s) == nil && uuidRe.MatchString(s.UUID) {
-			d.servers[s.UUID] = &managed{spec: s}
+			m := &managed{spec: s}
+			// An install that was interrupted (daemon killed mid-run) never
+			// finished, so it counts as failed until reinstalled.
+			if s.Install != nil {
+				if _, err := os.Stat(d.installedPath(s.UUID)); err != nil {
+					m.install = StateInstallFailed
+				}
+			}
+			d.servers[s.UUID] = m
 		}
 	}
 }
@@ -138,6 +157,18 @@ func (d *Daemon) session(ctx context.Context) error {
 
 	go d.watchEvents(sctx)
 	go d.statsLoop(sctx)
+	for _, id := range ids { // surface servers whose install did not finish
+		d.mu.Lock()
+		m := d.servers[id]
+		st := ""
+		if m != nil {
+			st = m.install
+		}
+		d.mu.Unlock()
+		if st != "" {
+			d.emitState(sctx, id, st)
+		}
+	}
 	for _, id := range ids { // re-attach consoles of already-running servers
 		if st, err := d.rt.State(sctx, id); err == nil && st == runtime.StateRunning {
 			d.attach(sctx, id)
@@ -290,6 +321,12 @@ func (d *Daemon) dispatch(ctx context.Context, env proto.Envelope) (json.RawMess
 			return nil, err
 		}
 		return nil, d.power(ctx, p)
+	case proto.ReqServerReinstall:
+		var u proto.UUIDOnly
+		if err := json.Unmarshal(env.Data, &u); err != nil {
+			return nil, err
+		}
+		return nil, d.reinstall(ctx, u.UUID)
 	case proto.ReqServerInput:
 		var in proto.Input
 		if err := json.Unmarshal(env.Data, &in); err != nil {
@@ -352,10 +389,116 @@ func (d *Daemon) create(ctx context.Context, s proto.ServerSpec) error {
 	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: s, DataDir: abs}); err != nil {
 		return err
 	}
+	_ = os.Remove(d.installedPath(s.UUID))
+	m := &managed{spec: s}
+	if s.Install != nil {
+		m.install = StateInstalling
+	}
 	d.mu.Lock()
-	d.servers[s.UUID] = &managed{spec: s}
+	d.servers[s.UUID] = m
 	d.mu.Unlock()
-	d.emitState(ctx, s.UUID, runtime.StateOffline)
+	if s.Install == nil {
+		d.emitState(ctx, s.UUID, runtime.StateOffline)
+		return nil
+	}
+	// Reply now; the install can take minutes. Progress arrives as console and
+	// state events. It must outlive this request's context.
+	go d.runInstall(context.WithoutCancel(ctx), s.UUID)
+	return nil
+}
+
+// runInstall executes the egg install script and records the outcome.
+func (d *Daemon) runInstall(ctx context.Context, uuid string) {
+	spec, err := d.spec(uuid)
+	if err != nil || spec.Install == nil {
+		return
+	}
+	d.setInstall(uuid, StateInstalling)
+	d.emitState(ctx, uuid, StateInstalling)
+	_ = os.Remove(d.installedPath(uuid))
+
+	say := func(line string) {
+		_ = d.send(ctx, proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid, Line: line})})
+	}
+	fail := func(err error) {
+		d.log.Warn("install failed", "server", uuid, "err", err)
+		say("\x1b[31m[install] failed: " + err.Error() + "\x1b[0m")
+		d.setInstall(uuid, StateInstallFailed)
+		d.emitState(ctx, uuid, StateInstallFailed)
+	}
+
+	tmp, err := os.MkdirTemp(filepath.Join(d.cfg.DataDir, "state"), "install-")
+	if err != nil {
+		fail(err)
+		return
+	}
+	defer os.RemoveAll(tmp)
+	if err := os.WriteFile(filepath.Join(tmp, "install.sh"), []byte(spec.Install.Script), 0o644); err != nil {
+		fail(err)
+		return
+	}
+	abs, _ := filepath.Abs(d.serverDir(uuid))
+	absTmp, _ := filepath.Abs(tmp)
+
+	say("[install] running installer " + spec.Install.Image)
+	pr, pw := io.Pipe()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sc := bufio.NewScanner(pr)
+		sc.Buffer(make([]byte, 64<<10), 1<<20)
+		for sc.Scan() {
+			say(sc.Text())
+		}
+	}()
+	err = d.rt.Install(ctx, runtime.InstallRun{
+		UUID: uuid, Image: spec.Install.Image, Entrypoint: spec.Install.Entrypoint,
+		ScriptDir: absTmp, DataDir: abs, Env: spec.Env, MemoryMB: spec.MemoryMB,
+	}, pw)
+	pw.Close()
+	<-done
+	if err != nil {
+		fail(err)
+		return
+	}
+	if err := os.WriteFile(d.installedPath(uuid), nil, 0o600); err != nil {
+		fail(err)
+		return
+	}
+	d.setInstall(uuid, "")
+	say("\x1b[32m[install] complete\x1b[0m")
+	d.emitState(ctx, uuid, runtime.StateOffline)
+}
+
+func (d *Daemon) setInstall(uuid, st string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if m := d.servers[uuid]; m != nil {
+		m.install = st
+	}
+}
+
+// reinstall re-runs the install script; the server must be offline.
+func (d *Daemon) reinstall(ctx context.Context, uuid string) error {
+	spec, err := d.spec(uuid)
+	if err != nil {
+		return err
+	}
+	if spec.Install == nil {
+		return errors.New("this server's egg has no install script")
+	}
+	if st, _ := d.rt.State(ctx, uuid); st != runtime.StateOffline {
+		return errors.New("stop the server before reinstalling")
+	}
+	d.mu.Lock()
+	m := d.servers[uuid]
+	if m.install == StateInstalling {
+		d.mu.Unlock()
+		return errors.New("an install is already running")
+	}
+	m.install = StateInstalling
+	d.mu.Unlock()
+	go d.runInstall(context.WithoutCancel(ctx), uuid)
 	return nil
 }
 
@@ -373,6 +516,12 @@ func (d *Daemon) power(ctx context.Context, p proto.Power) error {
 	spec, err := d.spec(p.UUID)
 	if err != nil {
 		return err
+	}
+	d.mu.Lock()
+	inst := d.servers[p.UUID].install
+	d.mu.Unlock()
+	if inst != "" && (p.Action == "start" || p.Action == "restart") {
+		return errors.New("server is not installed (" + inst + ")")
 	}
 	switch p.Action {
 	case "start":
@@ -439,5 +588,6 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	delete(d.servers, uuid)
 	d.mu.Unlock()
 	_ = os.Remove(d.statePath(uuid))
+	_ = os.Remove(d.installedPath(uuid))
 	return os.RemoveAll(d.serverDir(uuid))
 }

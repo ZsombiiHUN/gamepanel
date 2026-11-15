@@ -24,6 +24,8 @@ const stateStyles: Record<string, string> = {
   running: "bg-emerald-900/60 text-emerald-300 border-emerald-700",
   starting: "bg-amber-900/60 text-amber-300 border-amber-700",
   stopping: "bg-amber-900/60 text-amber-300 border-amber-700",
+  installing: "bg-sky-900/60 text-sky-300 border-sky-700",
+  install_failed: "bg-red-900/60 text-red-300 border-red-700",
   offline: "bg-zinc-800 text-zinc-300 border-zinc-700",
   unknown: "bg-zinc-800 text-zinc-400 border-zinc-700",
 };
@@ -31,7 +33,7 @@ const stateStyles: Record<string, string> = {
 export function StateBadge({ state }: { state: string }) {
   return (
     <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${stateStyles[state] ?? stateStyles.unknown}`}>
-      {state}
+      {state.replace("_", " ")}
     </span>
   );
 }

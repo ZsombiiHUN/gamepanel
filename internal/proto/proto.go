@@ -20,11 +20,13 @@ const (
 	ReqServerPower  = "server.power"
 	ReqServerInput  = "server.input"
 	ReqServerDelete = "server.delete"
-	ReqFilesList    = "files.list"
-	ReqFilesRead    = "files.read"
-	ReqFilesWrite   = "files.write"
-	ReqFilesDelete  = "files.delete"
-	ReqFilesMkdir   = "files.mkdir"
+	// ReqServerReinstall re-runs the egg install script for an offline server.
+	ReqServerReinstall = "server.reinstall"
+	ReqFilesList       = "files.list"
+	ReqFilesRead       = "files.read"
+	ReqFilesWrite      = "files.write"
+	ReqFilesDelete     = "files.delete"
+	ReqFilesMkdir      = "files.mkdir"
 )
 
 // Daemon -> panel event types (no reply expected).
@@ -51,6 +53,16 @@ type ServerSpec struct {
 	MemoryMB int64             `json:"memory_mb"`
 	CPUPct   int64             `json:"cpu_pct"` // 100 = one core, 0 = unlimited
 	Ports    []PortMap         `json:"ports"`
+	// Install, when set, must succeed once before the server can start.
+	Install *InstallSpec `json:"install,omitempty"`
+}
+
+// InstallSpec describes a one-shot installer container. The script is
+// mounted read-only and run as `<Entrypoint> <script>`.
+type InstallSpec struct {
+	Image      string `json:"image"`
+	Entrypoint string `json:"entrypoint"`
+	Script     string `json:"script"`
 }
 
 type PortMap struct {
