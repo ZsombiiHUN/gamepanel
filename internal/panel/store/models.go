@@ -218,12 +218,17 @@ type Egg struct {
 	Startup     string   `json:"startup"`
 	Stop        string   `json:"stop"`
 	Variables   []EggVar `json:"variables"`
+	// Optional install step: Script runs once in a throwaway InstallImage
+	// container with the server's data dir mounted at /mnt/server.
+	InstallImage      string `json:"install_image"`
+	InstallEntrypoint string `json:"install_entrypoint"`
+	InstallScript     string `json:"install_script"`
 }
 
 func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	vars, _ := json.Marshal(e.Variables)
-	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,startup,stop,variables,created_at) VALUES(?,?,?,?,?,?,?)`,
-		e.Name, e.Description, e.DockerImage, e.Startup, e.Stop, string(vars), now())
+	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,startup,stop,variables,install_image,install_entrypoint,install_script,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		e.Name, e.Description, e.DockerImage, e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, now())
 	if err != nil {
 		return Egg{}, err
 	}
@@ -234,7 +239,7 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
 	var e Egg
 	var vars string
-	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &e.Startup, &e.Stop, &vars); err != nil {
+	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript); err != nil {
 		return e, nf(err)
 	}
 	json.Unmarshal([]byte(vars), &e.Variables)
@@ -244,7 +249,7 @@ func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
 	return e, nil
 }
 
-const eggCols = `id,name,description,docker_image,startup,stop,variables`
+const eggCols = `id,name,description,docker_image,startup,stop,variables,install_image,install_entrypoint,install_script`
 
 func (s *Store) GetEgg(ctx context.Context, id int64) (Egg, error) {
 	return scanEgg(s.DB.QueryRowContext(ctx, `SELECT `+eggCols+` FROM eggs WHERE id=?`, id))

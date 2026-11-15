@@ -281,6 +281,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/reinstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-run the egg install script (server must be offline) */
+        post: operations["reinstall"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -318,6 +335,9 @@ export interface components {
             docker_image: string;
             /** Format: int64 */
             id: number;
+            install_entrypoint: string;
+            install_image: string;
+            install_script: string;
             name: string;
             startup: string;
             stop: string;
@@ -541,7 +561,7 @@ export interface components {
             owner_id: number;
             /** Format: int64 */
             port: number;
-            /** @description offline|starting|running|stopping|unknown */
+            /** @description offline|starting|running|stopping|installing|install_failed|unknown */
             state: string;
             stats?: components["schemas"]["Stats"];
             uuid: string;
@@ -1214,6 +1234,35 @@ export interface operations {
                 "application/json": components["schemas"]["PowerInBody"];
             };
         };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    reinstall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Accepted */
             202: {

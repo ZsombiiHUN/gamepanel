@@ -1,10 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -14,15 +14,22 @@ import (
 // ptdlEgg is the subset of the Pterodactyl PTDL_v1/v2 egg format we import,
 // so the existing community egg library works unchanged.
 type ptdlEgg struct {
-	Name         string            `json:"name"`
-	Description  string            `json:"description"`
-	DockerImages map[string]string `json:"docker_images"` // v2
-	Images       []string          `json:"images"`        // v1
-	DockerImage  string            `json:"docker_image"`  // v1 (older)
-	Startup      string            `json:"startup"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	DockerImages json.RawMessage `json:"docker_images"` // v2; object, order matters
+	Images       []string        `json:"images"`        // v1
+	DockerImage  string          `json:"docker_image"`  // v1 (older)
+	Startup      string          `json:"startup"`
 	Config       struct {
 		Stop string `json:"stop"`
 	} `json:"config"`
+	Scripts struct {
+		Installation struct {
+			Script     string `json:"script"`
+			Container  string `json:"container"`
+			Entrypoint string `json:"entrypoint"`
+		} `json:"installation"`
+	} `json:"scripts"`
 	Variables []struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
@@ -30,6 +37,10 @@ type ptdlEgg struct {
 		Default     any    `json:"default_value"`
 	} `json:"variables"`
 }
+
+// entrypointRe keeps the installer entrypoint a plain program name; it is
+// placed into a shell wrapper by the daemon.
+var entrypointRe = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
 
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
@@ -43,13 +54,8 @@ func importPTDL(raw []byte) (store.Egg, error) {
 		return e, errors.New("egg needs a name and a startup command")
 	}
 	switch {
-	case len(p.DockerImages) > 0:
-		keys := make([]string, 0, len(p.DockerImages))
-		for k := range p.DockerImages {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		e.DockerImage = p.DockerImages[keys[0]]
+	case firstImage(p.DockerImages) != "":
+		e.DockerImage = firstImage(p.DockerImages)
 	case len(p.Images) > 0:
 		e.DockerImage = p.Images[0]
 	default:
@@ -60,6 +66,22 @@ func importPTDL(raw []byte) (store.Egg, error) {
 	}
 	if e.Stop == "" {
 		e.Stop = "^C"
+	}
+	if in := p.Scripts.Installation; strings.TrimSpace(in.Script) != "" {
+		e.InstallScript = strings.ReplaceAll(in.Script, "\r\n", "\n")
+		e.InstallImage = strings.TrimSpace(in.Container)
+		e.InstallEntrypoint = strings.TrimSpace(in.Entrypoint)
+		if e.InstallEntrypoint == "" {
+			e.InstallEntrypoint = "bash"
+		}
+		if e.InstallImage == "" {
+			return e, errors.New("egg has an install script but no installer image")
+		}
+		if !entrypointRe.MatchString(e.InstallEntrypoint) {
+			return e, errors.New("install entrypoint must be a plain program name")
+		}
+	} else {
+		e.InstallEntrypoint = "bash"
 	}
 	e.Variables = []store.EggVar{}
 	for _, v := range p.Variables {
@@ -115,3 +137,24 @@ func buildEnv(egg store.Egg, overrides map[string]string, memMB int64, port int)
 }
 
 func itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
+
+// firstImage returns the first value of a {"label": "image"} object in file
+// order. Pterodactyl treats the first listed image as the default, and for
+// Java eggs the first entry is the newest runtime, so sorting would be wrong.
+func firstImage(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return ""
+	}
+	if _, err := dec.Token(); err != nil { // key
+		return ""
+	}
+	var v string
+	if dec.Decode(&v) != nil {
+		return ""
+	}
+	return v
+}

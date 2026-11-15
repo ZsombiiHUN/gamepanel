@@ -411,8 +411,13 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 	if err != nil {
 		return proto.ServerSpec{}, err
 	}
+	var inst *proto.InstallSpec
+	if egg.InstallScript != "" {
+		inst = &proto.InstallSpec{Image: egg.InstallImage, Entrypoint: egg.InstallEntrypoint, Script: egg.InstallScript}
+	}
 	return proto.ServerSpec{
-		UUID: s.UUID, Image: egg.DockerImage, Startup: shellStartup(egg.Startup), Stop: egg.Stop,
+		Install: inst,
+		UUID:    s.UUID, Image: egg.DockerImage, Startup: shellStartup(egg.Startup), Stop: egg.Stop,
 		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
 		Ports: []proto.PortMap{
 			{Host: s.Port, Container: s.Port, Proto: "tcp"},

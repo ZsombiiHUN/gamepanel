@@ -37,17 +37,23 @@ export function ServerDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["server", uuid] }),
   });
 
+  const reinstall = useMutation({
+    mutationFn: () => call(api.POST("/servers/{uuid}/reinstall", { params: { path: { uuid } } })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["server", uuid] }),
+  });
+
   if (server.isPending) return <Spinner />;
   if (server.error) return <ErrorBox error={server.error} />;
   const s = server.data;
   const state = ws.state ?? s.state;
   const stats = ws.stats ?? s.stats ?? null;
 
+  const notReady = state === "installing" || state === "install_failed";
   const btn = (action: PowerAction, label: string, icon: React.ReactNode, extra = "") => (
     <button
       type="button"
       className={`btn ${extra}`}
-      disabled={power.isPending || !s.node_online}
+      disabled={power.isPending || !s.node_online || (notReady && (action === "start" || action === "restart"))}
       onClick={() => power.mutate(action)}
     >
       {power.isPending && power.variables === action ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : icon}
@@ -72,12 +78,23 @@ export function ServerDetailPage() {
         {btn("restart", "Restart", <RotateCw className="h-4 w-4" aria-hidden />)}
         {btn("stop", "Stop", <Square className="h-4 w-4" aria-hidden />)}
         {btn("kill", "Kill", <Skull className="h-4 w-4" aria-hidden />, "btn-danger")}
+        <button
+          type="button"
+          className="btn"
+          disabled={reinstall.isPending || !s.node_online || state === "installing" || state === "running" || state === "starting"}
+          onClick={() => {
+            if (window.confirm("Re-run the install script? Files it writes may overwrite your changes.")) reinstall.mutate();
+          }}
+        >
+          {reinstall.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCw className="h-4 w-4" aria-hidden />}
+          Reinstall
+        </button>
         <div className="ml-auto flex gap-4 text-sm text-zinc-300" aria-label="Live resource usage">
           <span>CPU: {stats ? `${stats.cpu_pct.toFixed(1)}%` : "-"}</span>
           <span>Memory: {stats ? formatBytes(stats.mem_bytes) : "-"} / {s.memory_mb} MB</span>
         </div>
       </div>
-      <ErrorBox error={power.error} />
+      <ErrorBox error={power.error ?? reinstall.error} />
 
       <nav aria-label="Server sections" className="flex gap-1 border-b border-zinc-800">
         {tabs.map((t) => (
