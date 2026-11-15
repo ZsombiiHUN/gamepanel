@@ -3,3 +3,8 @@
 *.db-*
 daemon-data/
 web/node_modules/
+
+# browser test output
+web/e2e/.state/
+web/e2e/.results/
+web/e2e/.report/
