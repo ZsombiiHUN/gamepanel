@@ -35,6 +35,15 @@ const (
 	argT, argM, argP, argKey = 3, 64 * 1024, 4, 32
 )
 
+// ValidatePassword enforces the length policy (argon2 input is capped so a
+// huge password cannot be used to burn CPU).
+func ValidatePassword(pw string) error {
+	if len(pw) < 12 || len(pw) > 256 {
+		return errors.New("password must be 12 to 256 characters")
+	}
+	return nil
+}
+
 func hashPassword(pw string) string {
 	salt := make([]byte, 16)
 	rand.Read(salt)
@@ -57,8 +66,8 @@ func checkPassword(pw, enc string) bool {
 }
 
 func (s *Store) CreateUser(ctx context.Context, email, password string, admin bool) (User, error) {
-	if len(password) < 10 {
-		return User{}, errors.New("password must be at least 10 characters")
+	if err := ValidatePassword(password); err != nil {
+		return User{}, err
 	}
 	res, err := s.exec(ctx, `INSERT INTO users(email,password_hash,is_admin,created_at) VALUES(?,?,?,?)`,
 		email, hashPassword(password), admin, now())
@@ -105,6 +114,31 @@ func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
 	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin FROM sessions s JOIN users u ON u.id=s.user_id
 		WHERE s.token_hash=? AND s.expires_at>?`, HashToken(token), now()).Scan(&u.ID, &u.Email, &u.IsAdmin)
 	return u, nf(err)
+}
+
+// ChangePassword verifies the current password, sets the new one, and revokes
+// every session except keepToken (the caller's own).
+func (s *Store) ChangePassword(ctx context.Context, userID int64, current, next, keepToken string) error {
+	if err := ValidatePassword(next); err != nil {
+		return err
+	}
+	var enc string
+	if err := s.DB.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id=?`, userID).Scan(&enc); err != nil {
+		return errors.New("invalid current password")
+	}
+	if !checkPassword(current, enc) {
+		return errors.New("invalid current password")
+	}
+	if _, err := s.exec(ctx, `UPDATE users SET password_hash=? WHERE id=?`, hashPassword(next), userID); err != nil {
+		return err
+	}
+	return s.DeleteOtherSessions(ctx, userID, keepToken)
+}
+
+// DeleteOtherSessions revokes all of a user's sessions except keepToken.
+func (s *Store) DeleteOtherSessions(ctx context.Context, userID int64, keepToken string) error {
+	_, err := s.exec(ctx, `DELETE FROM sessions WHERE user_id=? AND token_hash<>?`, userID, HashToken(keepToken))
+	return err
 }
 
 func (s *Store) DeleteSession(ctx context.Context, token string) {
