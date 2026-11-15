@@ -98,6 +98,7 @@ func New(d Deps) http.Handler {
 	a.registerServers(api)
 	a.registerBackups(api)
 	a.registerSchedules(api)
+	a.registerSubusers(api)
 
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
@@ -487,19 +488,6 @@ func newUUID() string {
 
 var errForbidden = errors.New("forbidden")
 
-func (a *App) authorize(ctx context.Context, uuid string) (store.User, store.Server, error) {
-	u, err := requireUser(ctx)
-	if err != nil {
-		return u, store.Server{}, err
-	}
-	s, err := a.Store.GetServer(ctx, uuid)
-	// Same response for "missing" and "not yours" so UUIDs can't be probed.
-	if err != nil || (!u.IsAdmin && s.OwnerID != u.ID) {
-		return u, s, huma.Error404NotFound("server not found")
-	}
-	return u, s, nil
-}
-
 // ---- browser console websocket ----
 
 func (a *App) consoleWS(w http.ResponseWriter, r *http.Request) {
@@ -509,8 +497,17 @@ func (a *App) consoleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	srv, err := a.Store.GetServer(r.Context(), r.PathValue("uuid"))
-	if err != nil || (!u.IsAdmin && srv.OwnerID != u.ID) {
+	if err != nil {
 		http.NotFound(w, r)
+		return
+	}
+	perms, _, member := a.access(r.Context(), u, srv)
+	if !member {
+		http.NotFound(w, r)
+		return
+	}
+	if !has(perms, PermConsoleRead) {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 	// Accept enforces same-origin by default, blocking cross-site websocket hijacking.

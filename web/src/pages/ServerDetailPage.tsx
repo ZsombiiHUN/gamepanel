@@ -11,16 +11,19 @@ const FilesTab = lazy(() => import("./FilesTab").then((m) => ({ default: m.Files
 import { SettingsTab } from "./SettingsTab";
 import { BackupsTab } from "./BackupsTab";
 import { SchedulesTab } from "./SchedulesTab";
+import { UsersTab } from "./UsersTab";
 import { formatBytes } from "../lib/format";
 
-export type Tab = "console" | "files" | "backups" | "schedules" | "settings";
+export type Tab = "console" | "files" | "backups" | "schedules" | "users" | "settings";
 type PowerAction = "start" | "stop" | "restart" | "kill";
 
-const tabs: { id: Tab; label: string }[] = [
-  { id: "console", label: "Console" },
-  { id: "files", label: "Files" },
-  { id: "backups", label: "Backups" },
-  { id: "schedules", label: "Schedules" },
+// need: a permission the viewer must hold, or "owner" for owner-only tabs.
+const tabs: { id: Tab; label: string; need?: string }[] = [
+  { id: "console", label: "Console", need: "console.read" },
+  { id: "files", label: "Files", need: "files.read" },
+  { id: "backups", label: "Backups", need: "backups.read" },
+  { id: "schedules", label: "Schedules", need: "schedules.manage" },
+  { id: "users", label: "Access", need: "owner" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -52,12 +55,13 @@ export function ServerDetailPage() {
   const state = ws.state ?? s.state;
   const stats = ws.stats ?? s.stats ?? null;
 
+  const can = (need?: string) => !need || (need === "owner" ? s.owner : s.permissions.includes(need));
   const notReady = state === "installing" || state === "install_failed";
   const btn = (action: PowerAction, label: string, icon: React.ReactNode, extra = "") => (
     <button
       type="button"
       className={`btn ${extra}`}
-      disabled={power.isPending || !s.node_online || (notReady && (action === "start" || action === "restart"))}
+      disabled={power.isPending || !s.node_online || !can("power") || (notReady && (action === "start" || action === "restart"))}
       onClick={() => power.mutate(action)}
     >
       {power.isPending && power.variables === action ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : icon}
@@ -85,7 +89,7 @@ export function ServerDetailPage() {
         <button
           type="button"
           className="btn"
-          disabled={reinstall.isPending || !s.node_online || state === "installing" || state === "running" || state === "starting"}
+          disabled={reinstall.isPending || !s.node_online || !can("settings.reinstall") || state === "installing" || state === "running" || state === "starting"}
           onClick={() => {
             if (window.confirm("Re-run the install script? Files it writes may overwrite your changes.")) reinstall.mutate();
           }}
@@ -101,7 +105,7 @@ export function ServerDetailPage() {
       <ErrorBox error={power.error ?? reinstall.error} />
 
       <nav aria-label="Server sections" className="flex gap-1 border-b border-zinc-800">
-        {tabs.map((t) => (
+        {tabs.filter((t) => can(t.need)).map((t) => (
           <Link
             key={t.id}
             to="/servers/$uuid"
@@ -119,7 +123,7 @@ export function ServerDetailPage() {
 
       {/* Console stays mounted so the buffer survives tab switches */}
       <div hidden={tab !== "console"}>
-        <ConsolePanel uuid={uuid} termRef={term} active={tab === "console"} />
+        <ConsolePanel uuid={uuid} termRef={term} active={tab === "console"} canSend={can("console.send")} />
       </div>
       {tab === "files" && (
         <Suspense fallback={<Spinner />}>
@@ -128,12 +132,13 @@ export function ServerDetailPage() {
       )}
       {tab === "backups" && <BackupsTab uuid={uuid} />}
       {tab === "schedules" && <SchedulesTab uuid={uuid} />}
+      {tab === "users" && s.owner && <UsersTab uuid={uuid} />}
       {tab === "settings" && <SettingsTab server={s} />}
     </div>
   );
 }
 
-function ConsolePanel({ uuid, termRef, active }: { uuid: string; termRef: React.RefObject<TerminalHandle | null>; active: boolean }) {
+function ConsolePanel({ uuid, termRef, active, canSend }: { uuid: string; termRef: React.RefObject<TerminalHandle | null>; active: boolean; canSend: boolean }) {
   const [cmd, setCmd] = useState("");
   const send = useMutation({
     mutationFn: (command: string) =>
@@ -153,7 +158,7 @@ function ConsolePanel({ uuid, termRef, active }: { uuid: string; termRef: React.
   return (
     <div className="space-y-3">
       <ConsoleTerminal ref={termRef} />
-      <form onSubmit={submit} className="flex gap-2">
+      {canSend && <form onSubmit={submit} className="flex gap-2">
         <label htmlFor="cmd" className="sr-only">Console command</label>
         <input
           id="cmd"
@@ -167,7 +172,7 @@ function ConsolePanel({ uuid, termRef, active }: { uuid: string; termRef: React.
         <button type="submit" className="btn btn-primary" disabled={send.isPending || !cmd.trim()}>
           {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />} Send
         </button>
-      </form>
+      </form>}
       <ErrorBox error={send.error} />
     </div>
   );

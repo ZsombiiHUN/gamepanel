@@ -70,6 +70,9 @@ func (a *App) registerSchedules(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
+			if err := a.checkTaskPerms(ctx, u, s, in.Body); err != nil {
+				return nil, err
+			}
 			v, err := a.Store.SaveSchedule(ctx, in.Body.toSchedule(s.UUID, 0))
 			if err != nil {
 				return nil, huma.Error422UnprocessableEntity(err.Error())
@@ -82,6 +85,9 @@ func (a *App) registerSchedules(api huma.API) {
 		func(ctx context.Context, in *scheduleUpdateIn) (*scheduleOut, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermSchedulesManage)
 			if err != nil {
+				return nil, err
+			}
+			if err := a.checkTaskPerms(ctx, u, s, in.Body); err != nil {
 				return nil, err
 			}
 			v, err := a.Store.SaveSchedule(ctx, in.Body.toSchedule(s.UUID, in.ID))
@@ -207,4 +213,15 @@ func (a *App) runTask(ctx context.Context, s store.Server, t store.Task) error {
 		return <-done
 	}
 	return fmt.Errorf("unknown action %q", t.Action)
+}
+
+// checkTaskPerms refuses tasks the caller could not perform directly.
+func (a *App) checkTaskPerms(ctx context.Context, u store.User, s store.Server, b scheduleBody) error {
+	perms, _, _ := a.access(ctx, u, s)
+	for _, t := range b.Tasks {
+		if p := taskPerm(t.Action); !has(perms, p) {
+			return huma.Error403Forbidden("you cannot schedule a " + t.Action + " task without the " + p + " permission")
+		}
+	}
+	return nil
 }
