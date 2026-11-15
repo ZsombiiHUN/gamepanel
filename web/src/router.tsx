@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, Link, Outlet } from "@tanstack/react-router";
 import { AppShell } from "./pages/AppShell";
 import { LoginPage } from "./pages/LoginPage";
 import { ServersPage } from "./pages/ServersPage";
@@ -8,8 +8,20 @@ import { EggsPage } from "./pages/EggsPage";
 import { AccountPage } from "./pages/AccountPage";
 import { AuditPage } from "./pages/AuditPage";
 import { CreateServerPage } from "./pages/CreateServerPage";
+import { Empty } from "./components/ui";
+import { Compass } from "lucide-react";
 
-const rootRoute = createRootRoute({ component: Outlet });
+function NotFound() {
+  return (
+    <div className="mx-auto max-w-md px-6 pt-24">
+      <Empty icon={<Compass className="h-5 w-5" aria-hidden />} title="Page not found">
+        That address does not lead anywhere. <Link to="/" className="link">Back to your servers</Link>
+      </Empty>
+    </div>
+  );
+}
+
+const rootRoute = createRootRoute({ component: Outlet, notFoundComponent: NotFound });
 
 const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: "/login", component: LoginPage });
 const appRoute = createRoute({ getParentRoute: () => rootRoute, id: "app", component: AppShell });

@@ -154,7 +154,7 @@ export function ConfirmDialog({
       ref={ref}
       onClose={onCancel}
       aria-labelledby="confirm-title"
-      className="m-auto w-full max-w-md rounded-lg border border-zinc-700 bg-zinc-900 p-5 text-zinc-100 backdrop:bg-black/60"
+      className="m-auto w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/70"
     >
       <h2 id="confirm-title" className="text-lg font-semibold">{title}</h2>
       <div className="mt-2 text-sm text-zinc-300">{body}</div>
@@ -184,5 +184,77 @@ export function Meter({ label, text, pct, warnAt = 85 }: { label: string; text: 
         <div className={`h-full rounded-full ${warn ? "bg-[#e8a33d]" : "bg-indigo-400"}`} style={{ width: `${w}%` }} />
       </div>
     </div>
+  );
+}
+
+/** Page title with an optional line under it and actions on the right. */
+export function PageHeader({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) {
+  return (
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="h-display text-[28px] leading-tight text-zinc-100">{title}</h1>
+        {sub && <p className="mt-1 max-w-2xl text-sm text-zinc-400">{sub}</p>}
+      </div>
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    </header>
+  );
+}
+
+/**
+ * A titled block: heading and description on top, content, then an optional footer
+ * (a hint on the left, the save button on the right). `danger` tints the border.
+ */
+export function Section({ title, desc, children, footer, danger = false, id }: {
+  title: string; desc?: ReactNode; children?: ReactNode; footer?: ReactNode; danger?: boolean; id?: string;
+}) {
+  const hid = id ?? `s-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return (
+    <section aria-labelledby={hid} className={`overflow-hidden rounded-2xl border bg-zinc-900 ${danger ? "border-red-900/70" : "border-zinc-800"}`}>
+      <div className="p-5">
+        <h2 id={hid} className={`text-[15px] font-semibold ${danger ? "text-red-300" : "text-zinc-100"}`}>{title}</h2>
+        {desc && <p className="mt-1 max-w-2xl text-sm text-zinc-400">{desc}</p>}
+        {children && <div className="mt-4">{children}</div>}
+      </div>
+      {footer && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-black/15 px-5 py-3 text-sm text-zinc-500">{footer}</div>}
+    </section>
+  );
+}
+
+/** Label / value list with hairline dividers. Values are monospace unless `plain`. */
+export function InfoList({ rows }: { rows: { label: string; value: ReactNode; plain?: boolean }[] }) {
+  return (
+    <dl className="divide-y divide-zinc-800 text-sm">
+      {rows.map((r) => (
+        <div key={r.label} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 py-2.5 first:pt-0 last:pb-0">
+          <dt className="text-zinc-500">{r.label}</dt>
+          <dd className={`min-w-0 break-all text-right text-zinc-200 ${r.plain ? "" : "font-mono text-[13px]"}`}>{r.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Small rounded tag for roles, counts and states that have no dot. */
+export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" | "bad" }) {
+  const c = { neutral: "bg-zinc-800 text-zinc-300", good: "bg-emerald-500/10 text-emerald-300", warn: "bg-amber-500/10 text-amber-300", bad: "bg-red-500/10 text-red-300" }[tone];
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${c}`}>{children}</span>;
+}
+
+/** Empty state for lists. */
+export function Empty({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center rounded-2xl border border-dashed border-zinc-800 px-6 py-12 text-center">
+      <div className="mb-3 grid h-11 w-11 place-content-center rounded-xl bg-zinc-800 text-zinc-400">{icon}</div>
+      <p className="font-medium text-zinc-200">{title}</p>
+      {children && <p className="mt-1 max-w-sm text-sm text-zinc-500">{children}</p>}
+    </div>
+  );
+}
+
+export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
+  return (
+    <span aria-hidden className="grid shrink-0 place-content-center rounded-full bg-zinc-800 text-xs font-semibold uppercase text-zinc-300" style={{ width: size, height: size }}>
+      {name.slice(0, 1)}
+    </span>
   );
 }
