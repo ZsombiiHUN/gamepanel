@@ -5,6 +5,8 @@ import { ServersPage } from "./pages/ServersPage";
 import { ServerDetailPage, type Tab } from "./pages/ServerDetailPage";
 import { NodesPage } from "./pages/NodesPage";
 import { EggsPage } from "./pages/EggsPage";
+import { AccountPage } from "./pages/AccountPage";
+import { AuditPage } from "./pages/AuditPage";
 import { CreateServerPage } from "./pages/CreateServerPage";
 
 const rootRoute = createRootRoute({ component: Outlet });
@@ -25,9 +27,12 @@ const serverRoute = createRoute({
 const nodesRoute = createRoute({ getParentRoute: () => appRoute, path: "/nodes", component: NodesPage });
 const eggsRoute = createRoute({ getParentRoute: () => appRoute, path: "/eggs", component: EggsPage });
 
+const accountRoute = createRoute({ getParentRoute: () => appRoute, path: "/account", component: AccountPage });
+const auditRoute = createRoute({ getParentRoute: () => appRoute, path: "/audit", component: AuditPage });
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  appRoute.addChildren([indexRoute, newServerRoute, serverRoute, nodesRoute, eggsRoute]),
+  appRoute.addChildren([indexRoute, newServerRoute, serverRoute, nodesRoute, eggsRoute, accountRoute, auditRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

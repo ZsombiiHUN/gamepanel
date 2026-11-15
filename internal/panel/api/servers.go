@@ -129,6 +129,7 @@ func (a *App) registerServers(api huma.API) {
 				a.Store.DeleteServer(ctx, s.UUID)
 				return nil, a.nodeErr(err)
 			}
+			a.audit(ctx, u, "server.create", s.UUID, s.Name)
 			return &serverOut{Body: a.view(s)}, nil
 		})
 
@@ -156,6 +157,7 @@ func (a *App) registerServers(api huma.API) {
 			}
 			a.Store.DeleteServer(ctx, s.UUID)
 			a.Hub.Forget(s.UUID)
+			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, s.Name)
 			return nil, nil
 		})
 

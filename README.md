@@ -33,6 +33,7 @@ Import a Pterodactyl egg under **Eggs**, then **Create server**.
 | `GAMEPANEL_ADDR` | `127.0.0.1:8080` | panel listen address |
 | `GAMEPANEL_DB` | `./panel.db` | SQLite path |
 | `GAMEPANEL_COOKIE_SECURE` | unset | set `1` behind HTTPS |
+| `GAMEPANEL_TRUSTED_PROXIES` | unset | comma-separated IPs/CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed (needed for correct per-IP rate limits and audit IPs). The proxy must also preserve the `Host` header |
 | `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | daemon -> panel |
 | `GAMEPANEL_NODE_TOKEN` | required | from node creation |
 | `GAMEPANEL_DATA_DIR` | `./daemon-data` | server files |
