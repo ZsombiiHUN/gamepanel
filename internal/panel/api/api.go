@@ -35,6 +35,10 @@ type Deps struct {
 	// believed. Empty means the socket address is always used.
 	TrustedProxies []*net.IPNet
 	Web            http.Handler // embedded SPA (optional)
+	// SchedulerCtx, when set, starts the schedule runner; it stops when the
+	// context ends. SchedulerTick overrides the 20 s check interval (tests).
+	SchedulerCtx  context.Context
+	SchedulerTick time.Duration
 }
 
 type App struct {
@@ -79,11 +83,21 @@ func New(d Deps) http.Handler {
 	}
 	api := humago.NewWithPrefix(mux, "/api", cfg)
 	d.Hub.OnHello = a.onHello
+	a.Store.FailStaleBackups(context.Background())
+	if d.SchedulerCtx != nil {
+		tick := d.SchedulerTick
+		if tick <= 0 {
+			tick = 20 * time.Second
+		}
+		go a.RunScheduler(d.SchedulerCtx, tick)
+	}
 	a.registerAuth(api)
 	a.registerAccount(api)
 	a.registerMFA(api)
 	a.registerAdmin(api)
 	a.registerServers(api)
+	a.registerBackups(api)
+	a.registerSchedules(api)
 
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)

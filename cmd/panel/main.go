@@ -67,9 +67,11 @@ func main() {
 		log.Error("invalid GAMEPANEL_TRUSTED_PROXIES", "err", err)
 		os.Exit(1)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	h := hub.New(log)
 	handler := api.New(api.Deps{
-		Store: st, Hub: h, Log: log, Web: web.Handler(),
+		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
 		TrustedProxies: proxies,
 		CookieSecure:   env("GAMEPANEL_COOKIE_SECURE", "") == "1",
 	})
@@ -78,8 +80,6 @@ func main() {
 	}
 	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	go func() {
 		<-ctx.Done()
 		c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
