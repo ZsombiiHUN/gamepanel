@@ -8,6 +8,7 @@ Needs Go (see `go.mod`), Node 22 + pnpm 10, and Docker for the runtime tests.
 ```sh
 make web build   # build UI and binaries
 make test        # go test -race ./...
+make e2e         # browser tests (first: cd web && pnpm e2e:install)
 bash scripts/docker-smoke.sh   # real Docker lifecycle test
 ```
 
