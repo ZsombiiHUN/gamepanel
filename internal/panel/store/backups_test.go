@@ -19,7 +19,7 @@ func testServer(t *testing.T) (*Store, string) {
 	u, _ := s.CreateUser(ctx, "a@example.com", "correct-horse-battery", true)
 	n, _, _ := s.CreateNode(ctx, "n", 25565, 25600)
 	e, _ := s.CreateEgg(ctx, Egg{Name: "e", DockerImage: "i", Startup: "x", Stop: "^C"})
-	sv, err := s.CreateServer(ctx, Server{UUID: "11111111-1111-4111-8111-111111111111", Name: "s", OwnerID: u.ID, NodeID: n.ID, EggID: e.ID, MemoryMB: 128})
+	sv, err := s.CreateServer(ctx, Server{UUID: "11111111-1111-4111-8111-111111111111", Name: "s", OwnerID: u.ID, NodeID: n.ID, EggID: e.ID, Limits: Limits{MemoryMB: 128}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestBackupCapRotationAndLocks(t *testing.T) {
 		}
 		return ev, err
 	}
-	for i := 0; i < MaxBackupsPerServer; i++ {
+	for i := 0; i < DefaultBackupLimit; i++ {
 		if _, err := mk(i, false); err != nil {
 			t.Fatalf("backup %d: %v", i, err)
 		}

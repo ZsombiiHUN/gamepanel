@@ -3,11 +3,15 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
@@ -36,7 +40,7 @@ func (a *App) viewFor(ctx context.Context, u store.User, s store.Server) serverV
 
 func (a *App) view(s store.Server) serverView {
 	v := serverView{Server: s, State: a.Hub.State(s.UUID), NodeOnline: a.Hub.Online(s.NodeID)}
-	if st, ok := a.Hub.Stats(s.UUID); ok && v.State == "running" {
+	if st, ok := a.Hub.Stats(s.UUID); ok {
 		v.Stats = &st
 	}
 	return v
@@ -49,14 +53,21 @@ type serverOut struct{ Body serverView }
 type serverListOut struct{ Body []serverView }
 type serverCreateIn struct {
 	Body struct {
-		Name     string            `json:"name" minLength:"1" maxLength:"64"`
-		OwnerID  int64             `json:"owner_id,omitempty" doc:"Defaults to you."`
-		NodeID   int64             `json:"node_id"`
-		EggID    int64             `json:"egg_id"`
-		MemoryMB int64             `json:"memory_mb" minimum:"64" maximum:"1048576"`
-		CPUPct   int64             `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
-		Port     int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
-		Env      map[string]string `json:"env,omitempty"`
+		Name     string `json:"name" minLength:"1" maxLength:"64"`
+		OwnerID  int64  `json:"owner_id,omitempty" doc:"Defaults to you."`
+		NodeID   int64  `json:"node_id"`
+		EggID    int64  `json:"egg_id"`
+		MemoryMB int64  `json:"memory_mb" minimum:"64" maximum:"1048576"`
+		CPUPct   int64  `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
+		// More limits, all optional. See PUT /servers/{uuid}/limits.
+		SwapMB      int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
+		CPUSet      string            `json:"cpuset,omitempty" maxLength:"64"`
+		PidsLimit   int64             `json:"pids_limit,omitempty" minimum:"16" maximum:"65536" doc:"default 1024"`
+		IOWeight    int64             `json:"io_weight,omitempty" minimum:"0" maximum:"1000" doc:"0 = default, else 10-1000"`
+		DiskMB      int64             `json:"disk_mb,omitempty" minimum:"0" doc:"0 = unlimited"`
+		BackupLimit int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
+		Port        int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
+		Env         map[string]string `json:"env,omitempty"`
 	}
 }
 type powerIn struct {
@@ -64,6 +75,10 @@ type powerIn struct {
 	Body struct {
 		Action string `json:"action" enum:"start,stop,restart,kill"`
 	}
+}
+type limitsIn struct {
+	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+	Body store.Limits
 }
 type commandIn struct {
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
@@ -96,6 +111,9 @@ func (a *App) nodeErr(err error) error {
 	}
 	if strings.Contains(err.Error(), "offline") {
 		return huma.Error503ServiceUnavailable("the node is offline")
+	}
+	if strings.Contains(err.Error(), "disk limit exceeded") {
+		return huma.NewError(http.StatusInsufficientStorage, err.Error())
 	}
 	return huma.Error502BadGateway(err.Error())
 }
@@ -133,7 +151,11 @@ func (a *App) registerServers(api huma.API) {
 			}
 			s, err := a.Store.CreateServer(ctx, store.Server{
 				UUID: newUUID(), Name: b.Name, OwnerID: b.OwnerID, NodeID: b.NodeID, EggID: b.EggID,
-				MemoryMB: b.MemoryMB, CPUPct: b.CPUPct, Port: b.Port, Env: b.Env,
+				Port: b.Port, Env: b.Env,
+				Limits: store.Limits{
+					MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
+					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit,
+				},
 			})
 			if err != nil {
 				return nil, huma.Error422UnprocessableEntity(err.Error())
@@ -173,6 +195,48 @@ func (a *App) registerServers(api huma.API) {
 			a.Store.DeleteServer(ctx, s.UUID)
 			a.Hub.Forget(s.UUID)
 			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, s.Name)
+			return nil, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "setLimits", Method: "PUT", Path: "/servers/{uuid}/limits",
+		Summary: "Change a server's resource limits (admin; the server must be stopped)", DefaultStatus: 204},
+		func(ctx context.Context, in *limitsIn) (*struct{}, error) {
+			u, err := requireAdmin(ctx)
+			if err != nil {
+				return nil, err
+			}
+			s, err := a.Store.GetServer(ctx, in.UUID)
+			if err != nil {
+				return nil, huma.Error404NotFound("server not found")
+			}
+			l := in.Body
+			if err := l.Normalize(); err != nil {
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+			// Validate against node capacity before touching the node.
+			next := s
+			next.Limits = l
+			if err := a.Store.CheckLimits(ctx, s.UUID, l); err != nil {
+				var ce store.ErrCapacity
+				if errors.As(err, &ce) {
+					return nil, huma.Error409Conflict(err.Error())
+				}
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+			spec, err := a.specFor(ctx, next)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not build the server spec")
+			}
+			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerUpdate, spec); err != nil {
+				if errors.Is(err, hub.ErrNodeOffline) {
+					return nil, huma.Error503ServiceUnavailable("the node is offline")
+				}
+				return nil, huma.Error409Conflict(err.Error())
+			}
+			if err := a.Store.UpdateLimits(ctx, s.UUID, l); err != nil {
+				return nil, huma.Error500InternalServerError("limits were applied on the node but could not be saved: " + err.Error())
+			}
+			a.audit(ctx, u, "server.limits", s.UUID, fmt.Sprintf("mem=%d swap=%d cpu=%d disk=%d", l.MemoryMB, l.SwapMB, l.CPUPct, l.DiskMB))
 			return nil, nil
 		})
 

@@ -90,7 +90,10 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 		return err
 	}
 
-	pids := int64(1024)
+	pids := s.Pids
+	if pids <= 0 {
+		pids = 1024
+	}
 	useInit := true
 	hc := &container.HostConfig{
 		Binds:        []string{s.DataDir + ":" + mountPoint},
@@ -106,7 +109,19 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 		},
 	}
 	if s.MemoryMB > 0 {
-		hc.Resources.MemorySwap = s.MemoryMB << 20 // no swap
+		// MemorySwap is memory+swap combined: equal to memory means no swap.
+		switch {
+		case s.SwapMB < 0:
+			hc.Resources.MemorySwap = -1
+		default:
+			hc.Resources.MemorySwap = (s.MemoryMB + s.SwapMB) << 20
+		}
+	}
+	if s.CPUSet != "" {
+		hc.Resources.CpusetCpus = s.CPUSet
+	}
+	if s.IOWeight > 0 {
+		hc.Resources.BlkioWeight = uint16(s.IOWeight)
 	}
 
 	_, err = d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{

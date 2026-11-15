@@ -1,6 +1,7 @@
 package fsx
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"sort"
@@ -79,4 +80,41 @@ func (d *Dir) Chmod(p string, mode fs.FileMode) error {
 
 func (d *Dir) Chtimes(p string, atime, mtime time.Time) error {
 	return d.root.Chtimes(clean(p), atime, mtime)
+}
+
+// Usage returns the total size in bytes of the regular files under the
+// directory. Symlinks are not followed and not counted, so the figure cannot
+// be inflated or deflated by links pointing elsewhere.
+func (d *Dir) Usage() (int64, error) { return d.usage(".") }
+
+func (d *Dir) usage(dir string) (int64, error) {
+	f, err := d.root.Open(dir)
+	if err != nil {
+		return 0, err
+	}
+	ents, err := f.ReadDir(-1)
+	f.Close()
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, e := range ents {
+		rel := e.Name()
+		if dir != "." {
+			rel = dir + "/" + e.Name()
+		}
+		switch {
+		case e.IsDir():
+			n, err := d.usage(rel)
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return 0, err
+			}
+			total += n
+		case e.Type().IsRegular():
+			if fi, err := e.Info(); err == nil {
+				total += fi.Size()
+			}
+		}
+	}
+	return total, nil
 }

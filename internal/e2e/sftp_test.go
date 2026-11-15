@@ -188,3 +188,33 @@ func TestSFTPAuthRules(t *testing.T) {
 		t.Fatal("revoked key still works")
 	}
 }
+
+func TestSFTPRespectsDiskLimit(t *testing.T) {
+	s := newStack(t)
+	s.setLimits(map[string]any{"disk_mb": 1}, 204)
+	c, _, err := s.dial("admin@example.com."+s.server[:8], s.apiKey(s.admin))
+	if err != nil {
+		t.Fatal(err)
+	}
+	put := func(name string, n int) error {
+		f, err := c.Create("/" + name)
+		if err != nil {
+			return err
+		}
+		_, err = f.Write(make([]byte, n))
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		return err
+	}
+	if err := put("small.bin", 400_000); err != nil {
+		t.Fatalf("an upload that fits was refused: %v", err)
+	}
+	if err := put("huge.bin", 3<<20); err == nil {
+		t.Fatal("a 3 MB upload into a 1 MB server succeeded")
+	}
+	fi, err := os.Stat(filepath.Join(s.dataDir, "servers", s.server, "huge.bin"))
+	if err == nil && fi.Size() > 2<<20 {
+		t.Fatalf("the oversized upload still wrote %d bytes", fi.Size())
+	}
+}

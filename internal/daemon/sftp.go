@@ -214,7 +214,8 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 		return
 	}
 	defer dir.Close()
-	h := &sftpFS{dir: dir, read: ext["read"] == "1", write: ext["write"] == "1"}
+	h := &sftpFS{dir: dir, read: ext["read"] == "1", write: ext["write"] == "1",
+		check: func(extra int64) error { return s.d.checkDisk(ext["server"], extra) }}
 
 	for nch := range chans {
 		if nch.ChannelType() != "session" { // no port forwarding, no x11
@@ -248,7 +249,32 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 type sftpFS struct {
 	dir         *fsx.Dir
 	read, write bool
+	// check fails when extra more bytes would exceed the server's disk limit.
+	check func(extra int64) error
 }
+
+// limitedWriter refuses writes that would grow the file past the disk limit.
+// It tracks the high-water mark so rewriting existing bytes is free.
+type limitedWriter struct {
+	f       *os.File
+	initial int64 // size when opened (after any truncate)
+	high    int64
+	check   func(extra int64) error
+}
+
+func (w *limitedWriter) WriteAt(p []byte, off int64) (int, error) {
+	if end := off + int64(len(p)); end > w.high {
+		w.high = end
+		if grow := end - w.initial; grow > 0 {
+			if err := w.check(grow); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return w.f.WriteAt(p, off)
+}
+
+func (w *limitedWriter) Close() error { return w.f.Close() }
 
 // deny maps os.Root escape/permission failures to a plain permission error.
 func deny(err error) error {
@@ -301,11 +327,16 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 	if err != nil {
 		return nil, deny(err)
 	}
-	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
 		f.Close()
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
-	return f, nil
+	if err := h.check(0); err != nil { // already over the limit: no new writes
+		f.Close()
+		return nil, err
+	}
+	return &limitedWriter{f: f, initial: fi.Size(), high: fi.Size(), check: h.check}, nil
 }
 
 func (h *sftpFS) Filecmd(r *sftp.Request) error {

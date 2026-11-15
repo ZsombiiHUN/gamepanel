@@ -37,6 +37,10 @@ type Config struct {
 	PanelURL string // ws(s)://host/daemon/connect
 	Token    string
 	DataDir  string
+	// Optional tuning: how often stats/disk usage are reported (default 5 s)
+	// and how long a measured disk size is trusted (default 30 s).
+	StatsInterval time.Duration
+	DiskCacheTTL  time.Duration
 }
 
 type managed struct {
@@ -44,6 +48,9 @@ type managed struct {
 	stdin    io.Writer
 	attached bool   // a console reader is active for the current run
 	install  string // "", StateInstalling or StateInstallFailed; "" = ready
+
+	disk         diskCache
+	diskStopping bool // a disk-limit stop is already in progress
 }
 
 type Daemon struct {
@@ -225,7 +232,7 @@ func (d *Daemon) watchEvents(ctx context.Context) {
 }
 
 func (d *Daemon) statsLoop(ctx context.Context) {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(d.cfg.statsEvery())
 	defer t.Stop()
 	for {
 		select {
@@ -240,12 +247,17 @@ func (d *Daemon) statsLoop(ctx context.Context) {
 		}
 		d.mu.Unlock()
 		for _, id := range ids {
-			if st, _ := d.rt.State(ctx, id); st != runtime.StateRunning {
-				continue
+			st, _ := d.rt.State(ctx, id)
+			running := st == runtime.StateRunning
+			used, _ := d.enforceDisk(ctx, id, running)
+			var stats proto.Stats
+			if running {
+				if s, err := d.rt.Stats(ctx, id); err == nil {
+					stats = s
+				}
 			}
-			if s, err := d.rt.Stats(ctx, id); err == nil {
-				_ = d.send(ctx, proto.Envelope{Type: proto.EvtStats, Data: proto.Marshal(s)})
-			}
+			stats.UUID, stats.DiskBytes = id, used
+			_ = d.send(ctx, proto.Envelope{Type: proto.EvtStats, Data: proto.Marshal(stats)})
 		}
 	}
 }
@@ -321,6 +333,12 @@ func (d *Daemon) dispatch(ctx context.Context, env proto.Envelope) (json.RawMess
 			return nil, err
 		}
 		return nil, d.power(ctx, p)
+	case proto.ReqServerUpdate:
+		var sp proto.ServerSpec
+		if err := json.Unmarshal(env.Data, &sp); err != nil {
+			return nil, err
+		}
+		return nil, d.update(ctx, sp)
 	case proto.ReqServerReinstall:
 		var u proto.UUIDOnly
 		if err := json.Unmarshal(env.Data, &u); err != nil {
@@ -369,7 +387,14 @@ func (d *Daemon) files(typ string, f proto.FileReq) (json.RawMessage, error) {
 		b, err := fs.Read(f.Path)
 		return proto.Marshal(proto.FileReq{UUID: f.UUID, Path: f.Path, Content: b}), err
 	case proto.ReqFilesWrite:
-		return nil, fs.Write(f.Path, f.Content)
+		if err := d.checkDisk(f.UUID, int64(len(f.Content))); err != nil {
+			return nil, err
+		}
+		err := fs.Write(f.Path, f.Content)
+		if err == nil {
+			d.cacheFor(f.UUID).add(int64(len(f.Content)))
+		}
+		return nil, err
 	case proto.ReqFilesMkdir:
 		return nil, fs.Mkdir(f.Path)
 	default:
@@ -529,6 +554,11 @@ func (d *Daemon) power(ctx context.Context, p proto.Power) error {
 	if inst != "" && (p.Action == "start" || p.Action == "restart") {
 		return errors.New("server is not installed (" + inst + ")")
 	}
+	if (p.Action == "start" || p.Action == "restart") && spec.DiskMB > 0 {
+		if used, err := d.diskUsage(p.UUID, 0); err == nil && used > spec.DiskMB<<20 {
+			return ErrDiskFull{used, spec.DiskMB << 20}
+		}
+	}
 	switch p.Action {
 	case "start":
 		d.emitState(ctx, p.UUID, runtime.StateStarting)
@@ -597,4 +627,39 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	_ = os.Remove(d.installedPath(uuid))
 	_ = os.RemoveAll(filepath.Join(d.cfg.DataDir, "backups", uuid))
 	return os.RemoveAll(d.serverDir(uuid))
+}
+
+// update applies new limits to an existing, stopped server: the container is
+// recreated with the new settings; files, install state and backups stay.
+func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) error {
+	old, err := d.spec(s.UUID)
+	if err != nil {
+		return err
+	}
+	if st, _ := d.rt.State(ctx, s.UUID); st != runtime.StateOffline {
+		return errors.New("stop the server before changing its limits")
+	}
+	d.mu.Lock()
+	inst := d.servers[s.UUID].install
+	d.mu.Unlock()
+	if inst == StateInstalling {
+		return errors.New("an install is running")
+	}
+	b, _ := json.Marshal(s)
+	if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
+		return err
+	}
+	abs, _ := filepath.Abs(d.serverDir(s.UUID))
+	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: s, DataDir: abs}); err != nil {
+		// Put the previous container back so the server is not left without one.
+		if ob, merr := json.Marshal(old); merr == nil {
+			_ = os.WriteFile(d.statePath(s.UUID), ob, 0o600)
+		}
+		_ = d.rt.Create(ctx, runtime.Spec{ServerSpec: old, DataDir: abs})
+		return err
+	}
+	d.mu.Lock()
+	d.servers[s.UUID].spec = s
+	d.mu.Unlock()
+	return nil
 }

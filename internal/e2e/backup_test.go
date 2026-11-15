@@ -55,7 +55,7 @@ func newStack(t *testing.T) *stack {
 	}
 	json.Unmarshal(admin.do("POST", "/api/nodes", map[string]any{"name": "n1", "port_start": 25565, "port_end": 25570}, 201), &node)
 	dataDir := t.TempDir()
-	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir}, runtime.NewFake(), log)
+	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir, StatsInterval: 150 * time.Millisecond, DiskCacheTTL: 100 * time.Millisecond}, runtime.NewFake(), log)
 	if err != nil {
 		t.Fatal(err)
 	}

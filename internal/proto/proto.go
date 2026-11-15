@@ -22,14 +22,16 @@ const (
 	ReqServerDelete = "server.delete"
 	// ReqServerReinstall re-runs the egg install script for an offline server.
 	ReqServerReinstall = "server.reinstall"
-	ReqBackupCreate    = "backup.create"
-	ReqBackupRestore   = "backup.restore"
-	ReqBackupDelete    = "backup.delete"
-	ReqFilesList       = "files.list"
-	ReqFilesRead       = "files.read"
-	ReqFilesWrite      = "files.write"
-	ReqFilesDelete     = "files.delete"
-	ReqFilesMkdir      = "files.mkdir"
+	// ReqServerUpdate applies new limits/spec to an offline server without reinstalling.
+	ReqServerUpdate  = "server.update"
+	ReqBackupCreate  = "backup.create"
+	ReqBackupRestore = "backup.restore"
+	ReqBackupDelete  = "backup.delete"
+	ReqFilesList     = "files.list"
+	ReqFilesRead     = "files.read"
+	ReqFilesWrite    = "files.write"
+	ReqFilesDelete   = "files.delete"
+	ReqFilesMkdir    = "files.mkdir"
 )
 
 // Daemon -> panel event types (no reply expected).
@@ -54,7 +56,12 @@ type ServerSpec struct {
 	Stop     string            `json:"stop"` // console command, or "^C"
 	Env      map[string]string `json:"env"`
 	MemoryMB int64             `json:"memory_mb"`
-	CPUPct   int64             `json:"cpu_pct"` // 100 = one core, 0 = unlimited
+	CPUPct   int64             `json:"cpu_pct"`              // 100 = one core, 0 = unlimited
+	SwapMB   int64             `json:"swap_mb,omitempty"`    // on top of memory; 0 = none, -1 = unlimited
+	CPUSet   string            `json:"cpuset,omitempty"`     // "0-3"; empty = any core
+	Pids     int64             `json:"pids_limit,omitempty"` // 0 = 1024
+	IOWeight int64             `json:"io_weight,omitempty"`  // 10..1000, 0 = engine default
+	DiskMB   int64             `json:"disk_mb,omitempty"`    // enforced by the daemon; 0 = unlimited
 	Ports    []PortMap         `json:"ports"`
 	// Install, when set, must succeed once before the server can start.
 	Install *InstallSpec `json:"install,omitempty"`
@@ -112,9 +119,10 @@ type State struct {
 }
 
 type Stats struct {
-	UUID     string  `json:"uuid"`
-	CPUPct   float64 `json:"cpu_pct"`
-	MemBytes uint64  `json:"mem_bytes"`
+	DiskBytes int64   `json:"disk_bytes"` // data directory size (sampled)
+	UUID      string  `json:"uuid"`
+	CPUPct    float64 `json:"cpu_pct"`
+	MemBytes  uint64  `json:"mem_bytes"`
 }
 
 func Marshal(v any) json.RawMessage {

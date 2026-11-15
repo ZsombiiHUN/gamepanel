@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { eggsQuery, meQuery, nodesQuery } from "../api/queries";
-import { ConfirmDialog } from "../components/ui";
+import { ConfirmDialog, ErrorBox } from "../components/ui";
+import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
 
 type ServerView = components["schemas"]["ServerView"];
 
@@ -27,6 +28,14 @@ export function SettingsTab({ server }: { server: ServerView }) {
       void navigate({ to: "/" });
     },
   });
+
+  const [limits, setLimits] = useState<LimitsForm>(() => limitsToForm(server));
+  useEffect(() => setLimits(limitsToForm(server)), [server]);
+  const saveLimits = useMutation({
+    mutationFn: () => call(api.PUT("/servers/{uuid}/limits", { params: { path: { uuid: server.uuid } }, body: formToLimits(limits) })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["server", server.uuid] }),
+  });
+  const stopped = server.state === "offline" || server.state === "install_failed";
 
   const envEntries = Object.entries(server.env ?? {});
   const rows: [string, string][] = [
@@ -51,6 +60,28 @@ export function SettingsTab({ server }: { server: ServerView }) {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section className="card space-y-3" aria-labelledby="limits-h">
+        <h2 id="limits-h" className="text-lg font-medium">Resource limits</h2>
+        {isAdmin ? (
+          <form onSubmit={(e) => { e.preventDefault(); saveLimits.mutate(); }} className="space-y-3">
+            <LimitsFields value={limits} onChange={setLimits} />
+            {!stopped && <p className="text-sm text-amber-300">Stop the server to change its limits.</p>}
+            <ErrorBox error={saveLimits.error} />
+            {saveLimits.isSuccess && <p role="status" className="text-sm text-emerald-400">Limits saved.</p>}
+            <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending || !stopped}>Save limits</button>
+          </form>
+        ) : (
+          <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]">
+            {[
+              ["Memory", `${server.memory_mb} MB`], ["Swap", server.swap_mb < 0 ? "unlimited" : `${server.swap_mb} MB`],
+              ["CPU", server.cpu_pct ? `${server.cpu_pct}%` : "unlimited"], ["Cores", server.cpuset || "any"],
+              ["Disk", server.disk_mb ? `${server.disk_mb} MB` : "unlimited"], ["Max processes", String(server.pids_limit)],
+              ["Backups to keep", String(server.backup_limit)],
+            ].map(([k, v]) => (<div key={k} className="contents"><dt className="text-zinc-400">{k}</dt><dd>{v}</dd></div>))}
+          </dl>
+        )}
       </section>
 
       {(server.permissions.includes("files.read") || server.permissions.includes("files.write")) && (

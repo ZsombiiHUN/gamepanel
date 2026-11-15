@@ -278,6 +278,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/nodes/{id}/capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set what a node can hold (0 = not tracked); existing servers are not touched */
+        put: operations["setNodeCapacity"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/permissions": {
         parameters: {
             query?: never;
@@ -446,6 +463,23 @@ export interface paths {
         get: operations["readFile"];
         /** Write a text file */
         put: operations["writeFile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a server's resource limits (admin; the server must be stopped) */
+        put: operations["setLimits"];
         post?: never;
         delete?: never;
         options?: never;
@@ -800,6 +834,51 @@ export interface components {
             /** @description the secret; shown only once */
             token: string;
         };
+        Limits: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/Limits.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description how many backups this server may keep
+             */
+            backup_limit: number;
+            /**
+             * Format: int64
+             * @description 100 = one core, 0 = unlimited
+             */
+            cpu_pct: number;
+            /** @description pin to cores, e.g. 0-3 or 0,2; empty = any */
+            cpuset: string;
+            /**
+             * Format: int64
+             * @description disk quota, 0 = unlimited
+             */
+            disk_mb: number;
+            /**
+             * Format: int64
+             * @description relative disk IO priority 10-1000, 0 = default
+             */
+            io_weight: number;
+            /**
+             * Format: int64
+             * @description hard memory limit
+             */
+            memory_mb: number;
+            /**
+             * Format: int64
+             * @description max processes and threads
+             */
+            pids_limit: number;
+            /**
+             * Format: int64
+             * @description extra swap on top of memory: 0 = none, -1 = unlimited
+             */
+            swap_mb: number;
+        };
         LoginInBody: {
             /**
              * Format: uri
@@ -814,12 +893,36 @@ export interface components {
         };
         Node: {
             /** Format: int64 */
+            allocated_disk_mb: number;
+            /** Format: int64 */
+            allocated_memory_mb: number;
+            /** Format: int64 */
+            disk_mb: number;
+            /** Format: int64 */
             id: number;
+            /** Format: int64 */
+            memory_mb: number;
             name: string;
+            /** Format: int64 */
+            overallocate_pct: number;
             /** Format: int64 */
             port_end: number;
             /** Format: int64 */
             port_start: number;
+        };
+        NodeCapacityInBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/NodeCapacityInBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            disk_mb: number;
+            /** Format: int64 */
+            memory_mb: number;
+            /** Format: int64 */
+            overallocate_pct: number;
         };
         NodeCreateInBody: {
             /**
@@ -828,7 +931,19 @@ export interface components {
              * @example /api/schemas/NodeCreateInBody.json
              */
             readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description disk servers may use in total, 0 = not tracked
+             */
+            disk_mb?: number;
+            /**
+             * Format: int64
+             * @description memory servers may use in total, 0 = not tracked
+             */
+            memory_mb?: number;
             name: string;
+            /** Format: int64 */
+            overallocate_pct?: number;
             /**
              * Format: int64
              * @default 25665
@@ -853,9 +968,19 @@ export interface components {
         };
         NodeView: {
             /** Format: int64 */
+            allocated_disk_mb: number;
+            /** Format: int64 */
+            allocated_memory_mb: number;
+            /** Format: int64 */
+            disk_mb: number;
+            /** Format: int64 */
             id: number;
+            /** Format: int64 */
+            memory_mb: number;
             name: string;
             online: boolean;
+            /** Format: int64 */
+            overallocate_pct: number;
             /** Format: int64 */
             port_end: number;
             /** Format: int64 */
@@ -953,14 +1078,27 @@ export interface components {
             readonly $schema?: string;
             /**
              * Format: int64
+             * @description default 20
+             */
+            backup_limit?: number;
+            /**
+             * Format: int64
              * @description 100 = one core, 0 = unlimited
              */
             cpu_pct?: number;
+            cpuset?: string;
+            /**
+             * Format: int64
+             * @description 0 = unlimited
+             */
+            disk_mb?: number;
             /** Format: int64 */
             egg_id: number;
             env?: {
                 [key: string]: string;
             };
+            /** Format: int64 */
+            io_weight?: number;
             /** Format: int64 */
             memory_mb: number;
             name: string;
@@ -973,9 +1111,19 @@ export interface components {
             owner_id?: number;
             /**
              * Format: int64
+             * @description default 1024
+             */
+            pids_limit?: number;
+            /**
+             * Format: int64
              * @description Leave 0 to auto-allocate.
              */
             port?: number;
+            /**
+             * Format: int64
+             * @description 0 = none, -1 = unlimited
+             */
+            swap_mb?: number;
         };
         ServerView: {
             /**
@@ -984,14 +1132,37 @@ export interface components {
              * @example /api/schemas/ServerView.json
              */
             readonly $schema?: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description how many backups this server may keep
+             */
+            backup_limit: number;
+            /**
+             * Format: int64
+             * @description 100 = one core, 0 = unlimited
+             */
             cpu_pct: number;
+            /** @description pin to cores, e.g. 0-3 or 0,2; empty = any */
+            cpuset: string;
+            /**
+             * Format: int64
+             * @description disk quota, 0 = unlimited
+             */
+            disk_mb: number;
             /** Format: int64 */
             egg_id: number;
             env: {
                 [key: string]: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description relative disk IO priority 10-1000, 0 = default
+             */
+            io_weight: number;
+            /**
+             * Format: int64
+             * @description hard memory limit
+             */
             memory_mb: number;
             name: string;
             /** Format: int64 */
@@ -1001,16 +1172,28 @@ export interface components {
             /** Format: int64 */
             owner_id: number;
             permissions: string[];
+            /**
+             * Format: int64
+             * @description max processes and threads
+             */
+            pids_limit: number;
             /** Format: int64 */
             port: number;
             /** @description offline|starting|running|stopping|installing|install_failed|unknown */
             state: string;
             stats?: components["schemas"]["Stats"];
+            /**
+             * Format: int64
+             * @description extra swap on top of memory: 0 = none, -1 = unlimited
+             */
+            swap_mb: number;
             uuid: string;
         };
         Stats: {
             /** Format: double */
             cpu_pct: number;
+            /** Format: int64 */
+            disk_bytes: number;
             /** Format: int64 */
             mem_bytes: number;
             uuid: string;
@@ -1697,6 +1880,39 @@ export interface operations {
             };
         };
     };
+    setNodeCapacity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeCapacityInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listPermissions: {
         parameters: {
             query?: never;
@@ -2154,6 +2370,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FileWriteInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Limits"];
             };
         };
         responses: {

@@ -6,6 +6,7 @@ import { api, call } from "../api/client";
 import { eggsQuery, nodesQuery } from "../api/queries";
 import { AdminOnly } from "../components/AdminOnly";
 import { ErrorBox, Field, Spinner } from "../components/ui";
+import { LimitsFields, defaultLimitsForm, formToLimits, type LimitsForm } from "../components/LimitsFields";
 
 export function CreateServerPage() {
   return <AdminOnly><CreateServer /></AdminOnly>;
@@ -20,8 +21,7 @@ function CreateServer() {
   const [name, setName] = useState("");
   const [nodeId, setNodeId] = useState("");
   const [eggId, setEggId] = useState("");
-  const [memory, setMemory] = useState(1024);
-  const [cpu, setCpu] = useState("");
+  const [limits, setLimits] = useState<LimitsForm>(defaultLimitsForm);
   const [port, setPort] = useState("");
   const [env, setEnv] = useState<Record<string, string>>({});
 
@@ -40,8 +40,7 @@ function CreateServer() {
             name,
             node_id: Number(nodeId),
             egg_id: Number(eggId),
-            memory_mb: memory,
-            cpu_pct: cpu === "" ? 0 : Number(cpu),
+            ...formToLimits(limits),
             port: port === "" ? 0 : Number(port),
             env,
           },
@@ -86,11 +85,11 @@ function CreateServer() {
           )}
         </Field>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Memory (MB)">{(id) => <input id={id} className="input" type="number" min={64} max={1048576} required value={memory} onChange={(e) => setMemory(Number(e.target.value))} />}</Field>
-        <Field label="CPU limit (%)" hint="100 = one core. Empty = unlimited.">{(id) => <input id={id} className="input" type="number" min={0} max={6400} value={cpu} onChange={(e) => setCpu(e.target.value)} />}</Field>
-        <Field label="Port" hint="Empty = auto-allocate.">{(id) => <input id={id} className="input" type="number" min={1} max={65535} value={port} onChange={(e) => setPort(e.target.value)} />}</Field>
-      </div>
+      <fieldset className="space-y-3 rounded-md border border-zinc-800 p-3">
+        <legend className="px-1 text-sm font-medium text-zinc-300">Resource limits</legend>
+        <LimitsFields value={limits} onChange={setLimits} />
+      </fieldset>
+      <Field label="Port" hint="Empty = auto-allocate.">{(id) => <input id={id} className="input w-40" type="number" min={1} max={65535} value={port} onChange={(e) => setPort(e.target.value)} />}</Field>
 
       {egg && (egg.variables ?? []).length > 0 && (
         <fieldset className="space-y-3 rounded-md border border-zinc-800 p-3">
