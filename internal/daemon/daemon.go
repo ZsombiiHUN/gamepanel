@@ -296,8 +296,10 @@ func (d *Daemon) attach(ctx context.Context, uuid string) {
 		sc := bufio.NewScanner(r)
 		sc.Buffer(make([]byte, 64<<10), 1<<20)
 		for sc.Scan() {
-			// Send on the session context so a line is never lost to a per-run cancel.
-			_ = d.send(ctx, proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid, Line: sc.Text()})})
+			// Not the session context: this reader outlives a panel reconnect, and
+			// writing with a cancelled context makes websocket close the *current*
+			// connection, which dropped the node on the first line after a reconnect.
+			_ = d.send(context.Background(), proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid, Line: sc.Text()})})
 		}
 	}()
 }
