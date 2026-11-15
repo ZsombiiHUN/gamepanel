@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Gamepad2, Loader2 } from "lucide-react";
+import { Gamepad2, Loader2, ShieldCheck } from "lucide-react";
 import { api, call } from "../api/client";
 import { meQuery } from "../api/queries";
-import { ErrorBox, Field } from "../components/ui";
+import { ErrorBox, Field, ServerIcon } from "../components/ui";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -33,29 +33,65 @@ export function LoginPage() {
     login.mutate();
   };
 
+  const totpStep = needCode;
+  const shown = totpStep && login.error?.message.includes("totp_required") ? null : login.error;
+
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <form onSubmit={submit} className="card w-full max-w-sm space-y-4" aria-labelledby="login-title">
-        <div className="flex items-center gap-2">
-          <Gamepad2 className="h-6 w-6 text-indigo-400" aria-hidden />
-          <h1 id="login-title" className="text-xl font-semibold">Sign in to GamePanel</h1>
+    <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <main className="flex items-center justify-center px-6 py-10">
+        <form onSubmit={submit} className="w-full max-w-sm space-y-6" aria-labelledby="login-title">
+          <div className="flex items-center gap-2.5 text-zinc-100">
+            <Gamepad2 className="h-5 w-5 text-indigo-300" aria-hidden />
+            <span className="h-display text-lg">GamePanel</span>
+          </div>
+          <div>
+            <h1 id="login-title" className="h-display text-3xl">{totpStep ? "Two-step check" : "Welcome back"}</h1>
+            <p className="mt-1.5 text-sm text-zinc-400">
+              {totpStep ? "Your password is right. One more code to go." : "Sign in to manage your game servers."}
+            </p>
+          </div>
+          <ErrorBox error={shown} />
+          <div className="space-y-4">
+            <Field label="Email">
+              {(id) => <input id={id} className="input" type="email" autoComplete="username" required autoFocus={!totpStep} readOnly={totpStep} value={email} onChange={(e) => setEmail(e.target.value)} />}
+            </Field>
+            <Field label="Password">
+              {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required readOnly={totpStep} value={password} onChange={(e) => setPassword(e.target.value)} />}
+            </Field>
+            {totpStep && (
+              <Field label="Authentication code" hint="From your authenticator app, or a recovery code.">
+                {(id) => <input id={id} className="input font-mono tracking-widest" inputMode="text" autoComplete="one-time-code" required autoFocus maxLength={20} value={code} onChange={(e) => setCode(e.target.value)} />}
+              </Field>
+            )}
+          </div>
+          <button type="submit" className="btn btn-primary w-full" disabled={login.isPending}>
+            {login.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {totpStep ? "Verify and sign in" : "Sign in"}
+          </button>
+          {totpStep && (
+            <button type="button" className="link w-full text-center text-sm" onClick={() => { setNeedCode(false); setCode(""); login.reset(); }}>
+              Use a different account
+            </button>
+          )}
+          <p className="flex items-center gap-1.5 text-xs text-zinc-500">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Sessions are cookie-based and sign-in attempts are rate limited.
+          </p>
+        </form>
+      </main>
+      <aside aria-hidden className="relative hidden overflow-hidden border-l border-zinc-800 bg-side lg:block">
+        <div className="absolute inset-0 grid place-content-center gap-5 p-12">
+          <div className="grid grid-cols-4 gap-5">
+            {ICONS.map((n) => (
+              <div key={n} className="opacity-90"><ServerIcon name={n} size={84} /></div>
+            ))}
+          </div>
         </div>
-        <ErrorBox error={needCode && login.error?.message.includes("totp_required") ? null : login.error} />
-        <Field label="Email">
-          {(id) => <input id={id} className="input" type="email" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />}
-        </Field>
-        <Field label="Password">
-          {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />}
-        </Field>
-        {needCode && (
-          <Field label="Authentication code" hint="From your authenticator app, or a recovery code.">
-            {(id) => <input id={id} className="input" autoComplete="one-time-code" required autoFocus maxLength={20} value={code} onChange={(e) => setCode(e.target.value)} />}
-          </Field>
-        )}
-        <button type="submit" className="btn btn-primary w-full" disabled={login.isPending}>
-          {login.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Sign in
-        </button>
-      </form>
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0b0d0f] via-[#0b0d0f]/90 to-transparent p-12 pt-24">
+          <p className="h-display max-w-md text-2xl leading-snug text-zinc-100">Game servers, without the panel you have to babysit.</p>
+          <p className="mt-3 max-w-md text-sm text-zinc-400">Imports Pterodactyl eggs unchanged. Open source, AGPL-3.0.</p>
+        </div>
+      </aside>
     </div>
   );
 }
+
+const ICONS = ["survival-smp", "creative-build", "valheim-co-op", "rust-weekly", "ark-ascended", "terraria-hub", "cs2-comp", "factorio-main", "vanilla-1.21", "skyblock", "mini-games", "modded-pack"];
