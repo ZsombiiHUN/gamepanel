@@ -12,8 +12,11 @@ export interface ChartSpec {
   limit?: number;
   ticks: { at: number; label: string }[];
   color: string;
+  /** What one chart unit is worth in raw readings (bytes per MB or GB; 1 for CPU). */
+  per: number;
 }
 
+const MB = 1024 ** 2;
 const GB = 1024 ** 3;
 const WARN_AT = 0.85;
 const WARN = "#e8a33d";
@@ -23,6 +26,13 @@ const CALM = "#8fa6ff";
 export const gb = (n: number) => (n >= 10 ? n.toFixed(0) : n.toFixed(1));
 
 const ticksOf = (max: number, label: (n: number) => string) => [0, max / 2, max].map((at) => ({ at, label: at === 0 ? "0" : label(at) }));
+
+/** MB for scales under a gigabyte (a 128 MB server is not "0.1 GB"), GB from there. */
+export function sizeUnit(scaleBytes: number) {
+  return scaleBytes < GB
+    ? { name: "MB", per: MB, fmt: (n: number) => n.toFixed(0) }
+    : { name: "GB", per: GB, fmt: gb };
+}
 
 /**
  * What the three usage charts show. `cpuHistory` only sets the CPU axis, which grows with the
@@ -40,37 +50,44 @@ export function describeUsage(running: Reading | null, disk: Reading | null, lim
     max: cpuMax,
     ticks: ticksOf(cpuMax, (n) => `${n}%`),
     color: "#6fcf97",
+    per: 1,
   };
 
-  const memMax = Math.max(0.5, limits.memoryMb / 1024);
-  const memNow = running ? running.mem_bytes / GB : null;
-  const memWarn = memNow !== null && memNow / memMax >= WARN_AT;
+  // Every server has a memory limit (the API requires at least 64 MB); measure against it, not a display floor.
+  const memLimitBytes = Math.max(limits.memoryMb, 0) * MB;
+  const memNowBytes = running ? running.mem_bytes : null;
+  const memMaxBytes = memLimitBytes || Math.max(512 * MB, (memNowBytes ?? 0) * 1.25);
+  const mu = sizeUnit(memMaxBytes);
+  const memWarn = memLimitBytes > 0 && memNowBytes !== null && memNowBytes / memLimitBytes >= WARN_AT;
   const memory: ChartSpec = {
     title: "Memory",
-    value: memNow === null ? "-" : gb(memNow),
-    unit: `GB of ${gb(memMax)} GB`,
-    note: memNow === null ? "Not running" : `${Math.round((memNow / memMax) * 100)}% used`,
+    value: memNowBytes === null ? "-" : mu.fmt(memNowBytes / mu.per),
+    unit: memLimitBytes ? `${mu.name} of ${mu.fmt(memLimitBytes / mu.per)} ${mu.name}` : `${mu.name}, no limit`,
+    note: memNowBytes === null ? "Not running" : memLimitBytes ? `${Math.round((memNowBytes / memLimitBytes) * 100)}% used` : "No limit set",
     noteWarn: memWarn,
-    max: memMax,
-    limit: memMax,
-    ticks: ticksOf(memMax, (n) => `${gb(n)} GB`),
+    max: memMaxBytes / mu.per,
+    limit: memLimitBytes ? memLimitBytes / mu.per : undefined,
+    ticks: ticksOf(memMaxBytes / mu.per, (n) => `${mu.fmt(n)} ${mu.name}`),
     color: memWarn ? WARN : CALM,
+    per: mu.per,
   };
 
-  const diskLimit = limits.diskMb ? limits.diskMb / 1024 : 0;
-  const diskNow = disk ? disk.disk_bytes / GB : null;
-  const diskMax = diskLimit || Math.max(1, Math.ceil((diskNow ?? 0) * 1.25));
-  const diskFull = diskLimit > 0 && diskNow !== null && diskNow / diskLimit >= WARN_AT;
+  const diskLimitBytes = Math.max(limits.diskMb, 0) * MB;
+  const diskNowBytes = disk ? disk.disk_bytes : null;
+  const diskMaxBytes = diskLimitBytes || Math.max(1, Math.ceil(((diskNowBytes ?? 0) / GB) * 1.25)) * GB;
+  const du = sizeUnit(diskMaxBytes);
+  const diskFull = diskLimitBytes > 0 && diskNowBytes !== null && diskNowBytes / diskLimitBytes >= WARN_AT;
   const storage: ChartSpec = {
     title: "Storage",
-    value: diskNow === null ? "-" : gb(diskNow),
-    unit: diskLimit ? `GB of ${gb(diskLimit)} GB` : "GB, no limit",
-    note: diskFull ? "Almost full. The server stops at its limit." : diskLimit ? `${Math.round(((diskNow ?? 0) / diskLimit) * 100)}% used` : "No quota set",
+    value: diskNowBytes === null ? "-" : du.fmt(diskNowBytes / du.per),
+    unit: diskLimitBytes ? `${du.name} of ${du.fmt(diskLimitBytes / du.per)} ${du.name}` : `${du.name}, no limit`,
+    note: diskFull ? "Almost full. The server stops at its limit." : diskLimitBytes ? `${Math.round(((diskNowBytes ?? 0) / diskLimitBytes) * 100)}% used` : "No quota set",
     noteWarn: diskFull,
-    max: diskMax,
-    limit: diskLimit || undefined,
-    ticks: ticksOf(diskMax, (n) => `${gb(n)} GB`),
+    max: diskMaxBytes / du.per,
+    limit: diskLimitBytes ? diskLimitBytes / du.per : undefined,
+    ticks: ticksOf(diskMaxBytes / du.per, (n) => `${du.fmt(n)} ${du.name}`),
     color: diskFull ? WARN : CALM,
+    per: du.per,
   };
   return [cpu, memory, storage];
 }
