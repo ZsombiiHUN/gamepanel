@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -311,6 +312,18 @@ type nodeCreateIn struct {
 		Name      string `json:"name" minLength:"1" maxLength:"64"`
 		PortStart int    `json:"port_start,omitempty" minimum:"1024" maximum:"65535" default:"25565"`
 		PortEnd   int    `json:"port_end,omitempty" minimum:"1024" maximum:"65535" default:"25665"`
+		// Optional capacity, so the panel can refuse to over-allocate this node.
+		MemoryMB        int64 `json:"memory_mb,omitempty" minimum:"0" doc:"memory servers may use in total, 0 = not tracked"`
+		DiskMB          int64 `json:"disk_mb,omitempty" minimum:"0" doc:"disk servers may use in total, 0 = not tracked"`
+		OverallocatePct int64 `json:"overallocate_pct,omitempty" minimum:"0" maximum:"1000"`
+	}
+}
+type nodeCapacityIn struct {
+	ID   int64 `path:"id"`
+	Body struct {
+		MemoryMB        int64 `json:"memory_mb" minimum:"0"`
+		DiskMB          int64 `json:"disk_mb" minimum:"0"`
+		OverallocatePct int64 `json:"overallocate_pct" minimum:"0" maximum:"1000"`
 	}
 }
 type nodeCreateOut struct {
@@ -347,10 +360,34 @@ func (a *App) registerAdmin(api huma.API) {
 			if err != nil {
 				return nil, huma.Error409Conflict("could not create node (name taken?)")
 			}
+			if b := in.Body; b.MemoryMB > 0 || b.DiskMB > 0 || b.OverallocatePct > 0 {
+				if err := a.Store.SetNodeCapacity(ctx, n.ID, b.MemoryMB, b.DiskMB, b.OverallocatePct); err != nil {
+					return nil, huma.Error422UnprocessableEntity(err.Error())
+				}
+				n.MemoryMB, n.DiskMB, n.OverallocatePct = b.MemoryMB, b.DiskMB, b.OverallocatePct
+			}
 			a.audit(ctx, mustUser(ctx), "node.create", n.Name, "")
 			out := &nodeCreateOut{}
 			out.Body.Node, out.Body.Token = n, tok
 			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "setNodeCapacity", Method: "PUT", Path: "/nodes/{id}/capacity",
+		Summary: "Set what a node can hold (0 = not tracked); existing servers are not touched", DefaultStatus: 204},
+		func(ctx context.Context, in *nodeCapacityIn) (*struct{}, error) {
+			u, err := requireAdmin(ctx)
+			if err != nil {
+				return nil, err
+			}
+			b := in.Body
+			if err := a.Store.SetNodeCapacity(ctx, in.ID, b.MemoryMB, b.DiskMB, b.OverallocatePct); err != nil {
+				if err == store.ErrNotFound {
+					return nil, huma.Error404NotFound("node not found")
+				}
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+			a.audit(ctx, u, "node.capacity", strconv.FormatInt(in.ID, 10), fmt.Sprintf("mem=%d disk=%d over=%d%%", b.MemoryMB, b.DiskMB, b.OverallocatePct))
+			return nil, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listNodes", Method: "GET", Path: "/nodes", Summary: "List nodes"},
@@ -463,6 +500,7 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 		Install: inst,
 		UUID:    s.UUID, Image: egg.DockerImage, Startup: shellStartup(egg.Startup), Stop: egg.Stop,
 		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
+		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB,
 		Ports: []proto.PortMap{
 			{Host: s.Port, Container: s.Port, Proto: "tcp"},
 			{Host: s.Port, Container: s.Port, Proto: "udp"},

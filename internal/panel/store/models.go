@@ -154,6 +154,22 @@ type Node struct {
 	Name      string `json:"name"`
 	PortStart int    `json:"port_start"`
 	PortEnd   int    `json:"port_end"`
+	// Capacity (0 = not tracked) and what servers have been allocated so far.
+	MemoryMB        int64 `json:"memory_mb"`
+	DiskMB          int64 `json:"disk_mb"`
+	OverallocatePct int64 `json:"overallocate_pct"`
+	AllocatedMemory int64 `json:"allocated_memory_mb"`
+	AllocatedDisk   int64 `json:"allocated_disk_mb"`
+}
+
+const nodeCols = `id,name,port_start,port_end,memory_mb,disk_mb,overallocate_pct,
+	(SELECT COALESCE(SUM(memory_mb),0) FROM servers WHERE node_id=nodes.id),
+	(SELECT COALESCE(SUM(disk_mb),0) FROM servers WHERE node_id=nodes.id)`
+
+func scanNode(sc interface{ Scan(...any) error }) (Node, error) {
+	var n Node
+	err := sc.Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd, &n.MemoryMB, &n.DiskMB, &n.OverallocatePct, &n.AllocatedMemory, &n.AllocatedDisk)
+	return n, err
 }
 
 // CreateNode returns the node and its one-time enrollment token.
@@ -168,29 +184,25 @@ func (s *Store) CreateNode(ctx context.Context, name string, ps, pe int) (Node, 
 }
 
 func (s *Store) NodeByToken(ctx context.Context, token string) (Node, error) {
-	var n Node
-	err := s.DB.QueryRowContext(ctx, `SELECT id,name,port_start,port_end FROM nodes WHERE token_hash=?`, HashToken(token)).
-		Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd)
+	n, err := scanNode(s.DB.QueryRowContext(ctx, `SELECT `+nodeCols+` FROM nodes WHERE token_hash=?`, HashToken(token)))
 	return n, nf(err)
 }
 
 func (s *Store) GetNode(ctx context.Context, id int64) (Node, error) {
-	var n Node
-	err := s.DB.QueryRowContext(ctx, `SELECT id,name,port_start,port_end FROM nodes WHERE id=?`, id).
-		Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd)
+	n, err := scanNode(s.DB.QueryRowContext(ctx, `SELECT `+nodeCols+` FROM nodes WHERE id=?`, id))
 	return n, nf(err)
 }
 
 func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,name,port_start,port_end FROM nodes ORDER BY id`)
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+nodeCols+` FROM nodes ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []Node{}
 	for rows.Next() {
-		var n Node
-		if err := rows.Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd); err != nil {
+		n, err := scanNode(rows)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, n)
@@ -277,23 +289,22 @@ func (s *Store) ListEggs(ctx context.Context) ([]Egg, error) {
 // ---- servers ----
 
 type Server struct {
-	UUID     string            `json:"uuid"`
-	Name     string            `json:"name"`
-	OwnerID  int64             `json:"owner_id"`
-	NodeID   int64             `json:"node_id"`
-	EggID    int64             `json:"egg_id"`
-	MemoryMB int64             `json:"memory_mb"`
-	CPUPct   int64             `json:"cpu_pct"`
-	Port     int               `json:"port"`
-	Env      map[string]string `json:"env"`
+	UUID    string            `json:"uuid"`
+	Name    string            `json:"name"`
+	OwnerID int64             `json:"owner_id"`
+	NodeID  int64             `json:"node_id"`
+	EggID   int64             `json:"egg_id"`
+	Port    int               `json:"port"`
+	Env     map[string]string `json:"env"`
+	Limits
 }
 
-const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env`
+const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var v Server
 	var env string
-	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env); err != nil {
+	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit); err != nil {
 		return v, nf(err)
 	}
 	json.Unmarshal([]byte(env), &v.Env)
@@ -331,11 +342,17 @@ func (s *Store) ListServers(ctx context.Context, u User) ([]Server, error) {
 
 // CreateServer allocates the first free port in the node's range.
 func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
+	if err := v.Limits.Normalize(); err != nil {
+		return v, err
+	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return v, err
 	}
 	defer tx.Rollback()
+	if err := checkCapacity(ctx, tx, v.NodeID, "", v.Limits); err != nil {
+		return v, err
+	}
 	var ps, pe int
 	if err := tx.QueryRowContext(ctx, `SELECT port_start,port_end FROM nodes WHERE id=?`, v.NodeID).Scan(&ps, &pe); err != nil {
 		return v, nf(err)
@@ -368,8 +385,9 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 		v.Env = map[string]string{}
 	}
 	env, _ := json.Marshal(v.Env)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
-		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env), now()); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),
+		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, now()); err != nil {
 		return v, err
 	}
 	return v, tx.Commit()

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 export type WsStatus = "connecting" | "open" | "reconnecting";
-export interface LiveStats { cpu_pct: number; mem_bytes: number }
+export interface LiveStats { cpu_pct: number; mem_bytes: number; disk_bytes: number }
 
 interface Handlers {
   onConsole: (line: string) => void;
@@ -49,7 +49,7 @@ export function useServerSocket(uuid: string, handlers: Handlers) {
         if (frame.type === "console" && typeof d.line === "string") hRef.current.onConsole(d.line);
         else if (frame.type === "state" && typeof d.state === "string") setState(d.state);
         else if (frame.type === "stats" && typeof d.cpu_pct === "number" && typeof d.mem_bytes === "number")
-          setStats({ cpu_pct: d.cpu_pct, mem_bytes: d.mem_bytes });
+          setStats({ cpu_pct: d.cpu_pct, mem_bytes: d.mem_bytes, disk_bytes: typeof d.disk_bytes === "number" ? d.disk_bytes : 0 });
       };
       ws.onclose = () => {
         if (stopped) return;

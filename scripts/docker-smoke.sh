@@ -57,4 +57,20 @@ check "installer container cleaned up" '! docker ps -a --format "{{.Names}}" | g
 power start
 check "installed server starts and sees installer output" 'sleep 2; docker logs gp-$U 2>&1 | grep -q "from installer"'
 c -X DELETE $B/servers/$U >/dev/null
+
+# --- resource limits reach the container engine, and can be edited while stopped
+U=$(c -d '{"name":"lim","node_id":1,"egg_id":1,"memory_mb":128,"swap_mb":64,"cpu_pct":50,"cpuset":"0","pids_limit":200,"disk_mb":50}' $B/servers | python3 -c 'import sys,json;print(json.load(sys.stdin)["uuid"])')
+power start
+check "limited server runs" 'wait_state running'
+insp(){ docker inspect gp-$U --format "$1"; }
+check "memory 128M + swap 64M => memory+swap 192M" '[ "$(insp "{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}}")" = "134217728 201326592" ]'
+check "cpuset and pids limit applied" '[ "$(insp "{{.HostConfig.CpusetCpus}} {{.HostConfig.PidsLimit}}")" = "0 200" ]'
+power stop
+check "stops" 'wait_state offline'
+check "edit limits while stopped (unlimited swap, 256M)" '[ "$(curl -s -o /dev/null -w %{http_code} -b $J -H "content-type: application/json" -X PUT -d "{\"memory_mb\":256,\"swap_mb\":-1,\"cpu_pct\":0,\"cpuset\":\"\",\"pids_limit\":300,\"io_weight\":0,\"disk_mb\":50,\"backup_limit\":20}" $B/servers/$U/limits)" = 204 ]'
+check "new limits are on the recreated container" '[ "$(insp "{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}} {{.HostConfig.PidsLimit}}")" = "268435456 -1 300" ]'
+power start
+check "restarts with the new limits" 'wait_state running'
+check "editing a running server is refused" '[ "$(curl -s -o /dev/null -w %{http_code} -b $J -H "content-type: application/json" -X PUT -d "{\"memory_mb\":512,\"swap_mb\":0,\"cpu_pct\":0,\"cpuset\":\"\",\"pids_limit\":300,\"io_weight\":0,\"disk_mb\":50,\"backup_limit\":20}" $B/servers/$U/limits)" = 409 ]'
+c -X DELETE $B/servers/$U >/dev/null
 exit $fail

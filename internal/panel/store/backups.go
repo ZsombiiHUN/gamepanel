@@ -11,9 +11,10 @@ const (
 	BackupOK      = "ok"
 	BackupFailed  = "failed"
 
-	// MaxBackupsPerServer bounds disk use; manual backups are refused at the
-	// cap, scheduled ones rotate out the oldest unlocked backup.
-	MaxBackupsPerServer = 20
+	// DefaultBackupLimit applies to servers that do not set their own
+	// (servers.backup_limit). At the limit manual backups are refused and
+	// scheduled ones rotate out the oldest unlocked backup.
+	DefaultBackupLimit = 20
 )
 
 var ErrBackupLimit = errors.New("backup limit reached; delete one or unlock one for rotation")
@@ -55,7 +56,9 @@ func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted
 		return nil, errors.New("a backup is already running for this server")
 	}
 	tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM backups WHERE server_uuid=?`, b.ServerUUID).Scan(&total)
-	for total >= MaxBackupsPerServer {
+	limit := DefaultBackupLimit
+	tx.QueryRowContext(ctx, `SELECT backup_limit FROM servers WHERE uuid=?`, b.ServerUUID).Scan(&limit)
+	for total >= limit {
 		if !rotate {
 			return nil, ErrBackupLimit
 		}

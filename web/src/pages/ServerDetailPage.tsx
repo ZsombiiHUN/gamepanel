@@ -98,8 +98,9 @@ export function ServerDetailPage() {
           Reinstall
         </button>
         <div className="ml-auto flex gap-4 text-sm text-zinc-300" aria-label="Live resource usage">
-          <span>CPU: {stats ? `${stats.cpu_pct.toFixed(1)}%` : "-"}</span>
-          <span>Memory: {stats ? formatBytes(stats.mem_bytes) : "-"} / {s.memory_mb} MB</span>
+          <span>CPU: {stats && state === "running" ? `${stats.cpu_pct.toFixed(1)}%` : "-"}</span>
+          <span>Memory: {stats && state === "running" ? formatBytes(stats.mem_bytes) : "-"} / {s.memory_mb} MB</span>
+          <span>Disk: {stats ? formatBytes(stats.disk_bytes) : "-"} / {s.disk_mb ? `${s.disk_mb} MB` : "unlimited"}</span>
         </div>
       </div>
       <ErrorBox error={power.error ?? reinstall.error} />

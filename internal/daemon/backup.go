@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
@@ -113,5 +114,20 @@ func (d *Daemon) backupRestore(ctx context.Context, b proto.BackupReq) error {
 		return err
 	}
 	defer dir.Close()
-	return dir.Extract(f, b.Truncate, maxRestoreBytes)
+	limit := int64(maxRestoreBytes)
+	if room := d.diskHeadroom(b.UUID); room >= 0 {
+		if b.Truncate {
+			room = d.diskLimitBytes(b.UUID) // everything is deleted first
+		}
+		limit = min(limit, room)
+		if limit == 0 {
+			limit = 1 // 0 would mean unlimited to Extract; 1 byte stops it at the first file
+		}
+	}
+	err = dir.Extract(f, b.Truncate, limit)
+	if errors.Is(err, fsx.ErrArchiveTooLarge) && d.diskLimitBytes(b.UUID) > 0 {
+		err = errors.New("restoring this backup would exceed the server's disk limit")
+	}
+	d.cacheFor(b.UUID).invalidate()
+	return err
 }

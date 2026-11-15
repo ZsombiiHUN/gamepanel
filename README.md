@@ -8,8 +8,11 @@ A game server management panel: a **panel** (API + web UI, one Go binary) and a
 simpler alternative to Pterodactyl / Pelican, and already imports Pterodactyl
 eggs, including their install scripts (for example Paper Minecraft installs and
 boots), backups with restore, cron schedules, subusers with per-server
-permissions, and SFTP. **Pre-alpha:** not ready for production. Backup download
-and S3 storage, disk quotas, passkeys/SSO and a Pterodactyl API compatibility layer are not built yet.
+permissions, SFTP, and per-server resource limits (memory, swap, CPU, cores,
+disk quota, processes, IO priority, backups) with node capacity tracking.
+**Pre-alpha:** not ready for production. Backup download and S3 storage,
+network bandwidth limits, passkeys/SSO and a Pterodactyl API compatibility
+layer are not built yet.
 
 ## Quick start (development, no Docker needed)
 
