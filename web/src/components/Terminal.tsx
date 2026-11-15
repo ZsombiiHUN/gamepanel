@@ -6,9 +6,10 @@ export interface TerminalHandle {
   writeln: (line: string) => void;
   clear: () => void;
   fit: () => void;
+  text: () => string;
 }
 
-export function ConsoleTerminal({ ref }: { ref: Ref<TerminalHandle> }) {
+export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHandle>; expanded?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<XTerm | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
@@ -23,6 +24,14 @@ export function ConsoleTerminal({ ref }: { ref: Ref<TerminalHandle> }) {
     writeln: (l) => term.current?.writeln(l),
     clear: () => term.current?.reset(),
     fit,
+    text: () => {
+      const x = term.current;
+      if (!x) return "";
+      x.selectAll();
+      const s = x.getSelection();
+      x.clearSelection();
+      return s;
+    },
   }));
 
   useEffect(() => {
@@ -32,8 +41,9 @@ export function ConsoleTerminal({ ref }: { ref: Ref<TerminalHandle> }) {
       cursorBlink: false,
       scrollback: 5000,
       fontSize: 13,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      theme: { background: "#09090b", foreground: "#e4e4e7" },
+      fontFamily: "\"JetBrains Mono Variable\", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      lineHeight: 1.5,
+      theme: { background: "#090b0d", foreground: "#d5d9dd" },
     });
     const f = new FitAddon();
     t.loadAddon(f);
@@ -57,7 +67,7 @@ export function ConsoleTerminal({ ref }: { ref: Ref<TerminalHandle> }) {
       ref={host}
       role="log"
       aria-label="Server console output"
-      className="h-[55vh] min-h-64 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950 p-2"
+      className={`overflow-hidden bg-well px-3 py-3 ${expanded ? "h-[75vh]" : "h-[45vh]"} min-h-64`}
     />
   );
 }
