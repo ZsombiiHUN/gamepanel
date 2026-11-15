@@ -1097,7 +1097,10 @@ export interface components {
             env?: {
                 [key: string]: string;
             };
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description 0 = default, else 10-1000
+             */
             io_weight?: number;
             /** Format: int64 */
             memory_mb: number;
@@ -1151,6 +1154,7 @@ export interface components {
             disk_mb: number;
             /** Format: int64 */
             egg_id: number;
+            egg_name: string;
             env: {
                 [key: string]: string;
             };
@@ -1167,6 +1171,7 @@ export interface components {
             name: string;
             /** Format: int64 */
             node_id: number;
+            node_name: string;
             node_online: boolean;
             owner: boolean;
             /** Format: int64 */
@@ -1321,6 +1326,8 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                /** @description Only entries containing every word, in the action, user, target, detail or IP. */
+                q?: string;
             };
             header?: never;
             path?: never;

@@ -121,8 +121,9 @@ type revokeIn struct {
 	Session string `cookie:"gp_session"`
 }
 type auditIn struct {
-	Limit  int `query:"limit" default:"100" minimum:"1" maximum:"500"`
-	Offset int `query:"offset" default:"0" minimum:"0"`
+	Limit  int    `query:"limit" default:"100" minimum:"1" maximum:"500"`
+	Offset int    `query:"offset" default:"0" minimum:"0"`
+	Q      string `query:"q" maxLength:"200" doc:"Only entries containing every word, in the action, user, target, detail or IP."`
 }
 type auditOut struct{ Body []store.AuditEntry }
 
@@ -169,7 +170,7 @@ func (a *App) registerAccount(api huma.API) {
 			if _, err := requireAdmin(ctx); err != nil {
 				return nil, err
 			}
-			es, err := a.Store.ListAudit(ctx, in.Limit, in.Offset)
+			es, err := a.Store.ListAudit(ctx, in.Q, in.Limit, in.Offset)
 			if err != nil {
 				return nil, huma.Error500InternalServerError("db error")
 			}
