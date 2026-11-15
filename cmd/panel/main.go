@@ -49,10 +49,16 @@ func main() {
 	addr := fs.String("addr", env("GAMEPANEL_ADDR", "127.0.0.1:8080"), "listen address")
 	fs.Parse(os.Args[1:])
 
+	proxies, err := api.ParseTrustedProxies(env("GAMEPANEL_TRUSTED_PROXIES", ""))
+	if err != nil {
+		log.Error("invalid GAMEPANEL_TRUSTED_PROXIES", "err", err)
+		os.Exit(1)
+	}
 	h := hub.New(log)
 	handler := api.New(api.Deps{
 		Store: st, Hub: h, Log: log, Web: web.Handler(),
-		CookieSecure: env("GAMEPANEL_COOKIE_SECURE", "") == "1",
+		TrustedProxies: proxies,
+		CookieSecure:   env("GAMEPANEL_COOKIE_SECURE", "") == "1",
 	})
 	if st.CountUsers(context.Background()) == 0 {
 		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")

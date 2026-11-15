@@ -31,12 +31,16 @@ type Deps struct {
 	Hub          *hub.Hub
 	Log          *slog.Logger
 	CookieSecure bool
-	Web          http.Handler // embedded SPA (optional)
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For header is
+	// believed. Empty means the socket address is always used.
+	TrustedProxies []*net.IPNet
+	Web            http.Handler // embedded SPA (optional)
 }
 
 type App struct {
 	Deps
-	limiter *limiter
+	limiter *limiter // login attempts per client IP
+	fails   *limiter // failed logins per account
 }
 
 type ctxKey struct{}
@@ -66,7 +70,7 @@ func requireAdmin(ctx context.Context) (store.User, error) {
 
 // New builds the full HTTP handler.
 func New(d Deps) http.Handler {
-	a := &App{Deps: d, limiter: newLimiter(10, time.Minute)}
+	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute)}
 	mux := http.NewServeMux()
 	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
 	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
@@ -75,6 +79,7 @@ func New(d Deps) http.Handler {
 	api := humago.NewWithPrefix(mux, "/api", cfg)
 	d.Hub.OnHello = a.onHello
 	a.registerAuth(api)
+	a.registerAccount(api)
 	a.registerAdmin(api)
 	a.registerServers(api)
 
@@ -94,9 +99,14 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "same-origin")
+		ip := a.clientIP(r)
+		r = r.WithContext(context.WithValue(r.Context(), ipKey{}, ip))
+		if !sameOrigin(r) {
+			http.Error(w, `{"title":"Forbidden","status":403,"detail":"cross-origin request blocked"}`, http.StatusForbidden)
+			return
+		}
 		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
-			host, _, _ := net.SplitHostPort(r.RemoteAddr)
-			if !a.limiter.allow(host) {
+			if !a.limiter.allow(ip) {
 				http.Error(w, `{"title":"Too Many Requests","status":429,"detail":"too many login attempts, try again later"}`, http.StatusTooManyRequests)
 				return
 			}
@@ -121,6 +131,48 @@ type limiter struct {
 
 func newLimiter(max int, win time.Duration) *limiter {
 	return &limiter{max: max, win: win, hits: map[string][]time.Time{}}
+}
+
+// over reports whether key already has max recorded hits in the window,
+// without recording a new one.
+func (l *limiter) over(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.recent(key)) >= l.max
+}
+
+// add records one hit for key.
+func (l *limiter) add(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.hits[key] = append(l.recent(key), time.Now())
+}
+
+func (l *limiter) reset(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.hits, key)
+}
+
+// recent returns key's hits inside the window (caller holds the lock) and
+// sweeps stale keys so the map cannot grow without bound.
+func (l *limiter) recent(key string) []time.Time {
+	cut := time.Now().Add(-l.win)
+	if len(l.hits) > 4096 {
+		for k, v := range l.hits {
+			if len(v) == 0 || !v[len(v)-1].After(cut) {
+				delete(l.hits, k)
+			}
+		}
+	}
+	kept := l.hits[key][:0]
+	for _, t := range l.hits[key] {
+		if t.After(cut) {
+			kept = append(kept, t)
+		}
+	}
+	l.hits[key] = kept
+	return kept
 }
 
 func (l *limiter) allow(key string) bool {
@@ -164,10 +216,19 @@ type logoutOut struct {
 func (a *App) registerAuth(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "login", Method: "POST", Path: "/auth/login", Summary: "Sign in"},
 		func(ctx context.Context, in *loginIn) (*loginOut, error) {
-			u, err := a.Store.Login(ctx, strings.ToLower(strings.TrimSpace(in.Body.Email)), in.Body.Password)
+			email := strings.ToLower(strings.TrimSpace(in.Body.Email))
+			if a.fails.over(email) {
+				a.audit(ctx, store.User{Email: email}, "login.blocked", email, "too many failures for this account")
+				return nil, huma.Error429TooManyRequests("too many failed attempts for this account, try again later")
+			}
+			u, err := a.Store.Login(ctx, email, in.Body.Password)
 			if err != nil {
+				a.fails.add(email)
+				a.audit(ctx, store.User{Email: email}, "login.fail", email, "")
 				return nil, huma.Error401Unauthorized("invalid email or password")
 			}
+			a.fails.reset(email)
+			a.audit(ctx, u, "login.ok", email, "")
 			tok, err := a.Store.NewSession(ctx, u.ID)
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
@@ -182,6 +243,9 @@ func (a *App) registerAuth(api huma.API) {
 		func(ctx context.Context, in *logoutIn) (*logoutOut, error) {
 			if in.Session != "" {
 				a.Store.DeleteSession(ctx, in.Session) // revoke server-side, not just in the browser
+			}
+			if u, ok := userFrom(ctx); ok {
+				a.audit(ctx, u, "logout", u.Email, "")
 			}
 			return &logoutOut{SetCookie: http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.CookieSecure, SameSite: http.SameSiteLaxMode}}, nil
 		})
@@ -239,6 +303,7 @@ func (a *App) registerAdmin(api huma.API) {
 			if err != nil {
 				return nil, huma.Error409Conflict("could not create node (name taken?)")
 			}
+			a.audit(ctx, mustUser(ctx), "node.create", n.Name, "")
 			out := &nodeCreateOut{}
 			out.Body.Node, out.Body.Token = n, tok
 			return out, nil
@@ -268,6 +333,7 @@ func (a *App) registerAdmin(api huma.API) {
 			if err := a.Store.DeleteNode(ctx, in.ID); err != nil {
 				return nil, huma.Error409Conflict("node still has servers")
 			}
+			a.audit(ctx, mustUser(ctx), "node.delete", fmt.Sprint(in.ID), "")
 			return nil, nil
 		})
 
@@ -286,6 +352,7 @@ func (a *App) registerAdmin(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("db error")
 			}
+			a.audit(ctx, mustUser(ctx), "egg.import", e.Name, "")
 			return &eggOut{Body: e}, nil
 		})
 

@@ -44,11 +44,12 @@ export function AppShell() {
                 <Link to="/eggs" className={navCls} activeProps={{ className: `${navCls} bg-zinc-800 text-white`, "aria-current": "page" }}>
                   <Egg className="mr-1 inline h-4 w-4" aria-hidden />Eggs
                 </Link>
+                <Link to="/audit" className={navCls} activeProps={{ className: `${navCls} bg-zinc-800 text-white`, "aria-current": "page" }}>Audit</Link>
               </>
             )}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm text-zinc-400">
-            <span>{user.email}{user.is_admin && " (admin)"}</span>
+            <Link to="/account" className="hover:text-white focus-visible:outline-2 focus-visible:outline-indigo-400">{user.email}{user.is_admin && " (admin)"}</Link>
             <button type="button" className="btn btn-ghost" onClick={() => logout.mutate()} disabled={logout.isPending}>
               <LogOut className="h-4 w-4" aria-hidden /> Sign out
             </button>
