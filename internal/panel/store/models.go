@@ -396,3 +396,30 @@ func (s *Store) ServersOnNode(ctx context.Context, nodeID int64) ([]Server, erro
 	}
 	return out, rows.Err()
 }
+
+// ServerByPrefix finds the server on a node whose uuid starts with prefix
+// (the 8 hex characters used in SFTP usernames). Ambiguous prefixes fail.
+func (s *Store) ServerByPrefix(ctx context.Context, nodeID int64, prefix string) (Server, error) {
+	for _, c := range prefix {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return Server{}, ErrNotFound
+		}
+	}
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+srvCols+` FROM servers WHERE node_id=? AND uuid LIKE ? LIMIT 2`, nodeID, prefix+"%")
+	if err != nil {
+		return Server{}, err
+	}
+	defer rows.Close()
+	var found []Server
+	for rows.Next() {
+		v, err := scanServer(rows)
+		if err != nil {
+			return Server{}, err
+		}
+		found = append(found, v)
+	}
+	if len(found) != 1 {
+		return Server{}, ErrNotFound
+	}
+	return found[0], nil
+}

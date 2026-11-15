@@ -53,7 +53,21 @@ export function SettingsTab({ server }: { server: ServerView }) {
         </dl>
       </section>
 
-      <section className="card" aria-labelledby="env-h">
+      {(server.permissions.includes("files.read") || server.permissions.includes("files.write")) && (
+        <section className="card" aria-labelledby="sftp-h">
+          <h2 id="sftp-h" className="mb-3 text-lg font-medium">SFTP</h2>
+          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
+            <dt className="text-zinc-400">Host</dt>
+            <dd className="font-mono">your node&apos;s address, port 2022 (default)</dd>
+            <dt className="text-zinc-400">Username</dt>
+            <dd className="break-all font-mono">{me.data?.email}.{server.uuid.slice(0, 8)}</dd>
+            <dt className="text-zinc-400">Password</dt>
+            <dd>An API key from your Account page. Your account password does not work for SFTP.</dd>
+          </dl>
+        </section>
+      )}
+
+      {server.owner && <section className="card" aria-labelledby="env-h">
         <h2 id="env-h" className="mb-3 text-lg font-medium">Environment</h2>
         {envEntries.length === 0 ? (
           <p className="text-sm text-zinc-400">No environment variables.</p>
@@ -67,7 +81,7 @@ export function SettingsTab({ server }: { server: ServerView }) {
             ))}
           </dl>
         )}
-      </section>
+      </section>}
 
       {isAdmin && (
         <section className="card border-red-900" aria-labelledby="danger-h">

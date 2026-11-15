@@ -102,6 +102,7 @@ func New(d Deps) http.Handler {
 
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
+	mux.HandleFunc("POST /daemon/sftp-auth", a.sftpAuth)
 	if d.Web != nil {
 		mux.Handle("/", d.Web)
 	}

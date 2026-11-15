@@ -22,11 +22,13 @@ import (
 )
 
 type stack struct {
-	t      *testing.T
-	ctx    context.Context
-	st     *store.Store
-	admin  *client
-	server string
+	t       *testing.T
+	ctx     context.Context
+	st      *store.Store
+	admin   *client
+	server  string
+	sftp    string // host:port of the daemon's SFTP listener
+	dataDir string // the daemon's data dir on disk
 }
 
 // newStack boots panel + daemon (fake runtime) and creates one server.
@@ -52,7 +54,12 @@ func newStack(t *testing.T) *stack {
 		Node  struct{ ID int64 } `json:"node"`
 	}
 	json.Unmarshal(admin.do("POST", "/api/nodes", map[string]any{"name": "n1", "port_start": 25565, "port_end": 25570}, 201), &node)
-	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: t.TempDir()}, runtime.NewFake(), log)
+	dataDir := t.TempDir()
+	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir}, runtime.NewFake(), log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sftpAddr, err := dm.StartSFTP(ctx, "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +69,7 @@ func newStack(t *testing.T) *stack {
 	json.Unmarshal(admin.do("POST", "/api/eggs/import", egg, 201), &e)
 	var s struct{ UUID string }
 	json.Unmarshal(admin.do("POST", "/api/servers", map[string]any{"name": "s", "node_id": node.Node.ID, "egg_id": e.ID, "memory_mb": 256}, 201), &s)
-	return &stack{t, ctx, st, admin, s.UUID}
+	return &stack{t, ctx, st, admin, s.UUID, sftpAddr, dataDir}
 }
 
 func (s *stack) write(path, content string) {

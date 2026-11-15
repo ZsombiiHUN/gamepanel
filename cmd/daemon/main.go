@@ -55,5 +55,11 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if addr := env("GAMEPANEL_SFTP_ADDR", "0.0.0.0:2022"); addr != "off" {
+		// SFTP is optional: a busy port must not take the whole node down.
+		if _, err := dm.StartSFTP(ctx, addr); err != nil {
+			log.Warn("sftp disabled", "addr", addr, "err", err)
+		}
+	}
 	dm.Run(ctx)
 }

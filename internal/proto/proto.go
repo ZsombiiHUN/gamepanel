@@ -135,3 +135,19 @@ type BackupResult struct {
 	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
 }
+
+// SFTPAuthReq is posted by a daemon to the panel (HTTP, node token) to check
+// an SFTP login. The password is an API key.
+type SFTPAuthReq struct {
+	Username string `json:"username"` // <email>.<first 8 hex of the server uuid>
+	Password string `json:"password"`
+	IP       string `json:"ip"` // the SFTP client's address, for rate limiting
+}
+
+// SFTPAuthResp is the panel's decision.
+type SFTPAuthResp struct {
+	OK         bool   `json:"ok"`
+	ServerUUID string `json:"server_uuid,omitempty"`
+	Read       bool   `json:"read,omitempty"`
+	Write      bool   `json:"write,omitempty"`
+}

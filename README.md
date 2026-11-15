@@ -7,8 +7,9 @@ A game server management panel: a **panel** (API + web UI, one Go binary) and a
 **daemon** (runs on each node, drives Docker). It aims to be a more secure,
 simpler alternative to Pterodactyl / Pelican, and already imports Pterodactyl
 eggs, including their install scripts (for example Paper Minecraft installs and
-boots), backups with restore, and cron schedules. **Pre-alpha:** not ready for
-production. Backup download and S3 storage, SFTP, subusers, passkeys/SSO and a Pterodactyl API compatibility layer are not built yet.
+boots), backups with restore, cron schedules, subusers with per-server
+permissions, and SFTP. **Pre-alpha:** not ready for production. Backup download
+and S3 storage, disk quotas, passkeys/SSO and a Pterodactyl API compatibility layer are not built yet.
 
 ## Quick start (development, no Docker needed)
 
@@ -41,6 +42,7 @@ Import a Pterodactyl egg under **Eggs**, then **Create server**.
 | `GAMEPANEL_NODE_TOKEN` | required | from node creation |
 | `GAMEPANEL_DATA_DIR` | `./daemon-data` | server files |
 | `GAMEPANEL_RUNTIME` | `docker` | `fake` for development |
+| `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | daemon SFTP listener; `off` disables. Log in as `<email>.<first 8 characters of the server uuid>` with an **API key** as the password (Account page). The host key is created in the data dir on first start |
 
 Run behind a TLS reverse proxy in production and use `wss://` for the daemon.
 
