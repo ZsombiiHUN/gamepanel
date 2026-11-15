@@ -20,7 +20,10 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-type Store struct{ DB *sql.DB }
+type Store struct {
+	DB  *sql.DB
+	key []byte // optional AES key for secrets at rest, see SetSecretKey
+}
 
 func Open(path string) (*Store, error) {
 	// WAL + busy timeout + FK enforcement; one writer connection avoids
