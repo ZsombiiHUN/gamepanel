@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, Loader2, Trash2, UserPlus } from "lucide-react";
 import { api, call } from "../api/client";
+import { invalidates, keys, permissionsQuery, subusersQuery } from "../api/queries";
 import { Avatar, ConfirmDialog, Empty, ErrorBox, Field, Pill, Section } from "../components/ui";
 
 type Perm = { id: string; description: string };
@@ -38,11 +39,9 @@ function PermPicker({ all, value, onChange }: { all: Perm[]; value: string[]; on
 }
 
 export function UsersTab({ uuid }: { uuid: string }) {
-  const qc = useQueryClient();
-  const key = ["subusers", uuid];
-  const perms = useQuery({ queryKey: ["permissions"], queryFn: () => call(api.GET("/permissions")) });
-  const list = useQuery({ queryKey: key, queryFn: () => call(api.GET("/servers/{uuid}/users", { params: { path: { uuid } } })) });
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  const perms = useQuery(permissionsQuery);
+  const list = useQuery(subusersQuery(uuid));
+  const meta = invalidates(keys.subusers(uuid));
 
   const [email, setEmail] = useState("");
   const [picked, setPicked] = useState<string[]>(["console.read"]);
@@ -51,25 +50,19 @@ export function UsersTab({ uuid }: { uuid: string }) {
 
   const add = useMutation({
     mutationFn: () => call(api.POST("/servers/{uuid}/users", { params: { path: { uuid } }, body: { email, permissions: picked } })),
-    onSuccess: () => {
-      setEmail("");
-      return refresh();
-    },
+    meta,
+    onSuccess: () => setEmail(""),
   });
   const save = useMutation({
     mutationFn: (v: { id: number; perms: string[] }) =>
       call(api.PUT("/servers/{uuid}/users/{user_id}", { params: { path: { uuid, user_id: v.id } }, body: { permissions: v.perms } })),
-    onSuccess: () => {
-      setEditing(null);
-      return refresh();
-    },
+    meta,
+    onSuccess: () => setEditing(null),
   });
   const remove = useMutation({
     mutationFn: (id: number) => call(api.DELETE("/servers/{uuid}/users/{user_id}", { params: { path: { uuid, user_id: id } } })),
-    onSuccess: async () => {
-      setToRemove(null);
-      await refresh();
-    },
+    meta,
+    onSuccess: () => setToRemove(null),
   });
 
   const submit = (e: FormEvent) => {

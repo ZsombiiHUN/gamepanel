@@ -1,17 +1,11 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Egg, Loader2, Plus, Upload, X } from "lucide-react";
 import { api, call } from "../api/client";
-import { eggsQuery } from "../api/queries";
-import { AdminOnly } from "../components/AdminOnly";
+import { eggsQuery, invalidates, keys } from "../api/queries";
 import { Empty, ErrorBox, Field, PageHeader, Pill, Section, ServerIcon, Spinner } from "../components/ui";
 
 export function EggsPage() {
-  return <AdminOnly><Eggs /></AdminOnly>;
-}
-
-function Eggs() {
-  const qc = useQueryClient();
   const eggs = useQuery(eggsQuery);
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
@@ -20,10 +14,10 @@ function Eggs() {
   const imp = useMutation({
     mutationFn: (body: Record<string, unknown>) => call(// Spec types the JSON body as a loose object; the generated union is awkward.
       api.POST("/eggs/import", { body: body as never })),
-    onSuccess: async () => {
+    meta: invalidates(keys.eggs),
+    onSuccess: () => {
       setText("");
       setOpen(false);
-      await qc.invalidateQueries({ queryKey: ["eggs"] });
     },
   });
 

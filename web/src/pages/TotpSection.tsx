@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import QRCode from "qrcode";
 import { api, call } from "../api/client";
-import { meQuery } from "../api/queries";
+import { invalidates, keys, meQuery } from "../api/queries";
 import { ErrorBox, Field, Pill, Section } from "../components/ui";
 
 function Qr({ uri }: { uri: string }) {
@@ -35,13 +35,11 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
 }
 
 export function TotpSection() {
-  const qc = useQueryClient();
   const me = useQuery(meQuery);
   const enabled = me.data?.totp_enabled ?? false;
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[] | null>(null);
-  const refresh = () => qc.invalidateQueries({ queryKey: ["me"] });
 
   const setup = useMutation({
     mutationFn: () => call(api.POST("/auth/totp/setup", { body: { password } })),
@@ -49,20 +47,20 @@ export function TotpSection() {
   });
   const enable = useMutation({
     mutationFn: () => call(api.POST("/auth/totp/enable", { body: { code } })),
-    onSuccess: async (r) => {
+    meta: invalidates(keys.me),
+    onSuccess: (r) => {
       setCodes(r.codes ?? []);
       setCode("");
       setup.reset();
-      await refresh();
     },
   });
   const disable = useMutation({
     mutationFn: () => call(api.POST("/auth/totp/disable", { body: { password, code } })),
-    onSuccess: async () => {
+    meta: invalidates(keys.me),
+    onSuccess: () => {
       setPassword("");
       setCode("");
       setCodes(null);
-      await refresh();
     },
   });
   const regen = useMutation({

@@ -13,5 +13,9 @@ export default defineConfig({
       "/api": { target: "http://127.0.0.1:8080", changeOrigin: true, ws: true },
     },
   },
-  test: { environment: "node", include: ["src/**/*.test.ts"] },
+  test: {
+    environment: "node", // component tests opt in to jsdom with a `// @vitest-environment jsdom` comment
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/test/setup.ts"],
+  },
 });

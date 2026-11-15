@@ -11,7 +11,9 @@ export function setUnauthorizedHandler(fn: () => void) {
 
 const authMiddleware: Middleware = {
   onResponse({ request, response }) {
-    if (response.status === 401 && !new URL(request.url).pathname.endsWith("/auth/login")) {
+    // Sign-in and the session probe handle their own 401; any other one means the session ended mid-use.
+    const path = new URL(request.url).pathname;
+    if (response.status === 401 && !path.endsWith("/auth/login") && !path.endsWith("/auth/me")) {
       onUnauthorized();
     }
   },

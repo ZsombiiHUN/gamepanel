@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { api, call, type components } from "../api/client";
-import { eggsQuery, meQuery, nodesQuery } from "../api/queries";
+import { eggsQuery, invalidates, keys, meQuery, nodesQuery } from "../api/queries";
 import { ConfirmDialog, CopyButton, ErrorBox, InfoList, Section } from "../components/ui";
 import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
 
@@ -22,18 +22,25 @@ export function SettingsTab({ server }: { server: ServerView }) {
   const navigate = useNavigate();
   const del = useMutation({
     mutationFn: () => call(api.DELETE("/servers/{uuid}", { params: { path: { uuid: server.uuid } } })),
-    onSuccess: async () => {
-      qc.removeQueries({ queryKey: ["server", server.uuid] });
-      await qc.invalidateQueries({ queryKey: ["servers"] });
+    meta: invalidates(keys.servers),
+    onSuccess: () => {
+      // Drop the deleted server before leaving, or the page behind us refetches a 404.
+      qc.removeQueries({ queryKey: keys.server(server.uuid) });
       void navigate({ to: "/" });
     },
   });
 
+  // The form starts from the saved limits and starts over only when they change (after saving, or edited elsewhere).
+  const saved = JSON.stringify(limitsToForm(server));
   const [limits, setLimits] = useState<LimitsForm>(() => limitsToForm(server));
-  useEffect(() => setLimits(limitsToForm(server)), [server]);
+  const [seen, setSeen] = useState(saved);
+  if (saved !== seen) {
+    setSeen(saved);
+    setLimits(limitsToForm(server));
+  }
   const saveLimits = useMutation({
     mutationFn: () => call(api.PUT("/servers/{uuid}/limits", { params: { path: { uuid: server.uuid } }, body: formToLimits(limits) })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["server", server.uuid] }),
+    meta: invalidates(keys.server(server.uuid)),
   });
   const stopped = server.state === "offline" || server.state === "install_failed";
 

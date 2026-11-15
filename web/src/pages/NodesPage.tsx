@@ -1,19 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { HardDrive, Loader2, Plus, Settings2, Trash2, X } from "lucide-react";
 import { api, call, type components } from "../api/client";
-import { nodesQuery } from "../api/queries";
-import { AdminOnly } from "../components/AdminOnly";
+import { invalidates, keys, nodesQuery } from "../api/queries";
 import { ConfirmDialog, CopyButton, Empty, ErrorBox, Field, Meter, OnlineDot, PageHeader, Section, Spinner } from "../components/ui";
 
 type NodeView = components["schemas"]["NodeView"];
 
 export function NodesPage() {
-  return <AdminOnly><Nodes /></AdminOnly>;
-}
-
-function Nodes() {
-  const qc = useQueryClient();
   const nodes = useQuery(nodesQuery);
   const [name, setName] = useState("");
   const [start, setStart] = useState(25565);
@@ -28,26 +22,26 @@ function Nodes() {
 
   const create = useMutation({
     mutationFn: () => call(api.POST("/nodes", { body: { name, port_start: start, port_end: end, memory_mb: Number(capMem) || 0, disk_mb: Number(capDisk) || 0, overallocate_pct: Number(capOver) || 0 } })),
-    onSuccess: async (r) => {
+    meta: invalidates(keys.nodes),
+    onSuccess: (r) => {
       setCreated({ name: r.node.name, token: r.token });
       setName("");
       setAdding(false);
-      await qc.invalidateQueries({ queryKey: ["nodes"] });
     },
   });
   const saveCap = useMutation({
     mutationFn: (v: { id: number; mem: string; disk: string; over: string }) =>
       call(api.PUT("/nodes/{id}/capacity", { params: { path: { id: v.id } }, body: { memory_mb: Number(v.mem) || 0, disk_mb: Number(v.disk) || 0, overallocate_pct: Number(v.over) || 0 } })),
-    onSuccess: async () => {
+    meta: invalidates(keys.nodes),
+    onSuccess: () => {
       setEditing(null);
-      await qc.invalidateQueries({ queryKey: ["nodes"] });
     },
   });
   const del = useMutation({
     mutationFn: (id: number) => call(api.DELETE("/nodes/{id}", { params: { path: { id } } })),
-    onSuccess: async () => {
+    meta: invalidates(keys.nodes),
+    onSuccess: () => {
       setToDelete(null);
-      await qc.invalidateQueries({ queryKey: ["nodes"] });
     },
   });
 
@@ -78,7 +72,7 @@ function Nodes() {
           <section role="alert" aria-labelledby="token-h" className="rounded-2xl border border-amber-500/60 bg-amber-950/30 p-5">
             <h2 id="token-h" className="text-[15px] font-semibold text-amber-200">Node &quot;{created.name}&quot; created. Save its token now.</h2>
             <p className="mt-1 text-sm text-amber-100/70">It is shown only once. Set it on the daemon as an environment variable:</p>
-            <pre className="mt-3 overflow-x-auto rounded-lg border border-zinc-800 bg-well p-3 font-mono text-[13px] text-emerald-300 select-all"><code>{envLine}</code></pre>
+            <pre tabIndex={0} aria-label="Daemon environment" className="mt-3 overflow-x-auto rounded-lg border border-zinc-800 bg-well p-3 font-mono text-[13px] text-emerald-300 select-all"><code>{envLine}</code></pre>
             <div className="mt-3 flex flex-wrap gap-2">
               <CopyButton text={envLine} label="Copy env line" />
               <CopyButton text={created.token} label="Copy token only" />
