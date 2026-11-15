@@ -26,7 +26,11 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
     mutationFn: () =>
       call(api.POST("/servers/{uuid}/schedules", {
         params: { path: { uuid } },
-        body: { name, cron, enabled: true, only_when_online: onlyOnline, tasks },
+        body: {
+          name, cron, enabled: true, only_when_online: onlyOnline,
+          // Backup patterns are typed comma separated; the server wants one per line.
+          tasks: tasks.map((t) => (t.action === "backup" ? { ...t, payload: t.payload.split(",").map((x) => x.trim()).filter(Boolean).join("\n") } : t)),
+        },
       })),
     onSuccess: () => {
       setName("");
@@ -72,7 +76,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
             <ol className="mt-2 list-decimal pl-5 text-zinc-300">
               {s.tasks.map((t) => (
                 <li key={t.id}>
-                  {t.action}: <code>{t.payload || (t.action === "backup" ? "(everything)" : "")}</code>
+                  {t.action}: <code>{t.action === "backup" ? (t.payload ? `leave out ${t.payload.split("\n").join(", ")}` : "(everything)") : t.payload}</code>
                   {t.offset_seconds > 0 && ` after ${t.offset_seconds}s`}
                   {t.continue_on_failure && " (continues on failure)"}
                 </li>
@@ -120,7 +124,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
                   )}
                 </Field>
               ) : (
-                <Field label={t.action === "command" ? "Command" : "Leave out (patterns, comma separated lines)"}>
+                <Field label={t.action === "command" ? "Command" : "Leave out (comma separated, e.g. logs, *.tmp)"}>
                   {(id) => <input id={id} className="input" required={t.action === "command"} maxLength={1000} value={t.payload} onChange={(e) => patch(i, { payload: e.target.value })} />}
                 </Field>
               )}

@@ -268,3 +268,9 @@ func (s *Store) SetScheduleStatus(ctx context.Context, id int64, status string) 
 	}
 	s.exec(ctx, `UPDATE schedules SET last_status=? WHERE id=?`, status, id)
 }
+
+// TouchSchedule records that a schedule ran just now (manual runs; timer runs
+// are stamped when they are claimed).
+func (s *Store) TouchSchedule(ctx context.Context, id int64) {
+	s.exec(ctx, `UPDATE schedules SET last_run=? WHERE id=?`, now(), id)
+}
