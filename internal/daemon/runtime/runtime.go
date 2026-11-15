@@ -27,7 +27,21 @@ type Event struct {
 	State string
 }
 
+// InstallRun is a one-shot installer job.
+type InstallRun struct {
+	UUID       string
+	Image      string
+	Entrypoint string
+	ScriptDir  string // host dir holding install.sh, mounted read-only
+	DataDir    string // server data dir, mounted at /mnt/server
+	Env        map[string]string
+	MemoryMB   int64
+}
+
 type Runtime interface {
+	// Install runs the installer container to completion, streaming its
+	// output to out. A non-nil error means it did not exit 0 (or could not run).
+	Install(ctx context.Context, r InstallRun, out io.Writer) error
 	// Create prepares (but does not start) the container for a server.
 	Create(ctx context.Context, s Spec) error
 	Start(ctx context.Context, uuid string) error

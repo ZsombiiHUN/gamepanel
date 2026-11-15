@@ -3,14 +3,17 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/netip"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
@@ -20,9 +23,10 @@ import (
 )
 
 const (
-	labelServer = "gamepanel.server"
-	namePrefix  = "gp-"
-	mountPoint  = "/home/container"
+	labelServer    = "gamepanel.server"
+	labelInstaller = "gamepanel.installer"
+	namePrefix     = "gp-"
+	mountPoint     = "/home/container"
 )
 
 // Docker implements Runtime on the Docker Engine API.
@@ -108,9 +112,13 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 	_, err = d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Name: name(s.UUID),
 		Config: &container.Config{
-			Image:        s.Image,
-			User:         user,
-			Cmd:          []string{"/bin/sh", "-c", s.Startup},
+			Image: s.Image,
+			User:  user,
+			// Override the image ENTRYPOINT: community images (e.g. Pterodactyl's
+			// yolks) ship one that re-parses a STARTUP variable and would ignore
+			// the command below. Our startup is already shell-safe.
+			Entrypoint:   []string{"/bin/sh", "-c"},
+			Cmd:          []string{s.Startup},
 			Env:          env,
 			WorkingDir:   mountPoint,
 			Tty:          true,
@@ -273,3 +281,108 @@ func (d *Docker) List(ctx context.Context) ([]string, error) {
 	}
 	return out, nil
 }
+
+// installTimeout bounds an install script; game downloads can be large but a
+// hung script must not hold the server forever.
+const installTimeout = 30 * time.Minute
+
+var numericIDRe = regexp.MustCompile(`^[0-9]+(:[0-9]+)?$`)
+
+// Install runs the egg's install script in a throwaway container.
+//
+// Unlike the game container it runs as root, because install scripts usually
+// install packages, but it keeps only the capabilities that needs, can never
+// gain more, has a pid and time limit, and is not labelled as a server (so it
+// never shows up in state events). Afterwards the wrapper hands the data dir
+// back to the user the game container runs as.
+func (d *Docker) Install(ctx context.Context, r InstallRun, out io.Writer) error {
+	owner, err := dirOwner(r.DataDir)
+	if err != nil {
+		return err
+	}
+	if !numericIDRe.MatchString(owner) || !entrypointOK(r.Entrypoint) {
+		return errors.New("invalid installer settings")
+	}
+	ctx, cancel := context.WithTimeout(ctx, installTimeout)
+	defer cancel()
+
+	pull, err := d.cli.ImagePull(ctx, r.Image, client.ImagePullOptions{})
+	if err != nil {
+		return fmt.Errorf("pull %s: %w", r.Image, err)
+	}
+	if err := pull.Wait(ctx); err != nil {
+		return fmt.Errorf("pull %s: %w", r.Image, err)
+	}
+
+	env := make([]string, 0, len(r.Env))
+	for k, v := range r.Env {
+		env = append(env, k+"="+v)
+	}
+	sort.Strings(env)
+
+	pids := int64(4096)
+	mem := max(r.MemoryMB, 1024) << 20
+	script := r.Entrypoint + " /mnt/install/install.sh; rc=$?; chown -R " + owner + " /mnt/server; exit $rc"
+	// A previous crashed run may have left its installer behind.
+	_, _ = d.cli.ContainerRemove(ctx, name(r.UUID)+"-install", client.ContainerRemoveOptions{Force: true})
+	created, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Name: name(r.UUID) + "-install",
+		Config: &container.Config{
+			Image:      r.Image,
+			Cmd:        []string{"/bin/sh", "-c", script},
+			Env:        env,
+			WorkingDir: "/mnt/server",
+			Tty:        true,
+			Labels:     map[string]string{labelInstaller: r.UUID},
+		},
+		HostConfig: &container.HostConfig{
+			Binds:       []string{r.DataDir + ":/mnt/server", r.ScriptDir + ":/mnt/install:ro"},
+			CapDrop:     []string{"ALL"},
+			CapAdd:      []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "SETUID", "SETGID", "SETFCAP", "MKNOD"},
+			SecurityOpt: []string{"no-new-privileges"},
+			Resources:   container.Resources{Memory: mem, MemorySwap: mem, PidsLimit: &pids},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	id := created.ID
+	defer func() {
+		rm, c := context.WithTimeout(context.Background(), 30*time.Second)
+		defer c()
+		_, _ = d.cli.ContainerRemove(rm, id, client.ContainerRemoveOptions{Force: true})
+	}()
+
+	// Attach before starting so no early output is lost.
+	att, err := d.cli.ContainerAttach(ctx, id, client.ContainerAttachOptions{Stream: true, Stdout: true, Stderr: true})
+	if err != nil {
+		return err
+	}
+	defer att.Close()
+	if _, err := d.cli.ContainerStart(ctx, id, client.ContainerStartOptions{}); err != nil {
+		return err
+	}
+	copied := make(chan struct{})
+	go func() { _, _ = io.Copy(out, att.Reader); close(copied) }()
+
+	wait := d.cli.ContainerWait(ctx, id, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
+	select {
+	case err := <-wait.Error:
+		return err
+	case res := <-wait.Result:
+		select { // let the last output drain
+		case <-copied:
+		case <-time.After(2 * time.Second):
+		}
+		if res.StatusCode != 0 {
+			return fmt.Errorf("installer exited with code %d", res.StatusCode)
+		}
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("install: %w", ctx.Err())
+	}
+}
+
+var entrypointRe = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
+
+func entrypointOK(s string) bool { return entrypointRe.MatchString(s) }

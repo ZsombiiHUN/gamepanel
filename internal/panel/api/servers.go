@@ -14,7 +14,7 @@ import (
 
 type serverView struct {
 	store.Server
-	State      string       `json:"state" doc:"offline|starting|running|stopping|unknown"`
+	State      string       `json:"state" doc:"offline|starting|running|stopping|installing|install_failed|unknown"`
 	NodeOnline bool         `json:"node_online"`
 	Stats      *proto.Stats `json:"stats,omitempty"`
 }
@@ -158,6 +158,22 @@ func (a *App) registerServers(api huma.API) {
 			a.Store.DeleteServer(ctx, s.UUID)
 			a.Hub.Forget(s.UUID)
 			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, s.Name)
+			return nil, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "reinstall", Method: "POST", Path: "/servers/{uuid}/reinstall", Summary: "Re-run the egg install script (server must be offline)", DefaultStatus: 202},
+		func(ctx context.Context, in *uuidIn) (*struct{}, error) {
+			u, s, err := a.authorize(ctx, in.UUID)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerReinstall, proto.UUIDOnly{UUID: s.UUID}); err != nil {
+				if strings.Contains(err.Error(), "offline") {
+					return nil, huma.Error503ServiceUnavailable("the node is offline")
+				}
+				return nil, huma.Error409Conflict(err.Error())
+			}
+			a.audit(ctx, u, "server.reinstall", s.UUID, s.Name)
 			return nil, nil
 		})
 

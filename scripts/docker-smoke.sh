@@ -46,4 +46,15 @@ check "kill -> offline" 'wait_state offline'
 check "delete" '[ "$(curl -s -o /dev/null -w %{http_code} -b $J -X DELETE $B/servers/$U)" = 204 ]'
 check "container removed" '! docker inspect gp-$U >/dev/null 2>&1'
 check "data removed" '[ ! -e $T/dd/servers/$U ]'
+
+# --- egg install script: runs in a throwaway root container, files end up owned by the game user
+c -d '{"name":"Inst","docker_images":{"a":"alpine:3.20"},"startup":"cat /home/container/made-by-install.txt; sleep 1","config":{"stop":"^C"},"scripts":{"installation":{"container":"alpine:3.20","entrypoint":"ash","script":"echo \"from $GREETING\" > /mnt/server/made-by-install.txt\nid -u > /mnt/server/installer-uid.txt\n"}},"variables":[{"name":"g","env_variable":"GREETING","default_value":"installer"}]}' $B/eggs/import >/dev/null
+U=$(c -d '{"name":"d2","node_id":1,"egg_id":2,"memory_mb":128}' $B/servers | python3 -c 'import sys,json;print(json.load(sys.stdin)["uuid"])')
+check "install finishes -> offline" 'wait_state offline'
+check "install script wrote into the data dir" 'grep -q "from installer" $T/dd/servers/$U/made-by-install.txt'
+check "installer ran as root, files owned by the game user" '[ "$(cat $T/dd/servers/$U/installer-uid.txt)" = 0 ] && [ "$(stat -c %u $T/dd/servers/$U/made-by-install.txt)" = "$(id -u)" ]'
+check "installer container cleaned up" '! docker ps -a --format "{{.Names}}" | grep -q "gp-$U-install"'
+power start
+check "installed server starts and sees installer output" 'sleep 2; docker logs gp-$U 2>&1 | grep -q "from installer"'
+c -X DELETE $B/servers/$U >/dev/null
 exit $fail

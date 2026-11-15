@@ -20,7 +20,7 @@ func TestImportPTDLv2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.DockerImage != "ghcr.io/pterodactyl/yolks:java_17" { // sorted-first label, deterministic
+	if e.DockerImage != "ghcr.io/pterodactyl/yolks:java_21" { // first listed image is the default, as in Pterodactyl
 		t.Fatalf("image %q", e.DockerImage)
 	}
 	if e.Stop != "stop" || len(e.Variables) != 2 || e.Variables[1].Default != "20" {
