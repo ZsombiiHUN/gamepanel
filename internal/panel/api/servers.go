@@ -20,6 +20,8 @@ type serverView struct {
 	store.Server
 	State      string       `json:"state" doc:"offline|starting|running|stopping|installing|install_failed|unknown"`
 	NodeOnline bool         `json:"node_online"`
+	EggName    string       `json:"egg_name"`
+	NodeName   string       `json:"node_name"`
 	Stats      *proto.Stats `json:"stats,omitempty"`
 	// Permissions are what the caller may do here; Owner is true for the
 	// owner and admins, who can also manage who else has access.
@@ -36,6 +38,17 @@ func (a *App) viewFor(ctx context.Context, u store.User, s store.Server) serverV
 		v.Env = map[string]string{}
 	}
 	return v
+}
+
+// label fills the egg and node names, which the UI searches and shows.
+func (a *App) label(ctx context.Context, vs ...*serverView) {
+	eggs, nodes, err := a.Store.Labels(ctx)
+	if err != nil {
+		return
+	}
+	for _, v := range vs {
+		v.EggName, v.NodeName = eggs[v.EggID], nodes[v.NodeID]
+	}
 }
 
 func (a *App) view(s store.Server) serverView {
@@ -133,6 +146,11 @@ func (a *App) registerServers(api huma.API) {
 			for _, s := range ss {
 				out.Body = append(out.Body, a.viewFor(ctx, u, s))
 			}
+			ptrs := make([]*serverView, len(out.Body))
+			for i := range out.Body {
+				ptrs[i] = &out.Body[i]
+			}
+			a.label(ctx, ptrs...)
 			return out, nil
 		})
 
@@ -167,7 +185,9 @@ func (a *App) registerServers(api huma.API) {
 				return nil, a.nodeErr(err)
 			}
 			a.audit(ctx, u, "server.create", s.UUID, s.Name)
-			return &serverOut{Body: a.viewFor(ctx, u, s)}, nil
+			v := a.viewFor(ctx, u, s)
+			a.label(ctx, &v)
+			return &serverOut{Body: v}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "getServer", Method: "GET", Path: "/servers/{uuid}", Summary: "Get a server"},
@@ -176,7 +196,9 @@ func (a *App) registerServers(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			return &serverOut{Body: a.viewFor(ctx, u, s)}, nil
+			v := a.viewFor(ctx, u, s)
+			a.label(ctx, &v)
+			return &serverOut{Body: v}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "deleteServer", Method: "DELETE", Path: "/servers/{uuid}", Summary: "Delete a server and its data", DefaultStatus: 204},

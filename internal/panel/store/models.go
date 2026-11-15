@@ -441,3 +441,30 @@ func (s *Store) ServerByPrefix(ctx context.Context, nodeID int64, prefix string)
 	}
 	return found[0], nil
 }
+
+// Labels returns egg and node names by id, so server lists can show them
+// without loading install scripts or tokens.
+func (s *Store) Labels(ctx context.Context) (eggs, nodes map[int64]string, err error) {
+	eggs, nodes = map[int64]string{}, map[int64]string{}
+	for table, dst := range map[string]map[int64]string{"eggs": eggs, "nodes": nodes} {
+		rows, qerr := s.DB.QueryContext(ctx, `SELECT id,name FROM `+table)
+		if qerr != nil {
+			return nil, nil, qerr
+		}
+		for rows.Next() {
+			var id int64
+			var name string
+			if err := rows.Scan(&id, &name); err != nil {
+				rows.Close()
+				return nil, nil, err
+			}
+			dst[id] = name
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		rows.Close()
+	}
+	return eggs, nodes, nil
+}
