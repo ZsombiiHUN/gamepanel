@@ -151,6 +151,7 @@ func TestDiskLimitEnforcement(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "world.dat"), []byte(strings.Repeat("w", 3<<20)), 0o644)
 	waitFor(t, "stopped for exceeding the disk limit", func() bool { return s.state() == "offline" })
 	os.Remove(filepath.Join(dir, "world.dat"))
+	waitFor(t, "usage drops again", func() bool { st := s.view().Stats; return st != nil && st.DiskBytes < 1<<20 })
 
 	// a restore that would not fit is refused instead of filling the disk
 	s.write("keep.bin", strings.Repeat("k", 600_000))
