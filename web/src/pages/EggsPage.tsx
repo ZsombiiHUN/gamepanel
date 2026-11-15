@@ -1,10 +1,10 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Upload } from "lucide-react";
+import { Egg, Loader2, Plus, Upload, X } from "lucide-react";
 import { api, call } from "../api/client";
 import { eggsQuery } from "../api/queries";
 import { AdminOnly } from "../components/AdminOnly";
-import { ErrorBox, Field, Spinner } from "../components/ui";
+import { Empty, ErrorBox, Field, PageHeader, Pill, Section, ServerIcon, Spinner } from "../components/ui";
 
 export function EggsPage() {
   return <AdminOnly><Eggs /></AdminOnly>;
@@ -14,6 +14,7 @@ function Eggs() {
   const qc = useQueryClient();
   const eggs = useQuery(eggsQuery);
   const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
 
   const imp = useMutation({
@@ -21,6 +22,7 @@ function Eggs() {
       api.POST("/eggs/import", { body: body as never })),
     onSuccess: async () => {
       setText("");
+      setOpen(false);
       await qc.invalidateQueries({ queryKey: ["eggs"] });
     },
   });
@@ -44,42 +46,75 @@ function Eggs() {
     }
   };
 
+  const showImport = open || eggs.data?.length === 0;
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Eggs</h1>
+    <div className="mx-auto max-w-5xl">
+      <PageHeader
+        title="Eggs"
+        sub="Templates that say how to install and start a kind of game server. Pterodactyl and Pelican eggs import unchanged."
+        actions={
+          eggs.data?.length ? (
+            <button type="button" className="btn btn-primary" aria-expanded={open} onClick={() => setOpen(!open)}>
+              {open ? <X className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />} {open ? "Cancel" : "Import egg"}
+            </button>
+          ) : null
+        }
+      />
 
-      <form onSubmit={submit} className="card space-y-3" aria-labelledby="import-h">
-        <h2 id="import-h" className="text-lg font-medium">Import Pterodactyl egg</h2>
-        <Field label="Egg file (.json)">
-          {(id) => <input id={id} type="file" accept="application/json,.json" onChange={onFile} className="input file:mr-3 file:rounded file:border-0 file:bg-zinc-700 file:px-2 file:py-1 file:text-zinc-100" />}
-        </Field>
-        <Field label="Or paste egg JSON">
-          {(id) => <textarea id={id} className="input h-40 font-mono" spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} required />}
-        </Field>
-        <ErrorBox error={parseError} />
-        <ErrorBox error={imp.error} />
-        {imp.isSuccess && <p role="status" className="text-sm text-emerald-400">Imported egg "{imp.data.name}".</p>}
-        <button type="submit" className="btn btn-primary" disabled={imp.isPending || !text.trim()}>
-          {imp.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Upload className="h-4 w-4" aria-hidden />} Import
-        </button>
-      </form>
+      <div className="space-y-5">
+        {imp.isSuccess && !showImport && <p role="status" className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-2.5 text-sm text-emerald-300">Imported egg &quot;{imp.data.name}&quot;.</p>}
+        {showImport && (
+          <form onSubmit={submit}>
+            <Section
+              title="Import an egg"
+              desc="Choose an egg's .json file, or paste its contents."
+              footer={
+                <>
+                  <span>Install scripts are imported too. Values reach the server only as environment variables.</span>
+                  <button type="submit" className="btn btn-primary" disabled={imp.isPending || !text.trim()}>
+                    {imp.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Upload className="h-4 w-4" aria-hidden />} Import
+                  </button>
+                </>
+              }
+            >
+              <div className="space-y-4">
+                <Field label="Egg file (.json)">
+                  {(id) => <input id={id} type="file" accept="application/json,.json" onChange={onFile} className="input file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-2.5 file:py-1 file:text-zinc-100" />}
+                </Field>
+                <Field label="Or paste egg JSON">
+                  {(id) => <textarea id={id} className="input h-40 font-mono text-[13px]" spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} required />}
+                </Field>
+                <ErrorBox error={parseError} />
+                <ErrorBox error={imp.error} />
+                {imp.isSuccess && <p role="status" className="text-sm text-emerald-400">Imported egg &quot;{imp.data.name}&quot;.</p>}
+              </div>
+            </Section>
+          </form>
+        )}
 
-      {eggs.isPending && <Spinner />}
-      <ErrorBox error={eggs.error} />
-      <ul className="grid gap-4 sm:grid-cols-2">
-        {eggs.data?.length === 0 && <li className="text-sm text-zinc-500">No eggs imported yet.</li>}
-        {eggs.data?.map((egg) => (
-          <li key={egg.id} className="card">
-            <h3 className="font-medium">{egg.name} <span className="text-zinc-500">#{egg.id}</span></h3>
-            {egg.description && <p className="mt-1 text-sm text-zinc-400">{egg.description}</p>}
-            <dl className="mt-3 space-y-1 text-xs">
-              <div><dt className="inline text-zinc-500">Image: </dt><dd className="inline break-all font-mono">{egg.docker_image}</dd></div>
-              <div><dt className="inline text-zinc-500">Startup: </dt><dd className="inline break-all font-mono">{egg.startup}</dd></div>
-              <div><dt className="inline text-zinc-500">Variables: </dt><dd className="inline">{(egg.variables ?? []).length}</dd></div>
-            </dl>
-          </li>
-        ))}
-      </ul>
+        {eggs.isPending && <Spinner />}
+        <ErrorBox error={eggs.error} />
+        {eggs.data?.length === 0 && <Empty icon={<Egg className="h-5 w-5" aria-hidden />} title="No eggs imported yet">Import one above to be able to create servers.</Empty>}
+        <ul className="grid gap-4 sm:grid-cols-2">
+          {eggs.data?.map((egg) => (
+            <li key={egg.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+              <div className="flex items-start gap-3.5">
+                <ServerIcon name={egg.name} size={44} />
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-[15px] font-semibold text-zinc-100">{egg.name} <span className="font-normal text-zinc-500">#{egg.id}</span></h2>
+                  {egg.description && <p className="mt-0.5 line-clamp-2 text-sm text-zinc-400">{egg.description}</p>}
+                </div>
+                <Pill>{(egg.variables ?? []).length} variable{(egg.variables ?? []).length === 1 ? "" : "s"}</Pill>
+              </div>
+              <dl className="mt-4 space-y-2 text-[13px]">
+                <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Image</dt><dd className="mt-0.5 break-all font-mono text-zinc-300">{egg.docker_image}</dd></div>
+                <div><dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Startup</dt><dd className="mt-0.5 break-all rounded-lg bg-well px-2.5 py-1.5 font-mono text-zinc-300">{egg.startup}</dd></div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

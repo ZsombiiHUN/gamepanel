@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { meQuery } from "../api/queries";
-import { ErrorBox, Field } from "../components/ui";
+import { Avatar, ErrorBox, Field, PageHeader, Pill, Section } from "../components/ui";
 import { ApiKeysSection } from "./ApiKeysSection";
 import { TotpSection } from "./TotpSection";
 
@@ -32,41 +32,66 @@ export function AccountPage() {
   };
 
   return (
-    <div className="max-w-xl space-y-6">
-      <h1 className="text-2xl font-semibold">Account</h1>
-      <p className="text-sm text-zinc-400">Signed in as {me.data?.email}</p>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader
+        title="Account"
+        sub={
+          <span className="inline-flex items-center gap-2">
+            <Avatar name={me.data?.email ?? "?"} size={22} /> {me.data?.email}
+            {me.data?.is_admin && <Pill>Administrator</Pill>}
+          </span>
+        }
+      />
+      <div className="space-y-5">
+        <form onSubmit={submit}>
+          <Section
+            title="Password"
+            desc="12 to 256 characters. Other browsers are signed out when you change it."
+            footer={
+              <>
+                <span className={change.isSuccess ? "text-emerald-400" : ""} role={change.isSuccess ? "status" : undefined}>
+                  {change.isSuccess ? "Password changed. Your other sessions were signed out." : ""}
+                </span>
+                <button type="submit" className="btn btn-primary" disabled={change.isPending || mismatch}>
+                  {change.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Change password
+                </button>
+              </>
+            }
+          >
+            <div className="grid max-w-md gap-4">
+              <Field label="Current password">
+                {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} />}
+              </Field>
+              <Field label="New password">
+                {(id) => <input id={id} className="input" type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={next} onChange={(e) => setNext(e.target.value)} />}
+              </Field>
+              <Field label="Repeat new password">
+                {(id) => <input id={id} className="input" type="password" autoComplete="new-password" required value={again} onChange={(e) => setAgain(e.target.value)} aria-invalid={mismatch} />}
+              </Field>
+              {mismatch && <p role="alert" className="text-sm text-red-400">The passwords do not match.</p>}
+              {change.error && <ErrorBox error={change.error} />}
+            </div>
+          </Section>
+        </form>
 
-      <form onSubmit={submit} className="card space-y-4" aria-labelledby="pw-h">
-        <h2 id="pw-h" className="text-lg font-medium">Change password</h2>
-        <Field label="Current password">
-          {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} />}
-        </Field>
-        <Field label="New password" hint="12 to 256 characters. Other browsers are signed out when you change it.">
-          {(id) => <input id={id} className="input" type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={next} onChange={(e) => setNext(e.target.value)} />}
-        </Field>
-        <Field label="Repeat new password">
-          {(id) => <input id={id} className="input" type="password" autoComplete="new-password" required value={again} onChange={(e) => setAgain(e.target.value)} aria-invalid={mismatch} />}
-        </Field>
-        {mismatch && <p role="alert" className="text-sm text-red-400">The passwords do not match.</p>}
-        {change.error && <ErrorBox error={change.error} />}
-        {change.isSuccess && <p role="status" className="text-sm text-emerald-400">Password changed. Your other sessions were signed out.</p>}
-        <button type="submit" className="btn btn-primary" disabled={change.isPending || mismatch}>
-          {change.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Change password
-        </button>
-      </form>
+        <TotpSection />
+        <ApiKeysSection />
 
-      <TotpSection />
-      <ApiKeysSection />
-
-      <section className="card space-y-3" aria-labelledby="sess-h">
-        <h2 id="sess-h" className="text-lg font-medium">Sessions</h2>
-        <p className="text-sm text-zinc-400">Sign out every other browser or device that is logged in to your account.</p>
-        {revoke.error && <ErrorBox error={revoke.error} />}
-        {revoke.isSuccess && <p role="status" className="text-sm text-emerald-400">Other sessions signed out.</p>}
-        <button type="button" className="btn" onClick={() => revoke.mutate()} disabled={revoke.isPending}>
-          {revoke.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Sign out other sessions
-        </button>
-      </section>
+        <Section
+          title="Sessions"
+          desc="Sign out every other browser or device that is logged in to your account."
+          footer={
+            <>
+              <span className={revoke.isSuccess ? "text-emerald-400" : ""} role={revoke.isSuccess ? "status" : undefined}>{revoke.isSuccess ? "Other sessions signed out." : ""}</span>
+              <button type="button" className="btn" onClick={() => revoke.mutate()} disabled={revoke.isPending}>
+                {revoke.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Sign out other sessions
+              </button>
+            </>
+          }
+        >
+          {revoke.error && <ErrorBox error={revoke.error} />}
+        </Section>
+      </div>
     </div>
   );
 }

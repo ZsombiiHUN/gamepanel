@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { eggsQuery, meQuery, nodesQuery } from "../api/queries";
-import { ConfirmDialog, ErrorBox } from "../components/ui";
+import { ConfirmDialog, CopyButton, ErrorBox, InfoList, Section } from "../components/ui";
 import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
 
 type ServerView = components["schemas"]["ServerView"];
@@ -38,90 +38,97 @@ export function SettingsTab({ server }: { server: ServerView }) {
   const stopped = server.state === "offline" || server.state === "install_failed";
 
   const envEntries = Object.entries(server.env ?? {});
-  const rows: [string, string][] = [
-    ["UUID", server.uuid],
-    ["Egg", eggName ? `${eggName} (#${server.egg_id})` : `#${server.egg_id}`],
-    ["Node", nodeName ? `${nodeName} (#${server.node_id})` : `#${server.node_id}`],
-    ["Port", String(server.port)],
-    ["Memory", `${server.memory_mb} MB`],
-    ["CPU limit", server.cpu_pct === 0 ? "unlimited" : `${server.cpu_pct}%`],
-    ["Owner ID", String(server.owner_id)],
-  ];
+  const sftpUser = `${me.data?.email ?? ""}.${server.uuid.slice(0, 8)}`;
 
   return (
-    <div className="space-y-6">
-      <section className="card" aria-labelledby="details-h">
-        <h2 id="details-h" className="mb-3 text-lg font-medium">Details</h2>
-        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
-          {rows.map(([k, v]) => (
-            <div key={k} className="contents">
-              <dt className="text-zinc-400">{k}</dt>
-              <dd className="break-all font-mono">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+    <div className="space-y-5">
+      <Section title="Details" desc="Where this server lives and who owns it.">
+        <InfoList
+          rows={[
+            { label: "UUID", value: server.uuid },
+            { label: "Egg", value: eggName ? `${eggName} (#${server.egg_id})` : `#${server.egg_id}` },
+            { label: "Node", value: nodeName ? `${nodeName} (#${server.node_id})` : `#${server.node_id}` },
+            { label: "Port", value: String(server.port) },
+            { label: "Owner ID", value: String(server.owner_id) },
+          ]}
+        />
+      </Section>
 
-      <section className="card space-y-3" aria-labelledby="limits-h">
-        <h2 id="limits-h" className="text-lg font-medium">Resource limits</h2>
-        {isAdmin ? (
-          <form onSubmit={(e) => { e.preventDefault(); saveLimits.mutate(); }} className="space-y-3">
+      {isAdmin ? (
+        <form onSubmit={(e) => { e.preventDefault(); saveLimits.mutate(); }}>
+          <Section
+            title="Resource limits"
+            desc="What this server may use on its node. Changes apply the next time it starts."
+            footer={
+              <>
+                <span className={!stopped ? "text-amber-300" : saveLimits.isSuccess ? "text-emerald-400" : ""} role={saveLimits.isSuccess ? "status" : undefined}>
+                  {!stopped ? "Stop the server to change its limits." : saveLimits.isSuccess ? "Limits saved." : "0 usually means unlimited."}
+                </span>
+                <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending || !stopped}>Save limits</button>
+              </>
+            }
+          >
             <LimitsFields value={limits} onChange={setLimits} />
-            {!stopped && <p className="text-sm text-amber-300">Stop the server to change its limits.</p>}
-            <ErrorBox error={saveLimits.error} />
-            {saveLimits.isSuccess && <p role="status" className="text-sm text-emerald-400">Limits saved.</p>}
-            <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending || !stopped}>Save limits</button>
-          </form>
-        ) : (
-          <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]">
-            {[
-              ["Memory", `${server.memory_mb} MB`], ["Swap", server.swap_mb < 0 ? "unlimited" : `${server.swap_mb} MB`],
-              ["CPU", server.cpu_pct ? `${server.cpu_pct}%` : "unlimited"], ["Cores", server.cpuset || "any"],
-              ["Disk", server.disk_mb ? `${server.disk_mb} MB` : "unlimited"], ["Max processes", String(server.pids_limit)],
-              ["Backups to keep", String(server.backup_limit)],
-            ].map(([k, v]) => (<div key={k} className="contents"><dt className="text-zinc-400">{k}</dt><dd>{v}</dd></div>))}
-          </dl>
-        )}
-      </section>
-
-      {(server.permissions.includes("files.read") || server.permissions.includes("files.write")) && (
-        <section className="card" aria-labelledby="sftp-h">
-          <h2 id="sftp-h" className="mb-3 text-lg font-medium">SFTP</h2>
-          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
-            <dt className="text-zinc-400">Host</dt>
-            <dd className="font-mono">your node&apos;s address, port 2022 (default)</dd>
-            <dt className="text-zinc-400">Username</dt>
-            <dd className="break-all font-mono">{me.data?.email}.{server.uuid.slice(0, 8)}</dd>
-            <dt className="text-zinc-400">Password</dt>
-            <dd>An API key from your Account page. Your account password does not work for SFTP.</dd>
-          </dl>
-        </section>
+            <div className="mt-3"><ErrorBox error={saveLimits.error} /></div>
+          </Section>
+        </form>
+      ) : (
+        <Section title="Resource limits" desc="Set by an administrator.">
+          <InfoList
+            rows={[
+              { label: "Memory", value: `${server.memory_mb} MB` },
+              { label: "Swap", value: server.swap_mb < 0 ? "unlimited" : `${server.swap_mb} MB` },
+              { label: "CPU", value: server.cpu_pct ? `${server.cpu_pct}%` : "unlimited" },
+              { label: "Cores", value: server.cpuset || "any" },
+              { label: "Disk", value: server.disk_mb ? `${server.disk_mb} MB` : "unlimited" },
+              { label: "Max processes", value: String(server.pids_limit) },
+              { label: "Backups to keep", value: String(server.backup_limit) },
+            ]}
+          />
+        </Section>
       )}
 
-      {server.owner && <section className="card" aria-labelledby="env-h">
-        <h2 id="env-h" className="mb-3 text-lg font-medium">Environment</h2>
-        {envEntries.length === 0 ? (
-          <p className="text-sm text-zinc-400">No environment variables.</p>
-        ) : (
-          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[14rem_1fr]">
-            {envEntries.map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt className="break-all font-mono text-zinc-400">{k}</dt>
-                <dd className="break-all font-mono">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </section>}
+      {(server.permissions.includes("files.read") || server.permissions.includes("files.write")) && (
+        <Section
+          title="SFTP"
+          desc="Upload and download files with any SFTP client."
+          footer={<><span>Your account password does not work for SFTP. Use an API key from your Account page.</span><CopyButton text={sftpUser} label="Copy username" /></>}
+        >
+          <InfoList
+            rows={[
+              { label: "Host", value: "your node's address", plain: true },
+              { label: "Port", value: "2022 (default)" },
+              { label: "Username", value: sftpUser },
+              { label: "Password", value: "An API key", plain: true },
+            ]}
+          />
+        </Section>
+      )}
+
+      {server.owner && (
+        <Section title="Environment" desc="Variables the egg passes to the server process.">
+          {envEntries.length === 0 ? (
+            <p className="text-sm text-zinc-500">No environment variables.</p>
+          ) : (
+            <InfoList rows={envEntries.map(([k, v]) => ({ label: k, value: v }))} />
+          )}
+        </Section>
+      )}
 
       {isAdmin && (
-        <section className="card border-red-900" aria-labelledby="danger-h">
-          <h2 id="danger-h" className="mb-2 text-lg font-medium text-red-300">Danger zone</h2>
-          <p className="mb-3 text-sm text-zinc-400">Deleting a server removes it from the panel and its node.</p>
-          <button type="button" className="btn btn-danger" onClick={() => setConfirm(true)}>
-            <Trash2 className="h-4 w-4" aria-hidden /> Delete server
-          </button>
-        </section>
+        <Section
+          danger
+          title="Delete this server"
+          desc="Removes the server from the panel and from its node, including its files. This cannot be undone."
+          footer={
+            <>
+              <span>Backups stored on the node are deleted with it.</span>
+              <button type="button" className="btn btn-danger" onClick={() => setConfirm(true)}>
+                <Trash2 className="h-4 w-4" aria-hidden /> Delete server
+              </button>
+            </>
+          }
+        />
       )}
 
       <ConfirmDialog
