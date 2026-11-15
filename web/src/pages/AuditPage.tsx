@@ -1,45 +1,35 @@
-import { useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, ScrollText, Search } from "lucide-react";
-import { api, call } from "../api/client";
-import { AdminOnly } from "../components/AdminOnly";
+import { ChevronLeft, ChevronRight, ScrollText } from "lucide-react";
+import { AUDIT_PAGE_SIZE, auditQuery } from "../api/queries";
+import { SearchInput } from "../components/SearchInput";
 import { Empty, ErrorBox, PageHeader, Pill, Spinner } from "../components/ui";
-
-const PAGE = 100;
+import { useSearchText } from "../hooks/useSearchText";
 
 export function AuditPage() {
-  return <AdminOnly><Audit /></AdminOnly>;
-}
+  // The search term and page live in the address, so a view can be shared and Back works.
+  // Changing the term and returning to page one is a single navigation, so paging is never undone by a timer.
+  const { q: term = "", page = 0 } = useSearch({ from: "/app/admin/audit" });
+  const navigate = useNavigate({ from: "/audit" });
+  const [filter, setFilter] = useSearchText(term, (q) => void navigate({ search: { q: q || undefined }, replace: true }));
+  const goTo = (p: number) => void navigate({ search: (prev) => ({ ...prev, page: p || undefined }) });
 
-function Audit() {
-  const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState("");
-  const q = useQuery({
-    queryKey: ["audit", page],
-    queryFn: async () => (await call(api.GET("/audit", { params: { query: { limit: PAGE, offset: page * PAGE } } }))) ?? [],
-  });
-  const f = filter.trim().toLowerCase();
-  const rows = (q.data ?? []).filter((e) => !f || [e.action, e.actor_email, e.target, e.detail, e.ip].some((v) => String(v ?? "").toLowerCase().includes(f)));
+  const q = useQuery(auditQuery(term, page));
+  const rows = q.data ?? [];
 
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Audit log"
         sub="Security events across the panel, newest first. Times are in your browser's timezone."
-        actions={
-          <label className="relative">
-            <span className="sr-only">Filter this page</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" aria-hidden />
-            <input className="input w-60 !pl-9" placeholder="Filter this page" value={filter} onChange={(e) => setFilter(e.target.value)} />
-          </label>
-        }
+        actions={<SearchInput label="Search the audit log" placeholder="Search event, user, target, IP…" value={filter} onChange={setFilter} className="w-72" />}
       />
       {q.isPending && <Spinner />}
       {q.error && <ErrorBox error={q.error} />}
-      {q.data && q.data.length === 0 && page === 0 && <Empty icon={<ScrollText className="h-5 w-5" aria-hidden />} title="No events yet">Sign-ins, power actions and settings changes show up here.</Empty>}
-      {q.data && (q.data.length > 0 || page > 0) && (
+      {q.data && q.data.length === 0 && page === 0 && !term && <Empty icon={<ScrollText className="h-5 w-5" aria-hidden />} title="No events yet">Sign-ins, power actions and settings changes show up here.</Empty>}
+      {q.data && (q.data.length > 0 || page > 0 || term) && (
         <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Audit events">
             <table className="w-full text-left text-sm">
               <caption className="sr-only">Security events, newest first</caption>
               <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
@@ -64,15 +54,15 @@ function Audit() {
                     </tr>
                   );
                 })}
-                {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-zinc-500">{f ? "Nothing on this page matches." : "No more events."}</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-zinc-500">{term ? `No events match “${term}”.` : "No more events."}</td></tr>}
               </tbody>
             </table>
           </div>
           <div className="flex items-center justify-between border-t border-zinc-800 bg-black/15 px-4 py-2.5 text-sm text-zinc-500">
-            <span>Page {page + 1}{q.data.length ? ` · ${q.data.length} events` : ""}</span>
+            <span aria-live="polite">Page {page + 1}{q.data.length ? ` · ${q.data.length} events` : ""}{term ? ` matching “${term}”` : ""}</span>
             <div className="flex gap-2">
-              <button type="button" className="btn" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" aria-hidden /> Newer</button>
-              <button type="button" className="btn" disabled={q.data.length < PAGE} onClick={() => setPage(page + 1)}>Older <ChevronRight className="h-4 w-4" aria-hidden /></button>
+              <button type="button" className="btn" disabled={page === 0} onClick={() => goTo(page - 1)}><ChevronLeft className="h-4 w-4" aria-hidden /> Newer</button>
+              <button type="button" className="btn" disabled={q.data.length < AUDIT_PAGE_SIZE} onClick={() => goTo(page + 1)}>Older <ChevronRight className="h-4 w-4" aria-hidden /></button>
             </div>
           </div>
         </div>

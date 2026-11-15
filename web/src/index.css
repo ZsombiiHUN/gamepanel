@@ -14,8 +14,9 @@
   --color-zinc-100: #e8eaed;
   --color-zinc-200: #c9ced4;
   --color-zinc-300: #b3b9c0;
-  --color-zinc-400: #8b929a;
-  --color-zinc-500: #6d747c;
+  /* 400 and 500 are the muted text colours. 500 is the faintest that still reaches 4.5:1 on the card and sidebar backgrounds. */
+  --color-zinc-400: #9aa1a9;
+  --color-zinc-500: #858c94;
   --color-zinc-600: #3a4148;
   --color-zinc-700: #2b3138;
   --color-zinc-800: #1f242a;

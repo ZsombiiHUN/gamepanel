@@ -1,53 +1,41 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import CodeMirror from "@uiw/react-codemirror";
-import { oneDark } from "@codemirror/theme-one-dark";
-import { json } from "@codemirror/lang-json";
-import { yaml } from "@codemirror/lang-yaml";
-import { javascript } from "@codemirror/lang-javascript";
-import type { Extension } from "@codemirror/state";
-import { ChevronRight, File as FileIcon, Folder, Home, Loader2, Save, Search, Trash2, ArrowLeft } from "lucide-react";
-import { api, ApiError, call, type components } from "../api/client";
+import { useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ChevronRight, File as FileIcon, Folder, Home, ArrowLeft, Trash2 } from "lucide-react";
+import { api, call, type components } from "../api/client";
+import { dirQuery, invalidates, keys } from "../api/queries";
+import { SearchInput } from "../components/SearchInput";
 import { ConfirmDialog, ErrorBox, Spinner } from "../components/ui";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useFileSearch } from "../hooks/useFileSearch";
+import { useSearchText } from "../hooks/useSearchText";
 import { formatBytes, joinPath, parentPath } from "../lib/format";
+import { FileEditor } from "./FileEditor";
 
 type FileInfo = components["schemas"]["FileInfo"];
 
-function langFor(path: string): Extension[] {
-  const ext = path.split(".").pop()?.toLowerCase();
-  if (ext === "json") return [json()];
-  if (ext === "yml" || ext === "yaml") return [yaml()];
-  if (ext === "js" || ext === "mjs" || ext === "ts") return [javascript()];
-  return [];
-}
-
-function friendly(err: unknown): unknown {
-  if (err instanceof ApiError && (err.status === 413 || /too large/i.test(err.message))) {
-    return new Error("This file is too large to edit in the browser. Use SFTP or another tool for large files.");
-  }
-  return err;
-}
-
 export function FilesTab({ uuid }: { uuid: string }) {
-  const [dir, setDir] = useState("/");
-  const [openFile, setOpenFile] = useState<string | null>(null);
-  const [toDelete, setToDelete] = useState<FileInfo | null>(null);
-  const [q, setQ] = useState("");
-  const qc = useQueryClient();
+  // The folder and the search live in the address, so a folder can be linked to and Back goes up.
+  const { dir = "/", q: urlQuery } = useSearch({ from: "/app/servers/$uuid" });
+  const navigate = useNavigate({ from: "/servers/$uuid" });
+  const setDir = (d: string) => void navigate({ search: (prev) => ({ ...prev, dir: d === "/" ? undefined : d, q: undefined }) });
+  const [q, setQ] = useSearchText(urlQuery, (text) => void navigate({ search: (prev) => ({ ...prev, q: text || undefined }), replace: true }), 250);
 
-  const list = useQuery({
-    queryKey: ["files", uuid, dir],
-    queryFn: async () =>
-      (await call(api.GET("/servers/{uuid}/files", { params: { path: { uuid }, query: { path: dir } } }))) ?? [],
-  });
+  const [openFile, setOpenFile] = useState<string | null>(null);
+  const [toDelete, setToDelete] = useState<(FileInfo & { path: string }) | null>(null);
+
+  const list = useQuery(dirQuery(uuid, dir));
+  // Searching looks through every folder below the current one, not just this folder.
+  const needle = q.trim();
+  const settled = useDebouncedValue(needle, 250);
+  const search = useFileSearch(uuid, dir, settled);
+  const found = needle !== "" && needle === settled ? search.data : undefined;
+  const searching = needle !== "" && !found && !search.isError;
 
   const del = useMutation({
-    mutationFn: (p: string) =>
-      call(api.DELETE("/servers/{uuid}/files", { params: { path: { uuid }, query: { path: p } } })),
-    onSuccess: async () => {
-      setToDelete(null);
-      await qc.invalidateQueries({ queryKey: ["files", uuid] });
-    },
+    mutationFn: (p: string) => call(api.DELETE("/servers/{uuid}/files", { params: { path: { uuid }, query: { path: p } } })),
+    meta: invalidates(keys.files(uuid)),
+    onSuccess: () => setToDelete(null),
   });
 
   const entries = [...(list.data ?? [])].sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
@@ -59,15 +47,20 @@ export function FilesTab({ uuid }: { uuid: string }) {
         uuid={uuid}
         path={openFile}
         onClose={() => setOpenFile(null)}
-        onDeleted={() => {
-          setOpenFile(null);
-          void qc.invalidateQueries({ queryKey: ["files", uuid] });
-        }}
+        onDeleted={() => setOpenFile(null)}
       />
     );
   }
 
-  const shown = entries.filter((f) => f.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const rows = needle
+    ? (found?.hits ?? []).map((h) => ({ ...h, parent: parentPath(h.path) }))
+    : entries.map((f) => ({ ...f, path: joinPath(dir, f.name), parent: "" }));
+  const open = (f: { dir: boolean; path: string }) => {
+    if (f.dir) {
+      setQ("");
+      setDir(f.path);
+    } else setOpenFile(f.path);
+  };
   return (
     <div className="space-y-3">
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
@@ -84,18 +77,15 @@ export function FilesTab({ uuid }: { uuid: string }) {
               );
             })}
           </nav>
-          <label className="flex min-h-9 items-center gap-2 rounded-lg border border-zinc-700 bg-[#101317] px-3 text-zinc-500">
-            <Search className="h-4 w-4" aria-hidden />
-            <span className="sr-only">Search files</span>
-            <input className="w-36 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500" placeholder="Search files" value={q} onChange={(e) => setQ(e.target.value)} />
-          </label>
+          <SearchInput label="Search files" placeholder={dir === "/" ? "Search all files" : "Search in this folder"} value={q} onChange={setQ} />
         </div>
 
         {list.isPending && <div className="px-4 py-3"><Spinner /></div>}
+        {needle && searching && <div className="px-4 py-3" role="status"><Spinner label={`Searching ${dir === "/" ? "all folders" : dir}`} /></div>}
         {list.error ? <div className="px-4 pb-3"><ErrorBox error={list.error} /></div> : null}
 
         {list.data && (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Files">
             <table className="w-full min-w-[560px] text-sm">
               <caption className="sr-only">Files in {dir}</caption>
               <thead className="bg-[#101317] text-left text-[12.5px] text-zinc-500">
@@ -107,7 +97,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
                 </tr>
               </thead>
               <tbody>
-                {dir !== "/" && (
+                {dir !== "/" && !needle && (
                   <tr className="border-t border-[#1b2025]">
                     <td className="px-5 py-2.5" colSpan={4}>
                       <button type="button" className="link inline-flex items-center gap-2" onClick={() => setDir(parentPath(dir))}>
@@ -116,23 +106,23 @@ export function FilesTab({ uuid }: { uuid: string }) {
                     </td>
                   </tr>
                 )}
-                {shown.length === 0 && <tr className="border-t border-[#1b2025]"><td className="px-5 py-4 text-zinc-500" colSpan={4}>{q ? "No files match." : "Empty directory."}</td></tr>}
-                {shown.map((f) => (
-                  <tr key={f.name} className="group border-t border-[#1b2025] hover:bg-[#161a1f]">
+                {rows.length === 0 && !(needle && searching) && <tr className="border-t border-[#1b2025]"><td className="px-5 py-4 text-zinc-500" colSpan={4}>{needle ? `No files or folders named “${needle}” in ${dir === "/" ? "any folder" : dir + " or its subfolders"}.` : "Empty directory."}</td></tr>}
+                {rows.map((f) => (
+                  <tr key={f.path} className="group border-t border-[#1b2025] hover:bg-[#161a1f]">
                     <td className="px-5 py-2.5">
                       <button
                         type="button"
                         className="inline-flex items-center gap-3 rounded text-[14.5px] text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
-                        onClick={() => (f.dir ? setDir(joinPath(dir, f.name)) : setOpenFile(joinPath(dir, f.name)))}
+                        onClick={() => open(f)}
                       >
-                        {f.dir ? <Folder className="h-[17px] w-[17px] text-indigo-400" aria-hidden /> : <FileIcon className="h-[17px] w-[17px] text-zinc-500" aria-hidden />}
-                        {f.name}
+                        {f.dir ? <Folder className="h-[17px] w-[17px] shrink-0 text-indigo-400" aria-hidden /> : <FileIcon className="h-[17px] w-[17px] shrink-0 text-zinc-500" aria-hidden />}
+                        <span>{f.name}{f.parent && <span className="ml-2 font-mono text-xs text-zinc-500"><span className="sr-only">, in </span>{f.parent}</span>}</span>
                       </button>
                     </td>
                     <td className="px-3 py-2.5 font-mono text-[12.5px] text-zinc-400">{f.dir ? "-" : formatBytes(f.size)}</td>
                     <td className="px-3 py-2.5 text-[13px] text-zinc-400">{f.mod_unix ? new Date(f.mod_unix * 1000).toLocaleString() : "-"}</td>
                     <td className="px-3 py-2.5 text-right">
-                      <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 opacity-60 hover:bg-zinc-800 hover:text-red-300 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-indigo-500 group-hover:opacity-100" onClick={() => setToDelete(f)} aria-label={`Delete ${f.name}`}>
+                      <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 opacity-60 hover:bg-zinc-800 hover:text-red-300 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-indigo-500 group-hover:opacity-100" onClick={() => setToDelete(f)} aria-label={`Delete ${f.path.slice(1)}`}>
                         <Trash2 className="h-4 w-4" aria-hidden />
                       </button>
                     </td>
@@ -143,7 +133,11 @@ export function FilesTab({ uuid }: { uuid: string }) {
           </div>
         )}
       </section>
-      <p className="text-[12.5px] text-zinc-500">{entries.length} items. Click a file to edit it. Use SFTP to upload.</p>
+      <p className="text-[12.5px] text-zinc-500" aria-live="polite">
+        {needle
+          ? `${found ? `${found.hits.length} ${found.hits.length === 1 ? "match" : "matches"}` : "Searching"}${found?.truncated ? ` (stopped early after ${found.scanned} folders or too many matches. Narrow your search or open a subfolder.)` : ""}. Press Esc to clear.`
+          : `${entries.length} items. Click a file to edit it. Use SFTP to upload. Tip: type to search inside every subfolder.`}
+      </p>
 
       <ConfirmDialog
         open={!!toDelete}
@@ -152,78 +146,10 @@ export function FilesTab({ uuid }: { uuid: string }) {
         confirmLabel="Delete"
         pending={del.isPending}
         error={del.error}
-        onConfirm={() => toDelete && del.mutate(joinPath(dir, toDelete.name))}
+        onConfirm={() => toDelete && del.mutate(toDelete.path)}
         onCancel={() => { setToDelete(null); del.reset(); }}
       />
     </div>
   );
 }
 
-function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; path: string; onClose: () => void; onDeleted: () => void }) {
-  const file = useQuery({
-    queryKey: ["file", uuid, path],
-    queryFn: () => call(api.GET("/servers/{uuid}/files/content", { params: { path: { uuid }, query: { path } } })),
-    retry: false,
-    gcTime: 0,
-  });
-  const [text, setText] = useState("");
-  const [saved, setSaved] = useState("");
-  const [confirm, setConfirm] = useState(false);
-
-  useEffect(() => {
-    if (file.data) {
-      setText(file.data.content);
-      setSaved(file.data.content);
-    }
-  }, [file.data]);
-
-  const save = useMutation({
-    mutationFn: () =>
-      call(api.PUT("/servers/{uuid}/files/content", { params: { path: { uuid } }, body: { path, content: text } })),
-    onSuccess: () => setSaved(text),
-  });
-  const del = useMutation({
-    mutationFn: () => call(api.DELETE("/servers/{uuid}/files", { params: { path: { uuid }, query: { path } } })),
-    onSuccess: onDeleted,
-  });
-
-  const dirty = text !== saved;
-  const close = () => {
-    if (dirty && !window.confirm("Discard unsaved changes?")) return;
-    onClose();
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="btn" onClick={close}><ArrowLeft className="h-4 w-4" aria-hidden /> Back</button>
-        <h2 className="break-all font-mono text-sm">{path}{dirty && <span className="ml-2 text-amber-400" title="Unsaved changes">(modified)</span>}</h2>
-        <div className="ml-auto flex gap-2">
-          <button type="button" className="btn btn-primary" onClick={() => save.mutate()} disabled={!file.data || !dirty || save.isPending}>
-            {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />} Save
-          </button>
-          <button type="button" className="btn btn-danger" onClick={() => setConfirm(true)}><Trash2 className="h-4 w-4" aria-hidden /> Delete</button>
-        </div>
-      </div>
-      {file.isPending && <Spinner />}
-      <ErrorBox error={friendly(file.error)} />
-      <ErrorBox error={save.error} />
-      {save.isSuccess && !dirty && <p role="status" className="text-sm text-emerald-400">Saved.</p>}
-      {file.data && (
-        <div role="group" aria-label={`Editor for ${path}`} className="overflow-hidden rounded-md border border-zinc-800">
-          <CodeMirror value={text} onChange={setText} theme={oneDark} extensions={langFor(path)} height="60vh" />
-        </div>
-      )}
-      <ConfirmDialog
-        open={confirm}
-        title="Delete this file?"
-        body={<span className="break-all font-mono">{path}</span>}
-        confirmLabel="Delete"
-        pending={del.isPending}
-        error={del.error}
-        onConfirm={() => del.mutate()}
-        onCancel={() => { setConfirm(false); del.reset(); }}
-      />
-    </div>
-  );
-}

@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { useMutation } from "@tanstack/react-query";
 import { Gamepad2, Loader2, ShieldCheck } from "lucide-react";
 import { api, call } from "../api/client";
-import { meQuery } from "../api/queries";
+import { invalidates, keys } from "../api/queries";
 import { ErrorBox, Field, ServerIcon } from "../components/ui";
 
 export function LoginPage() {
@@ -11,22 +11,16 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [needCode, setNeedCode] = useState(false);
-  const qc = useQueryClient();
   const navigate = useNavigate();
-  const me = useQuery(meQuery);
   const login = useMutation({
     mutationFn: () => call(api.POST("/auth/login", { body: { email, password, ...(needCode ? { totp_code: code } : {}) } })),
     onError: (err) => {
       // The server answers 401 "totp_required" once the password is right.
       if (err instanceof Error && err.message.includes("totp_required")) setNeedCode(true);
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["me"] });
-      void navigate({ to: "/" });
-    },
+    meta: invalidates(keys.me),
+    onSuccess: () => void navigate({ to: "/" }),
   });
-
-  if (me.data) return <Navigate to="/" />;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

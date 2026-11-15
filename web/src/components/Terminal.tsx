@@ -59,7 +59,6 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
       term.current = null;
       fitAddon.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

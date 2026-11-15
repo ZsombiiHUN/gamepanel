@@ -3,9 +3,11 @@ import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import "./index.css";
-import { router } from "./router";
+import { createAppRouter } from "./router";
 import { setUnauthorizedHandler } from "./api/client";
 import { queryClient } from "./queryClient";
+
+const router = createAppRouter(queryClient);
 
 setUnauthorizedHandler(() => {
   queryClient.clear();

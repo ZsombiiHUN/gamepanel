@@ -1,29 +1,29 @@
 import { useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
+import { apiKeysQuery, invalidates, keys } from "../api/queries";
 import { CopyButton, ErrorBox, Field, Section } from "../components/ui";
 
 const when = (t: number) => (t ? new Date(t * 1000).toLocaleString() : "never");
 
 export function ApiKeysSection() {
-  const qc = useQueryClient();
   const [name, setName] = useState("");
   const [days, setDays] = useState("0");
   const [secret, setSecret] = useState<string | null>(null);
-  const keys = useQuery({ queryKey: ["apikeys"], queryFn: () => call(api.GET("/auth/keys")) });
+  const list = useQuery(apiKeysQuery);
 
   const create = useMutation({
     mutationFn: () => call(api.POST("/auth/keys", { body: { name, expires_in_days: Number(days) } })),
-    onSuccess: async (r) => {
+    meta: invalidates(keys.apiKeys),
+    onSuccess: (r) => {
       setSecret(r.token);
       setName("");
-      await qc.invalidateQueries({ queryKey: ["apikeys"] });
     },
   });
   const del = useMutation({
     mutationFn: (id: number) => call(api.DELETE("/auth/keys/{id}", { params: { path: { id } } })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["apikeys"] }),
+    meta: invalidates(keys.apiKeys),
   });
 
   const submit = (e: FormEvent) => {
@@ -46,14 +46,14 @@ export function ApiKeysSection() {
           </div>
         )}
 
-        {keys.data && keys.data.length > 0 && (
-          <div className="overflow-x-auto rounded-xl border border-zinc-800">
+        {list.data && list.data.length > 0 && (
+          <div className="relative overflow-x-auto rounded-xl border border-zinc-800" tabIndex={0} role="region" aria-label="API keys">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
                 <tr><th className="px-3.5 py-2.5 font-medium">Name</th><th className="px-3.5 py-2.5 font-medium">Key</th><th className="px-3.5 py-2.5 font-medium">Last used</th><th className="px-3.5 py-2.5 font-medium">Expires</th><th><span className="sr-only">Actions</span></th></tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/70">
-                {keys.data.map((k) => (
+                {list.data.map((k) => (
                   <tr key={k.id}>
                     <td className="px-3.5 py-2.5 text-zinc-200">{k.name}</td>
                     <td className="px-3.5 py-2.5 font-mono text-[13px] text-zinc-400">{k.prefix}…</td>
@@ -70,7 +70,7 @@ export function ApiKeysSection() {
             </table>
           </div>
         )}
-        <ErrorBox error={keys.error ?? del.error} />
+        <ErrorBox error={list.error ?? del.error} />
 
         <form onSubmit={submit} className="flex flex-wrap items-end gap-3 border-t border-zinc-800 pt-4">
           <Field label="Name">

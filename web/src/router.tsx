@@ -1,15 +1,25 @@
-import { createRootRoute, createRoute, createRouter, Link, Outlet } from "@tanstack/react-router";
-import { AppShell } from "./pages/AppShell";
-import { LoginPage } from "./pages/LoginPage";
-import { ServersPage } from "./pages/ServersPage";
-import { ServerDetailPage, type Tab } from "./pages/ServerDetailPage";
-import { NodesPage } from "./pages/NodesPage";
-import { EggsPage } from "./pages/EggsPage";
+import type { QueryClient } from "@tanstack/react-query";
+import { createRootRouteWithContext, createRoute, createRouter, Link, Outlet, redirect, type ErrorComponentProps, type RouterHistory } from "@tanstack/react-router";
+import { Compass, Lock } from "lucide-react";
+import { ApiError } from "./api/client";
+import { auditQuery, eggsQuery, meQuery, nodesQuery, serverQuery, serversQuery } from "./api/queries";
+import { Empty } from "./components/ui";
+import { GROUPS } from "./lib/servers";
+import { oneOf, page, text } from "./lib/search";
+import { TABS } from "./lib/tabs";
 import { AccountPage } from "./pages/AccountPage";
+import { AppShell } from "./pages/AppShell";
 import { AuditPage } from "./pages/AuditPage";
 import { CreateServerPage } from "./pages/CreateServerPage";
-import { Empty } from "./components/ui";
-import { Compass } from "lucide-react";
+import { EggsPage } from "./pages/EggsPage";
+import { LoginPage } from "./pages/LoginPage";
+import { NodesPage } from "./pages/NodesPage";
+import { ServerDetailPage } from "./pages/ServerDetailPage";
+import { ServersPage } from "./pages/ServersPage";
+
+export interface RouterContext {
+  queryClient: QueryClient;
+}
 
 function NotFound() {
   return (
@@ -21,36 +31,130 @@ function NotFound() {
   );
 }
 
-const rootRoute = createRootRoute({ component: Outlet, notFoundComponent: NotFound });
+class Forbidden extends Error {}
 
-const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: "/login", component: LoginPage });
-const appRoute = createRoute({ getParentRoute: () => rootRoute, id: "app", component: AppShell });
+function ForbiddenPage({ error }: ErrorComponentProps) {
+  if (!(error instanceof Forbidden)) throw error;
+  return (
+    <div role="alert" className="mx-auto max-w-md pt-10">
+      <Empty icon={<Lock className="h-5 w-5" aria-hidden />} title="Administrators only">You need administrator access to view this page.</Empty>
+    </div>
+  );
+}
 
-const indexRoute = createRoute({ getParentRoute: () => appRoute, path: "/", component: ServersPage });
-const newServerRoute = createRoute({ getParentRoute: () => appRoute, path: "/servers/new", component: CreateServerPage });
+/** The signed-in user, or null when there is no session. Other failures are real errors. */
+async function currentUser(queryClient: QueryClient) {
+  try {
+    return await queryClient.ensureQueryData(meQuery);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) return null;
+    throw err;
+  }
+}
+
+const rootRoute = createRootRouteWithContext<RouterContext>()({ component: Outlet, notFoundComponent: NotFound });
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+  // Already signed in: skip the form.
+  beforeLoad: async ({ context }) => {
+    if (await currentUser(context.queryClient)) throw redirect({ to: "/" });
+  },
+});
+
+/** Everything behind sign-in. `me` is resolved before any page renders, so pages never handle "not signed in". */
+const appRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: "app",
+  component: AppShell,
+  beforeLoad: async ({ context }) => {
+    const me = await currentUser(context.queryClient);
+    if (!me) throw redirect({ to: "/login" });
+    return { me };
+  },
+});
+
+/*
+ * Loaders only start fetching early (and on link hover); pages still read their data with
+ * useQuery, so loading and error states stay inline instead of replacing the whole page.
+ */
+const indexRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/",
+  component: ServersPage,
+  validateSearch: (s: Record<string, unknown>): { q?: string; status?: (typeof GROUPS)[number] } => ({
+    q: text(s.q),
+    status: oneOf(s.status, GROUPS),
+  }),
+  loader: ({ context }) => void context.queryClient.prefetchQuery(serversQuery),
+});
 const serverRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/servers/$uuid",
   component: ServerDetailPage,
-  validateSearch: (s: Record<string, unknown>): { tab: Tab } => ({
-    tab: s.tab === "files" || s.tab === "backups" || s.tab === "schedules" || s.tab === "users" || s.tab === "settings" ? s.tab : "console",
+  validateSearch: (s: Record<string, unknown>): { tab: (typeof TABS)[number]; dir?: string; q?: string } => ({
+    tab: oneOf(s.tab, TABS) ?? "console",
+    dir: text(s.dir),
+    q: text(s.q),
   }),
+  loader: ({ context, params }) => void context.queryClient.prefetchQuery(serverQuery(params.uuid)),
 });
-const nodesRoute = createRoute({ getParentRoute: () => appRoute, path: "/nodes", component: NodesPage });
-const eggsRoute = createRoute({ getParentRoute: () => appRoute, path: "/eggs", component: EggsPage });
 
 const accountRoute = createRoute({ getParentRoute: () => appRoute, path: "/account", component: AccountPage });
-const auditRoute = createRoute({ getParentRoute: () => appRoute, path: "/audit", component: AuditPage });
+
+/** Pages only administrators may open. */
+const adminRoute = createRoute({
+  getParentRoute: () => appRoute,
+  id: "admin",
+  // Checked before any child loader runs, so a non-admin never triggers admin requests.
+  beforeLoad: ({ context }) => {
+    if (!context.me.is_admin) throw new Forbidden();
+  },
+  errorComponent: ForbiddenPage,
+});
+const newServerRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/servers/new",
+  component: CreateServerPage,
+  loader: ({ context }) => {
+    void context.queryClient.prefetchQuery(nodesQuery);
+    void context.queryClient.prefetchQuery(eggsQuery);
+  },
+});
+const nodesRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/nodes",
+  component: NodesPage,
+  loader: ({ context }) => void context.queryClient.prefetchQuery(nodesQuery),
+});
+const eggsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/eggs",
+  component: EggsPage,
+  loader: ({ context }) => void context.queryClient.prefetchQuery(eggsQuery),
+});
+const auditRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/audit",
+  component: AuditPage,
+  validateSearch: (s: Record<string, unknown>): { q?: string; page?: number } => ({ q: text(s.q), page: page(s.page) }),
+  loaderDeps: ({ search }) => ({ q: search.q ?? "", page: search.page ?? 0 }),
+  loader: ({ context, deps }) => void context.queryClient.prefetchQuery(auditQuery(deps.q, deps.page)),
+});
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  appRoute.addChildren([indexRoute, newServerRoute, serverRoute, nodesRoute, eggsRoute, accountRoute, auditRoute]),
+  appRoute.addChildren([indexRoute, serverRoute, accountRoute, adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, auditRoute])]),
 ]);
 
-export const router = createRouter({ routeTree });
+export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {
+  return createRouter({ routeTree, history, context: { queryClient }, defaultPreload: "intent" });
+}
 
 declare module "@tanstack/react-router" {
   interface Register {
-    router: typeof router;
+    router: ReturnType<typeof createAppRouter>;
   }
 }
