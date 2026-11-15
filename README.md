@@ -1,90 +1,144 @@
-# GamePanel (working name)
+<h1 align="center">GamePanel</h1>
 
-[![CI](https://github.com/ZsombiiHUN/gamepanel/actions/workflows/ci.yml/badge.svg)](https://github.com/ZsombiiHUN/gamepanel/actions/workflows/ci.yml)
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+<p align="center"><b>A game server panel that is small, secure by default, and runs your Pterodactyl eggs unchanged.</b></p>
 
-A game server management panel: a **panel** (API + web UI, one Go binary) and a
-**daemon** (runs on each node, drives Docker). It aims to be a more secure,
-simpler alternative to Pterodactyl / Pelican, and already imports Pterodactyl
-eggs, including their install scripts (for example Paper Minecraft installs and
-boots), backups with restore, cron schedules, subusers with per-server
-permissions, SFTP, and per-server resource limits (memory, swap, CPU, cores,
-disk quota, processes, IO priority, backups) with node capacity tracking.
-**Pre-alpha:** not ready for production. Backup download and S3 storage,
-network bandwidth limits, passkeys/SSO and a Pterodactyl API compatibility
-layer are not built yet.
+<p align="center">
+  <a href="https://github.com/ZsombiiHUN/gamepanel/actions/workflows/ci.yml"><img src="https://github.com/ZsombiiHUN/gamepanel/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
+  <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha">
+  <img src="https://img.shields.io/badge/go-1.27-00ADD8.svg" alt="Go 1.27">
+</p>
 
-## Quick start (development, no Docker needed)
+<p align="center">
+  <img src="docs/screenshots/servers.png" alt="The server list: cards with live CPU, memory and disk, status filters and a quick switcher" width="900">
+</p>
+
+GamePanel has two parts. The **panel** is one Go binary that serves the API and the web UI. The **daemon** runs on each machine that hosts servers and drives Docker. You manage everything from the browser: start and stop servers, watch the console, edit files, take backups, and share access.
+
+It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterodactyl/panel) and Pelican. It reads their egg files as they are, so the games you already run keep working.
+
+> [!WARNING]
+> **Pre-alpha.** It works end to end and is well tested, but it has not been run in production and the API may change. Read [Status](#status) before you trust it with anything you care about.
+
+## Why GamePanel
+
+- **One binary, one SQLite file.** No PHP, no Redis, no queue workers. Back up one database and one key file.
+- **Eggs import unchanged.** Pterodactyl PTDL v1 and v2 eggs, including install scripts, work as they are.
+- **The daemon dials out.** Each node opens one websocket to the panel, so a node needs no inbound control port.
+- **Safe where it matters.** File access goes through `os.Root` and is tested against hostile symlinks (the class of bug behind the Wings CVEs). Egg variables never reach a shell. Containers drop all capabilities.
+- **Fast to use.** Press `Ctrl K` to jump to any server or page. Filters and folders live in the URL, so you can link to them and Back works.
+- **Tested against a real browser.** Go tests, component tests and a Playwright suite (with accessibility scans at three screen sizes) run on every change.
+
+## Features
+
+| | |
+|---|---|
+| **Servers** | Power controls, live console with command input, CPU, memory and disk charts, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, backups) |
+| **Files** | Browse, edit in the browser, delete, search every subfolder, and SFTP for uploads |
+| **Backups** | Create, lock, delete and restore |
+| **Schedules** | Cron-style tasks per server |
+| **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
+| **Accounts** | Argon2id passwords, TOTP two-factor with recovery codes, API keys, rate-limited login |
+| **Admin** | Nodes with capacity tracking, eggs, an audit log you can search |
+| **API** | Everything the UI does goes through a documented OpenAPI 3.1 API ([`web/openapi.json`](web/openapi.json)) |
+
+<p align="center">
+  <img src="docs/screenshots/console.png" alt="A running server: usage charts above a live console" width="900">
+</p>
+
+## Quick start
+
+You need Go, Node 22 with pnpm 10, and Docker for real servers. The steps below use a fake runtime, so you can try the panel without Docker.
 
 ```sh
-make web build                       # builds the UI, then bin/panel and bin/daemon
+git clone https://github.com/ZsombiiHUN/gamepanel && cd gamepanel
+make web build                           # builds the UI, then bin/panel and bin/daemon
+
 export GAMEPANEL_DB=./panel.db
 bin/panel create-admin you@example.com   # prints a random password once
-bin/panel reset-2fa you@example.com      # offline recovery if a user lost their authenticator and recovery codes
-bin/panel                            # http://127.0.0.1:8080
+bin/panel                                # http://127.0.0.1:8080
 ```
 
-Sign in, open **Nodes -> create node**, copy the token, then:
+Sign in, open **Nodes → Create node**, copy the token, and start a daemon:
 
 ```sh
-GAMEPANEL_NODE_TOKEN=<token> GAMEPANEL_RUNTIME=fake bin/daemon   # fake = no containers
-# real servers (needs a running Docker daemon):
+# Fake runtime: no containers, good for a first look
+GAMEPANEL_NODE_TOKEN=<token> GAMEPANEL_RUNTIME=fake bin/daemon
+
+# Real servers (needs a running Docker daemon)
 GAMEPANEL_NODE_TOKEN=<token> bin/daemon
 ```
 
-Import a Pterodactyl egg under **Eggs**, then **Create server**.
+Then import a Pterodactyl egg under **Eggs** and choose **New server**.
 
-| Variable | Default | |
+> [!TIP]
+> Locked out of two-factor? Run `bin/panel reset-2fa you@example.com` on the panel host.
+
+## Configuration
+
+All settings are environment variables.
+
+**Panel**
+
+| Variable | Default | Description |
 |---|---|---|
-| `GAMEPANEL_ADDR` | `127.0.0.1:8080` | panel listen address |
+| `GAMEPANEL_ADDR` | `127.0.0.1:8080` | Listen address |
 | `GAMEPANEL_DB` | `./panel.db` | SQLite path |
-| `GAMEPANEL_COOKIE_SECURE` | unset | set `1` behind HTTPS |
-| `GAMEPANEL_TRUSTED_PROXIES` | unset | comma-separated IPs/CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed (needed for correct per-IP rate limits and audit IPs). The proxy must also preserve the `Host` header |
-| `GAMEPANEL_SECRET_KEY` | key file `<db>.key` | 64 hex chars; encrypts two-factor secrets at rest. If unset, a key file is created next to the database (mode 0600). **Back it up with the database**, or enrolled authenticators cannot be read |
-| `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | daemon -> panel |
-| `GAMEPANEL_NODE_TOKEN` | required | from node creation |
-| `GAMEPANEL_DATA_DIR` | `./daemon-data` | server files |
+| `GAMEPANEL_COOKIE_SECURE` | unset | Set to `1` behind HTTPS |
+| `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |
+| `GAMEPANEL_SECRET_KEY` | key file `<db>.key` | 64 hex characters that encrypt two-factor secrets at rest. If unset, a key file is created next to the database (mode 0600). **Back it up with the database**, or enrolled authenticators cannot be read |
+
+**Daemon**
+
+| Variable | Default | Description |
+|---|---|---|
+| `GAMEPANEL_NODE_TOKEN` | required | From node creation |
+| `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | Where to reach the panel |
+| `GAMEPANEL_DATA_DIR` | `./daemon-data` | Server files |
 | `GAMEPANEL_RUNTIME` | `docker` | `fake` for development |
-| `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | daemon SFTP listener; `off` disables. Log in as `<email>.<first 8 characters of the server uuid>` with an **API key** as the password (Account page). The host key is created in the data dir on first start |
+| `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | SFTP listener; `off` disables it. Sign in as `<email>.<first 8 characters of the server uuid>` with an **API key** (Account page) as the password. The host key is created in the data dir on first start |
 
-Run behind a TLS reverse proxy in production and use `wss://` for the daemon.
+For production, run the panel behind a TLS reverse proxy and point the daemon at it with `wss://`.
 
-## Design
+## How it works
 
-- **Daemon dials out.** One websocket per node; no inbound control port.
-- **Stack:** Go `net/http` + huma (OpenAPI 3.1), SQLite (modernc) + goose,
-  coder/websocket, Docker via `moby/moby/client`; React 19 + Vite + TanStack +
-  Tailwind 4 + xterm.js + CodeMirror, embedded with `go:embed`.
-- **Pterodactyl eggs import unchanged** (PTDL v1/v2). `{{VAR}}` becomes
-  `${VAR}` and values reach the process only as environment variables, so a
-  variable can never inject shell syntax and no secret is ever substituted.
-- **File access** goes only through `os.Root` (`internal/daemon/fsx`), tested
-  against hostile symlinks (the Wings CVE class).
-- Sessions are opaque cookies (hash stored), passwords argon2id, node tokens
-  stored hashed, login rate-limited, websocket origin-checked, containers run
-  with all capabilities dropped, `no-new-privileges`, a PID limit and no swap.
+```
+ Browser ──HTTPS──▶  Panel (Go binary)  ◀──websocket──  Daemon ──▶ Docker
+                     ├─ REST API (OpenAPI 3.1)          (one per node, dials out)
+                     ├─ React UI, embedded
+                     └─ SQLite
+```
 
-## Status: MVP
+- **Stack:** Go `net/http` with [huma](https://github.com/danielgtaylor/huma), SQLite ([modernc](https://gitlab.com/cznic/sqlite)) with goose, coder/websocket, Docker through `moby/moby/client`. The UI is React 19, Vite, TanStack Query and Router, Tailwind 4, xterm.js and CodeMirror, embedded with `go:embed`.
+- **Eggs:** `{{VAR}}` becomes `${VAR}`, and values reach the process only as environment variables. A variable can never inject shell syntax, and no secret is ever substituted into a script.
+- **Containers:** all capabilities dropped, `no-new-privileges`, a PID limit and no swap.
+- **Sessions:** opaque cookies (only a hash is stored), node tokens stored hashed, websocket origin checked.
 
-Verified by tests (`make test`, race detector on) and a live run of both binaries:
-auth, access control (non-owners get 404), node enrollment, egg import, server
-create/delete, power, console streaming, command input, file read/write, symlink
-escape rejection, cross-origin websocket rejection.
+## Status
 
-**Docker runtime** is verified against a real engine by `scripts/docker-smoke.sh`
-(image pull, env, memory/CPU/PID limits, dropped capabilities, port publishing,
-data-dir write access, console input, stats, graceful stop, restart, kill,
-delete with cleanup).
+**Works and is tested** (`make test` runs with the race detector, `make e2e` drives a real browser): auth, two-factor, access control, node enrollment, egg import, server create and delete, power, console streaming, file read, write and search, symlink escape rejection, backups with restore, schedules, subusers, SFTP, disk quotas, and cross-origin websocket rejection.
 
-**Not verified yet:** the **web UI** type-checks and builds but has not been
-opened in a browser. Windows/macOS Docker hosts, Podman and bind-mount edge cases
-are untested.
+**Docker runtime** is verified against a real engine by [`scripts/docker-smoke.sh`](scripts/docker-smoke.sh): image pull, env, memory, CPU and PID limits, dropped capabilities, port publishing, console input, stats, stop, restart, kill and cleanup.
 
-**Not built yet:** subusers/permissions, 2FA/passkeys, backups, scheduled tasks,
-SFTP, disk quotas, mod manager, billing modules, Pterodactyl API compatibility
-layer, Postgres, multi-port allocations, Windows servers, metrics.
+**Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
+
+**Not built yet:** backup download and S3 storage, network bandwidth limits, passkeys and SSO, a Pterodactyl API compatibility layer, Postgres, multi-port allocations, Windows servers, a mod manager, billing, metrics history, a light theme.
+
+## Development
+
+```sh
+make web build   # UI and binaries
+make test        # Go tests, race detector on
+make e2e         # browser tests (first time: cd web && pnpm e2e:install)
+cd web && pnpm lint && pnpm test
+```
+
+[`web/README.md`](web/README.md) lists the checks CI runs.
 
 ## Contributing and security
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
-Licensed under [AGPL-3.0](LICENSE).
+Pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; the short version is one concern per PR, with a test that proves it. Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[AGPL-3.0](LICENSE).
