@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { describeUsage, gb, type Limits } from "./usage";
 
+const MB = 1024 ** 2;
 const GB = 1024 ** 3;
 const limits: Limits = { memoryMb: 4096, diskMb: 10240, cpuPct: 200 };
 const reading = (cpu: number, memGb: number, diskGb: number) => ({ cpu_pct: cpu, mem_bytes: memGb * GB, disk_bytes: diskGb * GB });
@@ -43,8 +44,24 @@ describe("describeUsage", () => {
     expect(hot.color).not.toBe(calm.color);
   });
 
-  it("never shrinks the memory axis below half a gigabyte", () => {
-    expect(describeUsage(null, null, { ...limits, memoryMb: 128 }, [])[1].max).toBe(0.5);
+  it("measures a small server against its own memory limit, in MB", () => {
+    const small = { ...limits, memoryMb: 128 };
+    const calm = describeUsage({ cpu_pct: 0, mem_bytes: 100 * MB, disk_bytes: 0 }, null, small, [])[1];
+    const hot = describeUsage({ cpu_pct: 0, mem_bytes: 110 * MB, disk_bytes: 0 }, null, small, [])[1];
+    expect(hot).toMatchObject({ value: "110", unit: "MB of 128 MB", note: "86% used", max: 128, limit: 128, per: MB, noteWarn: true });
+    expect(hot.ticks.map((t) => t.label)).toEqual(["0", "64 MB", "128 MB"]);
+    expect(calm.noteWarn).toBe(false);
+  });
+
+  it("switches to GB at one gigabyte", () => {
+    expect(describeUsage(null, null, { ...limits, memoryMb: 1023 }, [])[1].unit).toBe("MB of 1023 MB");
+    expect(describeUsage(null, null, { ...limits, memoryMb: 1024 }, [])[1]).toMatchObject({ unit: "GB of 1.0 GB", per: GB });
+  });
+
+  it("shows a small disk quota in MB", () => {
+    const disk = describeUsage(null, { cpu_pct: 0, mem_bytes: 0, disk_bytes: 30 * MB }, { ...limits, diskMb: 100 }, [])[2];
+    expect(disk).toMatchObject({ value: "30", unit: "MB of 100 MB", note: "30% used", max: 100, limit: 100 });
+    expect(disk.ticks.map((t) => t.label)).toEqual(["0", "50 MB", "100 MB"]);
   });
 
   it("warns that storage is almost full and says the server stops", () => {

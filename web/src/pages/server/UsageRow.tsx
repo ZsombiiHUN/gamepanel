@@ -8,15 +8,16 @@ const MAX_POINTS = 30;
 /** Readings since this page opened. The panel keeps no history, so neither do we. */
 export function UsageRow({ running, latest, limits }: { running: LiveStats | null; latest: LiveStats | null; limits: Limits }) {
   const cpu = useRollingSamples(running, (s) => s.cpu_pct, MAX_POINTS);
-  const mem = useRollingSamples(running, (s) => s.mem_bytes / 1024 ** 3, MAX_POINTS);
-  const disk = useRollingSamples(latest, (s) => s.disk_bytes / 1024 ** 3, MAX_POINTS);
+  // Raw bytes; each chart converts to its own unit (MB or GB, chosen from the limit).
+  const mem = useRollingSamples(running, (s) => s.mem_bytes, MAX_POINTS);
+  const disk = useRollingSamples(latest, (s) => s.disk_bytes, MAX_POINTS);
   const [cpuChart, memChart, diskChart] = describeUsage(running, latest, limits, cpu);
   return (
     <section aria-label="Live usage" className="space-y-2.5">
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr))]">
         <UsageChart {...cpuChart} values={cpu} />
-        <UsageChart {...memChart} values={mem} />
-        <UsageChart {...diskChart} values={disk} />
+        <UsageChart {...memChart} values={mem.map((b) => b / memChart.per)} />
+        <UsageChart {...diskChart} values={disk.map((b) => b / diskChart.per)} />
       </div>
       <p className="text-[12.5px] text-zinc-500">Charts show readings since this page was opened. The panel does not keep history.</p>
     </section>
