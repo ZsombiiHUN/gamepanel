@@ -15,7 +15,7 @@ sleep 1; B=http://127.0.0.1:18092/api; J=$T/jar
 c(){ curl -s -b $J -H 'content-type: application/json' "$@"; }
 curl -s -c $J -H 'content-type: application/json' -d "{\"email\":\"admin@example.com\",\"password\":\"$PW\"}" $B/auth/login >/dev/null
 TOK=$(c -d '{"name":"local","port_start":25600,"port_end":25610}' $B/nodes | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
-GAMEPANEL_PANEL_URL=ws://127.0.0.1:18092/daemon/connect GAMEPANEL_NODE_TOKEN=$TOK GAMEPANEL_DATA_DIR=$T/dd $T/daemon >$T/daemon.log 2>&1 & DP=$!
+GAMEPANEL_PANEL_URL=ws://127.0.0.1:18092/daemon/connect GAMEPANEL_NODE_TOKEN=$TOK GAMEPANEL_SFTP_ADDR=off GAMEPANEL_DATA_DIR=$T/dd $T/daemon >$T/daemon.log 2>&1 & DP=$!
 sleep 1
 c -d '{"name":"Echo","docker_images":{"a":"alpine:3.20"},"startup":"echo ready $GREETING; echo hi > /home/container/proof.txt; while read l; do [ \"$l\" = stop ] && exit 0; echo got $l; done","config":{"stop":"stop"},"variables":[{"name":"g","env_variable":"GREETING","default_value":"world"}]}' $B/eggs/import >/dev/null
 U=$(c -d '{"name":"d1","node_id":1,"egg_id":1,"memory_mb":128,"cpu_pct":50}' $B/servers | python3 -c 'import sys,json;print(json.load(sys.stdin)["uuid"])')
