@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search, SquareTerminal } from "lucide-react";
+import { Loader2, Plus, Search, Server, SquareTerminal } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { meQuery, serversQuery } from "../api/queries";
-import { ErrorBox, Meter, ServerIcon, Spinner, StateBadge } from "../components/ui";
+import { Empty, ErrorBox, Meter, ServerIcon, Spinner, StateBadge } from "../components/ui";
 import { formatBytes } from "../lib/format";
 
 type ServerView = components["schemas"]["ServerView"];
@@ -89,7 +89,7 @@ export function ServersPage() {
       {servers.isPending && <Spinner />}
       <ErrorBox error={servers.error} />
       {servers.data && servers.data.length === 0 && (
-        <p className="card text-sm text-zinc-400">No servers yet.{me.data?.is_admin ? " Create one to get started." : " Ask an admin to create one for you."}</p>
+        <Empty icon={<Server className="h-5 w-5" aria-hidden />} title="No servers yet">{me.data?.is_admin ? "Create one to get started." : "Ask an admin to create one for you."}</Empty>
       )}
       <ul className="grid gap-[18px] [grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr))]">
         {list.map((s) => (
