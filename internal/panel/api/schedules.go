@@ -129,6 +129,7 @@ func (a *App) registerSchedules(api huma.API) {
 				return nil, huma.Error409Conflict("this schedule is already running")
 			}
 			a.audit(ctx, u, "schedule.run", s.UUID, v.Name)
+			a.Store.TouchSchedule(ctx, v.ID)
 			go a.runSchedule(context.Background(), s, v, true)
 			return nil, nil
 		})
