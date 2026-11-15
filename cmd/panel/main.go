@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,6 +39,17 @@ func main() {
 	}
 	defer st.Close()
 
+	if err := loadSecretKey(st, dbPath); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	if len(os.Args) > 1 && os.Args[1] == "reset-2fa" {
+		if err := reset2FA(st, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "create-admin" {
 		if err := createAdmin(st, os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -93,5 +106,56 @@ func createAdmin(st *store.Store, args []string) error {
 		return err
 	}
 	fmt.Printf("Admin created.\n  email:    %s\n  password: %s\nChange it after signing in.\n", args[0], pw)
+	return nil
+}
+
+// loadSecretKey sets the key that encrypts second-factor secrets. It comes
+// from GAMEPANEL_SECRET_KEY (64 hex chars) or, if unset, a key file created
+// next to the database with mode 0600. Back it up with the database: without
+// it, enrolled authenticator secrets cannot be read.
+func loadSecretKey(st *store.Store, dbPath string) error {
+	if h := os.Getenv("GAMEPANEL_SECRET_KEY"); h != "" {
+		k, err := hex.DecodeString(h)
+		if err != nil || len(k) != 32 {
+			return errors.New("GAMEPANEL_SECRET_KEY must be 64 hex characters (32 bytes)")
+		}
+		return st.SetSecretKey(k)
+	}
+	path := dbPath + ".key"
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		k := make([]byte, 32)
+		rand.Read(k)
+		if err := os.WriteFile(path, []byte(hex.EncodeToString(k)), 0o600); err != nil {
+			return fmt.Errorf("create %s: %w", path, err)
+		}
+		return st.SetSecretKey(k)
+	}
+	if err != nil {
+		return err
+	}
+	k, err := hex.DecodeString(strings.TrimSpace(string(b)))
+	if err != nil || len(k) != 32 {
+		return fmt.Errorf("%s is not a valid key file", path)
+	}
+	return st.SetSecretKey(k)
+}
+
+// reset2FA is the offline recovery path for a user who lost both their
+// authenticator and recovery codes. It needs shell access to the panel host.
+func reset2FA(st *store.Store, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: panel reset-2fa <email>")
+	}
+	ctx := context.Background()
+	id, err := st.UserIDByEmail(ctx, args[0])
+	if err != nil {
+		return errors.New("no such user")
+	}
+	if err := st.DisableTOTP(ctx, id); err != nil {
+		return err
+	}
+	st.Audit(ctx, store.AuditEntry{ActorEmail: "cli", Action: "totp.reset", Target: args[0], Detail: "reset from the command line"})
+	fmt.Println("Two-factor authentication disabled for", args[0])
 	return nil
 }

@@ -8,7 +8,7 @@ A game server management panel: a **panel** (API + web UI, one Go binary) and a
 simpler alternative to Pterodactyl / Pelican, and already imports Pterodactyl
 eggs, including their install scripts (for example Paper Minecraft installs and
 boots). **Pre-alpha:** not ready for production. Backups, schedules, SFTP,
-subusers, 2FA and a Pterodactyl API compatibility layer are not built yet.
+subusers, passkeys/SSO and a Pterodactyl API compatibility layer are not built yet.
 
 ## Quick start (development, no Docker needed)
 
@@ -16,6 +16,7 @@ subusers, 2FA and a Pterodactyl API compatibility layer are not built yet.
 make web build                       # builds the UI, then bin/panel and bin/daemon
 export GAMEPANEL_DB=./panel.db
 bin/panel create-admin you@example.com   # prints a random password once
+bin/panel reset-2fa you@example.com      # offline recovery if a user lost their authenticator and recovery codes
 bin/panel                            # http://127.0.0.1:8080
 ```
 
@@ -35,6 +36,7 @@ Import a Pterodactyl egg under **Eggs**, then **Create server**.
 | `GAMEPANEL_DB` | `./panel.db` | SQLite path |
 | `GAMEPANEL_COOKIE_SECURE` | unset | set `1` behind HTTPS |
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | comma-separated IPs/CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed (needed for correct per-IP rate limits and audit IPs). The proxy must also preserve the `Host` header |
+| `GAMEPANEL_SECRET_KEY` | key file `<db>.key` | 64 hex chars; encrypts two-factor secrets at rest. If unset, a key file is created next to the database (mode 0600). **Back it up with the database**, or enrolled authenticators cannot be read |
 | `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | daemon -> panel |
 | `GAMEPANEL_NODE_TOKEN` | required | from node creation |
 | `GAMEPANEL_DATA_DIR` | `./daemon-data` | server files |
