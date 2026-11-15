@@ -17,6 +17,21 @@ type serverView struct {
 	State      string       `json:"state" doc:"offline|starting|running|stopping|installing|install_failed|unknown"`
 	NodeOnline bool         `json:"node_online"`
 	Stats      *proto.Stats `json:"stats,omitempty"`
+	// Permissions are what the caller may do here; Owner is true for the
+	// owner and admins, who can also manage who else has access.
+	Permissions []string `json:"permissions" nullable:"false"`
+	Owner       bool     `json:"owner"`
+}
+
+// viewFor builds the server as the caller may see it. Subusers do not get the
+// environment, which commonly holds secrets such as RCON passwords.
+func (a *App) viewFor(ctx context.Context, u store.User, s store.Server) serverView {
+	v := a.view(s)
+	v.Permissions, v.Owner, _ = a.access(ctx, u, s)
+	if !v.Owner {
+		v.Env = map[string]string{}
+	}
+	return v
 }
 
 func (a *App) view(s store.Server) serverView {
@@ -98,7 +113,7 @@ func (a *App) registerServers(api huma.API) {
 			}
 			out := &serverListOut{Body: []serverView{}}
 			for _, s := range ss {
-				out.Body = append(out.Body, a.view(s))
+				out.Body = append(out.Body, a.viewFor(ctx, u, s))
 			}
 			return out, nil
 		})
@@ -130,16 +145,16 @@ func (a *App) registerServers(api huma.API) {
 				return nil, a.nodeErr(err)
 			}
 			a.audit(ctx, u, "server.create", s.UUID, s.Name)
-			return &serverOut{Body: a.view(s)}, nil
+			return &serverOut{Body: a.viewFor(ctx, u, s)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "getServer", Method: "GET", Path: "/servers/{uuid}", Summary: "Get a server"},
 		func(ctx context.Context, in *uuidIn) (*serverOut, error) {
-			_, s, err := a.authorize(ctx, in.UUID)
+			u, s, err := a.authorize(ctx, in.UUID)
 			if err != nil {
 				return nil, err
 			}
-			return &serverOut{Body: a.view(s)}, nil
+			return &serverOut{Body: a.viewFor(ctx, u, s)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "deleteServer", Method: "DELETE", Path: "/servers/{uuid}", Summary: "Delete a server and its data", DefaultStatus: 204},
@@ -163,7 +178,7 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "reinstall", Method: "POST", Path: "/servers/{uuid}/reinstall", Summary: "Re-run the egg install script (server must be offline)", DefaultStatus: 202},
 		func(ctx context.Context, in *uuidIn) (*struct{}, error) {
-			u, s, err := a.authorize(ctx, in.UUID)
+			u, s, err := a.authorizeP(ctx, in.UUID, PermReinstall)
 			if err != nil {
 				return nil, err
 			}
@@ -179,7 +194,7 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "power", Method: "POST", Path: "/servers/{uuid}/power", Summary: "Start, stop, restart or kill", DefaultStatus: 202},
 		func(ctx context.Context, in *powerIn) (*struct{}, error) {
-			_, s, err := a.authorize(ctx, in.UUID)
+			_, s, err := a.authorizeP(ctx, in.UUID, PermPower)
 			if err != nil {
 				return nil, err
 			}
@@ -200,7 +215,7 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "sendCommand", Method: "POST", Path: "/servers/{uuid}/command", Summary: "Send a console command", DefaultStatus: 204},
 		func(ctx context.Context, in *commandIn) (*struct{}, error) {
-			_, s, err := a.authorize(ctx, in.UUID)
+			_, s, err := a.authorizeP(ctx, in.UUID, PermConsoleSend)
 			if err != nil {
 				return nil, err
 			}
@@ -213,7 +228,7 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "listFiles", Method: "GET", Path: "/servers/{uuid}/files", Summary: "List a directory"},
 		func(ctx context.Context, in *filePathIn) (*fileListOut, error) {
-			_, s, err := a.authorize(ctx, in.UUID)
+			_, s, err := a.authorizeP(ctx, in.UUID, PermFilesRead)
 			if err != nil {
 				return nil, err
 			}
@@ -231,7 +246,7 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "readFile", Method: "GET", Path: "/servers/{uuid}/files/content", Summary: "Read a text file"},
 		func(ctx context.Context, in *filePathIn) (*fileContentOut, error) {
-			_, s, err := a.authorize(ctx, in.UUID)
+			_, s, err := a.authorizeP(ctx, in.UUID, PermFilesRead)
 			if err != nil {
 				return nil, err
 			}
@@ -248,7 +263,7 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "writeFile", Method: "PUT", Path: "/servers/{uuid}/files/content", Summary: "Write a text file", DefaultStatus: 204, MaxBodyBytes: 12 << 20},
 		func(ctx context.Context, in *fileWriteIn) (*struct{}, error) {
-			_, s, err := a.authorize(ctx, in.UUID)
+			_, s, err := a.authorizeP(ctx, in.UUID, PermFilesWrite)
 			if err != nil {
 				return nil, err
 			}
@@ -258,7 +273,7 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "deleteFile", Method: "DELETE", Path: "/servers/{uuid}/files", Summary: "Delete a file or directory", DefaultStatus: 204},
 		func(ctx context.Context, in *filePathIn) (*struct{}, error) {
-			_, s, err := a.authorize(ctx, in.UUID)
+			_, s, err := a.authorizeP(ctx, in.UUID, PermFilesWrite)
 			if err != nil {
 				return nil, err
 			}

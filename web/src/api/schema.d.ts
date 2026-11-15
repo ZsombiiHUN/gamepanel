@@ -278,6 +278,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Permissions that can be granted to a subuser */
+        get: operations["listPermissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers": {
         parameters: {
             query?: never;
@@ -518,6 +535,42 @@ export interface paths {
         /** Run a schedule's tasks now */
         post: operations["runSchedule"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who else has access (owner only) */
+        get: operations["listSubusers"];
+        put?: never;
+        /** Give an existing account access (owner only) */
+        post: operations["addSubuser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a subuser's permissions (owner only) */
+        put: operations["setSubuserPermissions"];
+        post?: never;
+        /** Remove a subuser's access (owner only) */
+        delete: operations["removeSubuser"];
         options?: never;
         head?: never;
         patch?: never;
@@ -818,6 +871,10 @@ export interface components {
             current_password: string;
             new_password: string;
         };
+        Permission: {
+            description: string;
+            id: string;
+        };
         PowerInBody: {
             /**
              * Format: uri
@@ -940,8 +997,10 @@ export interface components {
             /** Format: int64 */
             node_id: number;
             node_online: boolean;
+            owner: boolean;
             /** Format: int64 */
             owner_id: number;
+            permissions: string[];
             /** Format: int64 */
             port: number;
             /** @description offline|starting|running|stopping|installing|install_failed|unknown */
@@ -955,6 +1014,40 @@ export interface components {
             /** Format: int64 */
             mem_bytes: number;
             uuid: string;
+        };
+        Subuser: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/Subuser.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            created_at: number;
+            email: string;
+            permissions: string[];
+            /** Format: int64 */
+            user_id: number;
+        };
+        SubuserAddInBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/SubuserAddInBody.json
+             */
+            readonly $schema?: string;
+            /** Format: email */
+            email: string;
+            permissions: string[] | null;
+        };
+        SubuserSetInBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/schemas/SubuserSetInBody.json
+             */
+            readonly $schema?: string;
+            permissions: string[] | null;
         };
         Task: {
             /** @enum {string} */
@@ -1592,6 +1685,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listPermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Permission"][] | null;
+                };
             };
             /** @description Error */
             default: {
@@ -2261,6 +2383,136 @@ export interface operations {
         responses: {
             /** @description Accepted */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listSubusers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subuser"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    addSubuser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubuserAddInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subuser"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setSubuserPermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubuserSetInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removeSubuser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };

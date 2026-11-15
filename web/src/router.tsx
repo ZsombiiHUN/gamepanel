@@ -21,7 +21,7 @@ const serverRoute = createRoute({
   path: "/servers/$uuid",
   component: ServerDetailPage,
   validateSearch: (s: Record<string, unknown>): { tab: Tab } => ({
-    tab: s.tab === "files" || s.tab === "backups" || s.tab === "schedules" || s.tab === "settings" ? s.tab : "console",
+    tab: s.tab === "files" || s.tab === "backups" || s.tab === "schedules" || s.tab === "users" || s.tab === "settings" ? s.tab : "console",
   }),
 });
 const nodesRoute = createRoute({ getParentRoute: () => appRoute, path: "/nodes", component: NodesPage });

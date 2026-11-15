@@ -307,11 +307,11 @@ func (s *Store) GetServer(ctx context.Context, uuid string) (Server, error) {
 	return scanServer(s.DB.QueryRowContext(ctx, `SELECT `+srvCols+` FROM servers WHERE uuid=?`, uuid))
 }
 
-// ListServers returns every server for admins, otherwise only the user's own.
+// ListServers returns every server for admins, otherwise the user's own and shared ones.
 func (s *Store) ListServers(ctx context.Context, u User) ([]Server, error) {
 	q, args := `SELECT `+srvCols+` FROM servers ORDER BY name`, []any{}
 	if !u.IsAdmin {
-		q, args = `SELECT `+srvCols+` FROM servers WHERE owner_id=? ORDER BY name`, []any{u.ID}
+		q, args = `SELECT `+srvCols+` FROM servers WHERE owner_id=? OR uuid IN (SELECT server_uuid FROM server_users WHERE user_id=?) ORDER BY name`, []any{u.ID, u.ID}
 	}
 	rows, err := s.DB.QueryContext(ctx, q, args...)
 	if err != nil {
