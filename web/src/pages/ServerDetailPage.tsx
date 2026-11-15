@@ -23,10 +23,18 @@ export function ServerDetailPage() {
   const qc = useQueryClient();
   const server = useQuery(serverQuery(uuid));
   const term = useRef<TerminalHandle>(null);
+  // Lines can arrive before the page (and so the terminal) has rendered; hold them until it has.
+  const early = useRef<string[]>([]);
   const ws = useServerSocket(uuid, {
-    onConsole: (l) => term.current?.writeln(l),
-    onReset: () => term.current?.clear(),
+    onConsole: (l) => (term.current ? term.current.writeln(l) : early.current.push(l)),
+    onReset: () => { early.current = []; term.current?.clear(); },
   });
+  const ready = !server.isPending && !server.error;
+  useEffect(() => {
+    if (!ready || !term.current) return;
+    for (const l of early.current) term.current.writeln(l);
+    early.current = [];
+  }, [ready]);
 
   const power = useMutation({
     mutationFn: (action: PowerAction) =>
