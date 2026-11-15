@@ -130,7 +130,7 @@ func (a *App) registerAccount(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "changePassword", Method: "POST", Path: "/auth/password",
 		Summary: "Change your password (signs out every other session)", DefaultStatus: 204},
 		func(ctx context.Context, in *passwordIn) (*struct{}, error) {
-			u, err := requireUser(ctx)
+			u, err := requireSession(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -153,7 +153,7 @@ func (a *App) registerAccount(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "revokeOtherSessions", Method: "POST", Path: "/auth/sessions/revoke-others",
 		Summary: "Sign out everywhere except this browser", DefaultStatus: 204},
 		func(ctx context.Context, in *revokeIn) (*struct{}, error) {
-			u, err := requireUser(ctx)
+			u, err := requireSession(ctx)
 			if err != nil {
 				return nil, err
 			}

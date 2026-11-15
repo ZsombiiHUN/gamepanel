@@ -4,6 +4,8 @@ import { Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { meQuery } from "../api/queries";
 import { ErrorBox, Field } from "../components/ui";
+import { ApiKeysSection } from "./ApiKeysSection";
+import { TotpSection } from "./TotpSection";
 
 export function AccountPage() {
   const me = useQuery(meQuery);
@@ -52,6 +54,9 @@ export function AccountPage() {
           {change.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Change password
         </button>
       </form>
+
+      <TotpSection />
+      <ApiKeysSection />
 
       <section className="card space-y-3" aria-labelledby="sess-h">
         <h2 id="sess-h" className="text-lg font-medium">Sessions</h2>

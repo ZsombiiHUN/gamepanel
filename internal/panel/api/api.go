@@ -75,11 +75,13 @@ func New(d Deps) http.Handler {
 	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
 	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
 		"session": {Type: "apiKey", In: "cookie", Name: cookieName},
+		"apikey":  {Type: "http", Scheme: "bearer"},
 	}
 	api := humago.NewWithPrefix(mux, "/api", cfg)
 	d.Hub.OnHello = a.onHello
 	a.registerAuth(api)
 	a.registerAccount(api)
+	a.registerMFA(api)
 	a.registerAdmin(api)
 	a.registerServers(api)
 
@@ -114,6 +116,13 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		if c, err := r.Cookie(cookieName); err == nil {
 			if u, err := a.Store.UserBySession(r.Context(), c.Value); err == nil {
 				r = r.WithContext(context.WithValue(r.Context(), ctxKey{}, u))
+			}
+		} else if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && strings.HasPrefix(tok, store.KeyPrefix) {
+			// API keys: no cookie, so no CSRF exposure; flagged so sensitive
+			// account actions can insist on a browser session.
+			if u, err := a.Store.UserByAPIKey(r.Context(), tok); err == nil {
+				ctx := context.WithValue(r.Context(), ctxKey{}, u)
+				r = r.WithContext(context.WithValue(ctx, viaKeyCtx{}, true))
 			}
 		}
 		next.ServeHTTP(w, r)
@@ -199,6 +208,9 @@ type loginIn struct {
 	Body struct {
 		Email    string `json:"email" format:"email"`
 		Password string `json:"password" minLength:"1"`
+		// TOTPCode is an authenticator or recovery code, required when the
+		// account has two-factor enabled.
+		TOTPCode string `json:"totp_code,omitempty" maxLength:"20"`
 	}
 }
 type userOut struct{ Body store.User }
@@ -226,6 +238,22 @@ func (a *App) registerAuth(api huma.API) {
 				a.fails.add(email)
 				a.audit(ctx, store.User{Email: email}, "login.fail", email, "")
 				return nil, huma.Error401Unauthorized("invalid email or password")
+			}
+			if u.TOTPEnabled {
+				if in.Body.TOTPCode == "" {
+					// Password was right; tell the client to ask for the code.
+					// Not a failure, so it does not count against the account.
+					return nil, huma.Error401Unauthorized("totp_required")
+				}
+				kind, err := a.Store.VerifySecondFactor(ctx, u.ID, in.Body.TOTPCode)
+				if err != nil {
+					a.fails.add(email)
+					a.audit(ctx, u, "login.fail", email, "bad second factor")
+					return nil, huma.Error401Unauthorized("invalid code")
+				}
+				if kind == "recovery" {
+					a.audit(ctx, u, "login.recovery_code", email, "a recovery code was used")
+				}
 			}
 			a.fails.reset(email)
 			a.audit(ctx, u, "login.ok", email, "")

@@ -27,7 +27,9 @@ type User struct {
 	ID      int64  `json:"id"`
 	Email   string `json:"email"`
 	IsAdmin bool   `json:"is_admin"`
-	hash    string
+	// TOTPEnabled reports whether a second factor is required at sign-in.
+	TOTPEnabled bool `json:"totp_enabled"`
+	hash        string
 }
 
 // argon2id with RFC 9106 parameters: t=3, m=64MiB, p=4.
@@ -88,8 +90,8 @@ var dummyHash = hashPassword("dummy-password-for-timing")
 
 func (s *Store) Login(ctx context.Context, email, password string) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,password_hash FROM users WHERE email=?`, email).
-		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.hash)
+	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled,password_hash FROM users WHERE email=?`, email).
+		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.hash)
 	if err != nil {
 		checkPassword(password, dummyHash)
 		return User{}, errors.New("invalid email or password")
@@ -111,8 +113,8 @@ func (s *Store) NewSession(ctx context.Context, userID int64) (string, error) {
 
 func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin FROM sessions s JOIN users u ON u.id=s.user_id
-		WHERE s.token_hash=? AND s.expires_at>?`, HashToken(token), now()).Scan(&u.ID, &u.Email, &u.IsAdmin)
+	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled FROM sessions s JOIN users u ON u.id=s.user_id
+		WHERE s.token_hash=? AND s.expires_at>?`, HashToken(token), now()).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
 	return u, nf(err)
 }
 
