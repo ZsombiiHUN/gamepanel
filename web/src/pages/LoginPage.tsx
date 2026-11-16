@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
-import { Gamepad2, Loader2, ShieldCheck } from "lucide-react";
+import { Gamepad2, Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { invalidates, keys } from "../api/queries";
 import { ErrorBox, Field, ServerIcon } from "../components/ui";
@@ -66,9 +66,6 @@ export function LoginPage() {
               Use a different account
             </button>
           )}
-          <p className="flex items-center gap-1.5 text-xs text-zinc-500">
-            <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Sessions are cookie-based and sign-in attempts are rate limited.
-          </p>
         </form>
       </main>
       <aside aria-hidden className="relative hidden overflow-hidden border-l border-zinc-800 bg-side lg:block">
@@ -81,7 +78,6 @@ export function LoginPage() {
         </div>
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0b0d0f] via-[#0b0d0f]/90 to-transparent p-12 pt-24">
           <p className="h-display max-w-md text-2xl leading-snug text-zinc-100">Game servers, without the panel you have to babysit.</p>
-          <p className="mt-3 max-w-md text-sm text-zinc-400">Imports Pterodactyl eggs unchanged. Open source, AGPL-3.0.</p>
         </div>
       </aside>
     </div>
