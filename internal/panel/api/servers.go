@@ -240,7 +240,7 @@ func (a *App) registerServers(api huma.API) {
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "setLimits", Method: "PUT", Path: "/servers/{uuid}/limits",
-		Summary: "Change a server's resource limits (admin; the server must be stopped)", DefaultStatus: 204},
+		Summary: "Change a server's resource limits (admin; a running server applies them at its next start)", DefaultStatus: 204},
 		func(ctx context.Context, in *limitsIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {

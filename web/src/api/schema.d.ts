@@ -1096,7 +1096,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Change a server's resource limits (admin; the server must be stopped) */
+        /** Change a server's resource limits (admin; a running server applies them at its next start) */
         put: operations["setLimits"];
         post?: never;
         delete?: never;
