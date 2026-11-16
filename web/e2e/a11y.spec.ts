@@ -20,7 +20,7 @@ test.describe("signed out", () => {
   });
 });
 
-for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["nodes", "/nodes"], ["eggs", "/eggs"], ["audit log", "/audit"], ["account", "/account"]] as const) {
+for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["nodes", "/nodes"], ["eggs", "/eggs"], ["database hosts", "/database-hosts"], ["audit log", "/audit"], ["account", "/account"]] as const) {
   test(`${name} page`, async ({ page }) => {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
@@ -28,7 +28,7 @@ for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["
   });
 }
 
-for (const tab of ["console", "files", "backups", "schedules", "startup", "network", "users", "settings"]) {
+for (const tab of ["console", "files", "backups", "schedules", "startup", "network", "databases", "users", "settings"]) {
   test(`server ${tab} tab`, async ({ page, panel }) => {
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=${tab}`);
     await page.waitForLoadState("networkidle");

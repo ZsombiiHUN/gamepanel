@@ -11,15 +11,16 @@ import (
 // memory, swap, CPU, cpuset, pids and IO weight by the container engine, disk
 // by the daemon (see internal/daemon/disk.go).
 type Limits struct {
-	MemoryMB    int64  `json:"memory_mb" minimum:"64" maximum:"1048576" doc:"hard memory limit"`
-	SwapMB      int64  `json:"swap_mb" minimum:"-1" maximum:"1048576" doc:"extra swap on top of memory: 0 = none, -1 = unlimited"`
-	CPUPct      int64  `json:"cpu_pct" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
-	CPUSet      string `json:"cpuset" maxLength:"64" doc:"pin to cores, e.g. 0-3 or 0,2; empty = any"`
-	PidsLimit   int64  `json:"pids_limit" minimum:"16" maximum:"65536" doc:"max processes and threads"`
-	IOWeight    int64  `json:"io_weight" minimum:"0" maximum:"1000" doc:"relative disk IO priority 10-1000, 0 = default"`
-	DiskMB      int64  `json:"disk_mb" minimum:"0" maximum:"104857600" doc:"disk quota, 0 = unlimited"`
-	BackupLimit int64  `json:"backup_limit" minimum:"1" maximum:"100" doc:"how many backups this server may keep"`
-	PortLimit   int64  `json:"port_limit" required:"false" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one (default 0)"`
+	MemoryMB      int64  `json:"memory_mb" minimum:"64" maximum:"1048576" doc:"hard memory limit"`
+	SwapMB        int64  `json:"swap_mb" minimum:"-1" maximum:"1048576" doc:"extra swap on top of memory: 0 = none, -1 = unlimited"`
+	CPUPct        int64  `json:"cpu_pct" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
+	CPUSet        string `json:"cpuset" maxLength:"64" doc:"pin to cores, e.g. 0-3 or 0,2; empty = any"`
+	PidsLimit     int64  `json:"pids_limit" minimum:"16" maximum:"65536" doc:"max processes and threads"`
+	IOWeight      int64  `json:"io_weight" minimum:"0" maximum:"1000" doc:"relative disk IO priority 10-1000, 0 = default"`
+	DiskMB        int64  `json:"disk_mb" minimum:"0" maximum:"104857600" doc:"disk quota, 0 = unlimited"`
+	BackupLimit   int64  `json:"backup_limit" minimum:"1" maximum:"100" doc:"how many backups this server may keep"`
+	PortLimit     int64  `json:"port_limit" required:"false" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one (default 0)"`
+	DatabaseLimit int64  `json:"database_limit" required:"false" minimum:"0" maximum:"100" doc:"databases the owner may create (default 0)"`
 }
 
 // DefaultLimits are used for fields a request leaves out.
@@ -58,6 +59,8 @@ func (l *Limits) Normalize() error {
 		return userErr("backup limit must be 1 to 100")
 	case l.PortLimit < 0 || l.PortLimit > 100:
 		return userErr("extra ports must be 0 to 100")
+	case l.DatabaseLimit < 0 || l.DatabaseLimit > 100:
+		return userErr("databases must be 0 to 100")
 	}
 	return nil
 }
@@ -122,8 +125,8 @@ func (s *Store) UpdateLimits(ctx context.Context, uuid string, l Limits) error {
 	if err := checkCapacity(ctx, s.DB, srv.NodeID, uuid, l); err != nil {
 		return err
 	}
-	_, err = s.exec(ctx, `UPDATE servers SET memory_mb=?,swap_mb=?,cpu_pct=?,cpuset=?,pids_limit=?,io_weight=?,disk_mb=?,backup_limit=?,port_limit=? WHERE uuid=?`,
-		l.MemoryMB, l.SwapMB, l.CPUPct, l.CPUSet, l.PidsLimit, l.IOWeight, l.DiskMB, l.BackupLimit, l.PortLimit, uuid)
+	_, err = s.exec(ctx, `UPDATE servers SET memory_mb=?,swap_mb=?,cpu_pct=?,cpuset=?,pids_limit=?,io_weight=?,disk_mb=?,backup_limit=?,port_limit=?,database_limit=? WHERE uuid=?`,
+		l.MemoryMB, l.SwapMB, l.CPUPct, l.CPUSet, l.PidsLimit, l.IOWeight, l.DiskMB, l.BackupLimit, l.PortLimit, l.DatabaseLimit, uuid)
 	return err
 }
 

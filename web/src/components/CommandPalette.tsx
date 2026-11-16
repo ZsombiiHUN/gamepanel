@@ -56,7 +56,7 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
       });
     }
     const pages: [string, string, string][] = [["/", "All servers", ""], ["/account", "Account", "profile password two-factor 2fa api keys sessions"]];
-    if (me.data?.is_admin) pages.push(["/servers/new", "New server", "create add"], ["/nodes", "Nodes", "machines daemon"], ["/eggs", "Eggs", "templates import games"], ["/audit", "Audit log", "events security history"]);
+    if (me.data?.is_admin) pages.push(["/servers/new", "New server", "create add"], ["/nodes", "Nodes", "machines daemon"], ["/eggs", "Eggs", "templates import games"], ["/database-hosts", "Database hosts", "mysql mariadb"], ["/audit", "Audit log", "events security history"]);
     for (const [to, label, keywords] of pages) out.push({ id: `page:${to}`, group: "Pages", label, keywords, go: () => void navigate({ to }) });
     return out;
   }, [servers.data, me.data, currentServer, navigate]);

@@ -21,6 +21,8 @@ export const keys = {
   schedules: (uuid: string) => ["schedules", uuid] as const,
   startup: (uuid: string) => ["startup", uuid] as const,
   network: (uuid: string) => ["network", uuid] as const,
+  databases: (uuid: string) => ["databases", uuid] as const,
+  databaseHosts: ["database-hosts"] as const,
 };
 
 /** What a mutation refreshes on success. The query client applies it, so mutations do not repeat the plumbing. */
@@ -116,6 +118,17 @@ export const networkQuery = (uuid: string) =>
     queryKey: keys.network(uuid),
     queryFn: () => call(api.GET("/servers/{uuid}/network", { params: { path: { uuid } } })),
   });
+
+export const databasesQuery = (uuid: string) =>
+  queryOptions({
+    queryKey: keys.databases(uuid),
+    queryFn: () => call(api.GET("/servers/{uuid}/databases", { params: { path: { uuid } } })),
+  });
+
+export const databaseHostsQuery = queryOptions({
+  queryKey: keys.databaseHosts,
+  queryFn: async () => (await call(api.GET("/database-hosts"))) ?? [],
+});
 
 export const backupsQuery = (uuid: string) =>
   queryOptions({
