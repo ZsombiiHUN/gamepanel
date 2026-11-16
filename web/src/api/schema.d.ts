@@ -209,6 +209,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/database-hosts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List database hosts (admin) */
+        get: operations["listDatabaseHosts"];
+        put?: never;
+        /** Add a database host (admin; the connection is tested first) */
+        post: operations["createDatabaseHost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/database-hosts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a database host with no databases (admin) */
+        delete: operations["deleteDatabaseHost"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/eggs": {
         parameters: {
             query?: never;
@@ -431,6 +466,78 @@ export interface paths {
         put?: never;
         /** Send a console command */
         post: operations["sendCommand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/databases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a server's databases */
+        get: operations["listDatabases"];
+        put?: never;
+        /**
+         * Create a database and its user
+         * @description The reply holds the password; it can be shown again later.
+         */
+        post: operations["createDatabase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/databases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a database and its user */
+        delete: operations["deleteDatabase"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/databases/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Show a database's password */
+        get: operations["databasePassword"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/databases/{id}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give a database a new password */
+        post: operations["rotateDatabasePassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -888,6 +995,62 @@ export interface components {
         CommandInBody: {
             command: string;
         };
+        DatabaseCreateInBody: {
+            /** @description letters, digits and _; the server's prefix is added */
+            name: string;
+            /**
+             * @description where connections may come from: % = anywhere, or an address
+             * @default %
+             */
+            remote: string;
+        };
+        DatabaseHost: {
+            /**
+             * Format: int64
+             * @description databases on this host now
+             */
+            databases: number;
+            host: string;
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int64
+             * @description 0 = no limit
+             */
+            max_databases: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description preferred for servers on this node; 0 = any
+             */
+            node_id: number;
+            /** Format: int64 */
+            port: number;
+            username: string;
+        };
+        DatabaseSecret: {
+            /** Format: int64 */
+            created_at: number;
+            host: string;
+            /** Format: int64 */
+            host_id: number;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            password: string;
+            /** Format: int64 */
+            port: number;
+            /** @description where connections may come from; % = anywhere */
+            remote: string;
+            username: string;
+        };
+        DatabasesView: {
+            available: boolean;
+            can_manage: boolean;
+            databases: components["schemas"]["ServerDatabase"][];
+            /** Format: int64 */
+            limit: number;
+        };
         Egg: {
             description: string;
             /** @description the default image (the first of docker_images) */
@@ -1017,6 +1180,29 @@ export interface components {
         FolderInBody: {
             path: string;
         };
+        HostCreateInBody: {
+            /** @description address the panel and the game servers reach it on */
+            host: string;
+            /**
+             * Format: int64
+             * @description 0 = no limit
+             */
+            max_databases?: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description prefer this host for servers on that node
+             */
+            node_id?: number;
+            password: string;
+            /**
+             * Format: int64
+             * @default 3306
+             */
+            port: number;
+            /** @description an account that may create databases and users */
+            username: string;
+        };
         KeyCreateInBody: {
             /** @description authenticator or recovery code; required when two-factor is on */
             code?: string;
@@ -1047,6 +1233,11 @@ export interface components {
             cpu_pct: number;
             /** @description pin to cores, e.g. 0-3 or 0,2; empty = any */
             cpuset: string;
+            /**
+             * Format: int64
+             * @description databases the owner may create (default 0)
+             */
+            database_limit?: number;
             /**
              * Format: int64
              * @description disk quota, 0 = unlimited
@@ -1258,6 +1449,11 @@ export interface components {
             cpuset?: string;
             /**
              * Format: int64
+             * @description databases the owner may create
+             */
+            database_limit?: number;
+            /**
+             * Format: int64
              * @description 0 = unlimited
              */
             disk_mb?: number;
@@ -1302,6 +1498,21 @@ export interface components {
              */
             swap_mb?: number;
         };
+        ServerDatabase: {
+            /** Format: int64 */
+            created_at: number;
+            host: string;
+            /** Format: int64 */
+            host_id: number;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            port: number;
+            /** @description where connections may come from; % = anywhere */
+            remote: string;
+            username: string;
+        };
         ServerPort: {
             notes: string;
             /** Format: int64 */
@@ -1322,6 +1533,11 @@ export interface components {
             cpu_pct: number;
             /** @description pin to cores, e.g. 0-3 or 0,2; empty = any */
             cpuset: string;
+            /**
+             * Format: int64
+             * @description databases the owner may create (default 0)
+             */
+            database_limit?: number;
             /**
              * Format: int64
              * @description disk quota, 0 = unlimited
@@ -1906,6 +2122,97 @@ export interface operations {
             };
         };
     };
+    listDatabaseHosts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseHost"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createDatabaseHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseHost"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteDatabaseHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listEggs: {
         parameters: {
             query?: never;
@@ -2429,6 +2736,166 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listDatabases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabasesView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatabaseCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseSecret"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    databasePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseSecret"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    rotateDatabasePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseSecret"];
+                };
             };
             /** @description Error */
             default: {

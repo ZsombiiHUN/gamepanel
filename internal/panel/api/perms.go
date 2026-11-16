@@ -28,6 +28,8 @@ const (
 	PermStartupImage    = "startup.docker-image"
 	PermNetworkRead     = "network.read"
 	PermNetworkManage   = "network.manage"
+	PermDatabasesRead   = "databases.read"
+	PermDatabasesManage = "databases.manage"
 )
 
 // access resolves what the caller may do on a server. Owners and admins hold

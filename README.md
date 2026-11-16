@@ -37,6 +37,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Files** | Browse, edit, search every subfolder; upload files and whole folders by drag and drop, download, rename, move, copy, change permissions, compress and extract (zip, tar.gz, tar.bz2), pull from a URL, act on many files at once; SFTP |
 | **Startup** | Change the egg's variables (checked against its rules), pick another of its Docker images, and, as an admin, set a custom image or startup command. Changes to a running server apply at its next start |
 | **Network** | Several ports per server, each with a note; switch the primary port. Admins set how many extra ports an owner may add |
+| **Databases** | MySQL/MariaDB databases per server, each with its own user that can reach only that database; show, copy and rotate passwords. Admins register database hosts (tested before they are saved) and set a per-server limit |
 | **Backups** | Create, lock, delete, restore and download; keep them on the node or in any S3-compatible store (AWS, R2, B2, Wasabi, MinIO) without giving nodes the credentials |
 | **Schedules** | Cron-style tasks per server |
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
@@ -129,6 +130,8 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 **Works and is tested** (`make test` runs with the race detector, `make e2e` drives a real browser): auth, two-factor, access control, node enrollment, egg import, server create and delete, power, console streaming, file read, write and search, symlink escape rejection, backups with restore, schedules, subusers, SFTP, disk quotas, and cross-origin websocket rejection.
 
 **Docker runtime** is verified against a real engine by [`scripts/docker-smoke.sh`](scripts/docker-smoke.sh): image pull, env, memory, CPU and PID limits, dropped capabilities, port publishing, console input, stats, stop, restart, kill and cleanup.
+
+**Server databases** are verified against a real MariaDB by `TestServerDatabases` when `GAMEPANEL_TEST_MYSQL` is set, including that a database's user cannot reach anything else.
 
 **S3 backups** are verified against a real S3-compatible store (RustFS) by `TestS3Backups` when `GAMEPANEL_TEST_S3_ENDPOINT` is set, and request signing against AWS's published example.
 

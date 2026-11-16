@@ -79,15 +79,16 @@ type serverCreateIn struct {
 		MemoryMB int64  `json:"memory_mb" minimum:"64" maximum:"1048576"`
 		CPUPct   int64  `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
 		// More limits, all optional. See PUT /servers/{uuid}/limits.
-		SwapMB      int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
-		CPUSet      string            `json:"cpuset,omitempty" maxLength:"64"`
-		PidsLimit   int64             `json:"pids_limit,omitempty" minimum:"16" maximum:"65536" doc:"default 1024"`
-		IOWeight    int64             `json:"io_weight,omitempty" minimum:"0" maximum:"1000" doc:"0 = default, else 10-1000"`
-		DiskMB      int64             `json:"disk_mb,omitempty" minimum:"0" doc:"0 = unlimited"`
-		BackupLimit int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
-		PortLimit   int64             `json:"port_limit,omitempty" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one"`
-		Port        int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
-		Env         map[string]string `json:"env,omitempty"`
+		SwapMB        int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
+		CPUSet        string            `json:"cpuset,omitempty" maxLength:"64"`
+		PidsLimit     int64             `json:"pids_limit,omitempty" minimum:"16" maximum:"65536" doc:"default 1024"`
+		IOWeight      int64             `json:"io_weight,omitempty" minimum:"0" maximum:"1000" doc:"0 = default, else 10-1000"`
+		DiskMB        int64             `json:"disk_mb,omitempty" minimum:"0" doc:"0 = unlimited"`
+		BackupLimit   int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
+		PortLimit     int64             `json:"port_limit,omitempty" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one"`
+		DatabaseLimit int64             `json:"database_limit,omitempty" minimum:"0" maximum:"100" doc:"databases the owner may create"`
+		Port          int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
+		Env           map[string]string `json:"env,omitempty"`
 	}
 }
 type powerIn struct {
@@ -175,7 +176,7 @@ func (a *App) registerServers(api huma.API) {
 				Port: b.Port, Env: b.Env,
 				Limits: store.Limits{
 					MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
-					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit,
+					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit, DatabaseLimit: b.DatabaseLimit,
 				},
 			})
 			if err != nil {
@@ -221,6 +222,7 @@ func (a *App) registerServers(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			a.removeRemoteBackups(ctx, s.UUID) // before the rows that list them go
+			a.dropServerDatabases(ctx, s.UUID)
 			if err := a.Store.DeleteServer(ctx, s.UUID); err != nil {
 				return nil, huma.Error500InternalServerError("the node deleted the server but the panel could not", err)
 			}

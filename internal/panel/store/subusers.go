@@ -33,6 +33,8 @@ var AllPermissions = []Permission{
 	{"startup.docker-image", "Pick another of the egg's Docker images"},
 	{"network.read", "See the server's ports"},
 	{"network.manage", "Add, label and remove ports, and choose the primary one"},
+	{"databases.read", "See the server's databases (not their passwords)"},
+	{"databases.manage", "Create and delete databases, and see and change their passwords"},
 }
 
 // ValidatePermissions checks, de-duplicates and sorts a permission list.

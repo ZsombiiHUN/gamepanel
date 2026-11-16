@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, createRoute, createRouter, Link, Outlet, redirect, type ErrorComponentProps, type RouterHistory } from "@tanstack/react-router";
 import { AlertTriangle, Compass, Lock } from "lucide-react";
 import { ApiError } from "./api/client";
-import { auditQuery, eggsQuery, meQuery, nodesQuery, serverQuery, serversQuery } from "./api/queries";
+import { auditQuery, databaseHostsQuery, eggsQuery, meQuery, nodesQuery, serverQuery, serversQuery } from "./api/queries";
 import { Empty } from "./components/ui";
 import { errorText } from "./lib/problem";
 import { GROUPS } from "./lib/servers";
@@ -12,6 +12,7 @@ import { AccountPage } from "./pages/AccountPage";
 import { AppShell } from "./pages/AppShell";
 import { AuditPage } from "./pages/AuditPage";
 import { CreateServerPage } from "./pages/CreateServerPage";
+import { DatabaseHostsPage } from "./pages/DatabaseHostsPage";
 import { EggsPage } from "./pages/EggsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NodesPage } from "./pages/NodesPage";
@@ -148,6 +149,15 @@ const eggsRoute = createRoute({
   component: EggsPage,
   loader: ({ context }) => void context.queryClient.prefetchQuery(eggsQuery),
 });
+const databaseHostsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/database-hosts",
+  component: DatabaseHostsPage,
+  loader: ({ context }) => {
+    void context.queryClient.prefetchQuery(databaseHostsQuery);
+    void context.queryClient.prefetchQuery(nodesQuery);
+  },
+});
 const auditRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/audit",
@@ -159,7 +169,7 @@ const auditRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  appRoute.addChildren([indexRoute, serverRoute, accountRoute, adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, auditRoute])]),
+  appRoute.addChildren([indexRoute, serverRoute, accountRoute, adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, databaseHostsRoute, auditRoute])]),
 ]);
 
 export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {
