@@ -26,6 +26,7 @@ export const keys = {
   activity: (uuid: string) => ["activity", uuid] as const,
   authOptions: ["auth-options"] as const,
   invite: ["invite"] as const,
+  identities: ["identities"] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
 };
 
@@ -67,6 +68,12 @@ export const authOptionsQuery = queryOptions({
   queryKey: keys.authOptions,
   queryFn: () => call(api.GET("/auth/options")),
   staleTime: 5 * 60_000,
+});
+
+/** Single sign-on links of the signed-in account. */
+export const identitiesQuery = queryOptions({
+  queryKey: keys.identities,
+  queryFn: () => call(api.GET("/auth/identities")),
 });
 
 /** What an invitation link is for (public). */

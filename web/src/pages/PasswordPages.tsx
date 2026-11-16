@@ -3,9 +3,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
-import { inviteQuery, invalidates, keys } from "../api/queries";
+import { authOptionsQuery, inviteQuery, invalidates, keys } from "../api/queries";
 import { AuthLayout, tokenFromHash } from "../components/AuthLayout";
 import { ErrorBox, Field } from "../components/ui";
+import { SSOButtons } from "./LoginPage";
 
 export function ForgotPage() {
   const [email, setEmail] = useState("");
@@ -80,6 +81,7 @@ export function ResetPage() {
 export function RegisterPage() {
   const [token] = useState(() => tokenFromHash());
   const invite = useQuery({ ...inviteQuery(token), enabled: !!token });
+  const options = useQuery(authOptionsQuery);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -107,6 +109,12 @@ export function RegisterPage() {
           </Field>
           <NewPassword password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} />
           <button type="submit" className="btn btn-primary w-full" disabled={register.isPending || password !== confirm}>{register.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create account</button>
+          {(options.data?.sso.length ?? 0) > 0 && (
+            <>
+              <div className="flex items-center gap-3 text-xs text-zinc-500" aria-hidden><span className="h-px flex-1 bg-zinc-800" />or, without a password<span className="h-px flex-1 bg-zinc-800" /></div>
+              <SSOButtons providers={options.data!.sso} query={token ? { invite: token } : {}} />
+            </>
+          )}
           <p className="text-center text-sm text-zinc-400">Already have one? <Link to="/login" className="link">Sign in</Link></p>
         </form>
       )}

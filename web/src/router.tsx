@@ -73,6 +73,7 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+  validateSearch: (s: Record<string, unknown>): { sso?: string; sso_error?: string } => ({ sso: text(s.sso), sso_error: text(s.sso_error) }),
   // Already signed in: skip the form.
   beforeLoad: async ({ context }) => {
     if (await currentUser(context.queryClient)) throw redirect({ to: "/" });
@@ -125,7 +126,12 @@ const serverRoute = createRoute({
   loader: ({ context, params }) => void context.queryClient.prefetchQuery(serverQuery(params.uuid)),
 });
 
-const accountRoute = createRoute({ getParentRoute: () => appRoute, path: "/account", component: AccountPage });
+const accountRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/account",
+  component: AccountPage,
+  validateSearch: (s: Record<string, unknown>): { sso_linked?: string; sso_error?: string } => ({ sso_linked: text(s.sso_linked), sso_error: text(s.sso_error) }),
+});
 
 /** Pages only administrators may open. */
 const adminRoute = createRoute({

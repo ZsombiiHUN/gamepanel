@@ -2,13 +2,15 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
-import { meQuery } from "../api/queries";
+import { identitiesQuery, meQuery } from "../api/queries";
 import { Avatar, ErrorBox, Field, PageHeader, Pill, Section } from "../components/ui";
 import { ApiKeysSection } from "./ApiKeysSection";
+import { FirstPassword, SignInMethods } from "./SignInMethods";
 import { TotpSection } from "./TotpSection";
 
 export function AccountPage() {
   const me = useQuery(meQuery);
+  const ids = useQuery(identitiesQuery);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
@@ -43,6 +45,7 @@ export function AccountPage() {
         }
       />
       <div className="space-y-5">
+        {ids.data && !ids.data.has_password ? <FirstPassword /> : (
         <form onSubmit={submit}>
           <Section
             title="Password"
@@ -73,7 +76,9 @@ export function AccountPage() {
             </div>
           </Section>
         </form>
+        )}
 
+        <SignInMethods />
         <TotpSection />
         <ApiKeysSection />
 

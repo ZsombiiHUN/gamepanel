@@ -47,6 +47,8 @@ type Deps struct {
 	PublicURL string
 	// Signup is "invite" (default: accounts only by invitation) or "open".
 	Signup string
+	// SSO lists single sign-on providers (they need PublicURL).
+	SSO []*SSOProvider
 	// S3, when set, is where new backups are stored instead of on the node.
 	S3 *s3.Client
 	// AuthRecheck is how often an open console websocket re-checks that its
@@ -65,6 +67,9 @@ type App struct {
 	running   sync.Map // schedule id -> struct{}: one execution at a time
 	relays    sync.Map // relay ticket -> *relayTicket, see relay.go
 	uploads   sync.Map // backup uuid -> S3 multipart upload id
+	// Single sign-on round trips in flight (state -> ssoState) and sign-ins
+	// waiting for a second factor (token -> ssoPending).
+	ssoStates, ssoMFA sync.Map
 }
 
 type ctxKey struct{}
@@ -140,6 +145,8 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/servers/{uuid}/backups/{backup}/download", a.downloadBackup)
 	mux.HandleFunc("GET /daemon/relay/{ticket}", a.relayHandler)
 	mux.HandleFunc("POST /daemon/relay/{ticket}", a.relayHandler)
+	mux.HandleFunc("GET /api/auth/sso/{provider}/start", a.ssoStart)
+	mux.HandleFunc("GET /api/auth/sso/{provider}/callback", a.ssoCallback)
 	mux.HandleFunc("POST /daemon/backups/upload", a.backupUpload)
 	mux.HandleFunc("POST /daemon/backups/complete", a.backupComplete)
 	if d.Web != nil {
@@ -177,6 +184,7 @@ func (a *App) register(api huma.API) {
 	a.registerServerDetails(api)
 	a.registerActivity(api)
 	a.registerLinks(api)
+	a.registerSSO(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running
