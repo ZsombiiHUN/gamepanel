@@ -23,6 +23,7 @@ export const keys = {
   network: (uuid: string) => ["network", uuid] as const,
   databases: (uuid: string) => ["databases", uuid] as const,
   databaseHosts: ["database-hosts"] as const,
+  activity: (uuid: string) => ["activity", uuid] as const,
 };
 
 /** What a mutation refreshes on success. The query client applies it, so mutations do not repeat the plumbing. */
@@ -151,6 +152,16 @@ export const fileQuery = (uuid: string, path: string) =>
     queryFn: () => call(api.GET("/servers/{uuid}/files/content", { params: { path: { uuid }, query: { path } } })),
     retry: false,
     gcTime: 0,
+  });
+
+export const ACTIVITY_PAGE_SIZE = 50;
+
+export const activityQuery = (uuid: string, term: string, page: number) =>
+  queryOptions({
+    queryKey: [...keys.activity(uuid), term, page] as const,
+    queryFn: async () =>
+      (await call(api.GET("/servers/{uuid}/activity", { params: { path: { uuid }, query: { limit: ACTIVITY_PAGE_SIZE, offset: page * ACTIVITY_PAGE_SIZE, ...(term ? { q: term } : {}) } } }))) ?? [],
+    placeholderData: keepPreviousData,
   });
 
 export const AUDIT_PAGE_SIZE = 100;

@@ -27,11 +27,20 @@ func (s *Store) Audit(ctx context.Context, e AuditEntry) {
 		now(), actor, e.ActorEmail, e.Action, e.Target, e.IP, e.Detail)
 }
 
+// ListServerActivity returns a server's audit entries, newest first,
+// filtered like ListAudit.
+func (s *Store) ListServerActivity(ctx context.Context, server, q string, limit, offset int) ([]AuditEntry, error) {
+	return s.listAudit(ctx, []string{"target = ?"}, []any{server}, q, limit, offset)
+}
+
 // ListAudit returns newest-first entries. A non-empty q keeps only entries
 // where every whitespace-separated word appears (case-insensitively) in the
 // action, user, target, detail or IP.
 func (s *Store) ListAudit(ctx context.Context, q string, limit, offset int) ([]AuditEntry, error) {
-	conds, args := []string{}, []any{}
+	return s.listAudit(ctx, nil, nil, q, limit, offset)
+}
+
+func (s *Store) listAudit(ctx context.Context, conds []string, args []any, q string, limit, offset int) ([]AuditEntry, error) {
 	for _, w := range strings.Fields(q) {
 		like := "%" + likeEscaper.Replace(strings.ToLower(w)) + "%"
 		conds = append(conds, `(LOWER(action) LIKE ? ESCAPE '\' OR LOWER(actor_email) LIKE ? ESCAPE '\' OR LOWER(target) LIKE ? ESCAPE '\' OR LOWER(detail) LIKE ? ESCAPE '\' OR LOWER(ip) LIKE ? ESCAPE '\')`)

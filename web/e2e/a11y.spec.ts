@@ -28,7 +28,7 @@ for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["
   });
 }
 
-for (const tab of ["console", "files", "backups", "schedules", "startup", "network", "databases", "users", "settings"]) {
+for (const tab of ["console", "files", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"]) {
   test(`server ${tab} tab`, async ({ page, panel }) => {
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=${tab}`);
     await page.waitForLoadState("networkidle");

@@ -29,6 +29,7 @@ var AllPermissions = []Permission{
 	{"schedules.manage", "Create, edit, run and delete schedules"},
 	{"settings.reinstall", "Reinstall the server"},
 	{"settings.rename", "Rename the server and change its description"},
+	{"activity.read", "See the server's activity log"},
 	{"startup.read", "See the startup command and the variables the egg shows"},
 	{"startup.update", "Change startup variables the egg lets users edit"},
 	{"startup.docker-image", "Pick another of the egg's Docker images"},

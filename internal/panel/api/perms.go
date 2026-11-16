@@ -24,6 +24,7 @@ const (
 	PermSchedulesManage = "schedules.manage"
 	PermReinstall       = "settings.reinstall"
 	PermRename          = "settings.rename"
+	PermActivityRead    = "activity.read"
 	PermStartupRead     = "startup.read"
 	PermStartupUpdate   = "startup.update"
 	PermStartupImage    = "startup.docker-image"
