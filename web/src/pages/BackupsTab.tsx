@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Database, Loader2, Lock, LockOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Cloud, Database, Download, Loader2, Lock, LockOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { backupsQuery, invalidates, keys, serverQuery } from "../api/queries";
 import { ErrorBox, Field } from "../components/ui";
@@ -13,6 +13,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
   const [ignore, setIgnore] = useState("");
   const [truncate, setTruncate] = useState(false);
   const list = useQuery(backupsQuery(uuid));
+  const canDownload = !!server.data?.permissions.includes("backups.download");
 
   const create = useMutation({
     mutationFn: () => call(api.POST("/servers/{uuid}/backups", { params: { path: { uuid } }, body: { name, ignore } })),
@@ -91,6 +92,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
               <div className="min-w-0 flex-1 basis-56">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <span className="text-[15px] font-medium">{b.name}</span>
+                  {b.disk === "s3" && <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-[#1d2229] px-2.5 text-xs text-zinc-300" title="Stored in S3, off the node"><Cloud className="h-3 w-3" aria-hidden />S3</span>}
                   {b.locked && <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-[#1d2229] px-2.5 text-xs text-zinc-300"><Lock className="h-3 w-3" aria-hidden />Locked</span>}
                   {b.status === "running" && <span className="inline-flex items-center gap-1.5 text-xs text-[#f0b35a]"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Running</span>}
                   {b.status !== "ok" && b.status !== "running" && <span className="text-xs text-[#ff8a7a]">{b.status}</span>}
@@ -109,6 +111,11 @@ export function BackupsTab({ uuid }: { uuid: string }) {
                 <button type="button" className="btn !min-h-9" aria-label={`Restore ${b.name}`} title="Restore (stop the server first)" disabled={b.status !== "ok" || restore.isPending || restoring} onClick={() => doRestore(b.uuid, b.name)}>
                   <RotateCcw className="h-4 w-4" aria-hidden /> Restore
                 </button>
+                {canDownload && b.status === "ok" && (
+                  <a className={iconBtn} href={`/api/servers/${uuid}/backups/${b.uuid}/download`} download aria-label={`Download ${b.name}`} title="Download">
+                    <Download className="h-4 w-4" aria-hidden />
+                  </a>
+                )}
                 <button type="button" className={iconBtn} aria-label={b.locked ? `Unlock ${b.name}` : `Lock ${b.name}`} title={b.locked ? "Locked: cannot be deleted" : "Lock"} onClick={() => lock.mutate({ backup: b.uuid, locked: !b.locked })}>
                   {b.locked ? <Lock className="h-4 w-4" aria-hidden /> : <LockOpen className="h-4 w-4" aria-hidden />}
                 </button>

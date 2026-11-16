@@ -55,3 +55,19 @@ describe("BackupsTab restores", () => {
     expect(await screen.findByText(/^Restored /)).toBeInTheDocument();
   });
 });
+
+describe("BackupsTab downloads", () => {
+  it("links finished backups for people who may download them, and marks S3 ones", async () => {
+    srv.permissions = [...srv.permissions, "backups.download"];
+    setup([backup({ name: "nightly", disk: "s3" }), backup({ name: "running", status: "running" })]);
+    expect(await screen.findByRole("link", { name: "Download nightly" })).toHaveAttribute("href", `/api/servers/${srv.uuid}/backups/b-nightly/download`);
+    expect(screen.queryByRole("link", { name: "Download running" })).toBeNull();
+    expect(screen.getByText("S3")).toBeInTheDocument();
+    srv.permissions = srv.permissions.filter((p) => p !== "backups.download");
+  });
+  it("offers no download without the permission", async () => {
+    setup([backup({ name: "nightly" })]);
+    await screen.findByText("nightly");
+    expect(screen.queryByRole("link", { name: "Download nightly" })).toBeNull();
+  });
+});

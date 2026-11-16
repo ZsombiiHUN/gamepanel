@@ -23,6 +23,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
@@ -39,6 +40,8 @@ type Deps struct {
 	// context ends. SchedulerTick overrides the 20 s check interval (tests).
 	SchedulerCtx  context.Context
 	SchedulerTick time.Duration
+	// S3, when set, is where new backups are stored instead of on the node.
+	S3 *s3.Client
 	// AuthRecheck is how often an open console websocket re-checks that its
 	// session or API key is still valid and still grants console access
 	// (default 10 s).
@@ -51,6 +54,7 @@ type App struct {
 	fails   *limiter // failed logins per account
 	running sync.Map // schedule id -> struct{}: one execution at a time
 	relays  sync.Map // relay ticket -> *relayTicket, see relay.go
+	uploads sync.Map // backup uuid -> S3 multipart upload id
 }
 
 type ctxKey struct{}
@@ -126,6 +130,8 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/servers/{uuid}/backups/{backup}/download", a.downloadBackup)
 	mux.HandleFunc("GET /daemon/relay/{ticket}", a.relayHandler)
 	mux.HandleFunc("POST /daemon/relay/{ticket}", a.relayHandler)
+	mux.HandleFunc("POST /daemon/backups/upload", a.backupUpload)
+	mux.HandleFunc("POST /daemon/backups/complete", a.backupComplete)
 	if d.Web != nil {
 		mux.Handle("/", d.Web)
 	}
