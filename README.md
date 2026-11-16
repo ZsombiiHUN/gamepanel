@@ -37,7 +37,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Files** | Browse, edit, search every subfolder; upload files and whole folders by drag and drop, download, rename, move, copy, change permissions, compress and extract (zip, tar.gz, tar.bz2), pull from a URL, act on many files at once; SFTP |
 | **Startup** | Change the egg's variables (checked against its rules), pick another of its Docker images, and, as an admin, set a custom image or startup command. Changes to a running server apply at its next start |
 | **Network** | Several ports per server, each with a note; switch the primary port. Admins set how many extra ports an owner may add |
-| **Backups** | Create, lock, delete, restore and download |
+| **Backups** | Create, lock, delete, restore and download; keep them on the node or in any S3-compatible store (AWS, R2, B2, Wasabi, MinIO) without giving nodes the credentials |
 | **Schedules** | Cron-style tasks per server |
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
 | **Accounts** | Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
@@ -90,6 +90,11 @@ All settings are environment variables.
 | `GAMEPANEL_SESSION_IDLE` | `30m` | Sign out a session after this long without use |
 | `GAMEPANEL_SESSION_MAX` | `12h` | Sign out a session this long after sign-in, however busy |
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |
+| `GAMEPANEL_S3_ENDPOINT` | unset | Store new backups in S3 instead of on the node, e.g. `https://s3.eu-central-1.amazonaws.com`. Nodes only get presigned URLs, never the keys. Backups already on a node stay there |
+| `GAMEPANEL_S3_BUCKET`, `GAMEPANEL_S3_ACCESS_KEY`, `GAMEPANEL_S3_SECRET_KEY` | unset | Required with an endpoint |
+| `GAMEPANEL_S3_REGION` | `us-east-1` | |
+| `GAMEPANEL_S3_PREFIX` | empty | Folder inside the bucket, e.g. `gamepanel/` |
+| `GAMEPANEL_S3_PATH_STYLE` | unset | Set to `1` for MinIO and most self-hosted stores (bucket in the path, not the host name) |
 | `GAMEPANEL_SECRET_KEY` | key file `<db>.key` | 64 hex characters that encrypt two-factor secrets at rest. If unset, a key file is created next to the database (mode 0600). **Back it up with the database**, or enrolled authenticators cannot be read |
 
 **Daemon**
@@ -125,9 +130,11 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Docker runtime** is verified against a real engine by [`scripts/docker-smoke.sh`](scripts/docker-smoke.sh): image pull, env, memory, CPU and PID limits, dropped capabilities, port publishing, console input, stats, stop, restart, kill and cleanup.
 
+**S3 backups** are verified against a real S3-compatible store (RustFS) by `TestS3Backups` when `GAMEPANEL_TEST_S3_ENDPOINT` is set, and request signing against AWS's published example.
+
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** S3 backup storage, network bandwidth limits, passkeys and SSO, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history, a light theme.
+**Not built yet:** network bandwidth limits, passkeys and SSO, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history, a light theme.
 
 ## Development
 

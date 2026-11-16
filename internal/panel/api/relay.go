@@ -147,6 +147,15 @@ func (a *App) downloadBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.audit(r.Context(), u, "backup.download", s.UUID, b.Name)
+	if b.Disk == diskS3 {
+		if a.S3 == nil {
+			writeProblem(w, http.StatusServiceUnavailable, "this backup is in S3 storage, which the panel is no longer set up for")
+			return
+		}
+		// Straight from the bucket: a short-lived link for this one file.
+		http.Redirect(w, r, a.S3.DownloadURL(a.S3.Key(s.UUID, b.UUID), safeFileName(b.Name)+".tar.gz", 15*time.Minute), http.StatusFound)
+		return
+	}
 	a.relayDownload(w, r, s.NodeID, proto.ReqBackupDownload, proto.Transfer{UUID: s.UUID, BackupID: b.UUID})
 }
 

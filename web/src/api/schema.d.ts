@@ -850,6 +850,8 @@ export interface components {
             completed_at: number;
             /** Format: int64 */
             created_at: number;
+            /** @description local (on the node) or s3 */
+            disk: string;
             error?: string;
             /** @description newline separated ignore patterns */
             ignore: string;

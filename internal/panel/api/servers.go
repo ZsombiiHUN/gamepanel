@@ -220,6 +220,7 @@ func (a *App) registerServers(api huma.API) {
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerDelete, proto.UUIDOnly{UUID: s.UUID}); err != nil {
 				return nil, nodeErr(err)
 			}
+			a.removeRemoteBackups(ctx, s.UUID) // before the rows that list them go
 			if err := a.Store.DeleteServer(ctx, s.UUID); err != nil {
 				return nil, huma.Error500InternalServerError("the node deleted the server but the panel could not", err)
 			}

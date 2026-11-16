@@ -273,6 +273,40 @@ type BackupReq struct {
 	BackupID string   `json:"backup_id"` // backup uuid
 	Ignore   []string `json:"ignore,omitempty"`
 	Truncate bool     `json:"truncate,omitempty"` // restore: empty the server dir first
+	// Remote: create uploads the archive through the panel's presigned URLs
+	// (see BackupUpload) and keeps no local copy.
+	Remote bool `json:"remote,omitempty"`
+	// URL: restore downloads the archive from here (a presigned URL) instead
+	// of reading a local file.
+	URL string `json:"url,omitempty"`
+}
+
+// BackupUploadReq is what a node posts to <panel>/daemon/backups/upload to
+// get presigned URLs for a finished archive.
+type BackupUploadReq struct {
+	Server   string `json:"server"`
+	BackupID string `json:"backup_id"`
+	Size     int64  `json:"size"`
+}
+
+// BackupUpload tells the node how to upload: one PUT per part, in order.
+type BackupUpload struct {
+	PartSize int64    `json:"part_size"`
+	URLs     []string `json:"urls"`
+}
+
+// BackupCompleteReq is posted to <panel>/daemon/backups/complete once every
+// part is up (or Failed, to abort the upload).
+type BackupCompleteReq struct {
+	Server   string       `json:"server"`
+	BackupID string       `json:"backup_id"`
+	Parts    []UploadPart `json:"parts"`
+	Failed   bool         `json:"failed,omitempty"`
+}
+
+type UploadPart struct {
+	Number int    `json:"number"`
+	ETag   string `json:"etag"`
 }
 
 // BackupResult is the reply to backup.create.

@@ -19,6 +19,7 @@ import (
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/web"
 )
@@ -96,13 +97,33 @@ func main() {
 		log.Warn("listening beyond this machine without HTTPS settings: session cookies are not marked Secure. " +
 			"Put the panel behind an HTTPS proxy and set GAMEPANEL_TRUSTED_PROXIES (or GAMEPANEL_COOKIE_SECURE=1)")
 	}
+	var backups *s3.Client
+	if ep := os.Getenv("GAMEPANEL_S3_ENDPOINT"); ep != "" {
+		backups, err = s3.New(s3.Config{
+			Endpoint: ep, Region: os.Getenv("GAMEPANEL_S3_REGION"), Bucket: os.Getenv("GAMEPANEL_S3_BUCKET"),
+			AccessKey: os.Getenv("GAMEPANEL_S3_ACCESS_KEY"), SecretKey: os.Getenv("GAMEPANEL_S3_SECRET_KEY"),
+			Prefix: os.Getenv("GAMEPANEL_S3_PREFIX"), PathStyle: os.Getenv("GAMEPANEL_S3_PATH_STYLE") == "1",
+		})
+		if err != nil {
+			log.Error("invalid S3 backup settings", "err", err)
+			os.Exit(1)
+		}
+		c, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		if err := backups.Check(c); err != nil {
+			// Not fatal: the store may be down for a moment. Backups fail with
+			// a reason until it works.
+			log.Warn("could not write to the S3 backup bucket; check the GAMEPANEL_S3_* settings", "err", err)
+		}
+		cancel()
+		log.Info("new backups go to S3", "endpoint", ep, "bucket", os.Getenv("GAMEPANEL_S3_BUCKET"))
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	h := hub.New(log)
 	handler := api.New(api.Deps{
 		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
-		TrustedProxies: proxies,
-		CookieSecure:   cookieSecure,
+		TrustedProxies: proxies, S3: backups,
+		CookieSecure: cookieSecure,
 	})
 	if st.CountUsers(context.Background()) == 0 {
 		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")

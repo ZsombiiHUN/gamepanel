@@ -56,7 +56,10 @@ func (a *App) startBackup(s store.Server, name, ignore string, rotate bool) (sto
 	if name == "" {
 		name = "Backup " + time.Now().UTC().Format("2006-01-02 15:04")
 	}
-	b := store.Backup{UUID: newUUID(), ServerUUID: s.UUID, Name: name, Ignore: ignore}
+	b := store.Backup{UUID: newUUID(), ServerUUID: s.UUID, Name: name, Ignore: ignore, Disk: "local"}
+	if a.S3 != nil {
+		b.Disk = diskS3
+	}
 	evicted, err := a.Store.BeginBackup(ctx, b, rotate)
 	if err != nil {
 		return b, nil, err
@@ -66,12 +69,12 @@ func (a *App) startBackup(s store.Server, name, ignore string, rotate bool) (sto
 		defer close(done)
 		c, cancel := context.WithTimeout(ctx, backupTimeout)
 		defer cancel()
-		for _, id := range evicted { // rotated out: free the disk too
-			if _, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupDelete, proto.BackupReq{UUID: s.UUID, BackupID: id}); err != nil {
-				a.Log.Warn("could not delete a rotated-out backup from the node", "server", s.UUID, "backup", id, "err", err)
+		for _, old := range evicted { // rotated out: free the space too
+			if err := a.removeBackupFile(c, s, old); err != nil {
+				a.Log.Warn("could not delete a rotated-out backup", "server", s.UUID, "backup", old.UUID, "err", err)
 			}
 		}
-		raw, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupCreate, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Ignore: store.IgnoreList(ignore)})
+		raw, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupCreate, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Ignore: store.IgnoreList(ignore), Remote: b.Disk == diskS3})
 		var res proto.BackupResult
 		if err == nil {
 			err = json.Unmarshal(raw, &res)
@@ -109,7 +112,17 @@ func (a *App) startRestore(s store.Server, b store.Backup, truncate bool) error 
 		c, cancel := context.WithTimeout(ctx, restoreTimeout)
 		defer cancel()
 		failure := ""
-		if _, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupRestore, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Truncate: truncate}); err != nil {
+		req := proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Truncate: truncate}
+		if b.Disk == diskS3 {
+			if a.S3 == nil {
+				if ferr := a.Store.FinishRestore(ctx, b.UUID, "this backup is in S3 storage, which the panel is no longer set up for"); ferr != nil {
+					a.Log.Error("could not record a restore's outcome", "backup", b.UUID, "err", ferr)
+				}
+				return
+			}
+			req.URL = a.S3.Presign(http.MethodGet, a.S3.Key(s.UUID, b.UUID), restoreTimeout, nil)
+		}
+		if _, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupRestore, req); err != nil {
 			failure = failureText(err)
 			a.Log.Warn("restore failed", "server", s.UUID, "backup", b.UUID, "err", err)
 		}
@@ -188,9 +201,9 @@ func (a *App) registerBackups(api huma.API) {
 			if b.Status == store.BackupRunning {
 				return nil, huma.Error409Conflict("backup is still running")
 			}
-			// File first: if the node is unreachable keep the row so nothing is orphaned.
-			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqBackupDelete, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID}); err != nil {
-				return nil, nodeErr(err)
+			// File first: if it cannot be removed keep the row so nothing is orphaned.
+			if err := a.removeBackupFile(ctx, s, b); err != nil {
+				return nil, err
 			}
 			if err := a.Store.DeleteBackup(ctx, s.UUID, b.UUID); err != nil {
 				return nil, huma.Error500InternalServerError("the node deleted the file but the panel could not", err)

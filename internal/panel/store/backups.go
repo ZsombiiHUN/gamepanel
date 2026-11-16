@@ -28,6 +28,7 @@ type Backup struct {
 	SHA256      string `json:"sha256"`
 	Ignore      string `json:"ignore" doc:"newline separated ignore patterns"`
 	Locked      bool   `json:"locked"`
+	Disk        string `json:"disk" doc:"local (on the node) or s3"`
 	CreatedAt   int64  `json:"created_at"`
 	CompletedAt int64  `json:"completed_at"`
 	// The last restore of this backup, which runs in the background.
@@ -36,12 +37,12 @@ type Backup struct {
 	RestoredAt    int64  `json:"restored_at" doc:"when the last restore finished, 0 = never or still running"`
 }
 
-const backupCols = `uuid,server_uuid,name,status,error,size,sha256,ignore,locked,created_at,completed_at,restore_status,restore_error,restored_at`
+const backupCols = `uuid,server_uuid,name,status,error,size,sha256,ignore,locked,created_at,completed_at,restore_status,restore_error,restored_at,disk`
 
 func scanBackup(sc interface{ Scan(...any) error }) (Backup, error) {
 	var b Backup
 	err := sc.Scan(&b.UUID, &b.ServerUUID, &b.Name, &b.Status, &b.Error, &b.Size, &b.SHA256, &b.Ignore, &b.Locked, &b.CreatedAt, &b.CompletedAt,
-		&b.RestoreStatus, &b.RestoreError, &b.RestoredAt)
+		&b.RestoreStatus, &b.RestoreError, &b.RestoredAt, &b.Disk)
 	return b, nf(err)
 }
 
@@ -89,7 +90,7 @@ func (s *Store) FinishRestore(ctx context.Context, uuid, failure string) error {
 // BeginBackup records a running backup. It enforces one running backup per
 // server and the per-server cap; with rotate it deletes the oldest unlocked
 // backups to make room and returns their ids so the caller can remove the files.
-func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted []string, err error) {
+func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted []Backup, err error) {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -107,19 +108,22 @@ func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted
 		if !rotate {
 			return nil, ErrBackupLimit
 		}
-		var id string
-		if tx.QueryRowContext(ctx, `SELECT uuid FROM backups WHERE server_uuid=? AND locked=0 ORDER BY created_at, uuid LIMIT 1`, b.ServerUUID).Scan(&id) != nil {
+		var old Backup
+		if tx.QueryRowContext(ctx, `SELECT uuid,disk FROM backups WHERE server_uuid=? AND locked=0 ORDER BY created_at, uuid LIMIT 1`, b.ServerUUID).Scan(&old.UUID, &old.Disk) != nil {
 			return nil, ErrBackupLimit
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM backups WHERE uuid=?`, id); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM backups WHERE uuid=?`, old.UUID); err != nil {
 			return nil, err
 		}
-		evicted = append(evicted, id)
+		evicted = append(evicted, old)
 		total--
 	}
 	b.Status, b.CreatedAt = BackupRunning, now()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO backups(uuid,server_uuid,name,status,ignore,created_at) VALUES(?,?,?,?,?,?)`,
-		b.UUID, b.ServerUUID, b.Name, b.Status, b.Ignore, b.CreatedAt); err != nil {
+	if b.Disk == "" {
+		b.Disk = "local"
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO backups(uuid,server_uuid,name,status,ignore,disk,created_at) VALUES(?,?,?,?,?,?,?)`,
+		b.UUID, b.ServerUUID, b.Name, b.Status, b.Ignore, b.Disk, b.CreatedAt); err != nil {
 		return nil, err
 	}
 	return evicted, tx.Commit()
@@ -182,6 +186,24 @@ func (s *Store) SetBackupLocked(ctx context.Context, server, uuid string, locked
 func (s *Store) DeleteBackup(ctx context.Context, server, uuid string) error {
 	_, err := s.exec(ctx, `DELETE FROM backups WHERE uuid=? AND server_uuid=?`, uuid, server)
 	return err
+}
+
+// BackupsOnDisk lists a server's backups kept on disk ("s3"), for cleanup.
+func (s *Store) BackupsOnDisk(ctx context.Context, server, disk string) ([]string, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT uuid FROM backups WHERE server_uuid=? AND disk=?`, server, disk)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // IgnoreList splits the stored newline-separated patterns.
