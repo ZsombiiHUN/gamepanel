@@ -184,7 +184,9 @@ type ServerSpec struct {
 	Pids     int64             `json:"pids_limit,omitempty"` // 0 = 1024
 	IOWeight int64             `json:"io_weight,omitempty"`  // 10..1000, 0 = engine default
 	DiskMB   int64             `json:"disk_mb,omitempty"`    // enforced by the daemon; 0 = unlimited
-	Ports    []PortMap         `json:"ports"`
+	// BandwidthMbit limits network traffic each way (tc); 0 = unlimited.
+	BandwidthMbit int64     `json:"bandwidth_mbit,omitempty"`
+	Ports         []PortMap `json:"ports"`
 	// Install, when set, must succeed once before the server can start.
 	Install *InstallSpec `json:"install,omitempty"`
 }

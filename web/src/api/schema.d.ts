@@ -1756,6 +1756,11 @@ export interface components {
             backup_limit: number;
             /**
              * Format: int64
+             * @description network limit each way in Mbit/s, 0 = unlimited
+             */
+            bandwidth_mbit?: number;
+            /**
+             * Format: int64
              * @description 100 = one core, 0 = unlimited
              */
             cpu_pct: number;
@@ -2066,6 +2071,11 @@ export interface components {
             backup_limit?: number;
             /**
              * Format: int64
+             * @description network limit each way in Mbit/s, 0 = unlimited
+             */
+            bandwidth_mbit?: number;
+            /**
+             * Format: int64
              * @description 100 = one core, 0 = unlimited
              */
             cpu_pct?: number;
@@ -2154,6 +2164,11 @@ export interface components {
              * @description how many backups this server may keep
              */
             backup_limit: number;
+            /**
+             * Format: int64
+             * @description network limit each way in Mbit/s, 0 = unlimited
+             */
+            bandwidth_mbit?: number;
             /**
              * Format: int64
              * @description 100 = one core, 0 = unlimited
