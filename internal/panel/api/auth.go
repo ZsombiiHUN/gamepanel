@@ -24,7 +24,7 @@ type loginIn struct {
 }
 type userOut struct{ Body store.User }
 type loginOut struct {
-	SetCookie http.Cookie `header:"Set-Cookie"`
+	SetCookie []http.Cookie `header:"Set-Cookie"`
 	Body      store.User
 }
 type logoutIn struct {
@@ -32,7 +32,7 @@ type logoutIn struct {
 	HostSession string `cookie:"__Host-gp_session"`
 }
 type logoutOut struct {
-	SetCookie http.Cookie `header:"Set-Cookie"`
+	SetCookie []http.Cookie `header:"Set-Cookie"`
 }
 
 func (a *App) registerAuth(api huma.API) {
@@ -75,7 +75,7 @@ func (a *App) registerAuth(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}
-			return &loginOut{Body: u, SetCookie: sessionCookie(ctx, tok, a.Store.SessionMax)}, nil
+			return &loginOut{Body: u, SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "logout", Method: "POST", Path: "/auth/logout", Summary: "Sign out"},
@@ -89,7 +89,7 @@ func (a *App) registerAuth(api huma.API) {
 			if u, ok := userFrom(ctx); ok {
 				a.audit(ctx, u, "logout", u.Email, "")
 			}
-			return &logoutOut{SetCookie: sessionCookie(ctx, "", 0)}, nil
+			return &logoutOut{SetCookie: sessionCookies(ctx, "", 0)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "me", Method: "GET", Path: "/auth/me", Summary: "Current user"},
@@ -108,6 +108,7 @@ type passwordIn struct {
 	Body struct {
 		Current string `json:"current_password" minLength:"1" maxLength:"256"`
 		New     string `json:"new_password" minLength:"12" maxLength:"256"`
+		Code    string `json:"code,omitempty" maxLength:"20" doc:"authenticator or recovery code; required when two-factor is on"`
 	}
 }
 type auditIn struct {
@@ -128,6 +129,26 @@ func (a *App) registerAccount(api huma.API) {
 			// Same brute-force guard as login: the current password is a guess target too.
 			if a.fails.over(u.Email) {
 				return nil, huma.Error429TooManyRequests("too many failed attempts, try again later")
+			}
+			if u.TOTPEnabled {
+				// With two-factor on, the password alone does not prove who
+				// is at the keyboard: ask for a code too, like creating an API
+				// key. The password and the new password's policy are checked
+				// first, so a code is not spent on a request that would fail.
+				if in.Body.Code == "" {
+					return nil, huma.Error403Forbidden("totp_required")
+				}
+				if !a.Store.CheckPassword(ctx, u.ID, in.Body.Current) {
+					a.fails.add(u.Email)
+					a.audit(ctx, u, "password.change.fail", u.Email, "")
+					return nil, huma.Error403Forbidden("current password is incorrect")
+				}
+				if err := store.ValidatePassword(in.Body.New, u.Email); err != nil {
+					return nil, userErr(http.StatusUnprocessableEntity, err)
+				}
+				if err := a.confirmCode(ctx, u, in.Body.Code); err != nil {
+					return nil, err
+				}
 			}
 			if err := a.Store.ChangePassword(ctx, u.ID, in.Body.Current, in.Body.New, sessionToken(ctx)); err != nil {
 				if errors.Is(err, store.ErrBadPassword) {

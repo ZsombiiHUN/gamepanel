@@ -1978,6 +1978,8 @@ export interface components {
             name: string;
         };
         PasswordInBody: {
+            /** @description authenticator or recovery code; required when two-factor is on */
+            code?: string;
             current_password: string;
             new_password: string;
         };

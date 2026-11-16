@@ -1,6 +1,7 @@
 package api_test
 
-// Tests for the OWASP ASVS level 2 authentication and session controls.
+// Tests for the authentication and session controls mapped to OWASP ASVS
+// 5.0.0 in docs/asvs.md. Requirement IDs are version-qualified.
 
 import (
 	"bytes"
@@ -43,8 +44,9 @@ func (e *env) restarted() *env {
 	return &env{e.t, e.st, ts}
 }
 
-// ASVS 2.2.1 / NIST SP 800-63B §5.2.2: guessing the second factor is bounded
-// across IP addresses and restarts, not only per 15-minute in-memory window.
+// ASVS v5.0.0-6.3.1 / NIST SP 800-63B §5.2.2: guessing the second factor is
+// bounded across IP addresses and restarts, not only per 15-minute in-memory
+// window.
 func TestSecondFactorLockoutSurvivesRestart(t *testing.T) {
 	e := newEnv(t, "127.0.0.1")
 	a := e.client()
@@ -80,8 +82,8 @@ func TestSecondFactorLockoutSurvivesRestart(t *testing.T) {
 	}
 }
 
-// ASVS 3.3.2: a session ends after a period without use, and after an
-// absolute lifetime however busy it is.
+// ASVS v5.0.0-7.3.1 and v5.0.0-7.3.2: a session ends after a period without
+// use, and after an absolute lifetime however busy it is.
 func TestSessionIdleAndAbsoluteTimeout(t *testing.T) {
 	e := newEnv(t, "")
 	shift := func(col string, secs int) {
@@ -115,8 +117,8 @@ func TestSessionIdleAndAbsoluteTimeout(t *testing.T) {
 	}
 }
 
-// ASVS 3.7.1: making a credential that outlives the session needs the second
-// factor too, when the account has one.
+// ASVS v5.0.0-7.5.1: making a credential that outlives the session needs full
+// re-authentication, the second factor too when the account has one.
 func TestAPIKeyNeedsSecondFactor(t *testing.T) {
 	e := newEnv(t, "")
 	a := e.client()
@@ -133,7 +135,8 @@ func TestAPIKeyNeedsSecondFactor(t *testing.T) {
 	}
 }
 
-// ASVS 2.1.7: known-leaked passwords are refused.
+// ASVS v5.0.0-6.2.4 and v5.0.0-6.2.12: common and known-leaked passwords are
+// refused.
 func TestCommonPasswordRefused(t *testing.T) {
 	e := newEnv(t, "")
 	a := e.client()
@@ -177,8 +180,10 @@ func sessionSetCookie(t *testing.T, resp *http.Response) *http.Cookie {
 	return nil
 }
 
-// ASVS 3.4.1, 3.4.4, 8.2.1 and 14.4.5: over HTTPS the session cookie is
-// Secure and __Host- prefixed, HSTS is sent, and API answers are not cached.
+// ASVS v5.0.0-3.3.1, 3.3.3, 3.3.4, 7.4.1 and 14.3.2: over HTTPS the session
+// cookie is Secure, HttpOnly and __Host- prefixed, signing out ends the session
+// on the server, and API answers are not cached. HSTS is sent, but without
+// includeSubDomains, so v5.0.0-3.4.1 is only met at Level 1 (docs/asvs.md).
 func TestCookieAndHeaderHardening(t *testing.T) {
 	login := map[string]string{"email": bobEmail, "password": bobPW}
 
@@ -225,5 +230,148 @@ func TestCookieAndHeaderHardening(t *testing.T) {
 	resp = raw(t, u, "POST", "/api/auth/login", login, map[string]string{"X-Forwarded-Proto": "https"})
 	if c := sessionSetCookie(t, resp); c.Secure || resp.Header.Get("Strict-Transport-Security") != "" {
 		t.Fatalf("forged X-Forwarded-Proto believed: %+v", c)
+	}
+}
+
+func cookieNamed(resp *http.Response, name string) *http.Cookie {
+	for _, c := range resp.Cookies() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
+}
+
+// ASVS v5.0.0-3.3.1 and v5.0.0-3.3.3, for sessions from before the upgrade.
+// Sessions from before the __Host- name may use the old gp_session name over
+// HTTPS once: they are re-issued under __Host- and the old cookie is removed.
+// Any other gp_session cookie over HTTPS is refused; plain HTTP is unchanged.
+func TestLegacyCookieMigration(t *testing.T) {
+	e := newEnv(t, "127.0.0.1")
+	login := map[string]string{"email": bobEmail, "password": bobPW}
+	https := func(cookie string) map[string]string {
+		return map[string]string{"Cookie": cookie, "X-Forwarded-Proto": "https"}
+	}
+
+	// A session signed in before the upgrade (plain gp_session cookie).
+	old := sessionSetCookie(t, raw(t, e, "POST", "/api/auth/login", login, nil)).Value
+	if _, err := e.st.DB.Exec(`UPDATE sessions SET legacy_cookie=1`); err != nil {
+		t.Fatal(err)
+	}
+	// A session made after the upgrade, held under the plain name.
+	fresh := sessionSetCookie(t, raw(t, e, "POST", "/api/auth/login", login, nil)).Value
+
+	resp := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session="+old))
+	if resp.StatusCode != 200 {
+		t.Fatalf("pre-upgrade session over HTTPS: %d", resp.StatusCode)
+	}
+	hc := cookieNamed(resp, "__Host-gp_session")
+	if hc == nil || hc.Value != old || !hc.Secure || !hc.HttpOnly || hc.Path != "/" || hc.Domain != "" || hc.SameSite != http.SameSiteLaxMode || hc.MaxAge <= 0 || hc.MaxAge > 12*3600 {
+		t.Fatalf("migrated cookie: %+v", hc)
+	}
+	if lc := cookieNamed(resp, "gp_session"); lc == nil || lc.MaxAge >= 0 {
+		t.Fatalf("old cookie not removed: %+v", lc)
+	}
+	// The old name works once; the session lives on under __Host-.
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session="+old)); r.StatusCode != 401 {
+		t.Fatalf("old name accepted twice: %d", r.StatusCode)
+	}
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("__Host-gp_session="+old)); r.StatusCode != 200 {
+		t.Fatalf("migrated session: %d", r.StatusCode)
+	}
+	// A post-upgrade session is never accepted under the old name over HTTPS.
+	r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session="+fresh))
+	if r.StatusCode != 401 {
+		t.Fatalf("new session under the old name over HTTPS: %d", r.StatusCode)
+	}
+	if lc := cookieNamed(r, "gp_session"); lc == nil || lc.MaxAge >= 0 {
+		t.Fatalf("refused old cookie not removed: %+v", lc)
+	}
+	// ...but plain HTTP (local development) still uses it.
+	if r := raw(t, e, "GET", "/api/auth/me", nil, map[string]string{"Cookie": "gp_session=" + fresh}); r.StatusCode != 200 {
+		t.Fatalf("plain HTTP session: %d", r.StatusCode)
+	}
+	// __Host- wins when both are sent; the other one is ignored.
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session=planted; __Host-gp_session="+old)); r.StatusCode != 200 {
+		t.Fatalf("secure cookie not preferred: %d", r.StatusCode)
+	}
+	// Signing out over HTTPS clears both names.
+	out := raw(t, e, "POST", "/api/auth/logout", nil, https("__Host-gp_session="+old))
+	for _, n := range []string{"__Host-gp_session", "gp_session"} {
+		if c := cookieNamed(out, n); c == nil || c.MaxAge >= 0 {
+			t.Fatalf("logout did not clear %s: %+v", n, c)
+		}
+	}
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("__Host-gp_session="+old)); r.StatusCode != 401 {
+		t.Fatalf("session valid after logout: %d", r.StatusCode)
+	}
+}
+
+// ASVS v5.0.0-6.2.3, 7.4.3 and 7.5.1: with two-factor on, changing the
+// password needs a code as well as the current password; a failed attempt
+// changes nothing.
+func TestPasswordChangeNeedsSecondFactor(t *testing.T) {
+	e := newEnv(t, "")
+	ctx := t.Context()
+	id, _ := e.st.UserIDByEmail(ctx, bobEmail)
+	a, b := e.client(), e.client()
+	a.login(bobEmail, bobPW)
+	b.login(bobEmail, bobPW)
+	secret, recovery := enrolTOTP(t, a, bobPW)
+	const next = "a-brand-new-passphrase"
+	change := func(cur, nw, code string) (int, string) {
+		body := map[string]string{"current_password": cur, "new_password": nw}
+		if code != "" {
+			body["code"] = code
+		}
+		c, out := a.do("POST", "/api/auth/password", body, nil)
+		return c, string(out)
+	}
+	unchanged := func(step string) {
+		t.Helper()
+		if !e.st.CheckPassword(ctx, id, bobPW) {
+			t.Fatalf("%s: password changed", step)
+		}
+		if c, _ := b.do("GET", "/api/auth/me", nil, nil); c != 200 {
+			t.Fatalf("%s: other session revoked (%d)", step, c)
+		}
+	}
+
+	if c, out := change(bobPW, next, ""); c != 403 || !strings.Contains(out, "totp_required") {
+		t.Fatalf("no code: %d %s", c, out)
+	}
+	unchanged("no code")
+	if c, _ := change("not-the-password", next, totpAt(t, secret, 1)); c != 403 {
+		t.Fatalf("wrong password: %d", c)
+	}
+	unchanged("wrong password")
+	if c, _ := change(bobPW, next, "000000"); c != 403 {
+		t.Fatalf("wrong code: %d", c)
+	}
+	unchanged("wrong code")
+	// A new password that fails the policy is refused before a code is spent.
+	if c, _ := change(bobPW, "Q1w2e3r4t5y6", totpAt(t, secret, 1)); c != 422 {
+		t.Fatalf("common new password: %d", c)
+	}
+	unchanged("common new password")
+	if c, out := change(bobPW, next, totpAt(t, secret, 1)); c != 204 {
+		t.Fatalf("password and authenticator code: %d %s", c, out)
+	}
+	if !e.st.CheckPassword(ctx, id, next) {
+		t.Fatal("password not changed")
+	}
+	if c, _ := b.do("GET", "/api/auth/me", nil, nil); c != 401 {
+		t.Fatalf("other session survived the change: %d", c)
+	}
+	// A recovery code works too.
+	if c, out := change(next, bobPW, recovery[0]); c != 204 {
+		t.Fatalf("password and recovery code: %d %s", c, out)
+	}
+
+	// Without two-factor the current password is enough.
+	adm := e.client()
+	adm.login("admin@example.com", "correct-horse-battery")
+	if c, out := adm.do("POST", "/api/auth/password", map[string]string{"current_password": "correct-horse-battery", "new_password": next}, nil); c != 204 {
+		t.Fatalf("account without two-factor: %d %s", c, out)
 	}
 }
