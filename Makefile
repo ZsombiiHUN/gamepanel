@@ -1,4 +1,4 @@
-.PHONY: all build web test e2e run-dev
+.PHONY: all build web test e2e run-dev openapi
 all: web build
 
 web:
@@ -16,3 +16,8 @@ test:
 # First time on a machine: cd web && pnpm e2e:install
 e2e:
 	cd web && pnpm install --frozen-lockfile && pnpm e2e
+
+# Regenerate web/openapi.json and the UI's API types after changing the API.
+openapi:
+	go run ./cmd/panel openapi > web/openapi.json
+	cd web && pnpm gen:api

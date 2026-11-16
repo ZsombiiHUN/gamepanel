@@ -5,11 +5,16 @@ import { serverQuery } from "../api/queries";
 import { useServerSocket } from "../api/ws";
 import type { TerminalHandle } from "../components/Terminal";
 import { ErrorBox, Spinner } from "../components/ui";
+import { ActivityTab } from "./ActivityTab";
 import { BackupsTab } from "./BackupsTab";
 import { ConsolePanel } from "./server/ConsolePanel";
 import { SchedulesTab } from "./SchedulesTab";
 import { ServerHeader } from "./server/ServerHeader";
 import { SettingsTab } from "./SettingsTab";
+import { DatabasesTab } from "./DatabasesTab";
+import { ModsTab } from "./ModsTab";
+import { NetworkTab } from "./NetworkTab";
+import { StartupTab } from "./StartupTab";
 import { UsageRow } from "./server/UsageRow";
 import { UsersTab } from "./UsersTab";
 
@@ -50,7 +55,7 @@ export function ServerDetailPage() {
       <div className={tab === "console" ? "flex flex-col gap-6" : undefined}>
         {tab === "console" && (
           <div className="order-2 lg:order-1">
-            <UsageRow running={state === "running" ? stats : null} latest={stats} limits={{ memoryMb: s.memory_mb, diskMb: s.disk_mb, cpuPct: s.cpu_pct }} />
+            <UsageRow uuid={uuid} running={state === "running" ? stats : null} latest={stats} limits={{ memoryMb: s.memory_mb, diskMb: s.disk_mb, cpuPct: s.cpu_pct }} />
           </div>
         )}
         {/* Console stays mounted so the buffer survives tab switches */}
@@ -63,8 +68,13 @@ export function ServerDetailPage() {
           <FilesTab uuid={uuid} />
         </Suspense>
       )}
+      {tab === "mods" && can("files.write") && <ModsTab uuid={uuid} />}
       {tab === "backups" && <BackupsTab uuid={uuid} />}
       {tab === "schedules" && <SchedulesTab uuid={uuid} />}
+      {tab === "startup" && can("startup.read") && <StartupTab uuid={uuid} />}
+      {tab === "network" && can("network.read") && <NetworkTab uuid={uuid} />}
+      {tab === "databases" && can("databases.read") && <DatabasesTab uuid={uuid} />}
+      {tab === "activity" && can("activity.read") && <ActivityTab uuid={uuid} />}
       {tab === "users" && s.owner && <UsersTab uuid={uuid} />}
       {tab === "settings" && <SettingsTab server={s} />}
     </div>

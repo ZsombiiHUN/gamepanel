@@ -19,8 +19,9 @@ export interface ChartSpec {
 const MB = 1024 ** 2;
 const GB = 1024 ** 3;
 const WARN_AT = 0.85;
-const WARN = "#e8a33d";
-const CALM = "#8fa6ff";
+// Theme colours (index.css), so the charts follow the light and dark themes.
+const WARN = "var(--color-chart-warn)";
+const CALM = "var(--color-chart-calm)";
 
 /** Whole numbers from 10 up, one decimal below. */
 export const gb = (n: number) => (n >= 10 ? n.toFixed(0) : n.toFixed(1));
@@ -49,7 +50,7 @@ export function describeUsage(running: Reading | null, disk: Reading | null, lim
     noteWarn: false,
     max: cpuMax,
     ticks: ticksOf(cpuMax, (n) => `${n}%`),
-    color: "#6fcf97",
+    color: "var(--color-chart-cpu)",
     per: 1,
   };
 

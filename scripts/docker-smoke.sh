@@ -71,6 +71,10 @@ check "edit limits while stopped (unlimited swap, 256M)" '[ "$(curl -s -o /dev/n
 check "new limits are on the recreated container" '[ "$(insp "{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}} {{.HostConfig.PidsLimit}}")" = "268435456 -1 300" ]'
 power start
 check "restarts with the new limits" 'wait_state running'
-check "editing a running server is refused" '[ "$(curl -s -o /dev/null -w %{http_code} -b $J -H "content-type: application/json" -X PUT -d "{\"memory_mb\":512,\"swap_mb\":0,\"cpu_pct\":0,\"cpuset\":\"\",\"pids_limit\":300,\"io_weight\":0,\"disk_mb\":50,\"backup_limit\":20}" $B/servers/$U/limits)" = 409 ]'
+# A running server accepts the change; it keeps its container until it next starts.
+check "edit limits while running is accepted" '[ "$(curl -s -o /dev/null -w %{http_code} -b $J -H "content-type: application/json" -X PUT -d "{\"memory_mb\":512,\"swap_mb\":0,\"cpu_pct\":0,\"cpuset\":\"\",\"pids_limit\":300,\"io_weight\":0,\"disk_mb\":50,\"backup_limit\":20}" $B/servers/$U/limits)" = 204 ]'
+check "running container keeps its limits until restart" '[ "$(insp "{{.HostConfig.Memory}}")" = "268435456" ]'
+power restart; sleep 2
+check "restart applies the pending limits" 'wait_state running && [ "$(insp "{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}}")" = "536870912 536870912" ]'
 c -X DELETE $B/servers/$U >/dev/null
 exit $fail

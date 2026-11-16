@@ -13,12 +13,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/web"
 )
@@ -31,6 +34,16 @@ func env(k, def string) string {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "openapi" {
+		// Prints the API description; needs no database (make openapi).
+		b, err := api.OpenAPI()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		os.Stdout.Write(b)
+		return
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	dbPath := env("GAMEPANEL_DB", "./panel.db")
 	st, err := store.Open(dbPath)
@@ -46,6 +59,13 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "reset-2fa" {
 		if err := reset2FA(st, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "reset-link" {
+		if err := resetLink(st, os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -86,14 +106,71 @@ func main() {
 		log.Warn("listening beyond this machine without HTTPS settings: session cookies are not marked Secure. " +
 			"Put the panel behind an HTTPS proxy and set GAMEPANEL_TRUSTED_PROXIES (or GAMEPANEL_COOKIE_SECURE=1)")
 	}
+	var backups *s3.Client
+	if ep := os.Getenv("GAMEPANEL_S3_ENDPOINT"); ep != "" {
+		backups, err = s3.New(s3.Config{
+			Endpoint: ep, Region: os.Getenv("GAMEPANEL_S3_REGION"), Bucket: os.Getenv("GAMEPANEL_S3_BUCKET"),
+			AccessKey: os.Getenv("GAMEPANEL_S3_ACCESS_KEY"), SecretKey: os.Getenv("GAMEPANEL_S3_SECRET_KEY"),
+			Prefix: os.Getenv("GAMEPANEL_S3_PREFIX"), PathStyle: os.Getenv("GAMEPANEL_S3_PATH_STYLE") == "1",
+		})
+		if err != nil {
+			log.Error("invalid S3 backup settings", "err", err)
+			os.Exit(1)
+		}
+		c, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		if err := backups.Check(c); err != nil {
+			// Not fatal: the store may be down for a moment. Backups fail with
+			// a reason until it works.
+			log.Warn("could not write to the S3 backup bucket; check the GAMEPANEL_S3_* settings", "err", err)
+		}
+		cancel()
+		log.Info("new backups go to S3", "endpoint", ep, "bucket", os.Getenv("GAMEPANEL_S3_BUCKET"))
+	}
+	var mailer *mail.SMTP
+	publicURL := strings.TrimRight(os.Getenv("GAMEPANEL_PUBLIC_URL"), "/")
+	if h := os.Getenv("GAMEPANEL_SMTP_HOST"); h != "" {
+		port, _ := strconv.Atoi(os.Getenv("GAMEPANEL_SMTP_PORT"))
+		mailer, err = mail.New(mail.Config{Host: h, Port: port, Username: os.Getenv("GAMEPANEL_SMTP_USERNAME"), Password: os.Getenv("GAMEPANEL_SMTP_PASSWORD"),
+			From: os.Getenv("GAMEPANEL_SMTP_FROM"), TLS: os.Getenv("GAMEPANEL_SMTP_TLS")})
+		if err != nil {
+			log.Error("invalid SMTP settings", "err", err)
+			os.Exit(1)
+		}
+		if publicURL == "" {
+			log.Warn("GAMEPANEL_SMTP_HOST is set but GAMEPANEL_PUBLIC_URL is not: emails need the panel's address for their links, so none are sent")
+		}
+	}
+	var sso []*api.SSOProvider
+	if id := os.Getenv("GAMEPANEL_SSO_GITHUB_CLIENT_ID"); id != "" {
+		sso = append(sso, api.GitHubSSO(id, os.Getenv("GAMEPANEL_SSO_GITHUB_CLIENT_SECRET")))
+	}
+	if id := os.Getenv("GAMEPANEL_SSO_DISCORD_CLIENT_ID"); id != "" {
+		sso = append(sso, api.DiscordSSO(id, os.Getenv("GAMEPANEL_SSO_DISCORD_CLIENT_SECRET")))
+	}
+	if iss := os.Getenv("GAMEPANEL_SSO_OIDC_ISSUER"); iss != "" {
+		sso = append(sso, api.OIDCSSO(os.Getenv("GAMEPANEL_SSO_OIDC_NAME"), iss, os.Getenv("GAMEPANEL_SSO_OIDC_CLIENT_ID"), os.Getenv("GAMEPANEL_SSO_OIDC_CLIENT_SECRET")))
+	}
+	if len(sso) > 0 && publicURL == "" {
+		log.Warn("single sign-on is configured but GAMEPANEL_PUBLIC_URL is not: the provider needs the panel's address to send people back, so it stays off")
+	}
+	signup := env("GAMEPANEL_SIGNUP", "invite")
+	if signup != "invite" && signup != "open" {
+		log.Error("GAMEPANEL_SIGNUP must be invite or open", "value", signup)
+		os.Exit(1)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	h := hub.New(log)
-	handler := api.New(api.Deps{
+	deps := api.Deps{
 		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
-		TrustedProxies: proxies,
-		CookieSecure:   cookieSecure,
-	})
+		TrustedProxies: proxies, S3: backups,
+		PublicURL: publicURL, Signup: signup, SSO: sso,
+		CookieSecure: cookieSecure,
+	}
+	if mailer != nil { // never a typed nil in the interface
+		deps.Mail = mailer
+	}
+	handler := api.New(deps)
 	if st.CountUsers(context.Background()) == 0 {
 		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")
 	}
@@ -119,6 +196,28 @@ func isLoopback(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// resetLink prints a password reset link for an account: the way to reset a
+// password on a panel without email.
+func resetLink(st *store.Store, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: panel reset-link you@example.com")
+	}
+	u, err := st.UserByEmail(context.Background(), args[0])
+	if err != nil {
+		return errors.New("no account with that email")
+	}
+	tok, err := st.NewResetToken(context.Background(), u.ID)
+	if err != nil {
+		return err
+	}
+	base := strings.TrimRight(os.Getenv("GAMEPANEL_PUBLIC_URL"), "/")
+	if base == "" {
+		base = "<panel address>"
+	}
+	fmt.Printf("Password reset link for %s (valid for %s, works once):\n%s/reset#token=%s\n", u.Email, store.ResetTTL, base, tok)
+	return nil
 }
 
 // createAdmin makes an admin with a random password, printed once to the

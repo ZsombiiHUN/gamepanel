@@ -3,7 +3,7 @@ import { expect, isDrawer, openMenuIfDrawer, test } from "./support";
 // These run at 1440x900, 1366x768 and 390x844. Layout bugs only show up in a real browser.
 
 const pages = ["/", "/servers/new", "/nodes", "/eggs", "/audit", "/account"];
-const tabs = ["console", "files", "backups", "schedules", "users", "settings"];
+const tabs = ["console", "files", "mods", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"];
 
 test.describe("sidebar", () => {
   test("keeps the admin links and account in view however many servers there are", async ({ page, panel }) => {
@@ -82,7 +82,7 @@ test.describe("console", () => {
     test.skip(!isDrawer(page), "layout order only differs on small screens");
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=console`);
     const consoleTop = (await page.getByRole("region", { name: "Console" }).boundingBox())!.y;
-    const chartsTop = (await page.getByRole("region", { name: "Live usage" }).boundingBox())!.y;
+    const chartsTop = (await page.getByRole("region", { name: "Usage" }).boundingBox())!.y;
     expect(consoleTop).toBeLessThan(chartsTop);
   });
 
@@ -90,7 +90,7 @@ test.describe("console", () => {
     test.skip(isDrawer(page), "wide screens only");
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=console`);
     const consoleTop = (await page.getByRole("region", { name: "Console" }).boundingBox())!.y;
-    const chartsTop = (await page.getByRole("region", { name: "Live usage" }).boundingBox())!.y;
+    const chartsTop = (await page.getByRole("region", { name: "Usage" }).boundingBox())!.y;
     expect(chartsTop).toBeLessThan(consoleTop);
   });
 });

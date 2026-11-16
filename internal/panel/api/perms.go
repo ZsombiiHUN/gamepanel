@@ -20,8 +20,18 @@ const (
 	PermBackupsCreate   = "backups.create"
 	PermBackupsRestore  = "backups.restore"
 	PermBackupsDelete   = "backups.delete"
+	PermBackupsDownload = "backups.download"
 	PermSchedulesManage = "schedules.manage"
 	PermReinstall       = "settings.reinstall"
+	PermRename          = "settings.rename"
+	PermActivityRead    = "activity.read"
+	PermStartupRead     = "startup.read"
+	PermStartupUpdate   = "startup.update"
+	PermStartupImage    = "startup.docker-image"
+	PermNetworkRead     = "network.read"
+	PermNetworkManage   = "network.manage"
+	PermDatabasesRead   = "databases.read"
+	PermDatabasesManage = "databases.manage"
 )
 
 // access resolves what the caller may do on a server. Owners and admins hold

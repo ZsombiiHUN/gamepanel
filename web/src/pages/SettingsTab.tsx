@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { eggsQuery, invalidates, keys, meQuery, nodesQuery } from "../api/queries";
-import { ConfirmDialog, CopyButton, ErrorBox, InfoList, Section } from "../components/ui";
+import { ConfirmDialog, CopyButton, ErrorBox, Field, FormDialog, InfoList, Section } from "../components/ui";
 import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
 
 type ServerView = components["schemas"]["ServerView"];
@@ -18,6 +18,7 @@ export function SettingsTab({ server }: { server: ServerView }) {
   const nodeName = nodes.data?.find((n) => n.id === server.node_id)?.name;
   const eggName = eggs.data?.find((e) => e.id === server.egg_id)?.name;
   const [confirm, setConfirm] = useState(false);
+  const [ownerOpen, setOwnerOpen] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const del = useMutation({
@@ -42,36 +43,40 @@ export function SettingsTab({ server }: { server: ServerView }) {
     mutationFn: () => call(api.PUT("/servers/{uuid}/limits", { params: { path: { uuid: server.uuid } }, body: formToLimits(limits) })),
     meta: invalidates(keys.server(server.uuid)),
   });
-  const stopped = server.state === "offline" || server.state === "install_failed";
-
-  const envEntries = Object.entries(server.env ?? {});
   const sftpUser = `${me.data?.email ?? ""}.${server.uuid.slice(0, 8)}`;
 
   return (
     <div className="space-y-5">
-      <Section title="Details" desc="Where this server lives and who owns it.">
+      {server.permissions.includes("settings.rename") && <RenameSection server={server} />}
+
+      <Section
+        title="Details"
+        desc="Where this server lives and who owns it."
+        footer={isAdmin ? <><span>Handing the server over removes the current owner's access.</span><button type="button" className="btn" onClick={() => setOwnerOpen(true)}>Change owner</button></> : undefined}
+      >
         <InfoList
           rows={[
             { label: "UUID", value: server.uuid },
             { label: "Egg", value: eggName ? `${eggName} (#${server.egg_id})` : `#${server.egg_id}` },
             { label: "Node", value: nodeName ? `${nodeName} (#${server.node_id})` : `#${server.node_id}` },
             { label: "Port", value: String(server.port) },
-            { label: "Owner ID", value: String(server.owner_id) },
+            { label: "Owner", value: server.owner_email ?? `#${server.owner_id}` },
           ]}
         />
       </Section>
+      {ownerOpen && <OwnerDialog server={server} onClose={() => setOwnerOpen(false)} />}
 
       {isAdmin ? (
         <form onSubmit={(e) => { e.preventDefault(); saveLimits.mutate(); }}>
           <Section
             title="Resource limits"
-            desc="What this server may use on its node. Changes apply the next time it starts."
+            desc="What this server may use on its node. A running server picks up changes the next time it starts."
             footer={
               <>
-                <span className={!stopped ? "text-amber-300" : saveLimits.isSuccess ? "text-emerald-400" : ""} role={saveLimits.isSuccess ? "status" : undefined}>
-                  {!stopped ? "Stop the server to change its limits." : saveLimits.isSuccess ? "Limits saved." : "0 usually means unlimited."}
+                <span className={saveLimits.isSuccess ? "text-emerald-400" : ""} role={saveLimits.isSuccess ? "status" : undefined}>
+                  {saveLimits.isSuccess ? "Limits saved." : "0 usually means unlimited."}
                 </span>
-                <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending || !stopped}>Save limits</button>
+                <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending}>Save limits</button>
               </>
             }
           >
@@ -112,16 +117,6 @@ export function SettingsTab({ server }: { server: ServerView }) {
         </Section>
       )}
 
-      {server.owner && (
-        <Section title="Environment" desc="Variables the egg passes to the server process.">
-          {envEntries.length === 0 ? (
-            <p className="text-sm text-zinc-500">No environment variables.</p>
-          ) : (
-            <InfoList rows={envEntries.map(([k, v]) => ({ label: k, value: v }))} />
-          )}
-        </Section>
-      )}
-
       {isAdmin && (
         <Section
           danger
@@ -149,5 +144,48 @@ export function SettingsTab({ server }: { server: ServerView }) {
         onCancel={() => { setConfirm(false); del.reset(); }}
       />
     </div>
+  );
+}
+
+function RenameSection({ server }: { server: ServerView }) {
+  const [name, setName] = useState<string | null>(null);
+  const [desc, setDesc] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: () => call(api.PUT("/servers/{uuid}/details", { params: { path: { uuid: server.uuid } }, body: { name: (name ?? server.name).trim(), description: (desc ?? server.description).trim() } })),
+    meta: invalidates(keys.server(server.uuid), keys.servers),
+    onSuccess: () => { setName(null); setDesc(null); },
+  });
+  const dirty = (name !== null && name.trim() !== server.name) || (desc !== null && desc.trim() !== server.description);
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+      <Section
+        title="Name"
+        desc="What everyone with access sees in their server list."
+        footer={<><span role={save.isSuccess && !dirty ? "status" : undefined}>{save.isSuccess && !dirty ? "Saved." : ""}</span><button type="submit" className="btn btn-primary" disabled={!dirty || !(name ?? server.name).trim() || save.isPending}>Save</button></>}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Name">{(id) => <input id={id} className="input" maxLength={64} value={name ?? server.name} onChange={(e) => setName(e.target.value)} />}</Field>
+          <Field label="Description" hint="Optional, e.g. the season or the modpack version.">{(id) => <input id={id} className="input" maxLength={500} value={desc ?? server.description} onChange={(e) => setDesc(e.target.value)} />}</Field>
+        </div>
+        <div className="mt-3"><ErrorBox error={save.error} /></div>
+      </Section>
+    </form>
+  );
+}
+
+function OwnerDialog({ server, onClose }: { server: ServerView; onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const change = useMutation({
+    mutationFn: () => call(api.PUT("/servers/{uuid}/owner", { params: { path: { uuid: server.uuid } }, body: { email: email.trim() } })),
+    meta: invalidates(keys.server(server.uuid), keys.servers, keys.subusers(server.uuid)),
+    onSuccess: onClose,
+  });
+  return (
+    <FormDialog open title={`Change the owner of ${server.name}`} submitLabel="Change owner" pending={change.isPending} error={change.error} disabled={!email.includes("@")} onSubmit={() => change.mutate()} onClose={onClose}>
+      <Field label="New owner's email" hint="They need an account already. If they were a subuser, they become the owner instead.">
+        {(id) => <input id={id} type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />}
+      </Field>
+      <p className="text-xs text-zinc-500">The current owner{server.owner_email ? ` (${server.owner_email})` : ""} loses access. Add them as a subuser afterwards if they should keep it.</p>
+    </FormDialog>
   );
 }

@@ -15,7 +15,7 @@ test.describe("signed out", () => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(panel.ready.admin.email);
     await page.getByLabel("Password").fill("not-the-password");
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText(/invalid email or password/i);
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "Servers" })).toHaveCount(0);
@@ -25,7 +25,7 @@ test.describe("signed out", () => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(panel.ready.user.email);
     await page.getByLabel("Password").fill(panel.ready.user.password);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Servers" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "Servers" })).toBeVisible();

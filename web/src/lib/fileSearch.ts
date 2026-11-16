@@ -5,6 +5,7 @@ export interface Entry {
   dir: boolean;
   size: number;
   mod_unix: number;
+  mode?: number;
 }
 export interface Hit extends Entry {
   /** Absolute path of the entry, e.g. /plugins/Essentials/config.yml */

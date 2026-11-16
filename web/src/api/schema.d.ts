@@ -21,6 +21,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Email a password reset link
+         * @description Always answers the same, whether or not the email has an account.
+         */
+        post: operations["forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your single sign-on links */
+        get: operations["listIdentities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/identities/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlink a single sign-on provider */
+        delete: operations["unlinkIdentity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** What an invitation is for (public) */
+        post: operations["lookupInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/keys": {
         parameters: {
             query?: never;
@@ -107,6 +178,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ways to sign in on this panel (public) */
+        get: operations["authOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your passkeys */
+        get: operations["listPasskeys"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/login/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start signing in with a passkey */
+        post: operations["passkeyLoginBegin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/login/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with a passkey */
+        post: operations["passkeyLoginFinish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/register/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start adding a passkey */
+        post: operations["passkeyRegisterBegin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/register/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save a new passkey */
+        post: operations["passkeyRegisterFinish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename a passkey */
+        put: operations["renamePasskey"];
+        post?: never;
+        /** Remove a passkey */
+        delete: operations["deletePasskey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password": {
         parameters: {
             query?: never;
@@ -124,6 +315,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/password/first": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give a single sign-on account a password */
+        post: operations["setFirstPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an account (signs you in) */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a new password with a reset link (signs out everywhere) */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/sessions/revoke-others": {
         parameters: {
             query?: never;
@@ -135,6 +377,23 @@ export interface paths {
         put?: never;
         /** Sign out everywhere except this browser */
         post: operations["revokeOtherSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sso/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish a single sign-on with the account's two-factor code */
+        post: operations["ssoVerify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -209,6 +468,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/database-hosts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List database hosts (admin) */
+        get: operations["listDatabaseHosts"];
+        put?: never;
+        /** Add a database host (admin; the connection is tested first) */
+        post: operations["createDatabaseHost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/database-hosts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a database host with no databases (admin) */
+        delete: operations["deleteDatabaseHost"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/eggs": {
         parameters: {
             query?: never;
@@ -238,6 +532,41 @@ export interface paths {
         /** Import a Pterodactyl (PTDL) egg */
         post: operations["importEgg"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pending account invitations (admin) */
+        get: operations["listInvites"];
+        put?: never;
+        /** Invite someone to make an account (admin) */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw an account invitation (admin) */
+        delete: operations["deleteInvite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -348,6 +677,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What happened on a server, and who did it
+         * @description Addresses are shown to the owner and admins only.
+         */
+        get: operations["serverActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/backups": {
         parameters: {
             query?: never;
@@ -437,6 +786,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/databases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a server's databases */
+        get: operations["listDatabases"];
+        put?: never;
+        /**
+         * Create a database and its user
+         * @description The reply holds the password; it can be shown again later.
+         */
+        post: operations["createDatabase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/databases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a database and its user */
+        delete: operations["deleteDatabase"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/databases/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Show a database's password */
+        get: operations["databasePassword"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/databases/{id}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give a database a new password */
+        post: operations["rotateDatabasePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename a server and set its description */
+        put: operations["renameServer"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/files": {
         parameters: {
             query?: never;
@@ -450,6 +888,40 @@ export interface paths {
         post?: never;
         /** Delete a file or directory */
         delete: operations["deleteFile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/chmod": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change permissions */
+        post: operations["chmodFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/compress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make an archive of files and folders */
+        post: operations["compressFiles"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -473,6 +945,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/files/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate a file or folder */
+        post: operations["copyFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/decompress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extract an archive */
+        post: operations["decompressFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete several files and folders */
+        post: operations["deleteFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a folder (and any missing parents) */
+        post: operations["createFolder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rename or move files and folders */
+        post: operations["moveFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Download a file from the internet into the server
+         * @description The node fetches the URL itself. Private and local addresses are refused unless the node allows them.
+         */
+        post: operations["pullFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pending invitations to a server */
+        get: operations["listServerInvites"];
+        put?: never;
+        /**
+         * Give someone access by email, inviting them if they have no account
+         * @description If the email has an account it is added as a subuser at once (added: true). Otherwise an invitation is made: on sign-up the account gets these permissions.
+         */
+        post: operations["inviteToServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw an invitation to a server */
+        delete: operations["deleteServerInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/limits": {
         parameters: {
             query?: never;
@@ -481,8 +1096,135 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Change a server's resource limits (admin; the server must be stopped) */
+        /** Change a server's resource limits (admin; a running server applies them at its next start) */
         put: operations["setLimits"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Usage history
+         * @description CPU, memory and disk over time. Minutes are kept for two days, quarter hours for 30 days.
+         */
+        get: operations["serverMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/mods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install a Modrinth version into the server */
+        post: operations["installMod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/mods/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Modrinth */
+        get: operations["searchMods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/mods/{project}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A project's versions on Modrinth */
+        get: operations["modVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a server's ports */
+        get: operations["getNetwork"];
+        put?: never;
+        /** Give the server another port */
+        post: operations["addPort"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/network/{port}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Label a port, or make it the primary one */
+        put: operations["updatePort"];
+        post?: never;
+        /** Take a port away from the server */
+        delete: operations["removePort"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Hand a server to another account (admin)
+         * @description The previous owner loses access unless an admin adds them back as a subuser.
+         */
+        put: operations["setServerOwner"];
         post?: never;
         delete?: never;
         options?: never;
@@ -577,6 +1319,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/startup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Startup command, Docker image and variables */
+        get: operations["getStartup"];
+        /**
+         * Change variables, the Docker image or the startup command
+         * @description Applies at once to a stopped server, otherwise at its next start (`pending` in the reply).
+         */
+        put: operations["updateStartup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/users": {
         parameters: {
             query?: never;
@@ -654,6 +1417,8 @@ export interface components {
             completed_at: number;
             /** Format: int64 */
             created_at: number;
+            /** @description local (on the node) or s3 */
+            disk: string;
             error?: string;
             /** @description newline separated ignore patterns */
             ignore: string;
@@ -690,9 +1455,67 @@ export interface components {
         CommandInBody: {
             command: string;
         };
+        DatabaseCreateInBody: {
+            /** @description letters, digits and _; the server's prefix is added */
+            name: string;
+            /**
+             * @description where connections may come from: % = anywhere, or an address
+             * @default %
+             */
+            remote: string;
+        };
+        DatabaseHost: {
+            /**
+             * Format: int64
+             * @description databases on this host now
+             */
+            databases: number;
+            host: string;
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int64
+             * @description 0 = no limit
+             */
+            max_databases: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description preferred for servers on this node; 0 = any
+             */
+            node_id: number;
+            /** Format: int64 */
+            port: number;
+            username: string;
+        };
+        DatabaseSecret: {
+            /** Format: int64 */
+            created_at: number;
+            host: string;
+            /** Format: int64 */
+            host_id: number;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            password: string;
+            /** Format: int64 */
+            port: number;
+            /** @description where connections may come from; % = anywhere */
+            remote: string;
+            username: string;
+        };
+        DatabasesView: {
+            available: boolean;
+            can_manage: boolean;
+            databases: components["schemas"]["ServerDatabase"][];
+            /** Format: int64 */
+            limit: number;
+        };
         Egg: {
             description: string;
+            /** @description the default image (the first of docker_images) */
             docker_image: string;
+            docker_images: components["schemas"]["EggImage"][];
             /** Format: int64 */
             id: number;
             install_entrypoint: string;
@@ -703,11 +1526,18 @@ export interface components {
             stop: string;
             variables: components["schemas"]["EggVar"][] | null;
         };
+        EggImage: {
+            image: string;
+            label: string;
+        };
         EggVar: {
             default: string;
             description: string;
             env: string;
             name: string;
+            rules: string;
+            user_editable: boolean;
+            user_viewable: boolean;
         };
         ErrorDetail: {
             /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -750,21 +1580,156 @@ export interface components {
              */
             type: string;
         };
+        File: {
+            filename: string;
+            hashes: components["schemas"]["FileHashesStruct"];
+            primary: boolean;
+            /** Format: int64 */
+            size: number;
+            url: string;
+        };
+        FileChmodInBody: {
+            /** @description octal permission bits, e.g. 644 */
+            mode: string;
+            paths: string[] | null;
+        };
+        FileCompressInBody: {
+            /**
+             * @default tar.gz
+             * @enum {string}
+             */
+            format: "tar.gz" | "zip";
+            paths: string[] | null;
+            /** @description the folder the archive is made in; paths must be inside it */
+            root: string;
+        };
         FileContentOutBody: {
             content: string;
             path: string;
+        };
+        FileCopyInBody: {
+            /** @description copied next to itself as "<name> copy" */
+            path: string;
+        };
+        FileDecompressInBody: {
+            /** @description .zip, .tar, .tar.gz, .tgz, .tar.bz2 or .gz */
+            path: string;
+            /** @description where to extract; defaults to the archive's folder */
+            root?: string;
+        };
+        FileDeleteInBody: {
+            paths: string[] | null;
+        };
+        FileHashesStruct: {
+            sha512: string;
         };
         FileInfo: {
             dir: boolean;
             /** Format: int64 */
             mod_unix: number;
+            /** Format: int32 */
+            mode: number;
             name: string;
             /** Format: int64 */
             size: number;
+            symlink?: boolean;
+        };
+        FileMoveInBody: {
+            /** @description rename or move; parent folders are created */
+            moves: components["schemas"]["Move"][] | null;
+        };
+        FilePullInBody: {
+            /** @description a folder ending in / (the file keeps its name) or a full file path */
+            path: string;
+            /** Format: uri */
+            url: string;
         };
         FileWriteInBody: {
             content: string;
             path: string;
+        };
+        FirstPasswordInBody: {
+            password: string;
+        };
+        FolderInBody: {
+            path: string;
+        };
+        ForgotInBody: {
+            /** Format: email */
+            email: string;
+        };
+        Hit: {
+            author: string;
+            categories: string[] | null;
+            description: string;
+            /** Format: int64 */
+            downloads: number;
+            icon_url: string;
+            project_id: string;
+            project_type: string;
+            slug: string;
+            title: string;
+            /** @description game versions it supports */
+            versions: string[] | null;
+        };
+        HostCreateInBody: {
+            /** @description address the panel and the game servers reach it on */
+            host: string;
+            /**
+             * Format: int64
+             * @description 0 = no limit
+             */
+            max_databases?: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description prefer this host for servers on that node
+             */
+            node_id?: number;
+            password: string;
+            /**
+             * Format: int64
+             * @default 3306
+             */
+            port: number;
+            /** @description an account that may create databases and users */
+            username: string;
+        };
+        IdentitiesOutBody: {
+            has_password: boolean;
+            identities: components["schemas"]["Identity"][];
+            providers: components["schemas"]["SsoProvider"][];
+        };
+        Identity: {
+            /** Format: int64 */
+            created_at: number;
+            /** @description the address the provider reported */
+            email: string;
+            provider: string;
+        };
+        InvitationResult: {
+            added: boolean;
+            emailed: boolean;
+            invite?: components["schemas"]["Invite"];
+            link?: string;
+        };
+        Invite: {
+            /** Format: int64 */
+            created_at: number;
+            email: string;
+            /** Format: int64 */
+            expires_at: number;
+            /** Format: int64 */
+            id: number;
+            is_admin: boolean;
+            permissions: string[];
+            server_name?: string;
+            server_uuid?: string;
+        };
+        InviteCreateInBody: {
+            admin?: boolean;
+            /** Format: email */
+            email: string;
         };
         KeyCreateInBody: {
             /** @description authenticator or recovery code; required when two-factor is on */
@@ -791,11 +1756,21 @@ export interface components {
             backup_limit: number;
             /**
              * Format: int64
+             * @description network limit each way in Mbit/s, 0 = unlimited
+             */
+            bandwidth_mbit?: number;
+            /**
+             * Format: int64
              * @description 100 = one core, 0 = unlimited
              */
             cpu_pct: number;
             /** @description pin to cores, e.g. 0-3 or 0,2; empty = any */
             cpuset: string;
+            /**
+             * Format: int64
+             * @description databases the owner may create (default 0)
+             */
+            database_limit?: number;
             /**
              * Format: int64
              * @description disk quota, 0 = unlimited
@@ -818,6 +1793,11 @@ export interface components {
             pids_limit: number;
             /**
              * Format: int64
+             * @description ports the owner may add beyond the primary one (default 0)
+             */
+            port_limit?: number;
+            /**
+             * Format: int64
              * @description extra swap on top of memory: 0 = none, -1 = unlimited
              */
             swap_mb: number;
@@ -827,6 +1807,59 @@ export interface components {
             email: string;
             password: string;
             totp_code?: string;
+        };
+        Metric: {
+            /**
+             * Format: int64
+             * @description bucket start, unix seconds
+             */
+            at: number;
+            /** Format: double */
+            cpu_avg: number;
+            /** Format: double */
+            cpu_max: number;
+            /** Format: int64 */
+            disk: number;
+            /** Format: int64 */
+            mem_avg: number;
+            /** Format: int64 */
+            mem_max: number;
+            /** @description the server ran during the bucket */
+            running: boolean;
+        };
+        MetricsOutBody: {
+            points: components["schemas"]["Metric"][];
+            /**
+             * Format: int64
+             * @description seconds per point
+             */
+            step: number;
+        };
+        ModInstallInBody: {
+            folder?: string;
+            /**
+             * @description decides the folder unless one is given
+             * @enum {string}
+             */
+            type: "mod" | "plugin" | "datapack";
+            version_id: string;
+        };
+        Move: {
+            from: string;
+            to: string;
+        };
+        NetworkView: {
+            can_manage: boolean;
+            can_pick: boolean;
+            /** Format: int64 */
+            limit: number;
+            /** @description the server must restart to use the change */
+            pending: boolean;
+            ports: components["schemas"]["ServerPort"][];
+            /** Format: int64 */
+            range_from: number;
+            /** Format: int64 */
+            range_to: number;
         };
         Node: {
             /** Format: int64 */
@@ -905,15 +1938,71 @@ export interface components {
             /** Format: int64 */
             port_start: number;
         };
+        OptionsOutBody: {
+            passkeys: boolean;
+            password_reset: boolean;
+            /** @enum {string} */
+            signup: "invite" | "open";
+            sso: components["schemas"]["SsoProvider"][];
+        };
+        OwnerInBody: {
+            /** Format: email */
+            email: string;
+        };
+        Passkey: {
+            /** Format: int64 */
+            created_at: number;
+            id: string;
+            /**
+             * Format: int64
+             * @description 0 = never
+             */
+            last_used_at: number;
+            name: string;
+        };
+        PasskeyBeginInBody: {
+            /** @description required when the account has a password */
+            password?: string;
+        };
+        PasskeyFinishInBody: {
+            /** @description the PublicKeyCredential, JSON-encoded */
+            credential: unknown;
+            name?: string;
+            ticket?: string;
+        };
+        PasskeyOptionsOutBody: {
+            options: unknown;
+            ticket?: string;
+        };
+        PasskeyRenameInBody: {
+            name: string;
+        };
         PasswordInBody: {
             /** @description authenticator or recovery code; required when two-factor is on */
             code?: string;
             current_password: string;
             new_password: string;
         };
+        PathOutBody: {
+            /** @description what was created */
+            path: string;
+        };
         Permission: {
             description: string;
             id: string;
+        };
+        PortAddInBody: {
+            notes?: string;
+            /**
+             * Format: int64
+             * @description admins only; 0 = the next free port
+             */
+            port?: number;
+        };
+        PortUpdateInBody: {
+            notes?: string;
+            /** @description make this the primary port */
+            primary?: boolean;
         };
         PowerInBody: {
             /** @enum {string} */
@@ -926,6 +2015,21 @@ export interface components {
         RegenInBody: {
             code: string;
             password: string;
+        };
+        RegisterInBody: {
+            /** @description ignored with a token: the invited address is used */
+            email?: string;
+            password: string;
+            /** @description invitation token; required unless sign-up is open */
+            token?: string;
+        };
+        RenameInBody: {
+            description?: string;
+            name: string;
+        };
+        ResetInBody: {
+            password: string;
+            token: string;
         };
         Schedule: {
             /** Format: int64 */
@@ -956,6 +2060,11 @@ export interface components {
             only_when_online?: boolean;
             tasks: components["schemas"]["TaskIn"][] | null;
         };
+        SearchResult: {
+            hits: components["schemas"]["Hit"][];
+            /** Format: int64 */
+            total_hits: number;
+        };
         ServerCreateInBody: {
             /**
              * Format: int64
@@ -964,10 +2073,20 @@ export interface components {
             backup_limit?: number;
             /**
              * Format: int64
+             * @description network limit each way in Mbit/s, 0 = unlimited
+             */
+            bandwidth_mbit?: number;
+            /**
+             * Format: int64
              * @description 100 = one core, 0 = unlimited
              */
             cpu_pct?: number;
             cpuset?: string;
+            /**
+             * Format: int64
+             * @description databases the owner may create
+             */
+            database_limit?: number;
             /**
              * Format: int64
              * @description 0 = unlimited
@@ -1005,9 +2124,41 @@ export interface components {
             port?: number;
             /**
              * Format: int64
+             * @description ports the owner may add beyond the primary one
+             */
+            port_limit?: number;
+            /**
+             * Format: int64
              * @description 0 = none, -1 = unlimited
              */
             swap_mb?: number;
+        };
+        ServerDatabase: {
+            /** Format: int64 */
+            created_at: number;
+            host: string;
+            /** Format: int64 */
+            host_id: number;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            port: number;
+            /** @description where connections may come from; % = anywhere */
+            remote: string;
+            username: string;
+        };
+        ServerInviteInBody: {
+            /** Format: email */
+            email: string;
+            permissions: string[] | null;
+        };
+        ServerPort: {
+            notes: string;
+            /** Format: int64 */
+            port: number;
+            /** @description the port the game listens on (SERVER_PORT) */
+            primary: boolean;
         };
         ServerView: {
             /**
@@ -1017,11 +2168,22 @@ export interface components {
             backup_limit: number;
             /**
              * Format: int64
+             * @description network limit each way in Mbit/s, 0 = unlimited
+             */
+            bandwidth_mbit?: number;
+            /**
+             * Format: int64
              * @description 100 = one core, 0 = unlimited
              */
             cpu_pct: number;
             /** @description pin to cores, e.g. 0-3 or 0,2; empty = any */
             cpuset: string;
+            /**
+             * Format: int64
+             * @description databases the owner may create (default 0)
+             */
+            database_limit?: number;
+            description: string;
             /**
              * Format: int64
              * @description disk quota, 0 = unlimited
@@ -1033,6 +2195,7 @@ export interface components {
             env: {
                 [key: string]: string;
             };
+            image: string;
             /**
              * Format: int64
              * @description relative disk IO priority 10-1000, 0 = default
@@ -1049,6 +2212,7 @@ export interface components {
             node_name: string;
             node_online: boolean;
             owner: boolean;
+            owner_email?: string;
             /** Format: int64 */
             owner_id: number;
             permissions: string[];
@@ -1059,6 +2223,12 @@ export interface components {
             pids_limit: number;
             /** Format: int64 */
             port: number;
+            /**
+             * Format: int64
+             * @description ports the owner may add beyond the primary one (default 0)
+             */
+            port_limit?: number;
+            startup: string;
             /** @description offline|starting|running|stopping|installing|install_failed|unknown */
             state: string;
             stats?: components["schemas"]["Stats"];
@@ -1069,6 +2239,51 @@ export interface components {
             swap_mb: number;
             uuid: string;
         };
+        SsoProvider: {
+            id: string;
+            name: string;
+        };
+        SsoVerifyInBody: {
+            code: string;
+        };
+        StartupInBody: {
+            /** @description variables to change; others keep their values */
+            env?: {
+                [key: string]: string;
+            };
+            /** @description one of the egg's images; admins may use any, "" = the egg's default */
+            image?: string;
+            /** @description admins only; "" = the egg's command */
+            startup?: string;
+        };
+        StartupVar: {
+            admin_only: boolean;
+            default: string;
+            description: string;
+            editable: boolean;
+            env: string;
+            name: string;
+            rules: string;
+            rules_summary: string;
+            value: string;
+        };
+        StartupView: {
+            builtins: {
+                [key: string]: string;
+            };
+            can_change_image: boolean;
+            can_edit_command: boolean;
+            can_edit_variables: boolean;
+            command: string;
+            custom_command: boolean;
+            /** @description an admin set an image the egg does not list */
+            custom_image: boolean;
+            egg_command: string;
+            image: string;
+            images: components["schemas"]["EggImage"][];
+            pending: boolean;
+            variables: components["schemas"]["StartupVar"][];
+        };
         Stats: {
             /** Format: double */
             cpu_pct: number;
@@ -1076,6 +2291,7 @@ export interface components {
             disk_bytes: number;
             /** Format: int64 */
             mem_bytes: number;
+            pending?: boolean;
             uuid: string;
         };
         Subuser: {
@@ -1115,6 +2331,9 @@ export interface components {
             offset_seconds?: number;
             payload?: string;
         };
+        TokenInBody: {
+            token: string;
+        };
         TotpEnableInBody: {
             code: string;
         };
@@ -1132,12 +2351,29 @@ export interface components {
             /** @description otpauth:// URI, render as a QR code */
             uri: string;
         };
+        TransferResult: {
+            path: string;
+            /** Format: int64 */
+            size: number;
+        };
         User: {
             email: string;
             /** Format: int64 */
             id: number;
             is_admin: boolean;
             totp_enabled: boolean;
+        };
+        Version: {
+            date_published: string;
+            files: components["schemas"]["File"][];
+            game_versions: string[] | null;
+            id: string;
+            loaders: string[] | null;
+            name: string;
+            project_id: string;
+            version_number: string;
+            /** @description release, beta or alpha */
+            version_type: string;
         };
     };
     responses: never;
@@ -1169,6 +2405,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEntry"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    forgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotInBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitiesOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    unlinkIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    lookupInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"];
                 };
             };
             /** @description Error */
@@ -1367,6 +2725,255 @@ export interface operations {
             };
         };
     };
+    authOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listPasskeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Passkey"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    passkeyLoginBegin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOptionsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    passkeyLoginFinish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyFinishInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    passkeyRegisterBegin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyBeginInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOptionsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    passkeyRegisterFinish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyFinishInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Passkey"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    renamePasskey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRenameInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deletePasskey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     changePassword: {
         parameters: {
             query?: never;
@@ -1377,6 +2984,102 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PasswordInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setFirstPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirstPasswordInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetInBody"];
             };
         };
         responses: {
@@ -1413,6 +3116,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    ssoVerify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                gp_sso_mfa?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SsoVerifyInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
             };
             /** @description Error */
             default: {
@@ -1555,6 +3294,97 @@ export interface operations {
             };
         };
     };
+    listDatabaseHosts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseHost"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createDatabaseHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseHost"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteDatabaseHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listEggs: {
         parameters: {
             query?: never;
@@ -1606,6 +3436,97 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Egg"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -1893,6 +3814,42 @@ export interface operations {
             };
         };
     };
+    serverActivity: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                /** @description Only entries containing every word. */
+                q?: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEntry"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listBackups: {
         parameters: {
             query?: never;
@@ -2090,6 +4047,201 @@ export interface operations {
             };
         };
     };
+    listDatabases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabasesView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatabaseCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseSecret"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteDatabase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    databasePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseSecret"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    rotateDatabasePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseSecret"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    renameServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listFiles: {
         parameters: {
             query?: {
@@ -2142,6 +4294,74 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    chmodFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileChmodInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    compressFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileCompressInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathOutBody"];
+                };
             };
             /** @description Error */
             default: {
@@ -2220,6 +4440,304 @@ export interface operations {
             };
         };
     };
+    copyFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileCopyInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    decompressFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDecompressInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDeleteInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createFolder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    moveFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileMoveInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    pullFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FilePullInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listServerInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    inviteToServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServerInviteInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteServerInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     setLimits: {
         parameters: {
             query?: never;
@@ -2241,6 +4759,317 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    serverMetrics: {
+        parameters: {
+            query?: {
+                range?: "1h" | "6h" | "24h" | "7d" | "30d";
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    installMod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModInstallInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    searchMods: {
+        parameters: {
+            query?: {
+                q?: string;
+                type?: "mod" | "plugin" | "datapack";
+                /** @description fabric, forge, neoforge, quilt, paper, spigot, purpur, ... */
+                loader?: string;
+                /** @description game version, e.g. 1.21.1 */
+                version?: string;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    modVersions: {
+        parameters: {
+            query?: {
+                loader?: string;
+                version?: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    addPort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortAddInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updatePort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                port: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortUpdateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removePort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                port: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setServerOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerView"];
+                };
             };
             /** @description Error */
             default: {
@@ -2465,6 +5294,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getStartup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartupView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updateStartup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartupInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartupView"];
+                };
             };
             /** @description Error */
             default: {

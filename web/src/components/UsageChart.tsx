@@ -5,7 +5,7 @@ const H = 120;
 
 /** Area chart of readings since the page opened. `max` fixes the y-axis; `limit` draws a dashed line. */
 export function UsageChart({
-  title, value, unit, note, noteWarn, values, max, ticks, limit, color, action,
+  title, value, unit, note, noteWarn, values, max, ticks, limit, color, action, since = "earlier",
 }: {
   title: string;
   value: string;
@@ -18,6 +18,8 @@ export function UsageChart({
   limit?: number;
   color: string;
   action?: React.ReactNode;
+  /** Left end of the time axis ("earlier" for live readings, "24 h ago" for history). */
+  since?: string;
 }) {
   const gid = useId();
   const n = values.length;
@@ -31,10 +33,10 @@ export function UsageChart({
         <h2 className="text-[15px] font-semibold">{title}</h2>
         {action}
       </div>
-      <p className={`h-display mt-2.5 text-[32px] font-bold leading-none ${noteWarn ? "text-[#f0b35a]" : ""}`}>
+      <p className={`h-display mt-2.5 text-[32px] font-bold leading-none ${noteWarn ? "text-warn-text" : ""}`}>
         {value}<span className="ml-2 font-sans text-sm font-normal tracking-normal text-zinc-400">{unit}</span>
       </p>
-      <p className={`mt-1.5 text-[13px] ${noteWarn ? "text-[#f0b35a]" : "text-zinc-500"}`}>{note}</p>
+      <p className={`mt-1.5 text-[13px] ${noteWarn ? "text-warn-text" : "text-zinc-500"}`}>{note}</p>
       <div className="mt-3.5 flex gap-2.5">
         <div className="relative h-[120px] w-12 shrink-0" aria-hidden>
           {ticks.map((t) => (
@@ -45,20 +47,20 @@ export function UsageChart({
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block h-[120px] w-full overflow-visible" role="img" aria-label={`${title} over the last readings`}>
             <defs>
               <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor={color} stopOpacity=".28" />
-                <stop offset="1" stopColor={color} stopOpacity="0" />
+                <stop offset="0" style={{ stopColor: color }} stopOpacity=".28" />
+                <stop offset="1" style={{ stopColor: color }} stopOpacity="0" />
               </linearGradient>
             </defs>
             {ticks.map((t) => (
-              <line key={t.label} x1="0" x2={W} y1={y(t.at)} y2={y(t.at)} stroke="#23282e" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+              <line key={t.label} x1="0" x2={W} y1={y(t.at)} y2={y(t.at)} className="stroke-line-strong" strokeWidth="1" vectorEffect="non-scaling-stroke" />
             ))}
             {n > 1 && <path d={area} fill={`url(#${gid})`} />}
             {limit !== undefined && (
-              <line x1="0" x2={W} y1={y(limit) + 0.5} y2={y(limit) + 0.5} stroke="#7c838b" strokeWidth="1.2" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+              <line x1="0" x2={W} y1={y(limit) + 0.5} y2={y(limit) + 0.5} className="stroke-zinc-500" strokeWidth="1.2" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
             )}
-            {n > 1 && <polyline points={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+            {n > 1 && <polyline points={line} fill="none" style={{ stroke: color }} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
           </svg>
-          <div className="mt-2 flex justify-between font-mono text-[11.5px] text-zinc-500" aria-hidden><span>earlier</span><span>now</span></div>
+          <div className="mt-2 flex justify-between font-mono text-[11.5px] text-zinc-500" aria-hidden><span>{since}</span><span>now</span></div>
         </div>
       </div>
     </section>

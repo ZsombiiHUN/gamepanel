@@ -37,5 +37,7 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
     { name: "laptop", testMatch: sizes, use: { ...devices["Desktop Chrome"], viewport: { width: 1366, height: 768 } } },
     { name: "mobile", testMatch: sizes, use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 } } },
+    // The theme follows the system: browsers default to light here, so check the dark theme's contrast too.
+    { name: "desktop-dark", testMatch: /a11y\.spec\.ts$/, use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, colorScheme: "dark" } },
   ],
 });

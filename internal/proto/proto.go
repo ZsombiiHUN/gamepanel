@@ -73,7 +73,8 @@ const (
 	ReqServerDelete = "server.delete"
 	// ReqServerReinstall re-runs the egg install script for an offline server.
 	ReqServerReinstall = "server.reinstall"
-	// ReqServerUpdate applies new limits/spec to an offline server without reinstalling.
+	// ReqServerUpdate applies a new spec without reinstalling: at once when the
+	// server is offline, otherwise at its next start (see UpdateResult).
 	ReqServerUpdate  = "server.update"
 	ReqBackupCreate  = "backup.create"
 	ReqBackupRestore = "backup.restore"
@@ -83,6 +84,76 @@ const (
 	ReqFilesWrite    = "files.write"
 	ReqFilesDelete   = "files.delete"
 	ReqFilesMkdir    = "files.mkdir"
+	// ReqFilesOp runs a file manager operation (FileOp.Op).
+	ReqFilesOp = "files.op"
+	// Transfers stream through the relay (see Transfer).
+	ReqFilesUpload    = "files.upload"
+	ReqFilesDownload  = "files.download"
+	ReqFilesPull      = "files.pull"
+	ReqBackupDownload = "backup.download"
+)
+
+// File manager operations carried by files.op.
+const (
+	OpMove       = "move"       // Moves
+	OpCopy       = "copy"       // Path -> a free "<name> copy" next to it
+	OpChmod      = "chmod"      // Paths, Mode
+	OpDelete     = "delete"     // Paths
+	OpCompress   = "compress"   // Root, Paths, Format
+	OpDecompress = "decompress" // Path into Root
+)
+
+// FileOp is one file manager operation. Paths are relative to the server's
+// directory, like every other file request.
+type FileOp struct {
+	UUID   string   `json:"uuid"`
+	Op     string   `json:"op"`
+	Root   string   `json:"root,omitempty"`
+	Path   string   `json:"path,omitempty"`
+	Paths  []string `json:"paths,omitempty"`
+	Moves  []Move   `json:"moves,omitempty"`
+	Mode   uint32   `json:"mode,omitempty"`
+	Format string   `json:"format,omitempty"` // compress: zip | tar.gz
+}
+
+type Move struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// FileOpResult is the reply to files.op.
+type FileOpResult struct {
+	// Path of what was created (copy, compress), if anything.
+	Path string `json:"path,omitempty"`
+}
+
+// Transfer asks the daemon to stream a file through the panel's relay. The
+// daemon connects to <panel>/daemon/relay/<Ticket> with its node token:
+// downloads POST the file there, uploads GET the bytes from there. Transfers
+// thus need no inbound port on the node and never pass through the control
+// websocket.
+type Transfer struct {
+	UUID     string `json:"uuid"`
+	Path     string `json:"path,omitempty"`      // file to read or write
+	BackupID string `json:"backup_id,omitempty"` // backup.download
+	Ticket   string `json:"ticket,omitempty"`
+	Size     int64  `json:"size,omitempty"` // upload: bytes the browser announced
+	URL      string `json:"url,omitempty"`  // files.pull: where to fetch from
+	// SHA512 (hex), when set, must match what was downloaded, or the file
+	// is not kept (mod installs).
+	SHA512 string `json:"sha512,omitempty"`
+}
+
+// TransferResult is the reply to a transfer once it finished.
+type TransferResult struct {
+	Path string `json:"path"`
+	Size int64  `json:"size"`
+}
+
+// Relay headers a daemon sends with a download.
+const (
+	HeaderRelaySize = "X-Gamepanel-Size"
+	HeaderRelayName = "X-Gamepanel-Name"
 )
 
 // Daemon -> panel event types (no reply expected).
@@ -113,7 +184,9 @@ type ServerSpec struct {
 	Pids     int64             `json:"pids_limit,omitempty"` // 0 = 1024
 	IOWeight int64             `json:"io_weight,omitempty"`  // 10..1000, 0 = engine default
 	DiskMB   int64             `json:"disk_mb,omitempty"`    // enforced by the daemon; 0 = unlimited
-	Ports    []PortMap         `json:"ports"`
+	// BandwidthMbit limits network traffic each way (tc); 0 = unlimited.
+	BandwidthMbit int64     `json:"bandwidth_mbit,omitempty"`
+	Ports         []PortMap `json:"ports"`
 	// Install, when set, must succeed once before the server can start.
 	Install *InstallSpec `json:"install,omitempty"`
 }
@@ -163,6 +236,10 @@ type FileInfo struct {
 	Dir     bool   `json:"dir"`
 	Size    int64  `json:"size"`
 	ModUnix int64  `json:"mod_unix"`
+	// Mode is the permission bits (0644); Symlink marks a link, which the
+	// panel never follows.
+	Mode    uint32 `json:"mode"`
+	Symlink bool   `json:"symlink,omitempty"`
 }
 
 type Console struct {
@@ -180,11 +257,19 @@ type Stats struct {
 	UUID      string  `json:"uuid"`
 	CPUPct    float64 `json:"cpu_pct"`
 	MemBytes  uint64  `json:"mem_bytes"`
+	// Pending: settings changed while the server ran; they apply at its next start.
+	Pending bool `json:"pending,omitempty"`
 }
 
 func Marshal(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// UpdateResult is the reply to server.update.
+type UpdateResult struct {
+	// Pending: the server was running, so the change applies when it next starts.
+	Pending bool `json:"pending"`
 }
 
 // BackupReq addresses one backup archive on a node.
@@ -193,6 +278,40 @@ type BackupReq struct {
 	BackupID string   `json:"backup_id"` // backup uuid
 	Ignore   []string `json:"ignore,omitempty"`
 	Truncate bool     `json:"truncate,omitempty"` // restore: empty the server dir first
+	// Remote: create uploads the archive through the panel's presigned URLs
+	// (see BackupUpload) and keeps no local copy.
+	Remote bool `json:"remote,omitempty"`
+	// URL: restore downloads the archive from here (a presigned URL) instead
+	// of reading a local file.
+	URL string `json:"url,omitempty"`
+}
+
+// BackupUploadReq is what a node posts to <panel>/daemon/backups/upload to
+// get presigned URLs for a finished archive.
+type BackupUploadReq struct {
+	Server   string `json:"server"`
+	BackupID string `json:"backup_id"`
+	Size     int64  `json:"size"`
+}
+
+// BackupUpload tells the node how to upload: one PUT per part, in order.
+type BackupUpload struct {
+	PartSize int64    `json:"part_size"`
+	URLs     []string `json:"urls"`
+}
+
+// BackupCompleteReq is posted to <panel>/daemon/backups/complete once every
+// part is up (or Failed, to abort the upload).
+type BackupCompleteReq struct {
+	Server   string       `json:"server"`
+	BackupID string       `json:"backup_id"`
+	Parts    []UploadPart `json:"parts"`
+	Failed   bool         `json:"failed,omitempty"`
+}
+
+type UploadPart struct {
+	Number int    `json:"number"`
+	ETag   string `json:"etag"`
 }
 
 // BackupResult is the reply to backup.create.

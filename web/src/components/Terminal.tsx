@@ -66,7 +66,7 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
       ref={host}
       role="log"
       aria-label="Server console output"
-      className={`overflow-hidden bg-well px-3 py-3 ${expanded ? "h-[75vh]" : "h-[45vh]"} min-h-64`}
+      className={`overflow-hidden bg-console px-3 py-3 ${expanded ? "h-[75vh]" : "h-[45vh]"} min-h-64`}
     />
   );
 }

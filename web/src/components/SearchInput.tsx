@@ -14,7 +14,7 @@ export function SearchInput({
   className?: string;
 }) {
   return (
-    <label className={`flex min-h-10 items-center gap-2 rounded-lg border border-zinc-700 bg-[#101317] px-3 text-zinc-500 focus-within:border-indigo-500 ${className}`}>
+    <label className={`flex min-h-10 items-center gap-2 rounded-lg border border-zinc-700 bg-thead px-3 text-zinc-500 focus-within:border-indigo-500 ${className}`}>
       <Search className="h-4 w-4 shrink-0" aria-hidden />
       <span className="sr-only">{label}</span>
       <input
