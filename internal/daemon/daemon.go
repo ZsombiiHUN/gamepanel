@@ -73,7 +73,7 @@ const (
 	opBackup  = "backup"
 )
 
-var errUnknownServer = errors.New("unknown server")
+var errUnknownServer = proto.NotFound("this server is not on the node")
 
 // opBusy describes a running operation for the person who has to wait for it.
 func opBusy(op string) error {
@@ -394,8 +394,9 @@ func (d *Daemon) handle(ctx context.Context, env proto.Envelope) {
 	data, err := d.safeDispatch(ctx, env)
 	reply := proto.Envelope{Type: proto.EvtReply, ID: env.ID, Data: data}
 	if err != nil {
-		reply.Err, reply.Code = err.Error(), proto.CodeOf(err)
 		d.log.Warn("request failed", "type", env.Type, "err", err)
+		err = forPeople(err)
+		reply.Err, reply.Code = err.Error(), proto.CodeOf(err)
 	}
 	_ = d.send(ctx, reply)
 }
@@ -415,7 +416,7 @@ func (d *Daemon) safeDispatch(ctx context.Context, env proto.Envelope) (data jso
 
 func (d *Daemon) dir(uuid string) (*fsx.Dir, error) {
 	if !uuidRe.MatchString(uuid) {
-		return nil, errors.New("invalid server id")
+		return nil, proto.Invalid("invalid server id")
 	}
 	return fsx.Open(d.serverDir(uuid))
 }
@@ -501,7 +502,7 @@ func (d *Daemon) files(typ string, f proto.FileReq) (json.RawMessage, error) {
 
 func (d *Daemon) create(ctx context.Context, s proto.ServerSpec) error {
 	if !uuidRe.MatchString(s.UUID) {
-		return errors.New("invalid server id")
+		return proto.Invalid("invalid server id")
 	}
 	dir := d.serverDir(s.UUID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -612,7 +613,7 @@ func (d *Daemon) reinstall(ctx context.Context, uuid string) error {
 		return err
 	}
 	if spec.Install == nil {
-		return errors.New("this server's egg has no install script")
+		return proto.Invalid("this server's egg has no install script")
 	}
 	end, err := d.begin(uuid, opInstall)
 	if err != nil {
@@ -656,7 +657,7 @@ func (d *Daemon) power(ctx context.Context, p proto.Power) error {
 	case "kill":
 		return d.rt.Kill(ctx, p.UUID)
 	}
-	return fmt.Errorf("unknown power action %q", p.Action)
+	return proto.Invalid("unknown power action")
 }
 
 // start boots an installed server that is within its disk limit. It claims
@@ -723,7 +724,7 @@ func (d *Daemon) input(uuid, line string) error {
 
 func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	if !uuidRe.MatchString(uuid) {
-		return errors.New("invalid server id")
+		return proto.Invalid("invalid server id")
 	}
 	end, err := d.begin(uuid, opDelete)
 	switch {

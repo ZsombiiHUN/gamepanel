@@ -2,8 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -27,15 +25,15 @@ var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month 
 func NextRun(expr string, from time.Time) (time.Time, error) {
 	expr = strings.TrimSpace(expr)
 	if strings.HasPrefix(expr, "@") || len(strings.Fields(expr)) != 5 {
-		return time.Time{}, errors.New("cron needs 5 fields: minute hour day-of-month month day-of-week")
+		return time.Time{}, userErr("cron needs 5 fields: minute hour day-of-month month day-of-week")
 	}
 	sc, err := cronParser.Parse(expr)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid cron expression: %w", err)
+		return time.Time{}, userErrf("invalid cron expression: %v", err)
 	}
 	next := sc.Next(from.UTC())
 	if next.IsZero() {
-		return time.Time{}, errors.New("cron expression never fires")
+		return time.Time{}, userErr("cron expression never fires")
 	}
 	return next, nil
 }
@@ -70,23 +68,23 @@ func ValidateTask(t Task) error {
 	switch t.Action {
 	case ActionCommand:
 		if strings.TrimSpace(t.Payload) == "" || len(t.Payload) > 1000 || strings.ContainsAny(t.Payload, "\r\n") {
-			return errors.New("command must be a single line of 1 to 1000 characters")
+			return userErr("command must be a single line of 1 to 1000 characters")
 		}
 	case ActionPower:
 		switch t.Payload {
 		case "start", "stop", "restart", "kill":
 		default:
-			return errors.New("power action must be start, stop, restart or kill")
+			return userErr("power action must be start, stop, restart or kill")
 		}
 	case ActionBackup:
 		if len(t.Payload) > 2000 {
-			return errors.New("ignore patterns too long")
+			return userErr("ignore patterns too long")
 		}
 	default:
-		return errors.New("action must be command, power or backup")
+		return userErr("action must be command, power or backup")
 	}
 	if t.OffsetSeconds < 0 || t.OffsetSeconds > MaxTaskOffsetSeconds {
-		return fmt.Errorf("offset must be 0 to %d seconds", MaxTaskOffsetSeconds)
+		return userErrf("offset must be 0 to %d seconds", MaxTaskOffsetSeconds)
 	}
 	return nil
 }
@@ -166,7 +164,7 @@ func (s *Store) SaveSchedule(ctx context.Context, v Schedule) (Schedule, error) 
 		return v, err
 	}
 	if len(v.Tasks) > MaxTasksPerSchedule {
-		return v, fmt.Errorf("at most %d tasks per schedule", MaxTasksPerSchedule)
+		return v, userErrf("at most %d tasks per schedule", MaxTasksPerSchedule)
 	}
 	for _, t := range v.Tasks {
 		if err := ValidateTask(t); err != nil {
@@ -186,7 +184,7 @@ func (s *Store) SaveSchedule(ctx context.Context, v Schedule) (Schedule, error) 
 		var n int
 		tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM schedules WHERE server_uuid=?`, v.ServerUUID).Scan(&n)
 		if n >= MaxSchedulesPerServer {
-			return v, fmt.Errorf("at most %d schedules per server", MaxSchedulesPerServer)
+			return v, userErrf("at most %d schedules per server", MaxSchedulesPerServer)
 		}
 		res, err := tx.ExecContext(ctx, `INSERT INTO schedules(server_uuid,name,cron,enabled,only_when_online,next_run,created_by) VALUES(?,?,?,?,?,?,?)`,
 			v.ServerUUID, v.Name, strings.TrimSpace(v.Cron), v.Enabled, v.OnlyWhenOnline, v.NextRun, nullID(v.CreatedBy))

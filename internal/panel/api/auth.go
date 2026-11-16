@@ -134,7 +134,7 @@ func (a *App) registerAccount(api huma.API) {
 					a.audit(ctx, u, "password.change.fail", u.Email, "")
 					return nil, huma.Error403Forbidden("current password is incorrect")
 				}
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "password.change", u.Email, "other sessions revoked")
 			return nil, nil

@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"strings"
 )
 
@@ -17,7 +16,7 @@ const (
 	DefaultBackupLimit = 20
 )
 
-var ErrBackupLimit = errors.New("backup limit reached; delete one or unlock one for rotation")
+var ErrBackupLimit = userErr("backup limit reached; delete one or unlock one for rotation")
 
 type Backup struct {
 	UUID        string `json:"uuid"`
@@ -47,7 +46,7 @@ func scanBackup(sc interface{ Scan(...any) error }) (Backup, error) {
 }
 
 // ErrRestoreRunning: a server can only restore one backup at a time.
-var ErrRestoreRunning = errors.New("a restore is already running for this server")
+var ErrRestoreRunning = userErr("a restore is already running for this server")
 
 // BeginRestore marks a backup as being restored, refusing while any backup of
 // the same server is already being restored.
@@ -99,7 +98,7 @@ func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted
 	var running, total int
 	tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM backups WHERE server_uuid=? AND status=?`, b.ServerUUID, BackupRunning).Scan(&running)
 	if running > 0 {
-		return nil, errors.New("a backup is already running for this server")
+		return nil, userErr("a backup is already running for this server")
 	}
 	tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM backups WHERE server_uuid=?`, b.ServerUUID).Scan(&total)
 	limit := DefaultBackupLimit

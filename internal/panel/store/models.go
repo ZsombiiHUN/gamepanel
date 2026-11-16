@@ -18,9 +18,9 @@ import (
 var (
 	ErrNotFound = errors.New("not found")
 	// ErrBadPassword: the current password given to ChangePassword is wrong.
-	ErrBadPassword = errors.New("invalid current password")
+	ErrBadPassword = userErr("invalid current password")
 	// ErrNodeInUse: a node cannot be deleted while servers live on it.
-	ErrNodeInUse = errors.New("node still has servers")
+	ErrNodeInUse = userErr("node still has servers")
 )
 
 func nf(err error) error {
@@ -50,7 +50,7 @@ const (
 // huge password cannot be used to burn CPU).
 func ValidatePassword(pw string) error {
 	if len(pw) < 12 || len(pw) > 256 {
-		return errors.New("password must be 12 to 256 characters")
+		return userErr("password must be 12 to 256 characters")
 	}
 	return nil
 }
@@ -103,10 +103,10 @@ func (s *Store) Login(ctx context.Context, email, password string) (User, error)
 		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.hash)
 	if err != nil {
 		checkPassword(password, dummyHash)
-		return User{}, errors.New("invalid email or password")
+		return User{}, userErr("invalid email or password")
 	}
 	if !checkPassword(password, u.hash) {
-		return User{}, errors.New("invalid email or password")
+		return User{}, userErr("invalid email or password")
 	}
 	return u, nil
 }
@@ -411,10 +411,10 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 			}
 		}
 		if v.Port == 0 {
-			return v, errors.New("no free ports on this node")
+			return v, userErr("no free ports on this node")
 		}
 	} else if v.Port < ps || v.Port > pe {
-		return v, fmt.Errorf("port must be within the node range %d-%d", ps, pe)
+		return v, userErrf("port must be within the node range %d-%d", ps, pe)
 	}
 	if v.Env == nil {
 		v.Env = map[string]string{}

@@ -24,7 +24,7 @@ func (d *Daemon) backupPath(server, id string) string {
 
 func (d *Daemon) backup(ctx context.Context, typ string, b proto.BackupReq) (json.RawMessage, error) {
 	if !uuidRe.MatchString(b.UUID) || !uuidRe.MatchString(b.BackupID) {
-		return nil, errors.New("invalid id")
+		return nil, proto.Invalid("invalid backup id")
 	}
 	if _, err := d.spec(b.UUID); err != nil {
 		return nil, err
@@ -110,7 +110,7 @@ func (d *Daemon) backupRestore(ctx context.Context, b proto.BackupReq) error {
 	}
 	f, err := os.Open(d.backupPath(b.UUID, b.BackupID))
 	if err != nil {
-		return errors.New("backup file not found on the node")
+		return proto.NotFound("backup file not found on the node")
 	}
 	defer f.Close()
 	dir, err := d.dir(b.UUID)

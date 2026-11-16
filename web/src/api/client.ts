@@ -1,6 +1,6 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
-import { formatProblem } from "../lib/problem";
+import { formatProblem, statusMessage } from "../lib/problem";
 
 export const api = createClient<paths>({ baseUrl: "/api", credentials: "same-origin" });
 
@@ -26,20 +26,37 @@ api.use(authMiddleware);
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** The reply's raw detail, for code that reacts to a specific one (e.g. "totp_required"). Never shown. */
+  detail: string;
+  constructor(message: string, status: number, detail = "") {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
   }
 }
 
-/** Unwrap an openapi-fetch result, throwing ApiError with a readable message on failure. */
+const detailOf = (body: unknown) =>
+  body && typeof body === "object" && typeof (body as { detail?: unknown }).detail === "string" ? (body as { detail: string }).detail : "";
+
+/**
+ * Unwrap an openapi-fetch result, throwing ApiError with a message meant for
+ * people on failure. A request that never got an answer (offline, panel down)
+ * is an ApiError with status 0.
+ */
 export async function call<T>(
   p: Promise<{ data?: T; error?: unknown; response: Response }>,
 ): Promise<T> {
-  const r = await p;
+  let r: { data?: T; error?: unknown; response: Response };
+  try {
+    r = await p;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    console.error(err);
+    throw new ApiError(statusMessage(0), 0);
+  }
   if (r.error !== undefined || !r.response.ok) {
-    throw new ApiError(formatProblem(r.error, r.response.statusText || "Request failed"), r.response.status);
+    throw new ApiError(formatProblem(r.error, r.response.status), r.response.status, detailOf(r.error));
   }
   return r.data as T;
 }

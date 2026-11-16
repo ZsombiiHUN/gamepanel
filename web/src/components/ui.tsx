@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertCircle, Check, Copy, Loader2 } from "lucide-react";
 import { blockIcon } from "../lib/icon";
+import { errorText } from "../lib/problem";
 import { stateLabel } from "../lib/servers";
 
 export function Spinner({ label = "Loading" }: { label?: string }) {
@@ -13,7 +14,7 @@ export function Spinner({ label = "Loading" }: { label?: string }) {
 
 export function ErrorBox({ error }: { error: unknown }) {
   if (!error) return null;
-  const msg = error instanceof Error ? error.message : String(error);
+  const msg = errorText(error);
   return (
     <div role="alert" className="flex items-start gap-2 rounded-md border border-red-800 bg-red-950/60 p-3 text-sm text-red-200">
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />

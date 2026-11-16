@@ -650,12 +650,6 @@ export interface components {
             target: string;
         };
         Backup: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/Backup.json
-             */
-            readonly $schema?: string;
             /** Format: int64 */
             completed_at: number;
             /** Format: int64 */
@@ -682,51 +676,21 @@ export interface components {
             uuid: string;
         };
         BackupCreateInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/BackupCreateInBody.json
-             */
-            readonly $schema?: string;
             /** @description patterns to leave out, one per line (e.g. logs, *.tmp, cache/) */
             ignore?: string;
             name?: string;
         };
         BackupLockInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/BackupLockInBody.json
-             */
-            readonly $schema?: string;
             locked: boolean;
         };
         BackupRestoreInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/BackupRestoreInBody.json
-             */
-            readonly $schema?: string;
             /** @description delete all current files first */
             truncate?: boolean;
         };
         CommandInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/CommandInBody.json
-             */
-            readonly $schema?: string;
             command: string;
         };
         Egg: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/Egg.json
-             */
-            readonly $schema?: string;
             description: string;
             docker_image: string;
             /** Format: int64 */
@@ -754,12 +718,6 @@ export interface components {
             value?: unknown;
         };
         ErrorModel: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/ErrorModel.json
-             */
-            readonly $schema?: string;
             /**
              * @description A human-readable explanation specific to this occurrence of the problem.
              * @example Property foo is required but is missing.
@@ -793,12 +751,6 @@ export interface components {
             type: string;
         };
         FileContentOutBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/FileContentOutBody.json
-             */
-            readonly $schema?: string;
             content: string;
             path: string;
         };
@@ -811,22 +763,10 @@ export interface components {
             size: number;
         };
         FileWriteInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/FileWriteInBody.json
-             */
-            readonly $schema?: string;
             content: string;
             path: string;
         };
         KeyCreateInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/KeyCreateInBody.json
-             */
-            readonly $schema?: string;
             /**
              * Format: int64
              * @description 0 = never expires
@@ -835,23 +775,11 @@ export interface components {
             name: string;
         };
         KeyCreateOutBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/KeyCreateOutBody.json
-             */
-            readonly $schema?: string;
             key: components["schemas"]["APIKey"];
             /** @description the secret; shown only once */
             token: string;
         };
         Limits: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/Limits.json
-             */
-            readonly $schema?: string;
             /**
              * Format: int64
              * @description how many backups this server may keep
@@ -891,12 +819,6 @@ export interface components {
             swap_mb: number;
         };
         LoginInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/LoginInBody.json
-             */
-            readonly $schema?: string;
             /** Format: email */
             email: string;
             password: string;
@@ -922,12 +844,6 @@ export interface components {
             port_start: number;
         };
         NodeCapacityInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/NodeCapacityInBody.json
-             */
-            readonly $schema?: string;
             /** Format: int64 */
             disk_mb: number;
             /** Format: int64 */
@@ -936,12 +852,6 @@ export interface components {
             overallocate_pct: number;
         };
         NodeCreateInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/NodeCreateInBody.json
-             */
-            readonly $schema?: string;
             /**
              * Format: int64
              * @description disk servers may use in total, 0 = not tracked
@@ -967,12 +877,6 @@ export interface components {
             port_start: number;
         };
         NodeCreateOutBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/NodeCreateOutBody.json
-             */
-            readonly $schema?: string;
             node: components["schemas"]["Node"];
             /** @description Shown once. Set as GAMEPANEL_NODE_TOKEN on the daemon. */
             token: string;
@@ -998,12 +902,6 @@ export interface components {
             port_start: number;
         };
         PasswordInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/PasswordInBody.json
-             */
-            readonly $schema?: string;
             current_password: string;
             new_password: string;
         };
@@ -1012,42 +910,18 @@ export interface components {
             id: string;
         };
         PowerInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/PowerInBody.json
-             */
-            readonly $schema?: string;
             /** @enum {string} */
             action: "start" | "stop" | "restart" | "kill";
         };
         RecoveryOutBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/RecoveryOutBody.json
-             */
-            readonly $schema?: string;
             /** @description single-use recovery codes, shown once */
             codes: string[] | null;
         };
         RegenInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/RegenInBody.json
-             */
-            readonly $schema?: string;
             code: string;
             password: string;
         };
         Schedule: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/Schedule.json
-             */
-            readonly $schema?: string;
             /** Format: int64 */
             created_by: number;
             cron: string;
@@ -1068,12 +942,6 @@ export interface components {
             tasks: components["schemas"]["Task"][];
         };
         ScheduleBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/ScheduleBody.json
-             */
-            readonly $schema?: string;
             /** @description 5 fields (UTC): minute hour day-of-month month day-of-week */
             cron: string;
             enabled: boolean;
@@ -1083,12 +951,6 @@ export interface components {
             tasks: components["schemas"]["TaskIn"][] | null;
         };
         ServerCreateInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/ServerCreateInBody.json
-             */
-            readonly $schema?: string;
             /**
              * Format: int64
              * @description default 20
@@ -1142,12 +1004,6 @@ export interface components {
             swap_mb?: number;
         };
         ServerView: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/ServerView.json
-             */
-            readonly $schema?: string;
             /**
              * Format: int64
              * @description how many backups this server may keep
@@ -1217,12 +1073,6 @@ export interface components {
             uuid: string;
         };
         Subuser: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/Subuser.json
-             */
-            readonly $schema?: string;
             /** Format: int64 */
             created_at: number;
             email: string;
@@ -1231,23 +1081,11 @@ export interface components {
             user_id: number;
         };
         SubuserAddInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/SubuserAddInBody.json
-             */
-            readonly $schema?: string;
             /** Format: email */
             email: string;
             permissions: string[] | null;
         };
         SubuserSetInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/SubuserSetInBody.json
-             */
-            readonly $schema?: string;
             permissions: string[] | null;
         };
         Task: {
@@ -1272,53 +1110,23 @@ export interface components {
             payload?: string;
         };
         TotpEnableInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/TotpEnableInBody.json
-             */
-            readonly $schema?: string;
             code: string;
         };
         TotpOffInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/TotpOffInBody.json
-             */
-            readonly $schema?: string;
             /** @description authenticator or recovery code */
             code: string;
             password: string;
         };
         TotpSetupInBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/TotpSetupInBody.json
-             */
-            readonly $schema?: string;
             password: string;
         };
         TotpSetupOutBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/TotpSetupOutBody.json
-             */
-            readonly $schema?: string;
             /** @description base32 secret to type into an authenticator app */
             secret: string;
             /** @description otpauth:// URI, render as a QR code */
             uri: string;
         };
         User: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/schemas/User.json
-             */
-            readonly $schema?: string;
             email: string;
             /** Format: int64 */
             id: number;

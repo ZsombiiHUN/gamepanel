@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -77,7 +78,7 @@ func (a *App) registerSchedules(api huma.API) {
 			}
 			v, err := a.Store.SaveSchedule(ctx, in.Body.toSchedule(s.UUID, 0, u))
 			if err != nil {
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "schedule.create", s.UUID, v.Name)
 			return &scheduleOut{Body: v}, nil
@@ -97,7 +98,7 @@ func (a *App) registerSchedules(api huma.API) {
 				return nil, huma.Error404NotFound("schedule not found")
 			}
 			if err != nil {
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "schedule.update", s.UUID, v.Name)
 			return &scheduleOut{Body: v}, nil
@@ -179,7 +180,7 @@ func (a *App) runSchedule(ctx context.Context, s store.Server, v store.Schedule,
 		return
 	}
 	if err := a.authorPermits(ctx, s, v); err != nil {
-		a.Store.SetScheduleStatus(ctx, v.ID, "skipped: "+err.Error())
+		a.Store.SetScheduleStatus(ctx, v.ID, "skipped: "+failureText(err))
 		return
 	}
 	status := "ok"
@@ -192,7 +193,7 @@ func (a *App) runSchedule(ctx context.Context, s store.Server, v store.Schedule,
 			}
 		}
 		if err := a.runTask(ctx, s, t); err != nil {
-			status = fmt.Sprintf("task %d (%s) failed: %v", i+1, t.Action, err)
+			status = fmt.Sprintf("task %d (%s) failed: %s", i+1, t.Action, failureText(err))
 			a.Log.Warn("scheduled task failed", "server", s.UUID, "schedule", v.ID, "task", i+1, "err", err)
 			if !t.ContinueOnFailure {
 				break
@@ -231,15 +232,15 @@ func (a *App) authorPermits(ctx context.Context, s store.Server, v store.Schedul
 	}
 	u, err := a.Store.GetUser(ctx, v.CreatedBy)
 	if err != nil {
-		return errors.New("the account that saved this schedule no longer exists")
+		return &store.UserError{Msg: "the account that saved this schedule no longer exists"}
 	}
 	perms, _, ok := a.access(ctx, u, s)
 	if !ok {
-		return fmt.Errorf("%s no longer has access to this server", u.Email)
+		return &store.UserError{Msg: u.Email + " no longer has access to this server"}
 	}
 	for _, t := range v.Tasks {
 		if p := taskPerm(t.Action); !has(perms, p) {
-			return fmt.Errorf("%s no longer has the %s permission", u.Email, p)
+			return &store.UserError{Msg: u.Email + " no longer has the " + p + " permission"}
 		}
 	}
 	return nil

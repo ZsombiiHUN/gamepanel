@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -44,11 +43,11 @@ var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 func importPTDL(raw []byte) (store.Egg, error) {
 	var p ptdlEgg
 	if err := json.Unmarshal(raw, &p); err != nil {
-		return store.Egg{}, errors.New("not valid egg JSON")
+		return store.Egg{}, &store.UserError{Msg: "not valid egg JSON"}
 	}
 	e := store.Egg{Name: strings.TrimSpace(p.Name), Description: p.Description, Startup: p.Startup, Stop: p.Config.Stop}
 	if e.Name == "" || strings.TrimSpace(e.Startup) == "" {
-		return e, errors.New("egg needs a name and a startup command")
+		return e, &store.UserError{Msg: "egg needs a name and a startup command"}
 	}
 	switch {
 	case firstImage(p.DockerImages) != "":
@@ -59,7 +58,7 @@ func importPTDL(raw []byte) (store.Egg, error) {
 		e.DockerImage = p.DockerImage
 	}
 	if e.DockerImage == "" {
-		return e, errors.New("egg has no docker image")
+		return e, &store.UserError{Msg: "egg has no docker image"}
 	}
 	if e.Stop == "" {
 		e.Stop = "^C"
@@ -72,11 +71,11 @@ func importPTDL(raw []byte) (store.Egg, error) {
 			e.InstallEntrypoint = "bash"
 		}
 		if e.InstallImage == "" {
-			return e, errors.New("egg has an install script but no installer image")
+			return e, &store.UserError{Msg: "egg has an install script but no installer image"}
 		}
 		// The daemon places it into a shell command line: a plain name only.
 		if !proto.ValidEntrypoint(e.InstallEntrypoint) {
-			return e, errors.New("install entrypoint must be a plain program name")
+			return e, &store.UserError{Msg: "install entrypoint must be a plain program name"}
 		}
 	} else {
 		e.InstallEntrypoint = "bash"

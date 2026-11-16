@@ -94,11 +94,15 @@ func requireAdmin(ctx context.Context) (store.User, error) {
 // New builds the full HTTP handler.
 func New(d Deps) http.Handler {
 	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute)}
+	errLog.Store(d.Log)
 	if a.AuthRecheck <= 0 {
 		a.AuthRecheck = 10 * time.Second
 	}
 	mux := http.NewServeMux()
 	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
+	// No "$schema" link in every response body: it points at the schema files,
+	// which only signed-in users may read.
+	cfg.CreateHooks = nil
 	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
 		"session": {Type: "apiKey", In: "cookie", Name: cookieName},
 		"apikey":  {Type: "http", Scheme: "bearer"},
@@ -148,12 +152,12 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		ip := a.clientIP(r)
 		r = r.WithContext(context.WithValue(r.Context(), ipKey{}, ip))
 		if !sameOrigin(r) {
-			http.Error(w, `{"title":"Forbidden","status":403,"detail":"cross-origin request blocked"}`, http.StatusForbidden)
+			writeProblem(w, http.StatusForbidden, "This request came from another site and was blocked. Open the panel directly and try again.")
 			return
 		}
 		if r.URL.Path == "/api/auth/login" && r.Method == http.MethodPost {
 			if !a.limiter.allow(ip) {
-				http.Error(w, `{"title":"Too Many Requests","status":429,"detail":"too many login attempts, try again later"}`, http.StatusTooManyRequests)
+				writeProblem(w, http.StatusTooManyRequests, "too many sign-in attempts, try again in a minute")
 				return
 			}
 		}
@@ -177,8 +181,19 @@ func (a *App) middleware(next http.Handler) http.Handler {
 				r = r.WithContext(ctx)
 			}
 		}
+		if isAPIDocs(r.URL.Path) && r.Context().Value(ctxKey{}) == nil {
+			// The API description lists every endpoint and field: for signed-in
+			// users (and API keys) only. Anyone else sees nothing there.
+			writeProblem(w, http.StatusNotFound, "not found")
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isAPIDocs reports whether path is part of the generated API description.
+func isAPIDocs(path string) bool {
+	return path == "/api/docs" || strings.HasPrefix(path, "/api/openapi") || strings.HasPrefix(path, "/api/schemas/")
 }
 
 func newUUID() string {

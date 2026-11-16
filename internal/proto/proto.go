@@ -28,7 +28,15 @@ const (
 	CodeConflict = "conflict"
 	// CodeDiskFull: the request would take the server past its disk limit.
 	CodeDiskFull = "disk_full"
+	// CodeInvalid: the request cannot work as asked (bad path, wrong kind of file).
+	CodeInvalid = "invalid"
+	// CodeNotFound: the file, folder, server or backup does not exist on the node.
+	CodeNotFound = "not_found"
 )
+
+// Replies without a code carry internal detail (engine, file system, library
+// messages). The panel logs those and shows people a generic message; only
+// coded replies are shown as written.
 
 // Error is a failed request: Msg for people, Code for programs.
 type Error struct {
@@ -41,6 +49,12 @@ func (e *Error) ErrCode() string { return e.Code }
 
 // Conflict reports that the server is in the wrong state for a request.
 func Conflict(msg string) error { return &Error{Code: CodeConflict, Msg: msg} }
+
+// Invalid reports a request that cannot work as asked.
+func Invalid(msg string) error { return &Error{Code: CodeInvalid, Msg: msg} }
+
+// NotFound reports that the thing a request names does not exist.
+func NotFound(msg string) error { return &Error{Code: CodeNotFound, Msg: msg} }
 
 // CodeOf returns the code of err (or of an error it wraps), "" if none.
 func CodeOf(err error) string {

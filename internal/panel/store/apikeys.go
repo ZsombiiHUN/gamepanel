@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"time"
 )
 
@@ -24,7 +23,7 @@ func (s *Store) CreateAPIKey(ctx context.Context, userID int64, name string, ttl
 	var n int
 	s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_keys WHERE user_id=?`, userID).Scan(&n)
 	if n >= maxKeysPerUser {
-		return APIKey{}, "", errors.New("too many API keys; delete unused ones first")
+		return APIKey{}, "", userErr("too many API keys; delete unused ones first")
 	}
 	raw, _ := NewToken()
 	tok := KeyPrefix + raw

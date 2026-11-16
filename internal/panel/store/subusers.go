@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"strings"
 )
@@ -40,7 +39,7 @@ func ValidatePermissions(in []string) ([]string, error) {
 	var out []string
 	for _, p := range in {
 		if !known[p] {
-			return nil, errors.New("unknown permission " + p)
+			return nil, userErr("unknown permission " + p)
 		}
 		if !seen[p] {
 			seen[p] = true
@@ -48,7 +47,7 @@ func ValidatePermissions(in []string) ([]string, error) {
 		}
 	}
 	if len(out) == 0 {
-		return nil, errors.New("grant at least one permission")
+		return nil, userErr("grant at least one permission")
 	}
 	sort.Strings(out)
 	return out, nil
@@ -77,18 +76,18 @@ func (s *Store) AddSubuser(ctx context.Context, server, email string, perms []st
 	var uid, owner int64
 	var mail string
 	if err := s.DB.QueryRowContext(ctx, `SELECT id,email FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&uid, &mail); err != nil {
-		return Subuser{}, errors.New("no account with that email")
+		return Subuser{}, userErr("no account with that email")
 	}
 	if err := s.DB.QueryRowContext(ctx, `SELECT owner_id FROM servers WHERE uuid=?`, server).Scan(&owner); err != nil {
 		return Subuser{}, nf(err)
 	}
 	if uid == owner {
-		return Subuser{}, errors.New("that account already owns this server")
+		return Subuser{}, userErr("that account already owns this server")
 	}
 	t := now()
 	if _, err := s.exec(ctx, `INSERT INTO server_users(server_uuid,user_id,permissions,created_at) VALUES(?,?,?,?)`, server, uid, strings.Join(perms, ","), t); err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "PRIMARY") {
-			return Subuser{}, errors.New("that account already has access")
+			return Subuser{}, userErr("that account already has access")
 		}
 		return Subuser{}, err
 	}

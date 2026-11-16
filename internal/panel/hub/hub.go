@@ -25,6 +25,9 @@ const DefaultRequestTimeout = 5 * time.Minute
 
 var ErrNodeOffline = errors.New("node is offline")
 
+// ErrTimeout means the node took longer than the request's deadline.
+var ErrTimeout = errors.New("node did not reply in time")
+
 type Event struct {
 	Type string          `json:"type"` // console | state | stats
 	Data json.RawMessage `json:"data"`
@@ -140,7 +143,7 @@ func (h *Hub) Request(ctx context.Context, nodeID int64, typ string, payload any
 		return r.Data, nil
 	case <-ctx.Done():
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, errors.New("node did not reply in time")
+			return nil, ErrTimeout
 		}
 		return nil, ctx.Err()
 	}

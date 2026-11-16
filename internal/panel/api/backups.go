@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -77,7 +78,7 @@ func (a *App) startBackup(s store.Server, name, ignore string, rotate bool) (sto
 		}
 		if err != nil {
 			a.Log.Warn("backup failed", "server", s.UUID, "err", err)
-			if ferr := a.Store.FinishBackup(ctx, b.UUID, 0, "", err.Error()); ferr != nil {
+			if ferr := a.Store.FinishBackup(ctx, b.UUID, 0, "", failureText(err)); ferr != nil {
 				a.Log.Error("could not record a failed backup", "backup", b.UUID, "err", ferr)
 			}
 			// The node may still have written (part of) the archive, e.g. when
@@ -109,7 +110,7 @@ func (a *App) startRestore(s store.Server, b store.Backup, truncate bool) error 
 		defer cancel()
 		failure := ""
 		if _, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupRestore, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Truncate: truncate}); err != nil {
-			failure = err.Error()
+			failure = failureText(err)
 			a.Log.Warn("restore failed", "server", s.UUID, "backup", b.UUID, "err", err)
 		}
 		if err := a.Store.FinishRestore(ctx, b.UUID, failure); err != nil {
@@ -145,7 +146,7 @@ func (a *App) registerBackups(api huma.API) {
 			}
 			b, _, err := a.startBackup(s, in.Body.Name, in.Body.Ignore, false)
 			if err != nil {
-				return nil, huma.Error409Conflict(err.Error())
+				return nil, userErr(http.StatusConflict, err)
 			}
 			a.audit(ctx, u, "backup.create", s.UUID, b.Name)
 			b.Status = store.BackupRunning
@@ -192,7 +193,7 @@ func (a *App) registerBackups(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			if err := a.Store.DeleteBackup(ctx, s.UUID, b.UUID); err != nil {
-				return nil, huma.Error500InternalServerError("the node deleted the file but the panel could not: " + err.Error())
+				return nil, huma.Error500InternalServerError("the node deleted the file but the panel could not", err)
 			}
 			a.audit(ctx, u, "backup.delete", s.UUID, b.Name)
 			return nil, nil
@@ -223,7 +224,7 @@ func (a *App) registerBackups(api huma.API) {
 			}
 			if err := a.startRestore(s, b, in.Body.Truncate); err != nil {
 				if errors.Is(err, store.ErrRestoreRunning) {
-					return nil, huma.Error409Conflict(err.Error())
+					return nil, userErr(http.StatusConflict, err)
 				}
 				return nil, huma.Error500InternalServerError("db error")
 			}
