@@ -139,6 +139,9 @@ type Transfer struct {
 	Ticket   string `json:"ticket,omitempty"`
 	Size     int64  `json:"size,omitempty"` // upload: bytes the browser announced
 	URL      string `json:"url,omitempty"`  // files.pull: where to fetch from
+	// SHA512 (hex), when set, must match what was downloaded, or the file
+	// is not kept (mod installs).
+	SHA512 string `json:"sha512,omitempty"`
 }
 
 // TransferResult is the reply to a transfer once it finished.

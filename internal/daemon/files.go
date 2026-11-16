@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -271,7 +273,19 @@ func (d *Daemon) pull(ctx context.Context, t proto.Transfer) (proto.TransferResu
 		return proto.TransferResult{}, ErrDiskFull{d.diskLimitBytes(t.UUID) - limit, d.diskLimitBytes(t.UUID)}
 	}
 	defer d.cacheFor(t.UUID).invalidate()
-	n, err := dir.WriteStream(target, resp.Body, limit)
+	var body io.Reader = resp.Body
+	var check func() error
+	if t.SHA512 != "" {
+		h := sha512.New()
+		body = io.TeeReader(resp.Body, h)
+		check = func() error {
+			if hex.EncodeToString(h.Sum(nil)) != strings.ToLower(t.SHA512) {
+				return proto.Invalid("the downloaded file does not match its checksum, so it was not kept")
+			}
+			return nil
+		}
+	}
+	n, err := dir.WriteStreamCheck(target, body, limit, check)
 	if errors.Is(err, fsx.ErrTooBig) {
 		err = &proto.Error{Code: proto.CodeDiskFull, Msg: "the download does not fit in the server's disk limit"}
 	}

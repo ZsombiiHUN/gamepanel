@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha512"
+	"encoding/hex"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -76,5 +78,27 @@ func TestPullFetchesIntoTheServer(t *testing.T) {
 	d.cfg.PullAllowPrivate = false
 	if _, err := d.pull(context.Background(), proto.Transfer{UUID: uuid, URL: src.URL + "/x", Path: "/"}); err == nil || !strings.Contains(err.Error(), "private network") {
 		t.Fatalf("private pull: %v", err)
+	}
+}
+
+func TestPullChecksTheChecksum(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	d.cfg.PullAllowPrivate = true
+	uuid := uuidN(2)
+	addServer(t, d, uuid, 0)
+	src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("mod bytes")) }))
+	defer src.Close()
+	good := "e6b3c2e4c1d17b2f2f1b8a95ac76d2bd4e33a2e0d2e8f3c2f1d4f5a7c7b0e9a1" // wrong on purpose
+	if _, err := d.pull(context.Background(), proto.Transfer{UUID: uuid, URL: src.URL + "/a.jar", Path: "/mods/", SHA512: good}); err == nil || !strings.Contains(err.Error(), "checksum") {
+		t.Fatalf("bad checksum accepted: %v", err)
+	}
+	dir, _ := d.dir(uuid)
+	defer dir.Close()
+	if _, err := dir.Read("mods/a.jar"); err == nil {
+		t.Fatal("a file with a bad checksum was kept")
+	}
+	sum := sha512.Sum512([]byte("mod bytes"))
+	if _, err := d.pull(context.Background(), proto.Transfer{UUID: uuid, URL: src.URL + "/a.jar", Path: "/mods/", SHA512: hex.EncodeToString(sum[:])}); err != nil {
+		t.Fatal(err)
 	}
 }

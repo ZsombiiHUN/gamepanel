@@ -36,6 +36,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 |---|---|
 | **Servers** | Power controls, live console with command input, CPU, memory and disk charts with 30 days of history, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, backups) |
 | **Files** | Browse, edit, search every subfolder; upload files and whole folders by drag and drop, download, rename, move, copy, change permissions, compress and extract (zip, tar.gz, tar.bz2), pull from a URL, act on many files at once; SFTP |
+| **Mods** | Search Modrinth for mods, plugins and datapacks (filtered by loader and game version, preset from the egg) and install with one click. Only files from Modrinth's CDN, checked against Modrinth's SHA-512 before they are kept |
 | **Startup** | Change the egg's variables (checked against its rules), pick another of its Docker images, and, as an admin, set a custom image or startup command. Changes to a running server apply at its next start |
 | **Network** | Several ports per server, each with a note; switch the primary port. Admins set how many extra ports an owner may add |
 | **Databases** | MySQL/MariaDB databases per server, each with its own user that can reach only that database; show, copy and rotate passwords. Admins register database hosts (tested before they are saved) and set a per-server limit |
@@ -150,7 +151,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing.
+**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, billing, CurseForge.
 
 ## Development
 

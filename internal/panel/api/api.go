@@ -25,6 +25,7 @@ import (
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/modrinth"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
@@ -51,6 +52,8 @@ type Deps struct {
 	PublicURL string
 	// Signup is "invite" (default: accounts only by invitation) or "open".
 	Signup string
+	// Modrinth overrides the mod manager's client (tests).
+	Modrinth *modrinth.Client
 	// SSO lists single sign-on providers (they need PublicURL).
 	SSO []*SSOProvider
 	// S3, when set, is where new backups are stored instead of on the node.
@@ -203,6 +206,7 @@ func (a *App) register(api huma.API) {
 	a.registerSSO(api)
 	a.registerPasskeys(api)
 	a.registerMetrics(api)
+	a.registerMods(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running

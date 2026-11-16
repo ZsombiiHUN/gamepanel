@@ -138,6 +138,12 @@ func (d *Dir) copyAny(f, t string, fi fs.FileInfo, reserve func(int64) error) er
 // replacing p only once everything arrived, so a broken upload never leaves
 // half a file. limit caps the bytes written (0 = no cap).
 func (d *Dir) WriteStream(p string, r io.Reader, limit int64) (int64, error) {
+	return d.WriteStreamCheck(p, r, limit, nil)
+}
+
+// WriteStreamCheck is WriteStream with a last check (a checksum) that runs
+// once everything arrived; if it fails, the file is never put in place.
+func (d *Dir) WriteStreamCheck(p string, r io.Reader, limit int64, check func() error) (int64, error) {
 	name := clean(p)
 	if name == "." {
 		return 0, fs.ErrInvalid
@@ -160,6 +166,9 @@ func (d *Dir) WriteStream(p string, r io.Reader, limit int64) (int64, error) {
 	n, err := io.Copy(w, r)
 	if cerr := f.Close(); err == nil {
 		err = cerr
+	}
+	if err == nil && check != nil {
+		err = check()
 	}
 	if err == nil {
 		err = d.root.Rename(tmp, name)
