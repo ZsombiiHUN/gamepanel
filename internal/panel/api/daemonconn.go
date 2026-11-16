@@ -60,9 +60,16 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 	if egg.InstallScript != "" {
 		inst = &proto.InstallSpec{Image: egg.InstallImage, Entrypoint: egg.InstallEntrypoint, Script: egg.InstallScript}
 	}
+	image, startup := egg.DockerImage, egg.Startup
+	if s.Image != "" {
+		image = s.Image
+	}
+	if s.Startup != "" {
+		startup = s.Startup
+	}
 	return proto.ServerSpec{
 		Install: inst,
-		UUID:    s.UUID, Image: egg.DockerImage, Startup: shellStartup(egg.Startup), Stop: egg.Stop,
+		UUID:    s.UUID, Image: image, Startup: shellStartup(startup), Stop: egg.Stop,
 		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
 		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB,
 		Ports: []proto.PortMap{

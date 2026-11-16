@@ -1,27 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useNavigate, useParams, useRouteContext, useRouterState, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ClipboardList, Clock, FolderOpen, LayoutGrid, LogOut, Menu, Plus, Search, Settings, SquareTerminal, Users, X, Egg, HardDrive } from "lucide-react";
+import { Archive, ChevronDown, ClipboardList, Clock, FolderOpen, LayoutGrid, LogOut, Menu, Plus, Rocket, Search, Settings, SquareTerminal, Users, X, Egg, HardDrive } from "lucide-react";
 import { api, call } from "../api/client";
 import { serverQuery, serversQuery } from "../api/queries";
 import { CommandPalette } from "../components/CommandPalette";
 import { StateMark } from "../components/ui";
 import { isTypingTarget } from "../lib/palette";
 import { sortServers } from "../lib/servers";
-import type { Tab } from "../lib/tabs";
+import { canSee, TAB_INFO, type Tab } from "../lib/tabs";
 
 const item = "flex min-h-9 items-center gap-2.5 rounded-[7px] px-2 text-sm text-zinc-400 hover:bg-[#14181c] hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
 const itemOn = "bg-[#181c21] font-medium !text-zinc-100";
 
-// need: a permission the viewer must hold, or "owner" for owner-only sections.
-const sections: { id: Tab; label: string; icon: typeof SquareTerminal; need?: string }[] = [
-  { id: "console", label: "Console", icon: SquareTerminal, need: "console.read" },
-  { id: "files", label: "Files", icon: FolderOpen, need: "files.read" },
-  { id: "backups", label: "Backups", icon: Archive, need: "backups.read" },
-  { id: "schedules", label: "Schedules", icon: Clock, need: "schedules.manage" },
-  { id: "users", label: "Access", icon: Users, need: "owner" },
-  { id: "settings", label: "Settings", icon: Settings },
-];
+const icons: Record<Tab, typeof SquareTerminal> = {
+  console: SquareTerminal, files: FolderOpen, backups: Archive, schedules: Clock, startup: Rocket, users: Users, settings: Settings,
+};
+const sections = TAB_INFO.map((t) => ({ ...t, icon: icons[t.id] }));
 
 function Sidebar({ isAdmin, email, onSignOut, signingOut, onSearch }: { isAdmin: boolean; email: string; onSignOut: () => void; signingOut: boolean; onSearch: () => void }) {
   const servers = useQuery(serversQuery);
@@ -29,7 +24,7 @@ function Sidebar({ isAdmin, email, onSignOut, signingOut, onSearch }: { isAdmin:
   const tab = useSearch({ from: "/app/servers/$uuid", shouldThrow: false })?.tab ?? "console";
   const cur = useQuery({ ...serverQuery(current ?? ""), enabled: !!current });
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const can = (need?: string) => !need || !cur.data || (need === "owner" ? cur.data.owner : cur.data.permissions.includes(need));
+  const can = (need?: string) => !cur.data || canSee(need, cur.data);
 
   return (
     <div className="flex h-full flex-col gap-3 px-2.5 pb-2.5 pt-3">

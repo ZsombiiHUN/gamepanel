@@ -27,6 +27,9 @@ var AllPermissions = []Permission{
 	{"backups.delete", "Delete and lock backups"},
 	{"schedules.manage", "Create, edit, run and delete schedules"},
 	{"settings.reinstall", "Reinstall the server"},
+	{"startup.read", "See the startup command and the variables the egg shows"},
+	{"startup.update", "Change startup variables the egg lets users edit"},
+	{"startup.docker-image", "Pick another of the egg's Docker images"},
 }
 
 // ValidatePermissions checks, de-duplicates and sorts a permission list.

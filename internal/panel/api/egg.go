@@ -35,6 +35,11 @@ type ptdlEgg struct {
 		Description string `json:"description"`
 		Env         string `json:"env_variable"`
 		Default     any    `json:"default_value"`
+		// Pterodactyl stores these as booleans or as 0/1.
+		// A missing field means true, so hand-written eggs stay usable.
+		UserViewable *flexBool `json:"user_viewable"`
+		UserEditable *flexBool `json:"user_editable"`
+		Rules        string    `json:"rules"`
 	} `json:"variables"`
 }
 
@@ -50,16 +55,24 @@ func importPTDL(raw []byte) (store.Egg, error) {
 		return e, &store.UserError{Msg: "egg needs a name and a startup command"}
 	}
 	switch {
-	case firstImage(p.DockerImages) != "":
-		e.DockerImage = firstImage(p.DockerImages)
+	case len(orderedImages(p.DockerImages)) > 0:
+		e.DockerImages = orderedImages(p.DockerImages)
 	case len(p.Images) > 0:
-		e.DockerImage = p.Images[0]
-	default:
-		e.DockerImage = p.DockerImage
+		for _, img := range p.Images {
+			e.DockerImages = append(e.DockerImages, store.EggImage{Label: img, Image: img})
+		}
+	case p.DockerImage != "":
+		e.DockerImages = []store.EggImage{{Label: p.DockerImage, Image: p.DockerImage}}
 	}
-	if e.DockerImage == "" {
+	if len(e.DockerImages) == 0 {
 		return e, &store.UserError{Msg: "egg has no docker image"}
 	}
+	for _, img := range e.DockerImages {
+		if !validImage(img.Image) {
+			return e, &store.UserError{Msg: "egg has an invalid docker image name: " + truncate(img.Image, 80)}
+		}
+	}
+	e.DockerImage = e.DockerImages[0].Image
 	if e.Stop == "" {
 		e.Stop = "^C"
 	}
@@ -98,7 +111,10 @@ func importPTDL(raw []byte) (store.Egg, error) {
 				def = "false"
 			}
 		}
-		e.Variables = append(e.Variables, store.EggVar{Env: v.Env, Name: v.Name, Default: def, Description: v.Description})
+		e.Variables = append(e.Variables, store.EggVar{
+			Env: v.Env, Name: v.Name, Default: def, Description: v.Description,
+			UserViewable: v.UserViewable.or(true), UserEditable: v.UserEditable.or(true), Rules: strings.TrimSpace(v.Rules),
+		})
 	}
 	return e, nil
 }
@@ -133,23 +149,66 @@ func buildEnv(egg store.Egg, overrides map[string]string, memMB int64, port int)
 	return env
 }
 
-// firstImage returns the first value of a {"label": "image"} object in file
-// order. Pterodactyl treats the first listed image as the default, and for
-// Java eggs the first entry is the newest runtime, so sorting would be wrong.
-func firstImage(raw json.RawMessage) string {
+// orderedImages reads a {"label": "image"} object in file order. Pterodactyl
+// treats the first listed image as the default, and for Java eggs the first
+// entry is the newest runtime, so sorting would be wrong.
+func orderedImages(raw json.RawMessage) []store.EggImage {
 	if len(raw) == 0 {
-		return ""
+		return nil
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
-		return ""
+		return nil
 	}
-	if _, err := dec.Token(); err != nil { // key
-		return ""
+	var out []store.EggImage
+	for dec.More() {
+		k, err := dec.Token()
+		if err != nil {
+			return out
+		}
+		label, _ := k.(string)
+		var v string
+		if dec.Decode(&v) != nil {
+			return out
+		}
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		if strings.TrimSpace(label) == "" {
+			label = v
+		}
+		out = append(out, store.EggImage{Label: label, Image: strings.TrimSpace(v)})
 	}
-	var v string
-	if dec.Decode(&v) != nil {
-		return ""
+	return out
+}
+
+// imageRe accepts Docker image references: registry/name[:tag][@digest].
+var imageRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/:@-]*$`)
+
+// validImage reports whether s is a plausible image reference. It goes to
+// the engine as a single argument, never through a shell; this keeps out
+// whitespace, control characters and option-looking values.
+func validImage(s string) bool {
+	return len(s) <= 255 && imageRe.MatchString(s)
+}
+
+func (b *flexBool) or(def bool) bool {
+	if b == nil {
+		return def
 	}
-	return v
+	return bool(*b)
+}
+
+// flexBool decodes true/false, 1/0 and "1"/"0", as eggs use all of them.
+// Anything else (including a missing field) is false.
+type flexBool bool
+
+func (b *flexBool) UnmarshalJSON(raw []byte) error {
+	switch strings.Trim(string(raw), `"`) {
+	case "true", "1":
+		*b = true
+	default:
+		*b = false
+	}
+	return nil
 }

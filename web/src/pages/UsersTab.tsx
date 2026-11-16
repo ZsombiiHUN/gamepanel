@@ -75,7 +75,7 @@ export function UsersTab({ uuid }: { uuid: string }) {
     <div className="space-y-5">
       <Section
         title="People with access"
-        desc="Subusers can only do what you tick. They never see the server's environment variables, and cannot manage access or delete the server."
+        desc="Subusers can only do what you tick. They never see variables the egg hides, and cannot manage access or delete the server."
       >
         <ErrorBox error={list.error ?? remove.error ?? save.error} />
         {list.data?.length === 0 && (

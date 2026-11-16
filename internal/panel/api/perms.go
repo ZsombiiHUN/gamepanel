@@ -22,6 +22,9 @@ const (
 	PermBackupsDelete   = "backups.delete"
 	PermSchedulesManage = "schedules.manage"
 	PermReinstall       = "settings.reinstall"
+	PermStartupRead     = "startup.read"
+	PermStartupUpdate   = "startup.update"
+	PermStartupImage    = "startup.docker-image"
 )
 
 // access resolves what the caller may do on a server. Owners and admins hold

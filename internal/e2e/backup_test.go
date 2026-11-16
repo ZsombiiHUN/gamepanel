@@ -31,6 +31,7 @@ type stack struct {
 	dataDir string // the daemon's data dir on disk
 	hub     *hub.Hub
 	node    int64
+	fake    *runtime.Fake
 }
 
 // newStack boots panel + daemon (fake runtime) and creates one server.
@@ -57,7 +58,8 @@ func newStack(t *testing.T) *stack {
 	}
 	json.Unmarshal(admin.do("POST", "/api/nodes", map[string]any{"name": "n1", "port_start": 25565, "port_end": 25570}, 201), &node)
 	dataDir := t.TempDir()
-	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir, StatsInterval: 150 * time.Millisecond, DiskCacheTTL: 100 * time.Millisecond, SFTPRecheck: 100 * time.Millisecond}, runtime.NewFake(), log)
+	fake := runtime.NewFake()
+	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir, StatsInterval: 150 * time.Millisecond, DiskCacheTTL: 100 * time.Millisecond, SFTPRecheck: 100 * time.Millisecond}, fake, log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +73,7 @@ func newStack(t *testing.T) *stack {
 	json.Unmarshal(admin.do("POST", "/api/eggs/import", egg, 201), &e)
 	var s struct{ UUID string }
 	json.Unmarshal(admin.do("POST", "/api/servers", map[string]any{"name": "s", "node_id": node.Node.ID, "egg_id": e.ID, "memory_mb": 256}, 201), &s)
-	return &stack{t, ctx, st, admin, s.UUID, sftpAddr, dataDir, h, node.Node.ID}
+	return &stack{t, ctx, st, admin, s.UUID, sftpAddr, dataDir, h, node.Node.ID, fake}
 }
 
 func (s *stack) write(path, content string) {

@@ -309,16 +309,31 @@ type EggVar struct {
 	Name        string `json:"name"`
 	Default     string `json:"default"`
 	Description string `json:"description"`
+	// UserViewable and UserEditable decide whether server owners and
+	// subusers see and change the value; admins always do both.
+	UserViewable bool `json:"user_viewable"`
+	UserEditable bool `json:"user_editable"`
+	// Rules are Pterodactyl's validation rules, e.g. "required|string|max:20"
+	// (see ValidateVar for the supported set).
+	Rules string `json:"rules"`
+}
+
+// EggImage is one Docker image an egg offers, such as "Java 21".
+type EggImage struct {
+	Label string `json:"label"`
+	Image string `json:"image"`
 }
 
 type Egg struct {
-	ID          int64    `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	DockerImage string   `json:"docker_image"`
-	Startup     string   `json:"startup"`
-	Stop        string   `json:"stop"`
-	Variables   []EggVar `json:"variables"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	DockerImage string `json:"docker_image" doc:"the default image (the first of docker_images)"`
+	// DockerImages lists every image the egg offers, default first.
+	DockerImages []EggImage `json:"docker_images" nullable:"false"`
+	Startup      string     `json:"startup"`
+	Stop         string     `json:"stop"`
+	Variables    []EggVar   `json:"variables"`
 	// Optional install step: Script runs once in a throwaway InstallImage
 	// container with the server's data dir mounted at /mnt/server.
 	InstallImage      string `json:"install_image"`
@@ -327,9 +342,19 @@ type Egg struct {
 }
 
 func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
+	if len(e.DockerImages) == 0 && e.DockerImage != "" {
+		e.DockerImages = []EggImage{{Label: e.DockerImage, Image: e.DockerImage}}
+	}
+	if e.DockerImage == "" && len(e.DockerImages) > 0 {
+		e.DockerImage = e.DockerImages[0].Image
+	}
+	if e.Variables == nil {
+		e.Variables = []EggVar{}
+	}
 	vars, _ := json.Marshal(e.Variables)
-	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,startup,stop,variables,install_image,install_entrypoint,install_script,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
-		e.Name, e.Description, e.DockerImage, e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, now())
+	imgs, _ := json.Marshal(e.DockerImages)
+	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, now())
 	if err != nil {
 		return Egg{}, err
 	}
@@ -339,18 +364,22 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 
 func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
 	var e Egg
-	var vars string
-	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript); err != nil {
+	var vars, imgs string
+	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript); err != nil {
 		return e, nf(err)
 	}
 	json.Unmarshal([]byte(vars), &e.Variables)
 	if e.Variables == nil {
 		e.Variables = []EggVar{}
 	}
+	json.Unmarshal([]byte(imgs), &e.DockerImages)
+	if len(e.DockerImages) == 0 {
+		e.DockerImages = []EggImage{{Label: e.DockerImage, Image: e.DockerImage}}
+	}
 	return e, nil
 }
 
-const eggCols = `id,name,description,docker_image,startup,stop,variables,install_image,install_entrypoint,install_script`
+const eggCols = `id,name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script`
 
 func (s *Store) GetEgg(ctx context.Context, id int64) (Egg, error) {
 	return scanEgg(s.DB.QueryRowContext(ctx, `SELECT `+eggCols+` FROM eggs WHERE id=?`, id))
@@ -383,15 +412,18 @@ type Server struct {
 	EggID   int64             `json:"egg_id"`
 	Port    int               `json:"port"`
 	Env     map[string]string `json:"env"`
+	// Image and Startup override the egg's; "" means use the egg's.
+	Image   string `json:"image"`
+	Startup string `json:"startup"`
 	Limits
 }
 
-const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit`
+const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var v Server
 	var env string
-	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit); err != nil {
+	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup); err != nil {
 		return v, nf(err)
 	}
 	json.Unmarshal([]byte(env), &v.Env)
@@ -472,9 +504,9 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 		v.Env = map[string]string{}
 	}
 	env, _ := json.Marshal(v.Env)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),
-		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, now()); err != nil {
+		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, now()); err != nil {
 		return v, err
 	}
 	return v, tx.Commit()
