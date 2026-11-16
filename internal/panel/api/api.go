@@ -165,6 +165,7 @@ func (a *App) register(api huma.API) {
 	a.registerNetwork(api)
 	a.registerDatabases(api)
 	a.registerServerDetails(api)
+	a.registerActivity(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running

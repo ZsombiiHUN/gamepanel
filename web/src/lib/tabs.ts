@@ -1,4 +1,4 @@
-export const TABS = ["console", "files", "backups", "schedules", "startup", "network", "databases", "users", "settings"] as const;
+export const TABS = ["console", "files", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"] as const;
 export type Tab = (typeof TABS)[number];
 
 /**
@@ -13,6 +13,7 @@ export const TAB_INFO: { id: Tab; label: string; need?: string; keywords?: strin
   { id: "startup", label: "Startup", need: "startup.read", keywords: "variables docker image java version command" },
   { id: "network", label: "Network", need: "network.read", keywords: "ports allocations" },
   { id: "databases", label: "Databases", need: "databases.read", keywords: "mysql mariadb sql" },
+  { id: "activity", label: "Activity", need: "activity.read", keywords: "log history who audit" },
   { id: "users", label: "Access", need: "owner", keywords: "subusers permissions" },
   { id: "settings", label: "Settings" },
 ];
