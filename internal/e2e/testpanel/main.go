@@ -103,7 +103,12 @@ func run(nServers int, dir, addr, readyFile string) error {
 	}
 
 	h := hub.New(log)
-	handler := api.New(api.Deps{Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx})
+	// Passkeys need a domain: browser tests that use them open the panel on localhost.
+	public := ""
+	if _, port, err := net.SplitHostPort(addr); err == nil && port != "0" {
+		public = "http://localhost:" + port
+	}
+	handler := api.New(api.Deps{Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx, PublicURL: public})
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err

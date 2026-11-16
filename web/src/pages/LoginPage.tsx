@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, LogIn } from "lucide-react";
+import { Fingerprint, Loader2, LogIn } from "lucide-react";
 import { api, ApiError, call } from "../api/client";
 import { authOptionsQuery, invalidates, keys } from "../api/queries";
 import { AuthLayout } from "../components/AuthLayout";
 import { ErrorBox, Field } from "../components/ui";
 import { ssoError, ssoStart } from "../lib/sso";
+import { getPasskey, passkeyError, passkeysSupported } from "../lib/webauthn";
 
 /** The password was right and the account wants its second factor: a step, not an error. */
 const needsCode = (err: unknown) => err instanceof ApiError && err.detail === "totp_required";
@@ -50,8 +51,23 @@ export function LoginPage() {
     onSuccess: () => void navigate({ to: "/" }),
   });
 
+  const passkey = useMutation({
+    mutationFn: async () => {
+      const begin = await call(api.POST("/auth/passkeys/login/begin"));
+      let credential;
+      try {
+        credential = await getPasskey(begin.options);
+      } catch (err) {
+        throw passkeyError(err);
+      }
+      return call(api.POST("/auth/passkeys/login/finish", { body: { ticket: begin.ticket, credential: credential as unknown as Record<string, unknown> } }));
+    },
+    meta: invalidates(keys.me),
+    onSuccess: () => void navigate({ to: "/" }),
+  });
   const opts = options.data;
   const providers = opts?.sso ?? [];
+  const offerPasskey = !!opts?.passkeys && passkeysSupported();
 
   if (ssoTotp) {
     return (
@@ -82,7 +98,7 @@ export function LoginPage() {
     <AuthLayout title={totpStep ? "Two-step check" : "Welcome back"} sub={totpStep ? "Your password is right. One more code to go." : "Sign in to manage your game servers."}>
       <form onSubmit={submit} className="space-y-6" aria-labelledby="auth-title">
         {ssoMsg && <p role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">{ssoMsg}</p>}
-        <ErrorBox error={shown} />
+        <ErrorBox error={shown ?? passkey.error} />
         <div className="space-y-4">
           <Field label="Email">
             {(id) => <input id={id} className="input" type="email" autoComplete="username" required autoFocus={!totpStep} readOnly={totpStep} value={email} onChange={(e) => setEmail(e.target.value)} />}
@@ -104,9 +120,14 @@ export function LoginPage() {
             Use a different account
           </button>
         )}
-        {!totpStep && providers.length > 0 && (
+        {!totpStep && (providers.length > 0 || offerPasskey) && (
           <>
             <div className="flex items-center gap-3 text-xs text-zinc-500" aria-hidden><span className="h-px flex-1 bg-zinc-800" />or<span className="h-px flex-1 bg-zinc-800" /></div>
+            {offerPasskey && (
+              <button type="button" className="btn w-full" disabled={passkey.isPending} onClick={() => passkey.mutate()}>
+                {passkey.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Fingerprint className="h-4 w-4" aria-hidden />} Sign in with a passkey
+              </button>
+            )}
             <SSOButtons providers={providers} />
           </>
         )}
