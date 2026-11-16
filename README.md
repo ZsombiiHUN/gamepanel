@@ -24,7 +24,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 
 - **One binary, one SQLite file.** No PHP, no Redis, no queue workers. Back up one database and one key file.
 - **Eggs import unchanged.** Pterodactyl PTDL v1 and v2 eggs, including install scripts, work as they are.
-- **The daemon dials out.** Each node opens one websocket to the panel, so a node needs no inbound control port.
+- **The daemon dials out.** Each node opens one websocket to the panel, so a node needs no inbound control port. Uploads and downloads stream through the panel on a separate connection the node also opens itself.
 - **Safe where it matters.** File access goes through `os.Root` and is tested against hostile symlinks (the class of bug behind the Wings CVEs). Egg variables never reach a shell. Containers drop all capabilities.
 - **Fast to use.** Press `Ctrl K` to jump to any server or page. Filters and folders live in the URL, so you can link to them and Back works.
 - **Tested against a real browser.** Go tests, component tests and a Playwright suite (with accessibility scans at three screen sizes) run on every change.
@@ -34,8 +34,9 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | | |
 |---|---|
 | **Servers** | Power controls, live console with command input, CPU, memory and disk charts, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, backups) |
-| **Files** | Browse, edit in the browser, delete, search every subfolder, and SFTP for uploads |
-| **Backups** | Create, lock, delete and restore |
+| **Files** | Browse, edit, search every subfolder; upload files and whole folders by drag and drop, download, rename, move, copy, change permissions, compress and extract (zip, tar.gz, tar.bz2), pull from a URL, act on many files at once; SFTP |
+| **Startup** | Change the egg's variables (checked against its rules), pick another of its Docker images, and, as an admin, set a custom image or startup command. Changes to a running server apply at its next start |
+| **Backups** | Create, lock, delete, restore and download |
 | **Schedules** | Cron-style tasks per server |
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
 | **Accounts** | Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
@@ -98,6 +99,7 @@ All settings are environment variables.
 | `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | Where to reach the panel |
 | `GAMEPANEL_DATA_DIR` | `./daemon-data` | Server files |
 | `GAMEPANEL_RUNTIME` | `docker` | `fake` for development |
+| `GAMEPANEL_PULL_ALLOW_PRIVATE` | unset | Set to `1` to let "download from a URL" fetch from private and local addresses. Off by default, so server owners cannot make the node reach its own network |
 | `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | SFTP listener; `off` disables it. Sign in as `<email>.<first 8 characters of the server uuid>` with an **API key** (Account page) as the password. The host key is created in the data dir on first start |
 
 For production, run the panel behind a TLS reverse proxy and point the daemon at it with `wss://`.
@@ -124,7 +126,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** backup download and S3 storage, network bandwidth limits, passkeys and SSO, a Pterodactyl API compatibility layer, Postgres, multi-port allocations, Windows servers, a mod manager, billing, metrics history, a light theme.
+**Not built yet:** S3 backup storage, network bandwidth limits, passkeys and SSO, a Pterodactyl API compatibility layer, Postgres, multi-port allocations, Windows servers, a mod manager, billing, metrics history, a light theme.
 
 ## Development
 

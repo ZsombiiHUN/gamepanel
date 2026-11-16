@@ -24,6 +24,8 @@ func main() {
 		PanelURL: env("GAMEPANEL_PANEL_URL", "ws://127.0.0.1:8080/daemon/connect"),
 		Token:    os.Getenv("GAMEPANEL_NODE_TOKEN"),
 		DataDir:  env("GAMEPANEL_DATA_DIR", "./daemon-data"),
+		// Off by default: "pull from URL" must not reach the node's own network.
+		PullAllowPrivate: os.Getenv("GAMEPANEL_PULL_ALLOW_PRIVATE") == "1",
 	}
 	if cfg.Token == "" {
 		log.Error("GAMEPANEL_NODE_TOKEN is required (create a node in the panel to get one)")

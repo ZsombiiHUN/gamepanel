@@ -14,7 +14,7 @@ vi.mock("@uiw/react-codemirror", () => ({
 vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: null, stats: null }) }));
 
 const UUID = "11111111-2222-4333-8444-555555555555";
-const minecraft = { ...server({ name: "Survival" }), uuid: UUID };
+const minecraft = { ...server({ name: "Survival" }), uuid: UUID, permissions: ["files.read", "files.write", "console.read"] };
 type Entry = { name: string; dir: boolean; size: number; mod_unix: number };
 const f = (name: string): Entry => ({ name, dir: false, size: 12, mod_unix: 1_700_000_000 });
 const d = (name: string): Entry => ({ name, dir: true, size: 0, mod_unix: 1_700_000_000 });
@@ -66,7 +66,7 @@ describe("Files tab: browsing", () => {
   it("says when a folder is empty", async () => {
     await open({ ...mc, "/logs": [] });
     await userEvent.click(screen.getByRole("button", { name: "logs" }));
-    expect(await screen.findByText("Empty directory.")).toBeInTheDocument();
+    expect(await screen.findByText(/^Empty directory\./)).toBeInTheDocument();
   });
 });
 
@@ -147,19 +147,73 @@ describe("Files tab: search", () => {
     // A real server stops listing what was deleted; the page refetches after the delete.
     const tree = structuredClone(mc) as Record<string, Entry[]>;
     const { api } = await open(tree, {
-      [`DELETE /api/servers/${UUID}/files`]: (c: { query: URLSearchParams }) => {
-        const path = c.query.get("path")!;
-        const at = path.lastIndexOf("/");
-        const dir = path.slice(0, at) || "/";
-        tree[dir] = tree[dir]!.filter((e) => e.name !== path.slice(at + 1));
+      [`POST /api/servers/${UUID}/files/delete`]: (c: { body: unknown }) => {
+        for (const path of (c.body as { paths: string[] }).paths) {
+          const at = path.lastIndexOf("/");
+          const dir = path.slice(0, at) || "/";
+          tree[dir] = tree[dir]!.filter((e) => e.name !== path.slice(at + 1));
+        }
       },
     });
     await userEvent.type(searchBox(), "config.yml");
     await screen.findByText(/2 matches/);
-    await userEvent.click(screen.getByRole("button", { name: "Delete plugins/WorldEdit/config.yml" }));
-    await userEvent.click(within(screen.getByLabelText(/^Delete config.yml/, { selector: "dialog" })).getByRole("button", { name: "Delete", hidden: true }));
-    await waitFor(() => expect(api.callsTo(`DELETE /api/servers/${UUID}/files`)).toHaveLength(1));
-    expect(api.callsTo(`DELETE /api/servers/${UUID}/files`)[0]!.query.get("path")).toBe("/plugins/WorldEdit/config.yml");
+    await userEvent.click(screen.getByRole("button", { name: "Actions for plugins/WorldEdit/config.yml" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: /^Delete/, hidden: true })).getByRole("button", { name: "Delete", hidden: true }));
+    await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/files/delete`)).toHaveLength(1));
+    expect(api.callsTo(`POST /api/servers/${UUID}/files/delete`)[0]!.body).toEqual({ paths: ["/plugins/WorldEdit/config.yml"] });
     await waitFor(() => expect(screen.getByText(/1 match\b/)).toBeInTheDocument());
+  });
+});
+
+describe("Files tab: managing files", () => {
+  const dialog = (name: RegExp) => within(screen.getByRole("dialog", { name, hidden: true }));
+  it("renames from the row menu", async () => {
+    const { api } = await open(mc, { [`POST /api/servers/${UUID}/files/move`]: undefined });
+    await userEvent.click(screen.getByRole("button", { name: "Actions for ops.json" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const name = dialog(/^Rename/).getByRole("textbox", { name: "New name", hidden: true });
+    await userEvent.clear(name);
+    await userEvent.type(name, "admins.json");
+    await userEvent.click(dialog(/^Rename/).getByRole("button", { name: "Rename", hidden: true }));
+    await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/files/move`)[0]?.body).toEqual({ moves: [{ from: "/ops.json", to: "/admins.json" }] }));
+  });
+  it("acts on several selected items at once", async () => {
+    const { api } = await open(mc, { [`POST /api/servers/${UUID}/files/compress`]: { path: "/archive.zip" } });
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select config" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select ops.json" }));
+    const bar = screen.getByRole("toolbar", { name: "Selected items" });
+    expect(within(bar).getByText("2 selected")).toBeInTheDocument();
+    await userEvent.click(within(bar).getByRole("button", { name: "Compress" }));
+    await userEvent.click(dialog(/^Compress/).getByRole("button", { name: "Create archive", hidden: true }));
+    await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/files/compress`)[0]?.body).toEqual({ root: "/", paths: ["/config", "/ops.json"], format: "zip" }));
+  });
+  it("selects everything in the folder", async () => {
+    await open();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select all" }));
+    expect(screen.getByText("5 selected")).toBeInTheDocument();
+  });
+  it("offers extraction for archives and downloads for files", async () => {
+    await open({ ...mc, "/": [...mc["/"]!, f("world.zip")] });
+    expect(screen.getByRole("link", { name: "Download world.zip" })).toHaveAttribute("href", `/api/servers/${UUID}/files/download?path=%2Fworld.zip`);
+    await userEvent.click(screen.getByRole("button", { name: "Actions for world.zip" }));
+    expect(screen.getByRole("menuitem", { name: "Extract here" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Compress" })).toBeNull();
+  });
+  it("shows no write actions to someone who may only read", async () => {
+    const readOnly = { ...minecraft, permissions: ["files.read"] };
+    const api = fileApi(mc, { "GET /api/servers": [readOnly], [`GET /api/servers/${UUID}`]: readOnly });
+    renderApp(api, `/servers/${UUID}?tab=files`);
+    await screen.findByText("server.properties");
+    expect(screen.queryByRole("button", { name: "Upload files" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Actions for ops.json" }));
+    expect(within(screen.getByRole("menu", { name: "Actions for ops.json" })).getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual(["Download"]);
+  });
+  it("creates a folder", async () => {
+    const { api } = await open(mc, { [`POST /api/servers/${UUID}/files/folder`]: undefined });
+    await userEvent.click(screen.getByRole("button", { name: "New folder" }));
+    await userEvent.type(dialog(/^New folder/).getByRole("textbox", { name: "Name", hidden: true }), "worlds");
+    await userEvent.click(dialog(/^New folder/).getByRole("button", { name: "Create folder", hidden: true }));
+    await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/files/folder`)[0]?.body).toEqual({ path: "/worlds" }));
   });
 });

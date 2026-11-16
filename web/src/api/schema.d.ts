@@ -455,6 +455,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/files/chmod": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change permissions */
+        post: operations["chmodFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/compress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make an archive of files and folders */
+        post: operations["compressFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/files/content": {
         parameters: {
             query?: never;
@@ -467,6 +501,111 @@ export interface paths {
         /** Write a text file */
         put: operations["writeFile"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate a file or folder */
+        post: operations["copyFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/decompress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extract an archive */
+        post: operations["decompressFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete several files and folders */
+        post: operations["deleteFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a folder (and any missing parents) */
+        post: operations["createFolder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rename or move files and folders */
+        post: operations["moveFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/files/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Download a file from the internet into the server
+         * @description The node fetches the URL itself. Private and local addresses are refused unless the node allows them.
+         */
+        post: operations["pullFile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -780,20 +919,64 @@ export interface components {
              */
             type: string;
         };
+        FileChmodInBody: {
+            /** @description octal permission bits, e.g. 644 */
+            mode: string;
+            paths: string[] | null;
+        };
+        FileCompressInBody: {
+            /**
+             * @default tar.gz
+             * @enum {string}
+             */
+            format: "tar.gz" | "zip";
+            paths: string[] | null;
+            /** @description the folder the archive is made in; paths must be inside it */
+            root: string;
+        };
         FileContentOutBody: {
             content: string;
             path: string;
+        };
+        FileCopyInBody: {
+            /** @description copied next to itself as "<name> copy" */
+            path: string;
+        };
+        FileDecompressInBody: {
+            /** @description .zip, .tar, .tar.gz, .tgz, .tar.bz2 or .gz */
+            path: string;
+            /** @description where to extract; defaults to the archive's folder */
+            root?: string;
+        };
+        FileDeleteInBody: {
+            paths: string[] | null;
         };
         FileInfo: {
             dir: boolean;
             /** Format: int64 */
             mod_unix: number;
+            /** Format: int32 */
+            mode: number;
             name: string;
             /** Format: int64 */
             size: number;
+            symlink?: boolean;
+        };
+        FileMoveInBody: {
+            /** @description rename or move; parent folders are created */
+            moves: components["schemas"]["Move"][] | null;
+        };
+        FilePullInBody: {
+            /** @description a folder ending in / (the file keeps its name) or a full file path */
+            path: string;
+            /** Format: uri */
+            url: string;
         };
         FileWriteInBody: {
             content: string;
+            path: string;
+        };
+        FolderInBody: {
             path: string;
         };
         KeyCreateInBody: {
@@ -857,6 +1040,10 @@ export interface components {
             email: string;
             password: string;
             totp_code?: string;
+        };
+        Move: {
+            from: string;
+            to: string;
         };
         Node: {
             /** Format: int64 */
@@ -938,6 +1125,10 @@ export interface components {
         PasswordInBody: {
             current_password: string;
             new_password: string;
+        };
+        PathOutBody: {
+            /** @description what was created */
+            path: string;
         };
         Permission: {
             description: string;
@@ -1200,6 +1391,11 @@ export interface components {
             secret: string;
             /** @description otpauth:// URI, render as a QR code */
             uri: string;
+        };
+        TransferResult: {
+            path: string;
+            /** Format: int64 */
+            size: number;
         };
         User: {
             email: string;
@@ -2223,6 +2419,74 @@ export interface operations {
             };
         };
     };
+    chmodFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileChmodInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    compressFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileCompressInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     readFile: {
         parameters: {
             query?: {
@@ -2277,6 +2541,208 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    copyFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileCopyInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PathOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    decompressFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDecompressInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDeleteInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createFolder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    moveFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileMoveInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    pullFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FilePullInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferResult"];
+                };
             };
             /** @description Error */
             default: {

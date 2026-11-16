@@ -20,6 +20,7 @@ const (
 	PermBackupsCreate   = "backups.create"
 	PermBackupsRestore  = "backups.restore"
 	PermBackupsDelete   = "backups.delete"
+	PermBackupsDownload = "backups.download"
 	PermSchedulesManage = "schedules.manage"
 	PermReinstall       = "settings.reinstall"
 	PermStartupRead     = "startup.read"

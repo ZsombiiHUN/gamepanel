@@ -160,6 +160,62 @@ export function ConfirmDialog({
   );
 }
 
+/**
+ * A modal form: title, fields, then Cancel and a submit button. Enter submits;
+ * Esc and Cancel close. The dialog element gives focus trapping for free.
+ */
+export function FormDialog({
+  open, title, children, submitLabel, pending, error, disabled, danger, onSubmit, onClose,
+}: {
+  open: boolean;
+  title: string;
+  children: ReactNode;
+  submitLabel: string;
+  pending?: boolean;
+  error?: unknown;
+  disabled?: boolean;
+  danger?: boolean;
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      aria-labelledby={titleId}
+      className="m-auto w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/70"
+    >
+      {open && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!disabled && !pending) onSubmit();
+          }}
+        >
+          <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
+          <div className="mt-3 space-y-3 text-sm text-zinc-300">{children}</div>
+          {error ? <div className="mt-3"><ErrorBox error={error} /></div> : null}
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            <button type="submit" className={`btn ${danger ? "btn-danger" : "btn-primary"}`} disabled={pending || disabled}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+              {submitLabel}
+            </button>
+          </div>
+        </form>
+      )}
+    </dialog>
+  );
+}
+
 /** Labelled thin bar. Turns amber when `pct` is at or above `warnAt`. */
 export function Meter({ label, text, pct, warnAt = 85 }: { label: string; text: string; pct: number | null; warnAt?: number }) {
   const warn = pct !== null && pct >= warnAt;

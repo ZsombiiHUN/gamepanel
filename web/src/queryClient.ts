@@ -8,6 +8,11 @@ export function createQueryClient() {
       onSuccess: async (_data, _vars, _ctx, mutation) => {
         await Promise.all((mutation.meta?.invalidates ?? []).map((queryKey) => client.invalidateQueries({ queryKey })));
       },
+      // Some requests change things even when they fail part-way (deleting ten files, the sixth refused).
+      onError: async (_err, _vars, _ctx, mutation) => {
+        if (!mutation.meta?.evenOnError) return;
+        await Promise.all((mutation.meta.invalidates ?? []).map((queryKey) => client.invalidateQueries({ queryKey })));
+      },
     }),
     defaultOptions: {
       queries: {

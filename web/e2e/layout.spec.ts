@@ -3,7 +3,7 @@ import { expect, isDrawer, openMenuIfDrawer, test } from "./support";
 // These run at 1440x900, 1366x768 and 390x844. Layout bugs only show up in a real browser.
 
 const pages = ["/", "/servers/new", "/nodes", "/eggs", "/audit", "/account"];
-const tabs = ["console", "files", "backups", "schedules", "users", "settings"];
+const tabs = ["console", "files", "backups", "schedules", "startup", "users", "settings"];
 
 test.describe("sidebar", () => {
   test("keeps the admin links and account in view however many servers there are", async ({ page, panel }) => {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -45,6 +46,9 @@ type Config struct {
 	// SFTPRecheck is how often an open SFTP session's access is re-checked
 	// with the panel (default 30 s).
 	SFTPRecheck time.Duration
+	// PullAllowPrivate lets "pull from URL" fetch from private and loopback
+	// addresses (off by default: see pull).
+	PullAllowPrivate bool
 }
 
 type managed struct {
@@ -143,6 +147,8 @@ type Daemon struct {
 
 	wmu  sync.Mutex
 	conn *websocket.Conn
+
+	relayClient *http.Client // transfers to and from the panel's relay
 }
 
 func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
@@ -151,7 +157,9 @@ func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
 			return nil, err
 		}
 	}
-	d := &Daemon{cfg: cfg, rt: rt, log: log, servers: map[string]*managed{}}
+	d := &Daemon{cfg: cfg, rt: rt, log: log, servers: map[string]*managed{},
+		// No overall timeout: a large download runs as long as bytes flow.
+		relayClient: &http.Client{Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute}}}
 	d.loadState()
 	return d, nil
 }
@@ -488,6 +496,15 @@ func (d *Daemon) dispatch(ctx context.Context, env proto.Envelope) (json.RawMess
 			return nil, err
 		}
 		return d.files(env.Type, f)
+	case proto.ReqFilesOp:
+		var op proto.FileOp
+		if err := json.Unmarshal(env.Data, &op); err != nil {
+			return nil, err
+		}
+		res, err := d.fileOp(op)
+		return proto.Marshal(res), err
+	case proto.ReqFilesUpload, proto.ReqFilesDownload, proto.ReqFilesPull, proto.ReqBackupDownload:
+		return d.transfer(ctx, env.Type, env.Data)
 	}
 	return nil, fmt.Errorf("unknown request %q", env.Type)
 }
