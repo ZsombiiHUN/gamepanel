@@ -73,7 +73,8 @@ const (
 	ReqServerDelete = "server.delete"
 	// ReqServerReinstall re-runs the egg install script for an offline server.
 	ReqServerReinstall = "server.reinstall"
-	// ReqServerUpdate applies new limits/spec to an offline server without reinstalling.
+	// ReqServerUpdate applies a new spec without reinstalling: at once when the
+	// server is offline, otherwise at its next start (see UpdateResult).
 	ReqServerUpdate  = "server.update"
 	ReqBackupCreate  = "backup.create"
 	ReqBackupRestore = "backup.restore"
@@ -180,11 +181,19 @@ type Stats struct {
 	UUID      string  `json:"uuid"`
 	CPUPct    float64 `json:"cpu_pct"`
 	MemBytes  uint64  `json:"mem_bytes"`
+	// Pending: settings changed while the server ran; they apply at its next start.
+	Pending bool `json:"pending,omitempty"`
 }
 
 func Marshal(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+// UpdateResult is the reply to server.update.
+type UpdateResult struct {
+	// Pending: the server was running, so the change applies when it next starts.
+	Pending bool `json:"pending"`
 }
 
 // BackupReq addresses one backup archive on a node.

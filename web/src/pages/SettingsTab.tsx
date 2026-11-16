@@ -42,9 +42,6 @@ export function SettingsTab({ server }: { server: ServerView }) {
     mutationFn: () => call(api.PUT("/servers/{uuid}/limits", { params: { path: { uuid: server.uuid } }, body: formToLimits(limits) })),
     meta: invalidates(keys.server(server.uuid)),
   });
-  const stopped = server.state === "offline" || server.state === "install_failed";
-
-  const envEntries = Object.entries(server.env ?? {});
   const sftpUser = `${me.data?.email ?? ""}.${server.uuid.slice(0, 8)}`;
 
   return (
@@ -65,13 +62,13 @@ export function SettingsTab({ server }: { server: ServerView }) {
         <form onSubmit={(e) => { e.preventDefault(); saveLimits.mutate(); }}>
           <Section
             title="Resource limits"
-            desc="What this server may use on its node. Changes apply the next time it starts."
+            desc="What this server may use on its node. A running server picks up changes the next time it starts."
             footer={
               <>
-                <span className={!stopped ? "text-amber-300" : saveLimits.isSuccess ? "text-emerald-400" : ""} role={saveLimits.isSuccess ? "status" : undefined}>
-                  {!stopped ? "Stop the server to change its limits." : saveLimits.isSuccess ? "Limits saved." : "0 usually means unlimited."}
+                <span className={saveLimits.isSuccess ? "text-emerald-400" : ""} role={saveLimits.isSuccess ? "status" : undefined}>
+                  {saveLimits.isSuccess ? "Limits saved." : "0 usually means unlimited."}
                 </span>
-                <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending || !stopped}>Save limits</button>
+                <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending}>Save limits</button>
               </>
             }
           >
@@ -109,16 +106,6 @@ export function SettingsTab({ server }: { server: ServerView }) {
               { label: "Password", value: "An API key", plain: true },
             ]}
           />
-        </Section>
-      )}
-
-      {server.owner && (
-        <Section title="Environment" desc="Variables the egg passes to the server process.">
-          {envEntries.length === 0 ? (
-            <p className="text-sm text-zinc-500">No environment variables.</p>
-          ) : (
-            <InfoList rows={envEntries.map(([k, v]) => ({ label: k, value: v }))} />
-          )}
         </Section>
       )}
 

@@ -577,6 +577,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/startup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Startup command, Docker image and variables */
+        get: operations["getStartup"];
+        /**
+         * Change variables, the Docker image or the startup command
+         * @description Applies at once to a stopped server, otherwise at its next start (`pending` in the reply).
+         */
+        put: operations["updateStartup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/users": {
         parameters: {
             query?: never;
@@ -692,7 +713,9 @@ export interface components {
         };
         Egg: {
             description: string;
+            /** @description the default image (the first of docker_images) */
             docker_image: string;
+            docker_images: components["schemas"]["EggImage"][];
             /** Format: int64 */
             id: number;
             install_entrypoint: string;
@@ -703,11 +726,18 @@ export interface components {
             stop: string;
             variables: components["schemas"]["EggVar"][] | null;
         };
+        EggImage: {
+            image: string;
+            label: string;
+        };
         EggVar: {
             default: string;
             description: string;
             env: string;
             name: string;
+            rules: string;
+            user_editable: boolean;
+            user_viewable: boolean;
         };
         ErrorDetail: {
             /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
@@ -1031,6 +1061,7 @@ export interface components {
             env: {
                 [key: string]: string;
             };
+            image: string;
             /**
              * Format: int64
              * @description relative disk IO priority 10-1000, 0 = default
@@ -1057,6 +1088,7 @@ export interface components {
             pids_limit: number;
             /** Format: int64 */
             port: number;
+            startup: string;
             /** @description offline|starting|running|stopping|installing|install_failed|unknown */
             state: string;
             stats?: components["schemas"]["Stats"];
@@ -1067,6 +1099,44 @@ export interface components {
             swap_mb: number;
             uuid: string;
         };
+        StartupInBody: {
+            /** @description variables to change; others keep their values */
+            env?: {
+                [key: string]: string;
+            };
+            /** @description one of the egg's images; admins may use any, "" = the egg's default */
+            image?: string;
+            /** @description admins only; "" = the egg's command */
+            startup?: string;
+        };
+        StartupVar: {
+            admin_only: boolean;
+            default: string;
+            description: string;
+            editable: boolean;
+            env: string;
+            name: string;
+            rules: string;
+            rules_summary: string;
+            value: string;
+        };
+        StartupView: {
+            builtins: {
+                [key: string]: string;
+            };
+            can_change_image: boolean;
+            can_edit_command: boolean;
+            can_edit_variables: boolean;
+            command: string;
+            custom_command: boolean;
+            /** @description an admin set an image the egg does not list */
+            custom_image: boolean;
+            egg_command: string;
+            image: string;
+            images: components["schemas"]["EggImage"][];
+            pending: boolean;
+            variables: components["schemas"]["StartupVar"][];
+        };
         Stats: {
             /** Format: double */
             cpu_pct: number;
@@ -1074,6 +1144,7 @@ export interface components {
             disk_bytes: number;
             /** Format: int64 */
             mem_bytes: number;
+            pending?: boolean;
             uuid: string;
         };
         Subuser: {
@@ -2463,6 +2534,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getStartup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartupView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updateStartup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartupInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartupView"];
+                };
             };
             /** @description Error */
             default: {

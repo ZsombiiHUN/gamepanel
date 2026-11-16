@@ -61,6 +61,10 @@ type managed struct {
 
 	disk         diskCache
 	diskStopping bool // a disk-limit stop is already in progress
+
+	// stale: spec changed while the server was running; the container is
+	// rebuilt from it at the next start (persisted as <uuid>.stale).
+	stale bool
 }
 
 // Operations that claim a server (begin).
@@ -161,6 +165,10 @@ func (d *Daemon) installedPath(uuid string) string {
 	return filepath.Join(d.cfg.DataDir, "state", uuid+".installed")
 }
 
+func (d *Daemon) stalePath(uuid string) string {
+	return filepath.Join(d.cfg.DataDir, "state", uuid+".stale")
+}
+
 // loadState restores specs persisted by earlier runs so a daemon restart does
 // not forget its servers.
 func (d *Daemon) loadState() {
@@ -173,6 +181,9 @@ func (d *Daemon) loadState() {
 		var s proto.ServerSpec
 		if json.Unmarshal(b, &s) == nil && uuidRe.MatchString(s.UUID) {
 			m := &managed{spec: s}
+			if _, err := os.Stat(d.stalePath(s.UUID)); err == nil {
+				m.stale = true
+			}
 			// An install that was interrupted (daemon killed mid-run) never
 			// finished, so it counts as failed until reinstalled.
 			if s.Install != nil {
@@ -343,6 +354,11 @@ func (d *Daemon) statsLoop(ctx context.Context) {
 				}
 			}
 			stats.UUID, stats.DiskBytes = id, used
+			d.mu.Lock()
+			if m := d.servers[id]; m != nil {
+				stats.Pending = m.stale
+			}
+			d.mu.Unlock()
 			_ = d.send(ctx, proto.Envelope{Type: proto.EvtStats, Data: proto.Marshal(stats)})
 		}
 	}
@@ -440,7 +456,8 @@ func (d *Daemon) dispatch(ctx context.Context, env proto.Envelope) (json.RawMess
 		if err := json.Unmarshal(env.Data, &sp); err != nil {
 			return nil, err
 		}
-		return nil, d.update(ctx, sp)
+		res, err := d.update(ctx, sp)
+		return proto.Marshal(res), err
 	case proto.ReqServerReinstall:
 		var u proto.UUIDOnly
 		if err := json.Unmarshal(env.Data, &u); err != nil {
@@ -678,6 +695,10 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 		}
 	}
 	d.emitState(ctx, uuid, runtime.StateStarting)
+	if err := d.rebuildIfStale(ctx, uuid); err != nil {
+		d.emitState(ctx, uuid, runtime.StateOffline)
+		return err
+	}
 	if err := d.rt.Start(ctx, uuid); err != nil {
 		d.emitState(ctx, uuid, runtime.StateOffline)
 		return err
@@ -746,28 +767,39 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	d.mu.Unlock()
 	_ = os.Remove(d.statePath(uuid))
 	_ = os.Remove(d.installedPath(uuid))
+	_ = os.Remove(d.stalePath(uuid))
 	_ = os.RemoveAll(filepath.Join(d.cfg.DataDir, "backups", uuid))
 	return os.RemoveAll(d.serverDir(uuid))
 }
 
-// update applies new limits to an existing, stopped server: the container is
-// recreated with the new settings; files, install state and backups stay.
-func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) error {
+// update applies a new spec (limits, image, startup, variables, ports). A
+// stopped server gets a new container now; a running one keeps its container
+// until it next starts, so nothing needs to be stopped to make a change. Files,
+// install state and backups stay either way.
+func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateResult, error) {
 	old, err := d.spec(s.UUID)
 	if err != nil {
-		return err
+		return proto.UpdateResult{}, err
 	}
 	end, err := d.begin(s.UUID, opUpdate)
 	if err != nil {
-		return err
+		return proto.UpdateResult{}, err
 	}
 	defer end()
-	if st, _ := d.rt.State(ctx, s.UUID); st != runtime.StateOffline {
-		return proto.Conflict("stop the server before changing its limits")
-	}
 	b, _ := json.Marshal(s)
 	if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
-		return err
+		return proto.UpdateResult{}, err
+	}
+	if st, _ := d.rt.State(ctx, s.UUID); st != runtime.StateOffline {
+		if err := os.WriteFile(d.stalePath(s.UUID), nil, 0o600); err != nil {
+			return proto.UpdateResult{}, err
+		}
+		d.mu.Lock()
+		if m := d.servers[s.UUID]; m != nil {
+			m.spec, m.stale = s, true
+		}
+		d.mu.Unlock()
+		return proto.UpdateResult{Pending: true}, nil
 	}
 	abs, _ := filepath.Abs(d.serverDir(s.UUID))
 	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: s, DataDir: abs}); err != nil {
@@ -776,12 +808,35 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) error {
 			_ = os.WriteFile(d.statePath(s.UUID), ob, 0o600)
 		}
 		_ = d.rt.Create(ctx, runtime.Spec{ServerSpec: old, DataDir: abs})
-		return err
+		return proto.UpdateResult{}, err
 	}
+	_ = os.Remove(d.stalePath(s.UUID))
 	d.mu.Lock()
 	if m := d.servers[s.UUID]; m != nil {
-		m.spec = s
+		m.spec, m.stale = s, false
 	}
+	d.mu.Unlock()
+	return proto.UpdateResult{}, nil
+}
+
+// rebuildIfStale recreates the container of a server whose spec changed while
+// it ran. The caller holds the server (begin), and the server is stopped.
+func (d *Daemon) rebuildIfStale(ctx context.Context, uuid string) error {
+	d.mu.Lock()
+	m := d.servers[uuid]
+	if m == nil || !m.stale {
+		d.mu.Unlock()
+		return nil
+	}
+	spec := m.spec
+	d.mu.Unlock()
+	abs, _ := filepath.Abs(d.serverDir(uuid))
+	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: spec, DataDir: abs}); err != nil {
+		return fmt.Errorf("could not apply the new settings: %w", err)
+	}
+	_ = os.Remove(d.stalePath(uuid))
+	d.mu.Lock()
+	m.stale = false
 	d.mu.Unlock()
 	return nil
 }

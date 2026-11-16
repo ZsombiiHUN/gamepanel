@@ -59,6 +59,17 @@ func (f *Fake) Create(_ context.Context, s Spec) error {
 	return nil
 }
 
+// SpecOf returns the spec a server's container was last created with (tests).
+func (f *Fake) SpecOf(uuid string) (Spec, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.servers[uuid]
+	if !ok {
+		return Spec{}, false
+	}
+	return s.spec, true
+}
+
 func (f *Fake) Start(ctx context.Context, uuid string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

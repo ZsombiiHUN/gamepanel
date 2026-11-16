@@ -31,6 +31,16 @@ func env(k, def string) string {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "openapi" {
+		// Prints the API description; needs no database (make openapi).
+		b, err := api.OpenAPI()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		os.Stdout.Write(b)
+		return
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	dbPath := env("GAMEPANEL_DB", "./panel.db")
 	st, err := store.Open(dbPath)

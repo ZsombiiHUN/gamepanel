@@ -28,17 +28,19 @@ type serverView struct {
 	Owner       bool     `json:"owner"`
 }
 
-// viewFor builds the server as the caller may see it. Subusers do not get the
-// environment, which commonly holds secrets such as RCON passwords.
+// viewFor builds the server as the caller may see it. Only admins get the raw
+// environment, which can hold values the egg hides from users (such as
+// license keys); everyone else reads variables through GET .../startup,
+// which applies the egg's visibility settings.
 func (a *App) viewFor(ctx context.Context, u store.User, s store.Server) serverView {
 	perms, owner, _ := a.access(ctx, u, s)
-	return a.viewWith(s, perms, owner)
+	return a.viewWith(s, perms, owner, u.IsAdmin)
 }
 
-func (a *App) viewWith(s store.Server, perms []string, owner bool) serverView {
+func (a *App) viewWith(s store.Server, perms []string, owner, admin bool) serverView {
 	v := a.view(s)
 	v.Permissions, v.Owner = perms, owner
-	if !owner {
+	if !admin {
 		v.Env = map[string]string{}
 	}
 	return v
@@ -141,9 +143,9 @@ func (a *App) registerServers(api huma.API) {
 			out := &serverListOut{Body: []serverView{}}
 			for _, s := range ss {
 				if u.IsAdmin || s.OwnerID == u.ID {
-					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true))
+					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true, u.IsAdmin))
 				} else {
-					out.Body = append(out.Body, a.viewWith(s, shared[s.UUID], false))
+					out.Body = append(out.Body, a.viewWith(s, shared[s.UUID], false, false))
 				}
 			}
 			ptrs := make([]*serverView, len(out.Body))

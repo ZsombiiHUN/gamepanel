@@ -10,6 +10,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -97,15 +98,7 @@ func New(d Deps) http.Handler {
 		a.AuthRecheck = 10 * time.Second
 	}
 	mux := http.NewServeMux()
-	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
-	// No "$schema" link in every response body: it points at the schema files,
-	// which only signed-in users may read.
-	cfg.CreateHooks = nil
-	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		"session": {Type: "apiKey", In: "cookie", Name: secureCookieName, Description: "`__Host-gp_session` over HTTPS, `gp_session` over plain HTTP"},
-		"apikey":  {Type: "http", Scheme: "bearer"},
-	}
-	api := humago.NewWithPrefix(mux, "/api", cfg)
+	api := humago.NewWithPrefix(mux, "/api", apiConfig())
 	d.Hub.OnHello = a.onHello
 	d.Hub.Locate = func(ctx context.Context, uuid string) (int64, error) {
 		s, err := a.Store.GetServer(ctx, uuid)
@@ -121,14 +114,7 @@ func New(d Deps) http.Handler {
 		}
 		go a.RunScheduler(d.SchedulerCtx, tick)
 	}
-	a.registerAuth(api)
-	a.registerAccount(api)
-	a.registerMFA(api)
-	a.registerAdmin(api)
-	a.registerServers(api)
-	a.registerBackups(api)
-	a.registerSchedules(api)
-	a.registerSubusers(api)
+	a.register(api)
 
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
@@ -137,6 +123,39 @@ func New(d Deps) http.Handler {
 		mux.Handle("/", d.Web)
 	}
 	return a.middleware(mux)
+}
+
+func apiConfig() huma.Config {
+	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
+	// No "$schema" link in every response body: it points at the schema files,
+	// which only signed-in users may read.
+	cfg.CreateHooks = nil
+	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"session": {Type: "apiKey", In: "cookie", Name: secureCookieName, Description: "`__Host-gp_session` over HTTPS, `gp_session` over plain HTTP"},
+		"apikey":  {Type: "http", Scheme: "bearer"},
+	}
+	return cfg
+}
+
+// register adds every API operation.
+func (a *App) register(api huma.API) {
+	a.registerAuth(api)
+	a.registerAccount(api)
+	a.registerMFA(api)
+	a.registerAdmin(api)
+	a.registerServers(api)
+	a.registerBackups(api)
+	a.registerSchedules(api)
+	a.registerSubusers(api)
+	a.registerStartup(api)
+}
+
+// OpenAPI returns the API description as JSON, the same document a running
+// panel serves at /api/openapi.json (web/openapi.json is made from it).
+func OpenAPI() ([]byte, error) {
+	api := humago.NewWithPrefix(http.NewServeMux(), "/api", apiConfig())
+	(&App{}).register(api)
+	return json.Marshal(api.OpenAPI())
 }
 
 // middleware resolves the session cookie into the request context, applies
