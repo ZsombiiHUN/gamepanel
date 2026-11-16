@@ -31,14 +31,60 @@ type Backup struct {
 	Locked      bool   `json:"locked"`
 	CreatedAt   int64  `json:"created_at"`
 	CompletedAt int64  `json:"completed_at"`
+	// The last restore of this backup, which runs in the background.
+	RestoreStatus string `json:"restore_status" doc:"empty (never restored)|running|ok|failed"`
+	RestoreError  string `json:"restore_error,omitempty"`
+	RestoredAt    int64  `json:"restored_at" doc:"when the last restore finished, 0 = never or still running"`
 }
 
-const backupCols = `uuid,server_uuid,name,status,error,size,sha256,ignore,locked,created_at,completed_at`
+const backupCols = `uuid,server_uuid,name,status,error,size,sha256,ignore,locked,created_at,completed_at,restore_status,restore_error,restored_at`
 
 func scanBackup(sc interface{ Scan(...any) error }) (Backup, error) {
 	var b Backup
-	err := sc.Scan(&b.UUID, &b.ServerUUID, &b.Name, &b.Status, &b.Error, &b.Size, &b.SHA256, &b.Ignore, &b.Locked, &b.CreatedAt, &b.CompletedAt)
+	err := sc.Scan(&b.UUID, &b.ServerUUID, &b.Name, &b.Status, &b.Error, &b.Size, &b.SHA256, &b.Ignore, &b.Locked, &b.CreatedAt, &b.CompletedAt,
+		&b.RestoreStatus, &b.RestoreError, &b.RestoredAt)
 	return b, nf(err)
+}
+
+// ErrRestoreRunning: a server can only restore one backup at a time.
+var ErrRestoreRunning = errors.New("a restore is already running for this server")
+
+// BeginRestore marks a backup as being restored, refusing while any backup of
+// the same server is already being restored.
+func (s *Store) BeginRestore(ctx context.Context, server, uuid string) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var running int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM backups WHERE server_uuid=? AND restore_status=?`, server, BackupRunning).Scan(&running); err != nil {
+		return err
+	}
+	if running > 0 {
+		return ErrRestoreRunning
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE backups SET restore_status=?,restore_error='',restored_at=0 WHERE uuid=? AND server_uuid=?`, BackupRunning, uuid, server)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit()
+}
+
+// FinishRestore records how a restore ended ("" failure = success).
+func (s *Store) FinishRestore(ctx context.Context, uuid, failure string) error {
+	st := BackupOK
+	if failure != "" {
+		st = BackupFailed
+	}
+	if len(failure) > 500 {
+		failure = failure[:500]
+	}
+	_, err := s.exec(ctx, `UPDATE backups SET restore_status=?,restore_error=?,restored_at=? WHERE uuid=?`, st, failure, now(), uuid)
+	return err
 }
 
 // BeginBackup records a running backup. It enforces one running backup per
@@ -73,8 +119,8 @@ func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted
 		total--
 	}
 	b.Status, b.CreatedAt = BackupRunning, now()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO backups(`+backupCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-		b.UUID, b.ServerUUID, b.Name, b.Status, "", 0, "", b.Ignore, false, b.CreatedAt, 0); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO backups(uuid,server_uuid,name,status,ignore,created_at) VALUES(?,?,?,?,?,?)`,
+		b.UUID, b.ServerUUID, b.Name, b.Status, b.Ignore, b.CreatedAt); err != nil {
 		return nil, err
 	}
 	return evicted, tx.Commit()
@@ -92,9 +138,13 @@ func (s *Store) FinishBackup(ctx context.Context, uuid string, size int64, sum s
 	return err
 }
 
-// FailStaleBackups marks backups left "running" by a previous panel process.
+// FailStaleBackups marks backups and restores left "running" by a previous
+// panel process.
 func (s *Store) FailStaleBackups(ctx context.Context) error {
-	_, err := s.exec(ctx, `UPDATE backups SET status=?,error='interrupted by a panel restart',completed_at=? WHERE status=?`, BackupFailed, now(), BackupRunning)
+	if _, err := s.exec(ctx, `UPDATE backups SET status=?,error='interrupted by a panel restart',completed_at=? WHERE status=?`, BackupFailed, now(), BackupRunning); err != nil {
+		return err
+	}
+	_, err := s.exec(ctx, `UPDATE backups SET restore_status=?,restore_error='interrupted by a panel restart',restored_at=? WHERE restore_status=?`, BackupFailed, now(), BackupRunning)
 	return err
 }
 

@@ -28,10 +28,13 @@ export function BackupsTab({ uuid }: { uuid: string }) {
       call(api.PUT("/servers/{uuid}/backups/{backup}/lock", { params: { path: { uuid, backup: v.backup } }, body: { locked: v.locked } })),
     meta,
   });
+  // Restores run in the background; the list shows progress and the outcome.
   const restore = useMutation({
     mutationFn: (backup: string) =>
       call(api.POST("/servers/{uuid}/backups/{backup}/restore", { params: { path: { uuid, backup } }, body: { truncate } })),
+    meta,
   });
+  const restoring = list.data?.some((b) => b.restore_status === "running") ?? false;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -76,7 +79,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
       </section>
 
       <ErrorBox error={list.error ?? remove.error ?? lock.error ?? restore.error} />
-      {restore.isSuccess && <p role="status" className="text-sm text-[#7bdb9c]">Backup restored.</p>}
+
 
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900" aria-label="Your backups">
         <h2 className="px-5 py-4 text-[15px] font-semibold">Your backups</h2>
@@ -91,16 +94,19 @@ export function BackupsTab({ uuid }: { uuid: string }) {
                   {b.locked && <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-[#1d2229] px-2.5 text-xs text-zinc-300"><Lock className="h-3 w-3" aria-hidden />Locked</span>}
                   {b.status === "running" && <span className="inline-flex items-center gap-1.5 text-xs text-[#f0b35a]"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Running</span>}
                   {b.status !== "ok" && b.status !== "running" && <span className="text-xs text-[#ff8a7a]">{b.status}</span>}
+                  {b.restore_status === "running" && <span role="status" className="inline-flex items-center gap-1.5 text-xs text-[#f0b35a]"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Restoring</span>}
+                  {b.restore_status === "ok" && <span role="status" className="text-xs text-[#7bdb9c]">Restored {new Date(b.restored_at * 1000).toLocaleString()}</span>}
                 </div>
                 <div className="mt-0.5 text-[13px] text-zinc-400">
                   {new Date(b.created_at * 1000).toLocaleString()}
                   {b.status === "ok" && <span className="ml-2 font-mono text-xs text-zinc-500" title="SHA-256">{b.sha256.slice(0, 12)}</span>}
                 </div>
                 {b.error && <div className="mt-0.5 text-xs text-[#ff8a7a]">{b.error}</div>}
+                {b.restore_status === "failed" && <div className="mt-0.5 text-xs text-[#ff8a7a]">Restore failed: {b.restore_error}</div>}
               </div>
               <div className="w-20 text-right font-mono text-[13px] text-zinc-300">{b.status === "ok" ? formatBytes(b.size) : "-"}</div>
               <div className="flex items-center gap-1">
-                <button type="button" className="btn !min-h-9" aria-label={`Restore ${b.name}`} title="Restore (stop the server first)" disabled={b.status !== "ok" || restore.isPending} onClick={() => doRestore(b.uuid, b.name)}>
+                <button type="button" className="btn !min-h-9" aria-label={`Restore ${b.name}`} title="Restore (stop the server first)" disabled={b.status !== "ok" || restore.isPending || restoring} onClick={() => doRestore(b.uuid, b.name)}>
                   <RotateCcw className="h-4 w-4" aria-hidden /> Restore
                 </button>
                 <button type="button" className={iconBtn} aria-label={b.locked ? `Unlock ${b.name}` : `Lock ${b.name}`} title={b.locked ? "Locked: cannot be deleted" : "Lock"} onClick={() => lock.mutate({ backup: b.uuid, locked: !b.locked })}>

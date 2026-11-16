@@ -77,18 +77,20 @@ func checkCapacity(ctx context.Context, q interface {
 		return nf(err)
 	}
 	var memUsed, diskUsed int64
-	q.QueryRowContext(ctx, `SELECT COALESCE(SUM(memory_mb),0),COALESCE(SUM(disk_mb),0) FROM servers WHERE node_id=? AND uuid<>?`, nodeID, exclude).Scan(&memUsed, &diskUsed)
+	if err := q.QueryRowContext(ctx, `SELECT COALESCE(SUM(memory_mb),0),COALESCE(SUM(disk_mb),0) FROM servers WHERE node_id=? AND uuid<>?`, nodeID, exclude).Scan(&memUsed, &diskUsed); err != nil {
+		return err
+	}
 	if memCap > 0 {
-		if max := memCap * (100 + over) / 100; memUsed+l.MemoryMB > max {
-			return ErrCapacity{fmt.Sprintf("this node has %d of %d MB memory left to allocate; %d MB requested", maxInt(max-memUsed, 0), max, l.MemoryMB)}
+		if allowed := memCap * (100 + over) / 100; memUsed+l.MemoryMB > allowed {
+			return ErrCapacity{fmt.Sprintf("this node has %d of %d MB memory left to allocate; %d MB requested", max(allowed-memUsed, 0), allowed, l.MemoryMB)}
 		}
 	}
 	if diskCap > 0 {
 		if l.DiskMB == 0 {
 			return ErrCapacity{"this node tracks disk capacity, so the server needs a disk limit"}
 		}
-		if max := diskCap * (100 + over) / 100; diskUsed+l.DiskMB > max {
-			return ErrCapacity{fmt.Sprintf("this node has %d of %d MB disk left to allocate; %d MB requested", maxInt(max-diskUsed, 0), max, l.DiskMB)}
+		if allowed := diskCap * (100 + over) / 100; diskUsed+l.DiskMB > allowed {
+			return ErrCapacity{fmt.Sprintf("this node has %d of %d MB disk left to allocate; %d MB requested", max(allowed-diskUsed, 0), allowed, l.DiskMB)}
 		}
 	}
 	return nil
@@ -136,11 +138,4 @@ func (s *Store) SetNodeCapacity(ctx context.Context, id, memMB, diskMB, overPct 
 		return ErrNotFound
 	}
 	return nil
-}
-
-func maxInt(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
 }

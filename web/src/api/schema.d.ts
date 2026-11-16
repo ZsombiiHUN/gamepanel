@@ -409,7 +409,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Restore a backup over the server's files (server must be stopped) */
+        /**
+         * Restore a backup over the server's files (server must be stopped)
+         * @description Runs in the background. Poll the backup list: restore_status goes from running to ok or failed (with restore_error).
+         */
         post: operations["restoreBackup"];
         delete?: never;
         options?: never;
@@ -662,6 +665,14 @@ export interface components {
             ignore: string;
             locked: boolean;
             name: string;
+            restore_error?: string;
+            /** @description empty (never restored)|running|ok|failed */
+            restore_status: string;
+            /**
+             * Format: int64
+             * @description when the last restore finished, 0 = never or still running
+             */
+            restored_at: number;
             server_uuid: string;
             sha256: string;
             /** Format: int64 */
@@ -1037,6 +1048,8 @@ export interface components {
              * @example /api/schemas/Schedule.json
              */
             readonly $schema?: string;
+            /** Format: int64 */
+            created_by: number;
             cron: string;
             enabled: boolean;
             /** Format: int64 */
@@ -2217,8 +2230,8 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No Content */
-            204: {
+            /** @description Accepted */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

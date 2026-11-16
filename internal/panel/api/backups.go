@@ -9,7 +9,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
@@ -42,6 +41,8 @@ type backupRestoreIn struct {
 	}
 }
 
+// How long the panel waits for a node to finish an archive. Both run in the
+// background, detached from any HTTP request.
 const (
 	backupTimeout  = 2 * time.Hour
 	restoreTimeout = 2 * time.Hour
@@ -65,7 +66,9 @@ func (a *App) startBackup(s store.Server, name, ignore string, rotate bool) (sto
 		c, cancel := context.WithTimeout(ctx, backupTimeout)
 		defer cancel()
 		for _, id := range evicted { // rotated out: free the disk too
-			a.Hub.Request(c, s.NodeID, proto.ReqBackupDelete, proto.BackupReq{UUID: s.UUID, BackupID: id})
+			if _, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupDelete, proto.BackupReq{UUID: s.UUID, BackupID: id}); err != nil {
+				a.Log.Warn("could not delete a rotated-out backup from the node", "server", s.UUID, "backup", id, "err", err)
+			}
 		}
 		raw, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupCreate, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Ignore: store.IgnoreList(ignore)})
 		var res proto.BackupResult
@@ -73,15 +76,47 @@ func (a *App) startBackup(s store.Server, name, ignore string, rotate bool) (sto
 			err = json.Unmarshal(raw, &res)
 		}
 		if err != nil {
-			a.Store.FinishBackup(ctx, b.UUID, 0, "", err.Error())
 			a.Log.Warn("backup failed", "server", s.UUID, "err", err)
+			if ferr := a.Store.FinishBackup(ctx, b.UUID, 0, "", err.Error()); ferr != nil {
+				a.Log.Error("could not record a failed backup", "backup", b.UUID, "err", ferr)
+			}
+			// The node may still have written (part of) the archive, e.g. when
+			// the wait timed out: remove it so no file outlives its record.
+			rm, cancel := context.WithTimeout(ctx, time.Minute)
+			_, _ = a.Hub.Request(rm, s.NodeID, proto.ReqBackupDelete, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID})
+			cancel()
 			done <- err
 			return
 		}
-		a.Store.FinishBackup(ctx, b.UUID, res.Size, res.SHA256, "")
+		if err := a.Store.FinishBackup(ctx, b.UUID, res.Size, res.SHA256, ""); err != nil {
+			a.Log.Error("could not record a finished backup", "backup", b.UUID, "err", err)
+		}
 		done <- nil
 	}()
 	return b, done, nil
+}
+
+// startRestore runs a restore on the node in the background and records its
+// outcome on the backup. A large world takes far longer than an HTTP request
+// (or a reverse proxy) will wait, so the API answers at once and the UI polls.
+func (a *App) startRestore(s store.Server, b store.Backup, truncate bool) error {
+	ctx := context.Background()
+	if err := a.Store.BeginRestore(ctx, s.UUID, b.UUID); err != nil {
+		return err
+	}
+	go func() {
+		c, cancel := context.WithTimeout(ctx, restoreTimeout)
+		defer cancel()
+		failure := ""
+		if _, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupRestore, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Truncate: truncate}); err != nil {
+			failure = err.Error()
+			a.Log.Warn("restore failed", "server", s.UUID, "backup", b.UUID, "err", err)
+		}
+		if err := a.Store.FinishRestore(ctx, b.UUID, failure); err != nil {
+			a.Log.Error("could not record a restore's outcome", "backup", b.UUID, "err", err)
+		}
+	}()
+	return nil
 }
 
 func (a *App) registerBackups(api huma.API) {
@@ -120,12 +155,18 @@ func (a *App) registerBackups(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "lockBackup", Method: "PUT", Path: "/servers/{uuid}/backups/{backup}/lock",
 		Summary: "Lock or unlock a backup (locked backups cannot be deleted or rotated out)", DefaultStatus: 204},
 		func(ctx context.Context, in *backupLockIn) (*struct{}, error) {
-			if _, _, err := a.authorizeP(ctx, in.UUID, PermBackupsDelete); err != nil {
+			u, s, err := a.authorizeP(ctx, in.UUID, PermBackupsDelete)
+			if err != nil {
 				return nil, err
 			}
-			if err := a.Store.SetBackupLocked(ctx, in.UUID, in.Backup, in.Body.Locked); err != nil {
+			if err := a.Store.SetBackupLocked(ctx, s.UUID, in.Backup, in.Body.Locked); err != nil {
 				return nil, huma.Error404NotFound("backup not found")
 			}
+			action := "backup.unlock"
+			if in.Body.Locked {
+				action = "backup.lock"
+			}
+			a.audit(ctx, u, action, s.UUID, in.Backup)
 			return nil, nil
 		})
 
@@ -148,15 +189,19 @@ func (a *App) registerBackups(api huma.API) {
 			}
 			// File first: if the node is unreachable keep the row so nothing is orphaned.
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqBackupDelete, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID}); err != nil {
-				return nil, a.nodeErr(err)
+				return nil, nodeErr(err)
 			}
-			a.Store.DeleteBackup(ctx, s.UUID, b.UUID)
+			if err := a.Store.DeleteBackup(ctx, s.UUID, b.UUID); err != nil {
+				return nil, huma.Error500InternalServerError("the node deleted the file but the panel could not: " + err.Error())
+			}
 			a.audit(ctx, u, "backup.delete", s.UUID, b.Name)
 			return nil, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "restoreBackup", Method: "POST", Path: "/servers/{uuid}/backups/{backup}/restore",
-		Summary: "Restore a backup over the server's files (server must be stopped)", DefaultStatus: 204},
+		Summary:       "Restore a backup over the server's files (server must be stopped)",
+		Description:   "Runs in the background. Poll the backup list: restore_status goes from running to ok or failed (with restore_error).",
+		DefaultStatus: 202},
 		func(ctx context.Context, in *backupRestoreIn) (*struct{}, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermBackupsRestore)
 			if err != nil {
@@ -169,14 +214,18 @@ func (a *App) registerBackups(api huma.API) {
 			if b.Status != store.BackupOK {
 				return nil, huma.Error409Conflict("only a completed backup can be restored")
 			}
-			c, cancel := context.WithTimeout(ctx, restoreTimeout)
-			defer cancel()
-			if _, err := a.Hub.Request(c, s.NodeID, proto.ReqBackupRestore, proto.BackupReq{UUID: s.UUID, BackupID: b.UUID, Truncate: in.Body.Truncate}); err != nil {
-				if errors.Is(err, hub.ErrNodeOffline) {
-					return nil, huma.Error503ServiceUnavailable("the node is offline")
+			if !a.Hub.Online(s.NodeID) {
+				return nil, huma.Error503ServiceUnavailable("the node is offline")
+			}
+			// Fail fast on the common mistake; the node checks again (and decides).
+			if st := a.Hub.State(s.UUID); st != "offline" && st != "unknown" && st != "install_failed" {
+				return nil, huma.Error409Conflict("stop the server before restoring a backup")
+			}
+			if err := a.startRestore(s, b, in.Body.Truncate); err != nil {
+				if errors.Is(err, store.ErrRestoreRunning) {
+					return nil, huma.Error409Conflict(err.Error())
 				}
-				// The daemon's message is meant for people ("stop the server first").
-				return nil, huma.Error409Conflict(err.Error())
+				return nil, huma.Error500InternalServerError("db error")
 			}
 			a.audit(ctx, u, "backup.restore", s.UUID, fmt.Sprintf("%s truncate=%v", b.Name, in.Body.Truncate))
 			return nil, nil

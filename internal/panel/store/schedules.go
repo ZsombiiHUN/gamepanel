@@ -60,6 +60,9 @@ type Schedule struct {
 	LastRun        int64  `json:"last_run"`
 	LastStatus     string `json:"last_status"`
 	Tasks          []Task `json:"tasks" nullable:"false"`
+	// CreatedBy is who last saved the schedule; its tasks run with that
+	// account's permissions. 0 = saved before this was recorded (runs as owner).
+	CreatedBy int64 `json:"created_by"`
 }
 
 // ValidateTask checks a task before it is stored.
@@ -105,11 +108,11 @@ func (s *Store) tasks(ctx context.Context, scheduleID int64) ([]Task, error) {
 	return out, rows.Err()
 }
 
-const schedCols = `id,server_uuid,name,cron,enabled,only_when_online,next_run,last_run,last_status`
+const schedCols = `id,server_uuid,name,cron,enabled,only_when_online,next_run,last_run,last_status,COALESCE(created_by,0)`
 
-func (s *Store) scanSchedule(ctx context.Context, sc interface{ Scan(...any) error }) (Schedule, error) {
+func scanSchedule(sc interface{ Scan(...any) error }) (Schedule, error) {
 	var v Schedule
-	if err := sc.Scan(&v.ID, &v.ServerUUID, &v.Name, &v.Cron, &v.Enabled, &v.OnlyWhenOnline, &v.NextRun, &v.LastRun, &v.LastStatus); err != nil {
+	if err := sc.Scan(&v.ID, &v.ServerUUID, &v.Name, &v.Cron, &v.Enabled, &v.OnlyWhenOnline, &v.NextRun, &v.LastRun, &v.LastStatus, &v.CreatedBy); err != nil {
 		return v, nf(err)
 	}
 	return v, nil
@@ -133,7 +136,7 @@ func (s *Store) ListSchedules(ctx context.Context, server string) ([]Schedule, e
 	}
 	var out []Schedule
 	for rows.Next() {
-		v, err := s.scanSchedule(ctx, rows)
+		v, err := scanSchedule(rows)
 		if err != nil {
 			rows.Close()
 			return nil, err
@@ -148,7 +151,7 @@ func (s *Store) ListSchedules(ctx context.Context, server string) ([]Schedule, e
 }
 
 func (s *Store) GetSchedule(ctx context.Context, server string, id int64) (Schedule, error) {
-	v, err := s.scanSchedule(ctx, s.DB.QueryRowContext(ctx, `SELECT `+schedCols+` FROM schedules WHERE id=? AND server_uuid=?`, id, server))
+	v, err := scanSchedule(s.DB.QueryRowContext(ctx, `SELECT `+schedCols+` FROM schedules WHERE id=? AND server_uuid=?`, id, server))
 	if err != nil {
 		return v, err
 	}
@@ -185,15 +188,15 @@ func (s *Store) SaveSchedule(ctx context.Context, v Schedule) (Schedule, error) 
 		if n >= MaxSchedulesPerServer {
 			return v, fmt.Errorf("at most %d schedules per server", MaxSchedulesPerServer)
 		}
-		res, err := tx.ExecContext(ctx, `INSERT INTO schedules(server_uuid,name,cron,enabled,only_when_online,next_run) VALUES(?,?,?,?,?,?)`,
-			v.ServerUUID, v.Name, strings.TrimSpace(v.Cron), v.Enabled, v.OnlyWhenOnline, v.NextRun)
+		res, err := tx.ExecContext(ctx, `INSERT INTO schedules(server_uuid,name,cron,enabled,only_when_online,next_run,created_by) VALUES(?,?,?,?,?,?,?)`,
+			v.ServerUUID, v.Name, strings.TrimSpace(v.Cron), v.Enabled, v.OnlyWhenOnline, v.NextRun, nullID(v.CreatedBy))
 		if err != nil {
 			return v, err
 		}
 		v.ID, _ = res.LastInsertId()
 	} else {
-		res, err := tx.ExecContext(ctx, `UPDATE schedules SET name=?,cron=?,enabled=?,only_when_online=?,next_run=? WHERE id=? AND server_uuid=?`,
-			v.Name, strings.TrimSpace(v.Cron), v.Enabled, v.OnlyWhenOnline, v.NextRun, v.ID, v.ServerUUID)
+		res, err := tx.ExecContext(ctx, `UPDATE schedules SET name=?,cron=?,enabled=?,only_when_online=?,next_run=?,created_by=? WHERE id=? AND server_uuid=?`,
+			v.Name, strings.TrimSpace(v.Cron), v.Enabled, v.OnlyWhenOnline, v.NextRun, nullID(v.CreatedBy), v.ID, v.ServerUUID)
 		if err != nil {
 			return v, err
 		}
@@ -214,6 +217,14 @@ func (s *Store) SaveSchedule(ctx context.Context, v Schedule) (Schedule, error) 
 		return v, err
 	}
 	return s.GetSchedule(ctx, v.ServerUUID, v.ID)
+}
+
+// nullID stores 0 as NULL, for optional references.
+func nullID(id int64) any {
+	if id == 0 {
+		return nil
+	}
+	return id
 }
 
 func (s *Store) DeleteSchedule(ctx context.Context, server string, id int64) error {
@@ -237,7 +248,7 @@ func (s *Store) ClaimDue(ctx context.Context, at time.Time) ([]Schedule, error) 
 	}
 	var due []Schedule
 	for rows.Next() {
-		v, err := s.scanSchedule(ctx, rows)
+		v, err := scanSchedule(rows)
 		if err != nil {
 			rows.Close()
 			return nil, err

@@ -31,6 +31,11 @@ func (d *Daemon) backup(ctx context.Context, typ string, b proto.BackupReq) (jso
 	}
 	switch typ {
 	case proto.ReqBackupCreate:
+		end, err := d.begin(b.UUID, opBackup)
+		if err != nil {
+			return nil, err
+		}
+		defer end()
 		res, err := d.backupCreate(b)
 		return proto.Marshal(res), err
 	case proto.ReqBackupRestore:
@@ -95,14 +100,13 @@ func (c *countWriter) Write(p []byte) (int, error) {
 // backupRestore unpacks an archive over the server's files. The server must be
 // stopped: restoring under a running game corrupts it.
 func (d *Daemon) backupRestore(ctx context.Context, b proto.BackupReq) error {
-	if st, _ := d.rt.State(ctx, b.UUID); st != runtime.StateOffline {
-		return errors.New("stop the server before restoring a backup")
+	end, err := d.begin(b.UUID, opRestore)
+	if err != nil {
+		return err
 	}
-	d.mu.Lock()
-	inst := d.servers[b.UUID].install
-	d.mu.Unlock()
-	if inst == StateInstalling {
-		return errors.New("an install is running")
+	defer end()
+	if st, _ := d.rt.State(ctx, b.UUID); st != runtime.StateOffline {
+		return proto.Conflict("stop the server before restoring a backup")
 	}
 	f, err := os.Open(d.backupPath(b.UUID, b.BackupID))
 	if err != nil {
@@ -124,9 +128,11 @@ func (d *Daemon) backupRestore(ctx context.Context, b proto.BackupReq) error {
 			limit = 1 // 0 would mean unlimited to Extract; 1 byte stops it at the first file
 		}
 	}
+	// Extract checks the whole archive (integrity, paths, size) before it
+	// changes anything, so a failure here leaves the server as it was.
 	err = dir.Extract(f, b.Truncate, limit)
 	if errors.Is(err, fsx.ErrArchiveTooLarge) && d.diskLimitBytes(b.UUID) > 0 {
-		err = errors.New("restoring this backup would exceed the server's disk limit")
+		err = &proto.Error{Code: proto.CodeDiskFull, Msg: "restoring this backup would exceed the server's disk limit"}
 	}
 	d.cacheFor(b.UUID).invalidate()
 	return err

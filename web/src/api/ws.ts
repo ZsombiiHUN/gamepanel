@@ -1,6 +1,13 @@
 import { useEffect, useEffectEvent, useState } from "react";
+import { notifyUnauthorized } from "./client";
 
-export type WsStatus = "connecting" | "open" | "reconnecting";
+/** "closed": the panel ended the socket because access ended; it is not retried. */
+export type WsStatus = "connecting" | "open" | "reconnecting" | "closed";
+
+/** Close codes the panel uses when access is the problem (see internal/panel/api/console.go). */
+export const CLOSE_UNAUTHORIZED = 4401;
+export const CLOSE_FORBIDDEN = 4403;
+export const CLOSE_NOT_FOUND = 4404;
 export interface LiveStats { cpu_pct: number; mem_bytes: number; disk_bytes: number }
 
 interface Handlers {
@@ -52,8 +59,15 @@ export function useServerSocket(uuid: string, handlers: Handlers) {
         else if (frame.type === "stats" && typeof d.cpu_pct === "number" && typeof d.mem_bytes === "number")
           onLive({ stats: { cpu_pct: d.cpu_pct, mem_bytes: d.mem_bytes, disk_bytes: typeof d.disk_bytes === "number" ? d.disk_bytes : 0 } });
       };
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
         if (stopped) return;
+        // Access ended (signed out, permission or server gone): retrying cannot help.
+        if (ev.code === CLOSE_UNAUTHORIZED || ev.code === CLOSE_FORBIDDEN || ev.code === CLOSE_NOT_FOUND) {
+          stopped = true;
+          setStatus("closed");
+          if (ev.code === CLOSE_UNAUTHORIZED) notifyUnauthorized();
+          return;
+        }
         setStatus("reconnecting");
         const delay = Math.min(15_000, 500 * 2 ** attempt++);
         timer = setTimeout(connect, delay);

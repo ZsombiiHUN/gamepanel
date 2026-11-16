@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -41,6 +42,9 @@ type Config struct {
 	// and how long a measured disk size is trusted (default 30 s).
 	StatsInterval time.Duration
 	DiskCacheTTL  time.Duration
+	// SFTPRecheck is how often an open SFTP session's access is re-checked
+	// with the panel (default 30 s).
+	SFTPRecheck time.Duration
 }
 
 type managed struct {
@@ -49,8 +53,80 @@ type managed struct {
 	attached bool   // a console reader is active for the current run
 	install  string // "", StateInstalling or StateInstallFailed; "" = ready
 
+	// op is the exclusive operation running on this server ("" = none), see
+	// begin. backups counts archives being written, which may overlap with
+	// most things but not with a restore or a delete.
+	op      string
+	backups int
+
 	disk         diskCache
 	diskStopping bool // a disk-limit stop is already in progress
+}
+
+// Operations that claim a server (begin).
+const (
+	opStart   = "start"
+	opUpdate  = "update"
+	opInstall = "install"
+	opRestore = "restore"
+	opDelete  = "delete"
+	opBackup  = "backup"
+)
+
+var errUnknownServer = errors.New("unknown server")
+
+// opBusy describes a running operation for the person who has to wait for it.
+func opBusy(op string) error {
+	what := map[string]string{
+		opStart: "the server is starting", opUpdate: "its limits are being changed",
+		opInstall: "an install is running", opRestore: "a backup is being restored",
+		opDelete: "the server is being deleted", opBackup: "a backup is being made",
+	}[op]
+	return proto.Conflict("try again in a moment: " + what)
+}
+
+// begin claims a server for op and returns the function that releases it.
+//
+// Requests run concurrently, and most operations first check the server's
+// state and then act on it ("offline? then recreate the container"). Without a
+// claim, a start could slip in between the check and the act. Exclusive
+// operations therefore never overlap; a backup may run alongside anything but
+// a restore or a delete. No operation starts while an install is running.
+func (d *Daemon) begin(uuid, op string) (func(), error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	m := d.servers[uuid]
+	if m == nil {
+		return nil, errUnknownServer
+	}
+	if m.install == StateInstalling {
+		return nil, opBusy(opInstall)
+	}
+	if op == opBackup {
+		if m.op == opRestore || m.op == opDelete {
+			return nil, opBusy(m.op)
+		}
+		m.backups++
+		return func() { d.mu.Lock(); m.backups--; d.mu.Unlock() }, nil
+	}
+	if m.op != "" {
+		return nil, opBusy(m.op)
+	}
+	if m.backups > 0 && (op == opRestore || op == opDelete) {
+		return nil, opBusy(opBackup)
+	}
+	m.op = op
+	return func() { d.mu.Lock(); m.op = ""; d.mu.Unlock() }, nil
+}
+
+// installState is the server's install state; ok is false for an unknown server.
+func (d *Daemon) installState(uuid string) (st string, ok bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if m := d.servers[uuid]; m != nil {
+		return m.install, true
+	}
+	return "", false
 }
 
 type Daemon struct {
@@ -212,11 +288,23 @@ func (d *Daemon) emitState(ctx context.Context, uuid, st string) {
 	_ = d.send(ctx, proto.Envelope{Type: proto.EvtState, Data: proto.Marshal(proto.State{UUID: uuid, State: st})})
 }
 
+// sleep waits for d or until ctx ends; it reports whether the full time passed.
+func sleep(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
 func (d *Daemon) watchEvents(ctx context.Context) {
 	for ctx.Err() == nil {
 		ch, err := d.rt.Events(ctx)
 		if err != nil {
-			time.Sleep(2 * time.Second)
+			sleep(ctx, 2*time.Second)
 			continue
 		}
 		for ev := range ch {
@@ -225,9 +313,7 @@ func (d *Daemon) watchEvents(ctx context.Context) {
 				d.attach(ctx, ev.UUID)
 			}
 		}
-		if ctx.Err() == nil {
-			time.Sleep(time.Second) // runtime event stream dropped; resubscribe
-		}
+		sleep(ctx, time.Second) // runtime event stream dropped; resubscribe
 	}
 }
 
@@ -305,13 +391,26 @@ func (d *Daemon) attach(ctx context.Context, uuid string) {
 }
 
 func (d *Daemon) handle(ctx context.Context, env proto.Envelope) {
-	data, err := d.dispatch(ctx, env)
+	data, err := d.safeDispatch(ctx, env)
 	reply := proto.Envelope{Type: proto.EvtReply, ID: env.ID, Data: data}
 	if err != nil {
-		reply.Err = err.Error()
+		reply.Err, reply.Code = err.Error(), proto.CodeOf(err)
 		d.log.Warn("request failed", "type", env.Type, "err", err)
 	}
 	_ = d.send(ctx, reply)
+}
+
+// safeDispatch is dispatch with a recover: requests run in their own
+// goroutines, so a panic in one would otherwise take down the whole daemon and
+// every server's console with it.
+func (d *Daemon) safeDispatch(ctx context.Context, env proto.Envelope) (data json.RawMessage, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			d.log.Error("request panicked", "type", env.Type, "panic", r, "stack", string(debug.Stack()))
+			data, err = nil, fmt.Errorf("internal error handling %s", env.Type)
+		}
+	}()
+	return d.dispatch(ctx, env)
 }
 
 func (d *Daemon) dir(uuid string) (*fsx.Dir, error) {
@@ -389,14 +488,10 @@ func (d *Daemon) files(typ string, f proto.FileReq) (json.RawMessage, error) {
 		b, err := fs.Read(f.Path)
 		return proto.Marshal(proto.FileReq{UUID: f.UUID, Path: f.Path, Content: b}), err
 	case proto.ReqFilesWrite:
-		if err := d.checkDisk(f.UUID, int64(len(f.Content))); err != nil {
+		if err := d.reserveDisk(f.UUID, int64(len(f.Content))); err != nil {
 			return nil, err
 		}
-		err := fs.Write(f.Path, f.Content)
-		if err == nil {
-			d.cacheFor(f.UUID).add(int64(len(f.Content)))
-		}
-		return nil, err
+		return nil, fs.Write(f.Path, f.Content)
 	case proto.ReqFilesMkdir:
 		return nil, fs.Mkdir(f.Path)
 	default:
@@ -446,7 +541,6 @@ func (d *Daemon) runInstall(ctx context.Context, uuid string) {
 	if err != nil || spec.Install == nil {
 		return
 	}
-	d.setInstall(uuid, StateInstalling)
 	d.emitState(ctx, uuid, StateInstalling)
 	_ = os.Remove(d.installedPath(uuid))
 
@@ -520,17 +614,16 @@ func (d *Daemon) reinstall(ctx context.Context, uuid string) error {
 	if spec.Install == nil {
 		return errors.New("this server's egg has no install script")
 	}
+	end, err := d.begin(uuid, opInstall)
+	if err != nil {
+		return err
+	}
+	defer end()
 	if st, _ := d.rt.State(ctx, uuid); st != runtime.StateOffline {
-		return errors.New("stop the server before reinstalling")
+		return proto.Conflict("stop the server before reinstalling")
 	}
-	d.mu.Lock()
-	m := d.servers[uuid]
-	if m.install == StateInstalling {
-		d.mu.Unlock()
-		return errors.New("an install is already running")
-	}
-	m.install = StateInstalling
-	d.mu.Unlock()
+	// From here the install state itself keeps every other operation out.
+	d.setInstall(uuid, StateInstalling)
 	go d.runInstall(context.WithoutCancel(ctx), uuid)
 	return nil
 }
@@ -540,7 +633,7 @@ func (d *Daemon) spec(uuid string) (proto.ServerSpec, error) {
 	defer d.mu.Unlock()
 	m := d.servers[uuid]
 	if m == nil {
-		return proto.ServerSpec{}, errors.New("unknown server")
+		return proto.ServerSpec{}, errUnknownServer
 	}
 	return m.spec, nil
 }
@@ -550,38 +643,47 @@ func (d *Daemon) power(ctx context.Context, p proto.Power) error {
 	if err != nil {
 		return err
 	}
-	d.mu.Lock()
-	inst := d.servers[p.UUID].install
-	d.mu.Unlock()
-	if inst != "" && (p.Action == "start" || p.Action == "restart") {
-		return errors.New("server is not installed (" + inst + ")")
-	}
-	if (p.Action == "start" || p.Action == "restart") && spec.DiskMB > 0 {
-		if used, err := d.diskUsage(p.UUID, 0); err == nil && used > spec.DiskMB<<20 {
-			return ErrDiskFull{used, spec.DiskMB << 20}
-		}
-	}
 	switch p.Action {
 	case "start":
-		d.emitState(ctx, p.UUID, runtime.StateStarting)
-		if err := d.rt.Start(ctx, p.UUID); err != nil {
-			d.emitState(ctx, p.UUID, runtime.StateOffline)
-			return err
-		}
-		d.attach(ctx, p.UUID)
-		d.emitState(ctx, p.UUID, runtime.StateRunning)
-		return nil
+		return d.start(ctx, spec)
 	case "stop":
 		return d.stop(ctx, spec)
 	case "restart":
 		if err := d.stop(ctx, spec); err != nil {
 			return err
 		}
-		return d.power(ctx, proto.Power{UUID: p.UUID, Action: "start"})
+		return d.start(ctx, spec)
 	case "kill":
 		return d.rt.Kill(ctx, p.UUID)
 	}
 	return fmt.Errorf("unknown power action %q", p.Action)
+}
+
+// start boots an installed server that is within its disk limit. It claims
+// the server, so it cannot interleave with a restore, an update or a delete.
+func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
+	uuid := spec.UUID
+	if inst, _ := d.installState(uuid); inst == StateInstallFailed {
+		return proto.Conflict("server is not installed (" + inst + ")")
+	}
+	end, err := d.begin(uuid, opStart)
+	if err != nil {
+		return err
+	}
+	defer end()
+	if spec.DiskMB > 0 {
+		if used, err := d.diskUsage(uuid, 0); err == nil && used > spec.DiskMB<<20 {
+			return ErrDiskFull{used, spec.DiskMB << 20}
+		}
+	}
+	d.emitState(ctx, uuid, runtime.StateStarting)
+	if err := d.rt.Start(ctx, uuid); err != nil {
+		d.emitState(ctx, uuid, runtime.StateOffline)
+		return err
+	}
+	d.attach(ctx, uuid)
+	d.emitState(ctx, uuid, runtime.StateRunning)
+	return nil
 }
 
 // stop sends the egg's graceful stop command (or SIGTERM for "^C"), then
@@ -595,7 +697,9 @@ func (d *Daemon) stop(ctx context.Context, spec proto.ServerSpec) error {
 				if st, _ := d.rt.State(ctx, spec.UUID); st == runtime.StateOffline {
 					return nil
 				}
-				time.Sleep(250 * time.Millisecond)
+				if !sleep(ctx, 250*time.Millisecond) {
+					return ctx.Err()
+				}
 			}
 		}
 	}
@@ -611,7 +715,7 @@ func (d *Daemon) input(uuid, line string) error {
 	}
 	d.mu.Unlock()
 	if w == nil {
-		return errors.New("server is not running")
+		return proto.Conflict("server is not running")
 	}
 	_, err := io.WriteString(w, line+"\n")
 	return err
@@ -621,7 +725,21 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	if !uuidRe.MatchString(uuid) {
 		return errors.New("invalid server id")
 	}
-	_ = d.rt.Remove(ctx, uuid)
+	end, err := d.begin(uuid, opDelete)
+	switch {
+	case errors.Is(err, errUnknownServer):
+		// Not tracked (e.g. already half-removed): still clean up what is left.
+	case err != nil:
+		return err
+	default:
+		defer end()
+	}
+	// The container must be gone before the data: deleting files under a
+	// running game while the panel forgets the server would leave a container
+	// nobody can manage. Runtimes report a missing container as success.
+	if err := d.rt.Remove(ctx, uuid); err != nil {
+		return fmt.Errorf("could not remove the container, nothing was deleted: %w", err)
+	}
 	d.mu.Lock()
 	delete(d.servers, uuid)
 	d.mu.Unlock()
@@ -638,14 +756,13 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) error {
 	if err != nil {
 		return err
 	}
-	if st, _ := d.rt.State(ctx, s.UUID); st != runtime.StateOffline {
-		return errors.New("stop the server before changing its limits")
+	end, err := d.begin(s.UUID, opUpdate)
+	if err != nil {
+		return err
 	}
-	d.mu.Lock()
-	inst := d.servers[s.UUID].install
-	d.mu.Unlock()
-	if inst == StateInstalling {
-		return errors.New("an install is running")
+	defer end()
+	if st, _ := d.rt.State(ctx, s.UUID); st != runtime.StateOffline {
+		return proto.Conflict("stop the server before changing its limits")
 	}
 	b, _ := json.Marshal(s)
 	if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
@@ -661,7 +778,9 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) error {
 		return err
 	}
 	d.mu.Lock()
-	d.servers[s.UUID].spec = s
+	if m := d.servers[s.UUID]; m != nil {
+		m.spec = s
+	}
 	d.mu.Unlock()
 	return nil
 }

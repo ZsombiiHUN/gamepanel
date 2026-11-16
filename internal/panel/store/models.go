@@ -3,16 +3,25 @@ package store
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/argon2"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound = errors.New("not found")
+	// ErrBadPassword: the current password given to ChangePassword is wrong.
+	ErrBadPassword = errors.New("invalid current password")
+	// ErrNodeInUse: a node cannot be deleted while servers live on it.
+	ErrNodeInUse = errors.New("node still has servers")
+)
 
 func nf(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
@@ -54,17 +63,17 @@ func hashPassword(pw string) string {
 }
 
 func checkPassword(pw, enc string) bool {
-	parts := splitN(enc, '$', 3)
+	parts := strings.SplitN(enc, "$", 3)
 	if len(parts) != 3 || parts[0] != "argon2id" {
 		return false
 	}
-	salt, err1 := hexDecode(parts[1])
-	key, err2 := hexDecode(parts[2])
+	salt, err1 := hex.DecodeString(parts[1])
+	key, err2 := hex.DecodeString(parts[2])
 	if err1 != nil || err2 != nil || len(key) == 0 {
 		return false
 	}
 	got := argon2.IDKey([]byte(pw), salt, argT, argM, argP, uint32(len(key)))
-	return constEq(got, key)
+	return subtle.ConstantTimeCompare(got, key) == 1
 }
 
 func (s *Store) CreateUser(ctx context.Context, email, password string, admin bool) (User, error) {
@@ -104,7 +113,12 @@ func (s *Store) Login(ctx context.Context, email, password string) (User, error)
 
 const SessionTTL = 14 * 24 * time.Hour
 
+// NewSession starts a session. Signing in is also when expired sessions are
+// cleared out, so the table does not grow forever.
 func (s *Store) NewSession(ctx context.Context, userID int64) (string, error) {
+	if _, err := s.exec(ctx, `DELETE FROM sessions WHERE expires_at<=?`, now()); err != nil {
+		return "", err
+	}
 	tok, h := NewToken()
 	_, err := s.exec(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)`,
 		h, userID, time.Now().Add(SessionTTL).Unix())
@@ -126,10 +140,10 @@ func (s *Store) ChangePassword(ctx context.Context, userID int64, current, next,
 	}
 	var enc string
 	if err := s.DB.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id=?`, userID).Scan(&enc); err != nil {
-		return errors.New("invalid current password")
+		return ErrBadPassword
 	}
 	if !checkPassword(current, enc) {
-		return errors.New("invalid current password")
+		return ErrBadPassword
 	}
 	if _, err := s.exec(ctx, `UPDATE users SET password_hash=? WHERE id=?`, hashPassword(next), userID); err != nil {
 		return err
@@ -141,6 +155,13 @@ func (s *Store) ChangePassword(ctx context.Context, userID int64, current, next,
 func (s *Store) DeleteOtherSessions(ctx context.Context, userID int64, keepToken string) error {
 	_, err := s.exec(ctx, `DELETE FROM sessions WHERE user_id=? AND token_hash<>?`, userID, HashToken(keepToken))
 	return err
+}
+
+// GetUser loads an account by id.
+func (s *Store) GetUser(ctx context.Context, id int64) (User, error) {
+	var u User
+	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled FROM users WHERE id=?`, id).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
+	return u, nf(err)
 }
 
 func (s *Store) DeleteSession(ctx context.Context, token string) {
@@ -210,9 +231,23 @@ func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
 	return out, rows.Err()
 }
 
+// DeleteNode removes a node that hosts no servers (ErrNodeInUse otherwise).
 func (s *Store) DeleteNode(ctx context.Context, id int64) error {
-	_, err := s.exec(ctx, `DELETE FROM nodes WHERE id=?`, id)
-	return err
+	var n int
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM servers WHERE node_id=?`, id).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return ErrNodeInUse
+	}
+	res, err := s.exec(ctx, `DELETE FROM nodes WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // ---- eggs ----

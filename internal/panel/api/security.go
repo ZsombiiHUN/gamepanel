@@ -8,8 +8,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/danielgtaylor/huma/v2"
-
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
@@ -108,72 +106,4 @@ func sameOrigin(r *http.Request) bool {
 	}
 	u, err := url.Parse(o)
 	return err == nil && strings.EqualFold(u.Host, r.Host)
-}
-
-type passwordIn struct {
-	Session string `cookie:"gp_session"`
-	Body    struct {
-		Current string `json:"current_password" minLength:"1" maxLength:"256"`
-		New     string `json:"new_password" minLength:"12" maxLength:"256"`
-	}
-}
-type revokeIn struct {
-	Session string `cookie:"gp_session"`
-}
-type auditIn struct {
-	Limit  int    `query:"limit" default:"100" minimum:"1" maximum:"500"`
-	Offset int    `query:"offset" default:"0" minimum:"0"`
-	Q      string `query:"q" maxLength:"200" doc:"Only entries containing every word, in the action, user, target, detail or IP."`
-}
-type auditOut struct{ Body []store.AuditEntry }
-
-func (a *App) registerAccount(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "changePassword", Method: "POST", Path: "/auth/password",
-		Summary: "Change your password (signs out every other session)", DefaultStatus: 204},
-		func(ctx context.Context, in *passwordIn) (*struct{}, error) {
-			u, err := requireSession(ctx)
-			if err != nil {
-				return nil, err
-			}
-			// Same brute-force guard as login: the current password is a guess target too.
-			if a.fails.over(u.Email) {
-				return nil, huma.Error429TooManyRequests("too many failed attempts, try again later")
-			}
-			if err := a.Store.ChangePassword(ctx, u.ID, in.Body.Current, in.Body.New, in.Session); err != nil {
-				if err.Error() == "invalid current password" {
-					a.fails.add(u.Email)
-					a.audit(ctx, u, "password.change.fail", u.Email, "")
-					return nil, huma.Error403Forbidden("current password is incorrect")
-				}
-				return nil, huma.Error422UnprocessableEntity(err.Error())
-			}
-			a.audit(ctx, u, "password.change", u.Email, "other sessions revoked")
-			return nil, nil
-		})
-
-	huma.Register(api, huma.Operation{OperationID: "revokeOtherSessions", Method: "POST", Path: "/auth/sessions/revoke-others",
-		Summary: "Sign out everywhere except this browser", DefaultStatus: 204},
-		func(ctx context.Context, in *revokeIn) (*struct{}, error) {
-			u, err := requireSession(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if err := a.Store.DeleteOtherSessions(ctx, u.ID, in.Session); err != nil {
-				return nil, huma.Error500InternalServerError("db error")
-			}
-			a.audit(ctx, u, "sessions.revoke_others", u.Email, "")
-			return nil, nil
-		})
-
-	huma.Register(api, huma.Operation{OperationID: "listAudit", Method: "GET", Path: "/audit", Summary: "Audit log (admin)"},
-		func(ctx context.Context, in *auditIn) (*auditOut, error) {
-			if _, err := requireAdmin(ctx); err != nil {
-				return nil, err
-			}
-			es, err := a.Store.ListAudit(ctx, in.Q, in.Limit, in.Offset)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
-			}
-			return &auditOut{Body: es}, nil
-		})
 }

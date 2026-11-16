@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -112,7 +113,7 @@ func TestArchiveRoundTripIgnoreAndSymlinks(t *testing.T) {
 	dst := filepath.Join(t.TempDir(), "dst")
 	e, _ := Open(dst)
 	defer e.Close()
-	if err := e.Extract(&buf, false, 0); err != nil {
+	if err := e.Extract(bytes.NewReader(buf.Bytes()), false, 0); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range []string{"a.txt", "world/level.dat"} {
@@ -128,7 +129,7 @@ func TestArchiveRoundTripIgnoreAndSymlinks(t *testing.T) {
 }
 
 func TestExtractRejectsEscapesAndBombs(t *testing.T) {
-	mk := func(entries map[string]string) *bytes.Buffer {
+	mk := func(entries map[string]string) *bytes.Reader {
 		var b bytes.Buffer
 		gz := gzip.NewWriter(&b)
 		tw := tar.NewWriter(gz)
@@ -138,7 +139,7 @@ func TestExtractRejectsEscapesAndBombs(t *testing.T) {
 		}
 		tw.Close()
 		gz.Close()
-		return &b
+		return bytes.NewReader(b.Bytes())
 	}
 	base := t.TempDir()
 	d, _ := Open(filepath.Join(base, "data"))
@@ -160,7 +161,7 @@ func TestExtractRejectsEscapesAndBombs(t *testing.T) {
 	tw.Write([]byte("x"))
 	tw.Close()
 	gz.Close()
-	d.Extract(&b, false, 0)
+	d.Extract(bytes.NewReader(b.Bytes()), false, 0)
 	if _, err := os.Stat(filepath.Join(base, "pwned")); err == nil {
 		t.Fatal("wrote through an archived symlink")
 	}
@@ -174,5 +175,135 @@ func TestExtractRejectsEscapesAndBombs(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(base, "data", "old.txt")); err == nil {
 		t.Fatal("truncate left old files")
+	}
+}
+
+func tarGz(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	gz := gzip.NewWriter(&b)
+	tw := tar.NewWriter(gz)
+	for n, c := range files {
+		tw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: n, Size: int64(len(c)), Mode: 0o644})
+		tw.Write([]byte(c))
+	}
+	tw.Close()
+	gz.Close()
+	return b.Bytes()
+}
+
+// A restore that cannot finish must not have changed anything: the archive is
+// checked before the directory is emptied or any file is written.
+func TestExtractChangesNothingWhenItCannotFinish(t *testing.T) {
+	data := filepath.Join(t.TempDir(), "data")
+	d, _ := Open(data)
+	defer d.Close()
+	d.Write("world/level.dat", []byte("precious"))
+
+	good := tarGz(t, map[string]string{"a.txt": strings.Repeat("a", 4000), "b.txt": strings.Repeat("b", 4000)})
+	cases := map[string]struct {
+		archive []byte
+		max     int64
+		want    error
+	}{
+		"cut short":   {good[:len(good)/2], 0, nil},
+		"not gzip":    {[]byte("definitely not an archive"), 0, nil},
+		"over limit":  {good, 5000, ErrArchiveTooLarge},
+		"unsafe path": {tarGz(t, map[string]string{"ok.txt": "x", "../evil": "x"}), 0, nil},
+	}
+	for name, c := range cases {
+		err := d.Extract(bytes.NewReader(c.archive), true, c.max)
+		if err == nil || (c.want != nil && !errors.Is(err, c.want)) {
+			t.Fatalf("%s: got %v", name, err)
+		}
+		if b, err := os.ReadFile(filepath.Join(data, "world", "level.dat")); err != nil || string(b) != "precious" {
+			t.Fatalf("%s: existing files were touched (%q, %v)", name, b, err)
+		}
+		if _, err := os.Stat(filepath.Join(data, "a.txt")); err == nil {
+			t.Fatalf("%s: part of the archive was written", name)
+		}
+	}
+}
+
+func TestScanCountsRegularFiles(t *testing.T) {
+	n, err := Scan(bytes.NewReader(tarGz(t, map[string]string{"a": "123", "d/b": "45"})))
+	if err != nil || n != 5 {
+		t.Fatalf("got %d, %v", n, err)
+	}
+}
+
+// When the daemon runs as root, everything it creates must be handed to the
+// directory's owner, or the game (which runs as that owner with no
+// capabilities) cannot write it. Every way of creating a path goes through adopt.
+func TestEverythingCreatedIsAdopted(t *testing.T) {
+	data := filepath.Join(t.TempDir(), "data")
+	d, _ := Open(data)
+	defer d.Close()
+	if d.chown && os.Geteuid() != 0 {
+		t.Fatal("chown must only be on when the daemon runs as root")
+	}
+	// Chowning to ourselves is allowed without root, so the real call runs too.
+	d.chown, d.uid, d.gid = true, os.Getuid(), os.Getgid()
+	var got []string
+	d.adopted = func(name string) { got = append(got, name) }
+	expect := func(what string, want ...string) {
+		t.Helper()
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("%s: adopted %v, want %v", what, got, want)
+		}
+		got = nil
+	}
+
+	d.Write("cfg/sub/a.yml", []byte("x"))
+	expect("write", "cfg", "cfg/sub", "cfg/sub/a.yml")
+	d.Write("cfg/sub/a.yml", []byte("y"))
+	expect("overwrite keeps the existing file's owner")
+	d.Mkdir("m/n")
+	expect("mkdir", "m", "m/n")
+	d.MkdirOne("one")
+	expect("mkdir one", "one")
+	f, err := d.OpenFile("up.bin", os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	expect("sftp upload", "up.bin")
+	if err := d.Extract(bytes.NewReader(tarGz(t, map[string]string{"w/level.dat": "x"})), false, 0); err != nil {
+		t.Fatal(err)
+	}
+	expect("restore", "w", "w/level.dat")
+}
+
+// As root (how the daemon usually runs), files the panel, SFTP or a restore
+// create must belong to the data directory's owner, the user the game runs as.
+// Skipped unless the tests run as root.
+func TestRootDaemonHandsNewFilesToTheGameUser(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("needs root")
+	}
+	const game = 4242
+	data := filepath.Join(t.TempDir(), "data")
+	os.MkdirAll(data, 0o755)
+	if err := os.Chown(data, game, game); err != nil {
+		t.Fatal(err)
+	}
+	d, err := Open(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Write("cfg/server.properties", []byte("x"))
+	d.Mkdir("plugins/a")
+	f, _ := d.OpenFile("upload.jar", os.O_WRONLY|os.O_CREATE, 0o644)
+	f.Close()
+	d.Extract(bytes.NewReader(tarGz(t, map[string]string{"world/level.dat": "w"})), false, 0)
+	for _, p := range []string{"cfg", "cfg/server.properties", "plugins", "plugins/a", "upload.jar", "world", "world/level.dat"} {
+		fi, err := os.Lstat(filepath.Join(data, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st := fi.Sys().(*syscall.Stat_t); st.Uid != game || st.Gid != game {
+			t.Errorf("%s belongs to %d:%d, want %d:%d", p, st.Uid, st.Gid, game, game)
+		}
 	}
 }

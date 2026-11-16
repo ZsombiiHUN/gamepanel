@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
 // ptdlEgg is the subset of the Pterodactyl PTDL_v1/v2 egg format we import,
@@ -37,10 +38,6 @@ type ptdlEgg struct {
 		Default     any    `json:"default_value"`
 	} `json:"variables"`
 }
-
-// entrypointRe keeps the installer entrypoint a plain program name; it is
-// placed into a shell wrapper by the daemon.
-var entrypointRe = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
 
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
@@ -77,7 +74,8 @@ func importPTDL(raw []byte) (store.Egg, error) {
 		if e.InstallImage == "" {
 			return e, errors.New("egg has an install script but no installer image")
 		}
-		if !entrypointRe.MatchString(e.InstallEntrypoint) {
+		// The daemon places it into a shell command line: a plain name only.
+		if !proto.ValidEntrypoint(e.InstallEntrypoint) {
 			return e, errors.New("install entrypoint must be a plain program name")
 		}
 	} else {
@@ -131,12 +129,10 @@ func buildEnv(egg store.Egg, overrides map[string]string, memMB int64, port int)
 			env[k] = v
 		}
 	}
-	env["SERVER_MEMORY"] = itoa(memMB)
-	env["SERVER_PORT"] = itoa(int64(port))
+	env["SERVER_MEMORY"] = strconv.FormatInt(memMB, 10)
+	env["SERVER_PORT"] = strconv.Itoa(port)
 	return env
 }
-
-func itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
 
 // firstImage returns the first value of a {"label": "image"} object in file
 // order. Pterodactyl treats the first listed image as the default, and for

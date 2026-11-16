@@ -20,6 +20,7 @@ import (
 const (
 	defaultDiskCacheTTL  = 30 * time.Second
 	defaultStatsInterval = 5 * time.Second
+	defaultSFTPRecheck   = 30 * time.Second
 )
 
 type diskCache struct {
@@ -50,13 +51,17 @@ func (c *diskCache) invalidate() {
 	c.mu.Unlock()
 }
 
-// add accounts for bytes written since the last measurement.
-func (c *diskCache) add(n int64) {
+// reserve accounts for extra bytes about to be written, failing if they would
+// pass limit. Check and add happen under one lock, so concurrent writers (two
+// SFTP uploads, an upload and an editor save) cannot both spend the same room.
+func (c *diskCache) reserve(extra, limit int64) error {
 	c.mu.Lock()
-	if !c.at.IsZero() {
-		c.bytes += n
+	defer c.mu.Unlock()
+	if c.bytes+extra > limit {
+		return ErrDiskFull{c.bytes, limit}
 	}
-	c.mu.Unlock()
+	c.bytes += extra
+	return nil
 }
 
 func (d *Daemon) cacheFor(uuid string) *diskCache {
@@ -103,20 +108,20 @@ func (e ErrDiskFull) Error() string {
 	return fmt.Sprintf("disk limit exceeded (%d MB used of %d MB)", e.Used>>20, e.Limit>>20)
 }
 
-// checkDisk fails if adding extra bytes would pass the limit.
-func (d *Daemon) checkDisk(uuid string, extra int64) error {
+func (ErrDiskFull) ErrCode() string { return proto.CodeDiskFull }
+
+// reserveDisk fails if writing extra more bytes would pass the server's disk
+// limit, and otherwise counts them as used until the next measurement.
+// reserveDisk(uuid, 0) just checks that the server is not already over.
+func (d *Daemon) reserveDisk(uuid string, extra int64) error {
 	limit := d.diskLimitBytes(uuid)
 	if limit == 0 {
 		return nil
 	}
-	used, err := d.diskUsage(uuid, d.cfg.diskTTL())
-	if err != nil {
+	if _, err := d.diskUsage(uuid, d.cfg.diskTTL()); err != nil {
 		return err
 	}
-	if used+extra > limit {
-		return ErrDiskFull{used, limit}
-	}
-	return nil
+	return d.cacheFor(uuid).reserve(extra, limit)
 }
 
 // diskHeadroom is how many more bytes may be written (-1 = unlimited).
@@ -173,6 +178,13 @@ func (c Config) diskTTL() time.Duration {
 		return c.DiskCacheTTL
 	}
 	return defaultDiskCacheTTL
+}
+
+func (c Config) sftpRecheck() time.Duration {
+	if c.SFTPRecheck > 0 {
+		return c.SFTPRecheck
+	}
+	return defaultSFTPRecheck
 }
 
 func (c Config) statsEvery() time.Duration {

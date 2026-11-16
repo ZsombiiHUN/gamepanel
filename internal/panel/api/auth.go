@@ -1,0 +1,168 @@
+package api
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+)
+
+// ---- sign-in ----
+
+type loginIn struct {
+	Body struct {
+		Email    string `json:"email" format:"email"`
+		Password string `json:"password" minLength:"1"`
+		// TOTPCode is an authenticator or recovery code, required when the
+		// account has two-factor enabled.
+		TOTPCode string `json:"totp_code,omitempty" maxLength:"20"`
+	}
+}
+type userOut struct{ Body store.User }
+type loginOut struct {
+	SetCookie http.Cookie `header:"Set-Cookie"`
+	Body      store.User
+}
+type logoutIn struct {
+	Session string `cookie:"gp_session"`
+}
+type logoutOut struct {
+	SetCookie http.Cookie `header:"Set-Cookie"`
+}
+
+func (a *App) registerAuth(api huma.API) {
+	huma.Register(api, huma.Operation{OperationID: "login", Method: "POST", Path: "/auth/login", Summary: "Sign in"},
+		func(ctx context.Context, in *loginIn) (*loginOut, error) {
+			email := strings.ToLower(strings.TrimSpace(in.Body.Email))
+			if a.fails.over(email) {
+				a.audit(ctx, store.User{Email: email}, "login.blocked", email, "too many failures for this account")
+				return nil, huma.Error429TooManyRequests("too many failed attempts for this account, try again later")
+			}
+			u, err := a.Store.Login(ctx, email, in.Body.Password)
+			if err != nil {
+				a.fails.add(email)
+				a.audit(ctx, store.User{Email: email}, "login.fail", email, "")
+				return nil, huma.Error401Unauthorized("invalid email or password")
+			}
+			if u.TOTPEnabled {
+				if in.Body.TOTPCode == "" {
+					// Password was right; tell the client to ask for the code.
+					// Not a failure, so it does not count against the account.
+					return nil, huma.Error401Unauthorized("totp_required")
+				}
+				kind, err := a.Store.VerifySecondFactor(ctx, u.ID, in.Body.TOTPCode)
+				if err != nil {
+					a.fails.add(email)
+					a.audit(ctx, u, "login.fail", email, "bad second factor")
+					return nil, huma.Error401Unauthorized("invalid code")
+				}
+				if kind == "recovery" {
+					a.audit(ctx, u, "login.recovery_code", email, "a recovery code was used")
+				}
+			}
+			a.fails.reset(email)
+			a.audit(ctx, u, "login.ok", email, "")
+			tok, err := a.Store.NewSession(ctx, u.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("could not create session")
+			}
+			return &loginOut{Body: u, SetCookie: http.Cookie{
+				Name: cookieName, Value: tok, Path: "/", HttpOnly: true, Secure: a.CookieSecure,
+				SameSite: http.SameSiteLaxMode, MaxAge: int(store.SessionTTL.Seconds()),
+			}}, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "logout", Method: "POST", Path: "/auth/logout", Summary: "Sign out"},
+		func(ctx context.Context, in *logoutIn) (*logoutOut, error) {
+			if in.Session != "" {
+				a.Store.DeleteSession(ctx, in.Session) // revoke server-side, not just in the browser
+			}
+			if u, ok := userFrom(ctx); ok {
+				a.audit(ctx, u, "logout", u.Email, "")
+			}
+			return &logoutOut{SetCookie: http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.CookieSecure, SameSite: http.SameSiteLaxMode}}, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "me", Method: "GET", Path: "/auth/me", Summary: "Current user"},
+		func(ctx context.Context, _ *struct{}) (*userOut, error) {
+			u, err := requireUser(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return &userOut{Body: u}, nil
+		})
+}
+
+// ---- account ----
+
+type passwordIn struct {
+	Session string `cookie:"gp_session"`
+	Body    struct {
+		Current string `json:"current_password" minLength:"1" maxLength:"256"`
+		New     string `json:"new_password" minLength:"12" maxLength:"256"`
+	}
+}
+type revokeIn struct {
+	Session string `cookie:"gp_session"`
+}
+type auditIn struct {
+	Limit  int    `query:"limit" default:"100" minimum:"1" maximum:"500"`
+	Offset int    `query:"offset" default:"0" minimum:"0"`
+	Q      string `query:"q" maxLength:"200" doc:"Only entries containing every word, in the action, user, target, detail or IP."`
+}
+type auditOut struct{ Body []store.AuditEntry }
+
+func (a *App) registerAccount(api huma.API) {
+	huma.Register(api, huma.Operation{OperationID: "changePassword", Method: "POST", Path: "/auth/password",
+		Summary: "Change your password (signs out every other session)", DefaultStatus: 204},
+		func(ctx context.Context, in *passwordIn) (*struct{}, error) {
+			u, err := requireSession(ctx)
+			if err != nil {
+				return nil, err
+			}
+			// Same brute-force guard as login: the current password is a guess target too.
+			if a.fails.over(u.Email) {
+				return nil, huma.Error429TooManyRequests("too many failed attempts, try again later")
+			}
+			if err := a.Store.ChangePassword(ctx, u.ID, in.Body.Current, in.Body.New, in.Session); err != nil {
+				if errors.Is(err, store.ErrBadPassword) {
+					a.fails.add(u.Email)
+					a.audit(ctx, u, "password.change.fail", u.Email, "")
+					return nil, huma.Error403Forbidden("current password is incorrect")
+				}
+				return nil, huma.Error422UnprocessableEntity(err.Error())
+			}
+			a.audit(ctx, u, "password.change", u.Email, "other sessions revoked")
+			return nil, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "revokeOtherSessions", Method: "POST", Path: "/auth/sessions/revoke-others",
+		Summary: "Sign out everywhere except this browser", DefaultStatus: 204},
+		func(ctx context.Context, in *revokeIn) (*struct{}, error) {
+			u, err := requireSession(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if err := a.Store.DeleteOtherSessions(ctx, u.ID, in.Session); err != nil {
+				return nil, huma.Error500InternalServerError("db error")
+			}
+			a.audit(ctx, u, "sessions.revoke_others", u.Email, "")
+			return nil, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "listAudit", Method: "GET", Path: "/audit", Summary: "Audit log (admin)"},
+		func(ctx context.Context, in *auditIn) (*auditOut, error) {
+			if _, err := requireAdmin(ctx); err != nil {
+				return nil, err
+			}
+			es, err := a.Store.ListAudit(ctx, in.Q, in.Limit, in.Offset)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error")
+			}
+			return &auditOut{Body: es}, nil
+		})
+}

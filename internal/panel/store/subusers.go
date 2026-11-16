@@ -140,6 +140,25 @@ func (s *Store) ListSubusers(ctx context.Context, server string) ([]Subuser, err
 	return out, rows.Err()
 }
 
+// SubuserServers returns, for every server a user is a subuser of, the
+// permissions they hold there (one query for a whole server list).
+func (s *Store) SubuserServers(ctx context.Context, userID int64) (map[string][]string, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT server_uuid,permissions FROM server_users WHERE user_id=?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]string{}
+	for rows.Next() {
+		var uuid, p string
+		if err := rows.Scan(&uuid, &p); err != nil {
+			return nil, err
+		}
+		out[uuid] = splitPerms(p)
+	}
+	return out, rows.Err()
+}
+
 // SubuserPermissions returns the permissions a user holds on a server as a
 // subuser, and whether they are one at all.
 func (s *Store) SubuserPermissions(ctx context.Context, server string, userID int64) ([]string, bool) {
