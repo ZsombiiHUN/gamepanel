@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, createRoute, createRouter, Link, Outlet, redirect, type ErrorComponentProps, type RouterHistory } from "@tanstack/react-router";
 import { AlertTriangle, Compass, Lock } from "lucide-react";
 import { ApiError } from "./api/client";
-import { auditQuery, eggsQuery, meQuery, nodesQuery, serverQuery, serversQuery } from "./api/queries";
+import { auditQuery, databaseHostsQuery, eggsQuery, meQuery, nodesQuery, serverQuery, serversQuery } from "./api/queries";
 import { Empty } from "./components/ui";
 import { errorText } from "./lib/problem";
 import { GROUPS } from "./lib/servers";
@@ -12,9 +12,11 @@ import { AccountPage } from "./pages/AccountPage";
 import { AppShell } from "./pages/AppShell";
 import { AuditPage } from "./pages/AuditPage";
 import { CreateServerPage } from "./pages/CreateServerPage";
+import { DatabaseHostsPage } from "./pages/DatabaseHostsPage";
 import { EggsPage } from "./pages/EggsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NodesPage } from "./pages/NodesPage";
+import { ForgotPage, RegisterPage, ResetPage } from "./pages/PasswordPages";
 import { ServerDetailPage } from "./pages/ServerDetailPage";
 import { ServersPage } from "./pages/ServersPage";
 
@@ -71,11 +73,20 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+  validateSearch: (s: Record<string, unknown>): { sso?: string; sso_error?: string } => ({ sso: text(s.sso), sso_error: text(s.sso_error) }),
   // Already signed in: skip the form.
   beforeLoad: async ({ context }) => {
     if (await currentUser(context.queryClient)) throw redirect({ to: "/" });
   },
 });
+
+// Pages for people who are not signed in. Signed-in visitors skip forgot and sign-up.
+const skipWhenSignedIn = async ({ context }: { context: RouterContext }) => {
+  if (await currentUser(context.queryClient)) throw redirect({ to: "/" });
+};
+const forgotRoute = createRoute({ getParentRoute: () => rootRoute, path: "/forgot", component: ForgotPage, beforeLoad: skipWhenSignedIn });
+const resetRoute = createRoute({ getParentRoute: () => rootRoute, path: "/reset", component: ResetPage });
+const registerRoute = createRoute({ getParentRoute: () => rootRoute, path: "/register", component: RegisterPage, beforeLoad: skipWhenSignedIn });
 
 /** Everything behind sign-in. `me` is resolved before any page renders, so pages never handle "not signed in". */
 const appRoute = createRoute({
@@ -115,7 +126,12 @@ const serverRoute = createRoute({
   loader: ({ context, params }) => void context.queryClient.prefetchQuery(serverQuery(params.uuid)),
 });
 
-const accountRoute = createRoute({ getParentRoute: () => appRoute, path: "/account", component: AccountPage });
+const accountRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/account",
+  component: AccountPage,
+  validateSearch: (s: Record<string, unknown>): { sso_linked?: string; sso_error?: string } => ({ sso_linked: text(s.sso_linked), sso_error: text(s.sso_error) }),
+});
 
 /** Pages only administrators may open. */
 const adminRoute = createRoute({
@@ -148,6 +164,15 @@ const eggsRoute = createRoute({
   component: EggsPage,
   loader: ({ context }) => void context.queryClient.prefetchQuery(eggsQuery),
 });
+const databaseHostsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/database-hosts",
+  component: DatabaseHostsPage,
+  loader: ({ context }) => {
+    void context.queryClient.prefetchQuery(databaseHostsQuery);
+    void context.queryClient.prefetchQuery(nodesQuery);
+  },
+});
 const auditRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/audit",
@@ -159,7 +184,10 @@ const auditRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  appRoute.addChildren([indexRoute, serverRoute, accountRoute, adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, auditRoute])]),
+  forgotRoute,
+  resetRoute,
+  registerRoute,
+  appRoute.addChildren([indexRoute, serverRoute, accountRoute, adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, databaseHostsRoute, auditRoute])]),
 ]);
 
 export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {

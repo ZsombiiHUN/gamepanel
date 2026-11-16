@@ -5,9 +5,9 @@ import { CornerDownLeft, Search } from "lucide-react";
 import { meQuery, serversQuery } from "../api/queries";
 import { rankItems, type PaletteItem } from "../lib/palette";
 import { sortServers, stateLabel } from "../lib/servers";
+import { canSee, TAB_INFO } from "../lib/tabs";
 import { StateMark } from "./ui";
 
-type Tab = "console" | "files" | "backups" | "schedules" | "users" | "settings";
 type Item = PaletteItem & { go: () => void; state?: string };
 
 // The list scrolls, so this only bounds the DOM for very large installs.
@@ -40,10 +40,9 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
     const out: Item[] = [];
     const cur = (servers.data ?? []).find((s) => s.uuid === currentServer);
     if (cur) {
-      const tabs: [Tab, string, string?][] = [["console", "Console"], ["files", "Files"], ["backups", "Backups"], ["schedules", "Schedules"], ["users", "Access", "owner"], ["settings", "Settings"]];
-      for (const [tab, label, need] of tabs) {
-        if (need === "owner" && !cur.owner) continue;
-        out.push({ id: `tab:${tab}`, group: `This server (${cur.name})`, label, keywords: `${cur.name} tab`, go: () => void navigate({ to: "/servers/$uuid", params: { uuid: cur.uuid }, search: { tab } }) });
+      for (const { id: tab, label, need, keywords } of TAB_INFO) {
+        if (!canSee(need, cur)) continue;
+        out.push({ id: `tab:${tab}`, group: `This server (${cur.name})`, label, keywords: `${cur.name} tab ${keywords ?? ""}`, go: () => void navigate({ to: "/servers/$uuid", params: { uuid: cur.uuid }, search: { tab } }) });
       }
     }
     for (const s of sortServers(servers.data ?? [])) {
@@ -57,7 +56,7 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
       });
     }
     const pages: [string, string, string][] = [["/", "All servers", ""], ["/account", "Account", "profile password two-factor 2fa api keys sessions"]];
-    if (me.data?.is_admin) pages.push(["/servers/new", "New server", "create add"], ["/nodes", "Nodes", "machines daemon"], ["/eggs", "Eggs", "templates import games"], ["/audit", "Audit log", "events security history"]);
+    if (me.data?.is_admin) pages.push(["/servers/new", "New server", "create add"], ["/nodes", "Nodes", "machines daemon"], ["/eggs", "Eggs", "templates import games"], ["/database-hosts", "Database hosts", "mysql mariadb"], ["/audit", "Audit log", "events security history"]);
     for (const [to, label, keywords] of pages) out.push({ id: `page:${to}`, group: "Pages", label, keywords, go: () => void navigate({ to }) });
     return out;
   }, [servers.data, me.data, currentServer, navigate]);
@@ -115,7 +114,7 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
               aria-selected={i === idx}
               onMouseMove={() => setActive(i)}
               onClick={() => choose(it)}
-              className={`flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm ${i === idx ? "bg-[#1d2229] text-zinc-100" : "text-zinc-300"}`}
+              className={`flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm ${i === idx ? "bg-chip text-zinc-100" : "text-zinc-300"}`}
             >
               {it.state && <StateMark state={it.state} />}
               <span className="flex-1 truncate">{it.label}</span>

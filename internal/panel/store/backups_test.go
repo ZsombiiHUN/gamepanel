@@ -36,7 +36,14 @@ func TestBackupCapRotationAndLocks(t *testing.T) {
 			s.FinishBackup(ctx, id, 1, "x", "")
 			s.exec(ctx, `UPDATE backups SET created_at=? WHERE uuid=?`, 1000+i, id) // deterministic age
 		}
-		return ev, err
+		var ids []string
+		for _, b := range ev {
+			if b.Disk != "local" {
+				t.Fatalf("evicted backup disk %q", b.Disk)
+			}
+			ids = append(ids, b.UUID)
+		}
+		return ids, err
 	}
 	for i := 0; i < DefaultBackupLimit; i++ {
 		if _, err := mk(i, false); err != nil {

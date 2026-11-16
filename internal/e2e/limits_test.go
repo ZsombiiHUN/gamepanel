@@ -71,12 +71,19 @@ func TestEditLimitsAndNodeCapacity(t *testing.T) {
 	}
 	s.admin.do("POST", srv+"/backups", map[string]any{}, 409)
 
-	// not while the server runs
+	// a running server keeps its container and gets the new limits at its next start
+	memOf := func() int64 { sp, _ := s.fake.SpecOf(s.server); return sp.MemoryMB }
 	s.admin.do("POST", srv+"/power", map[string]string{"action": "start"}, 202)
 	waitFor(t, "running", func() bool { return s.state() == "running" })
-	s.setLimits(map[string]any{"memory_mb": 1024}, 409)
+	s.setLimits(map[string]any{"memory_mb": 1024}, 204)
+	if memOf() != 512 {
+		t.Fatal("the running container was replaced")
+	}
+	s.admin.do("POST", srv+"/power", map[string]string{"action": "restart"}, 202)
+	waitFor(t, "new limits applied at restart", func() bool { return memOf() == 1024 })
 	s.admin.do("POST", srv+"/power", map[string]string{"action": "stop"}, 202)
 	waitFor(t, "stopped", func() bool { return s.state() == "offline" })
+	s.setLimits(map[string]any{"memory_mb": 512}, 204)
 
 	// only admins change limits (an owner/subuser cannot raise their own quota)
 	s.st.CreateUser(s.ctx, "bob@example.com", "another-long-password", false)

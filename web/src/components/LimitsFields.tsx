@@ -10,6 +10,9 @@ export type LimitsForm = {
   io_weight: string;
   disk_mb: string;
   backup_limit: string;
+  port_limit: string;
+  database_limit: string;
+  bandwidth_mbit: string;
 };
 
 export type LimitsValue = {
@@ -21,15 +24,19 @@ export type LimitsValue = {
   io_weight: number;
   disk_mb: number;
   backup_limit: number;
+  port_limit?: number;
+  database_limit?: number;
+  bandwidth_mbit?: number;
 };
 
 export const defaultLimitsForm: LimitsForm = {
-  memory_mb: "1024", swap_mb: "0", cpu_pct: "0", cpuset: "", pids_limit: "1024", io_weight: "0", disk_mb: "0", backup_limit: "20",
+  memory_mb: "1024", swap_mb: "0", cpu_pct: "0", cpuset: "", pids_limit: "1024", io_weight: "0", disk_mb: "0", backup_limit: "20", port_limit: "0", database_limit: "0", bandwidth_mbit: "0",
 };
 
 export const limitsToForm = (l: LimitsValue): LimitsForm => ({
   memory_mb: String(l.memory_mb), swap_mb: String(l.swap_mb), cpu_pct: String(l.cpu_pct), cpuset: l.cpuset,
   pids_limit: String(l.pids_limit), io_weight: String(l.io_weight), disk_mb: String(l.disk_mb), backup_limit: String(l.backup_limit),
+  port_limit: String(l.port_limit ?? 0), database_limit: String(l.database_limit ?? 0), bandwidth_mbit: String(l.bandwidth_mbit ?? 0),
 });
 
 const n = (s: string, fallback: number) => (s.trim() === "" ? fallback : Number(s));
@@ -37,6 +44,7 @@ const n = (s: string, fallback: number) => (s.trim() === "" ? fallback : Number(
 export const formToLimits = (f: LimitsForm): LimitsValue => ({
   memory_mb: n(f.memory_mb, 0), swap_mb: n(f.swap_mb, 0), cpu_pct: n(f.cpu_pct, 0), cpuset: f.cpuset.trim(),
   pids_limit: n(f.pids_limit, 1024), io_weight: n(f.io_weight, 0), disk_mb: n(f.disk_mb, 0), backup_limit: n(f.backup_limit, 20),
+  port_limit: n(f.port_limit, 0), database_limit: n(f.database_limit, 0), bandwidth_mbit: n(f.bandwidth_mbit, 0),
 });
 
 /** One input per limit. Zero generally means "unlimited" or "default"; the hints say which. */
@@ -59,6 +67,9 @@ export function LimitsFields({ value, onChange }: { value: LimitsForm; onChange:
       {num("pids_limit", "Max processes", "Processes and threads. Stops fork bombs.", 16, 65536)}
       {num("io_weight", "Disk IO priority", "10-1000, relative to other servers. 0 = default.", 0, 1000)}
       {num("backup_limit", "Backups to keep", "1-100.", 1, 100)}
+      {num("bandwidth_mbit", "Network (Mbit/s)", "Upload and download each, shaped on the node. 0 = unlimited.", 0, 100000)}
+      {num("database_limit", "Databases", "MySQL databases the owner may create. 0-100.", 0, 100)}
+      {num("port_limit", "Extra ports", "Ports the owner may add beyond the primary one. 0-100.", 0, 100)}
     </div>
   );
 }

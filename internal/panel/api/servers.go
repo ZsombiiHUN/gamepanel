@@ -26,19 +26,23 @@ type serverView struct {
 	// owner and admins, who can also manage who else has access.
 	Permissions []string `json:"permissions" nullable:"false"`
 	Owner       bool     `json:"owner"`
+	// OwnerEmail is filled for admins viewing one server.
+	OwnerEmail string `json:"owner_email,omitempty"`
 }
 
-// viewFor builds the server as the caller may see it. Subusers do not get the
-// environment, which commonly holds secrets such as RCON passwords.
+// viewFor builds the server as the caller may see it. Only admins get the raw
+// environment, which can hold values the egg hides from users (such as
+// license keys); everyone else reads variables through GET .../startup,
+// which applies the egg's visibility settings.
 func (a *App) viewFor(ctx context.Context, u store.User, s store.Server) serverView {
 	perms, owner, _ := a.access(ctx, u, s)
-	return a.viewWith(s, perms, owner)
+	return a.viewWith(s, perms, owner, u.IsAdmin)
 }
 
-func (a *App) viewWith(s store.Server, perms []string, owner bool) serverView {
+func (a *App) viewWith(s store.Server, perms []string, owner, admin bool) serverView {
 	v := a.view(s)
 	v.Permissions, v.Owner = perms, owner
-	if !owner {
+	if !admin {
 		v.Env = map[string]string{}
 	}
 	return v
@@ -77,14 +81,17 @@ type serverCreateIn struct {
 		MemoryMB int64  `json:"memory_mb" minimum:"64" maximum:"1048576"`
 		CPUPct   int64  `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
 		// More limits, all optional. See PUT /servers/{uuid}/limits.
-		SwapMB      int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
-		CPUSet      string            `json:"cpuset,omitempty" maxLength:"64"`
-		PidsLimit   int64             `json:"pids_limit,omitempty" minimum:"16" maximum:"65536" doc:"default 1024"`
-		IOWeight    int64             `json:"io_weight,omitempty" minimum:"0" maximum:"1000" doc:"0 = default, else 10-1000"`
-		DiskMB      int64             `json:"disk_mb,omitempty" minimum:"0" doc:"0 = unlimited"`
-		BackupLimit int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
-		Port        int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
-		Env         map[string]string `json:"env,omitempty"`
+		SwapMB        int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
+		CPUSet        string            `json:"cpuset,omitempty" maxLength:"64"`
+		PidsLimit     int64             `json:"pids_limit,omitempty" minimum:"16" maximum:"65536" doc:"default 1024"`
+		IOWeight      int64             `json:"io_weight,omitempty" minimum:"0" maximum:"1000" doc:"0 = default, else 10-1000"`
+		DiskMB        int64             `json:"disk_mb,omitempty" minimum:"0" doc:"0 = unlimited"`
+		BackupLimit   int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
+		PortLimit     int64             `json:"port_limit,omitempty" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one"`
+		DatabaseLimit int64             `json:"database_limit,omitempty" minimum:"0" maximum:"100" doc:"databases the owner may create"`
+		BandwidthMbit int64             `json:"bandwidth_mbit,omitempty" minimum:"0" maximum:"100000" doc:"network limit each way in Mbit/s, 0 = unlimited"`
+		Port          int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
+		Env           map[string]string `json:"env,omitempty"`
 	}
 }
 type powerIn struct {
@@ -141,9 +148,9 @@ func (a *App) registerServers(api huma.API) {
 			out := &serverListOut{Body: []serverView{}}
 			for _, s := range ss {
 				if u.IsAdmin || s.OwnerID == u.ID {
-					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true))
+					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true, u.IsAdmin))
 				} else {
-					out.Body = append(out.Body, a.viewWith(s, shared[s.UUID], false))
+					out.Body = append(out.Body, a.viewWith(s, shared[s.UUID], false, false))
 				}
 			}
 			ptrs := make([]*serverView, len(out.Body))
@@ -172,7 +179,7 @@ func (a *App) registerServers(api huma.API) {
 				Port: b.Port, Env: b.Env,
 				Limits: store.Limits{
 					MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
-					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit,
+					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit, DatabaseLimit: b.DatabaseLimit, BandwidthMbit: b.BandwidthMbit,
 				},
 			})
 			if err != nil {
@@ -201,6 +208,11 @@ func (a *App) registerServers(api huma.API) {
 			}
 			v := a.viewFor(ctx, u, s)
 			a.label(ctx, &v)
+			if u.IsAdmin {
+				if o, err := a.Store.GetUser(ctx, s.OwnerID); err == nil {
+					v.OwnerEmail = o.Email
+				}
+			}
 			return &serverOut{Body: v}, nil
 		})
 
@@ -217,6 +229,8 @@ func (a *App) registerServers(api huma.API) {
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerDelete, proto.UUIDOnly{UUID: s.UUID}); err != nil {
 				return nil, nodeErr(err)
 			}
+			a.removeRemoteBackups(ctx, s.UUID) // before the rows that list them go
+			a.dropServerDatabases(ctx, s.UUID)
 			if err := a.Store.DeleteServer(ctx, s.UUID); err != nil {
 				return nil, huma.Error500InternalServerError("the node deleted the server but the panel could not", err)
 			}
@@ -226,7 +240,7 @@ func (a *App) registerServers(api huma.API) {
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "setLimits", Method: "PUT", Path: "/servers/{uuid}/limits",
-		Summary: "Change a server's resource limits (admin; the server must be stopped)", DefaultStatus: 204},
+		Summary: "Change a server's resource limits (admin; a running server applies them at its next start)", DefaultStatus: 204},
 		func(ctx context.Context, in *limitsIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
@@ -384,4 +398,64 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "..."
+}
+
+type renameIn struct {
+	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+	Body struct {
+		Name        string `json:"name" minLength:"1" maxLength:"64"`
+		Description string `json:"description,omitempty" maxLength:"500"`
+	}
+}
+type ownerIn struct {
+	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+	Body struct {
+		Email string `json:"email" format:"email" maxLength:"254"`
+	}
+}
+
+func (a *App) registerServerDetails(api huma.API) {
+	huma.Register(api, huma.Operation{OperationID: "renameServer", Method: "PUT", Path: "/servers/{uuid}/details", Summary: "Rename a server and set its description"},
+		func(ctx context.Context, in *renameIn) (*serverOut, error) {
+			u, s, err := a.authorizeP(ctx, in.UUID, PermRename)
+			if err != nil {
+				return nil, err
+			}
+			name := strings.TrimSpace(in.Body.Name)
+			if name == "" || strings.ContainsAny(name, "\r\n\t") {
+				return nil, huma.Error422UnprocessableEntity("give the server a name on one line")
+			}
+			if err := a.Store.RenameServer(ctx, s.UUID, name, strings.TrimSpace(in.Body.Description)); err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
+			if name != s.Name {
+				a.audit(ctx, u, "server.rename", s.UUID, s.Name+" -> "+name)
+			}
+			s, _ = a.Store.GetServer(ctx, s.UUID)
+			v := a.viewFor(ctx, u, s)
+			a.label(ctx, &v)
+			return &serverOut{Body: v}, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "setServerOwner", Method: "PUT", Path: "/servers/{uuid}/owner",
+		Summary: "Hand a server to another account (admin)", Description: "The previous owner loses access unless an admin adds them back as a subuser."},
+		func(ctx context.Context, in *ownerIn) (*serverOut, error) {
+			u, err := requireAdmin(ctx)
+			if err != nil {
+				return nil, err
+			}
+			s, err := a.Store.GetServer(ctx, in.UUID)
+			if err != nil {
+				return nil, huma.Error404NotFound("server not found")
+			}
+			owner, err := a.Store.SetOwner(ctx, s.UUID, in.Body.Email)
+			if err != nil {
+				return nil, userErr(http.StatusUnprocessableEntity, err)
+			}
+			a.audit(ctx, u, "server.owner", s.UUID, owner.Email)
+			s, _ = a.Store.GetServer(ctx, s.UUID)
+			v := a.viewFor(ctx, u, s)
+			a.label(ctx, &v)
+			return &serverOut{Body: v}, nil
+		})
 }

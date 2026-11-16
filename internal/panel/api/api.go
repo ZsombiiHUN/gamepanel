@@ -10,6 +10,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -20,8 +21,12 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
+	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/modrinth"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
@@ -38,6 +43,21 @@ type Deps struct {
 	// context ends. SchedulerTick overrides the 20 s check interval (tests).
 	SchedulerCtx  context.Context
 	SchedulerTick time.Duration
+	// MetricsFlush is how often finished minutes of usage history are
+	// written (default 15 s; tests use less). Runs with SchedulerCtx.
+	MetricsFlush time.Duration
+	// Mail sends password resets and invitations; nil = no email. Links in
+	// mail need PublicURL (https://panel.example.com), never a Host header.
+	Mail      mail.Sender
+	PublicURL string
+	// Signup is "invite" (default: accounts only by invitation) or "open".
+	Signup string
+	// Modrinth overrides the mod manager's client (tests).
+	Modrinth *modrinth.Client
+	// SSO lists single sign-on providers (they need PublicURL).
+	SSO []*SSOProvider
+	// S3, when set, is where new backups are stored instead of on the node.
+	S3 *s3.Client
 	// AuthRecheck is how often an open console websocket re-checks that its
 	// session or API key is still valid and still grants console access
 	// (default 10 s).
@@ -48,7 +68,21 @@ type App struct {
 	Deps
 	limiter *limiter // login attempts per client IP
 	fails   *limiter // failed logins per account
-	running sync.Map // schedule id -> struct{}: one execution at a time
+	// mailLimit bounds reset requests, invite lookups and sign-ups per
+	// address and per email.
+	mailLimit *limiter
+	running   sync.Map // schedule id -> struct{}: one execution at a time
+	relays    sync.Map // relay ticket -> *relayTicket, see relay.go
+	uploads   sync.Map // backup uuid -> S3 multipart upload id
+	// Single sign-on round trips in flight (state -> ssoState) and sign-ins
+	// waiting for a second factor (token -> ssoPending).
+	ssoStates, ssoMFA sync.Map
+	// Passkeys: the WebAuthn relying party (made on first use) and
+	// ceremonies in flight.
+	waOnce       sync.Once
+	wa           *webauthn.WebAuthn
+	waCeremonies sync.Map
+	metrics      metricsCollector
 }
 
 type ctxKey struct{}
@@ -91,22 +125,15 @@ func requireAdmin(ctx context.Context) (store.User, error) {
 
 // New builds the full HTTP handler.
 func New(d Deps) http.Handler {
-	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute)}
+	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute), mailLimit: newLimiter(10, 15*time.Minute)}
 	errLog.Store(d.Log)
 	if a.AuthRecheck <= 0 {
 		a.AuthRecheck = 10 * time.Second
 	}
 	mux := http.NewServeMux()
-	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
-	// No "$schema" link in every response body: it points at the schema files,
-	// which only signed-in users may read.
-	cfg.CreateHooks = nil
-	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		"session": {Type: "apiKey", In: "cookie", Name: secureCookieName, Description: "`__Host-gp_session` over HTTPS, `gp_session` over plain HTTP"},
-		"apikey":  {Type: "http", Scheme: "bearer"},
-	}
-	api := humago.NewWithPrefix(mux, "/api", cfg)
+	api := humago.NewWithPrefix(mux, "/api", apiConfig())
 	d.Hub.OnHello = a.onHello
+	d.Hub.OnStats = a.collect
 	d.Hub.Locate = func(ctx context.Context, uuid string) (int64, error) {
 		s, err := a.Store.GetServer(ctx, uuid)
 		return s.NodeID, err
@@ -120,7 +147,48 @@ func New(d Deps) http.Handler {
 			tick = 20 * time.Second
 		}
 		go a.RunScheduler(d.SchedulerCtx, tick)
+		every := d.MetricsFlush
+		if every <= 0 {
+			every = 15 * time.Second
+		}
+		go a.runMetrics(d.SchedulerCtx, every)
 	}
+	a.register(api)
+
+	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
+	a.registerPtero(mux)
+	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
+	mux.HandleFunc("POST /daemon/sftp-auth", a.sftpAuth)
+	// File transfers stream outside huma (it would buffer the bodies).
+	mux.HandleFunc("PUT /api/servers/{uuid}/files/upload", a.uploadFile)
+	mux.HandleFunc("GET /api/servers/{uuid}/files/download", a.downloadFile)
+	mux.HandleFunc("GET /api/servers/{uuid}/backups/{backup}/download", a.downloadBackup)
+	mux.HandleFunc("GET /daemon/relay/{ticket}", a.relayHandler)
+	mux.HandleFunc("POST /daemon/relay/{ticket}", a.relayHandler)
+	mux.HandleFunc("GET /api/auth/sso/{provider}/start", a.ssoStart)
+	mux.HandleFunc("GET /api/auth/sso/{provider}/callback", a.ssoCallback)
+	mux.HandleFunc("POST /daemon/backups/upload", a.backupUpload)
+	mux.HandleFunc("POST /daemon/backups/complete", a.backupComplete)
+	if d.Web != nil {
+		mux.Handle("/", d.Web)
+	}
+	return a.middleware(mux)
+}
+
+func apiConfig() huma.Config {
+	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
+	// No "$schema" link in every response body: it points at the schema files,
+	// which only signed-in users may read.
+	cfg.CreateHooks = nil
+	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"session": {Type: "apiKey", In: "cookie", Name: secureCookieName, Description: "`__Host-gp_session` over HTTPS, `gp_session` over plain HTTP"},
+		"apikey":  {Type: "http", Scheme: "bearer"},
+	}
+	return cfg
+}
+
+// register adds every API operation.
+func (a *App) register(api huma.API) {
 	a.registerAuth(api)
 	a.registerAccount(api)
 	a.registerMFA(api)
@@ -129,14 +197,25 @@ func New(d Deps) http.Handler {
 	a.registerBackups(api)
 	a.registerSchedules(api)
 	a.registerSubusers(api)
+	a.registerStartup(api)
+	a.registerFiles(api)
+	a.registerNetwork(api)
+	a.registerDatabases(api)
+	a.registerServerDetails(api)
+	a.registerActivity(api)
+	a.registerLinks(api)
+	a.registerSSO(api)
+	a.registerPasskeys(api)
+	a.registerMetrics(api)
+	a.registerMods(api)
+}
 
-	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
-	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
-	mux.HandleFunc("POST /daemon/sftp-auth", a.sftpAuth)
-	if d.Web != nil {
-		mux.Handle("/", d.Web)
-	}
-	return a.middleware(mux)
+// OpenAPI returns the API description as JSON, the same document a running
+// panel serves at /api/openapi.json (web/openapi.json is made from it).
+func OpenAPI() ([]byte, error) {
+	api := humago.NewWithPrefix(http.NewServeMux(), "/api", apiConfig())
+	(&App{}).register(api)
+	return json.Marshal(api.OpenAPI())
 }
 
 // middleware resolves the session cookie into the request context, applies

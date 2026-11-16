@@ -325,16 +325,31 @@ type EggVar struct {
 	Name        string `json:"name"`
 	Default     string `json:"default"`
 	Description string `json:"description"`
+	// UserViewable and UserEditable decide whether server owners and
+	// subusers see and change the value; admins always do both.
+	UserViewable bool `json:"user_viewable"`
+	UserEditable bool `json:"user_editable"`
+	// Rules are Pterodactyl's validation rules, e.g. "required|string|max:20"
+	// (see ValidateVar for the supported set).
+	Rules string `json:"rules"`
+}
+
+// EggImage is one Docker image an egg offers, such as "Java 21".
+type EggImage struct {
+	Label string `json:"label"`
+	Image string `json:"image"`
 }
 
 type Egg struct {
-	ID          int64    `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	DockerImage string   `json:"docker_image"`
-	Startup     string   `json:"startup"`
-	Stop        string   `json:"stop"`
-	Variables   []EggVar `json:"variables"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	DockerImage string `json:"docker_image" doc:"the default image (the first of docker_images)"`
+	// DockerImages lists every image the egg offers, default first.
+	DockerImages []EggImage `json:"docker_images" nullable:"false"`
+	Startup      string     `json:"startup"`
+	Stop         string     `json:"stop"`
+	Variables    []EggVar   `json:"variables"`
 	// Optional install step: Script runs once in a throwaway InstallImage
 	// container with the server's data dir mounted at /mnt/server.
 	InstallImage      string `json:"install_image"`
@@ -343,9 +358,19 @@ type Egg struct {
 }
 
 func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
+	if len(e.DockerImages) == 0 && e.DockerImage != "" {
+		e.DockerImages = []EggImage{{Label: e.DockerImage, Image: e.DockerImage}}
+	}
+	if e.DockerImage == "" && len(e.DockerImages) > 0 {
+		e.DockerImage = e.DockerImages[0].Image
+	}
+	if e.Variables == nil {
+		e.Variables = []EggVar{}
+	}
 	vars, _ := json.Marshal(e.Variables)
-	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,startup,stop,variables,install_image,install_entrypoint,install_script,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
-		e.Name, e.Description, e.DockerImage, e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, now())
+	imgs, _ := json.Marshal(e.DockerImages)
+	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, now())
 	if err != nil {
 		return Egg{}, err
 	}
@@ -355,18 +380,22 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 
 func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
 	var e Egg
-	var vars string
-	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript); err != nil {
+	var vars, imgs string
+	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript); err != nil {
 		return e, nf(err)
 	}
 	json.Unmarshal([]byte(vars), &e.Variables)
 	if e.Variables == nil {
 		e.Variables = []EggVar{}
 	}
+	json.Unmarshal([]byte(imgs), &e.DockerImages)
+	if len(e.DockerImages) == 0 {
+		e.DockerImages = []EggImage{{Label: e.DockerImage, Image: e.DockerImage}}
+	}
 	return e, nil
 }
 
-const eggCols = `id,name,description,docker_image,startup,stop,variables,install_image,install_entrypoint,install_script`
+const eggCols = `id,name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script`
 
 func (s *Store) GetEgg(ctx context.Context, id int64) (Egg, error) {
 	return scanEgg(s.DB.QueryRowContext(ctx, `SELECT `+eggCols+` FROM eggs WHERE id=?`, id))
@@ -392,22 +421,26 @@ func (s *Store) ListEggs(ctx context.Context) ([]Egg, error) {
 // ---- servers ----
 
 type Server struct {
-	UUID    string            `json:"uuid"`
-	Name    string            `json:"name"`
-	OwnerID int64             `json:"owner_id"`
-	NodeID  int64             `json:"node_id"`
-	EggID   int64             `json:"egg_id"`
-	Port    int               `json:"port"`
-	Env     map[string]string `json:"env"`
+	UUID        string            `json:"uuid"`
+	Name        string            `json:"name"`
+	OwnerID     int64             `json:"owner_id"`
+	NodeID      int64             `json:"node_id"`
+	EggID       int64             `json:"egg_id"`
+	Port        int               `json:"port"`
+	Env         map[string]string `json:"env"`
+	Description string            `json:"description"`
+	// Image and Startup override the egg's; "" means use the egg's.
+	Image   string `json:"image"`
+	Startup string `json:"startup"`
 	Limits
 }
 
-const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit`
+const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup,port_limit,database_limit,description,bandwidth_mbit`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var v Server
 	var env string
-	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit); err != nil {
+	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup, &v.PortLimit, &v.DatabaseLimit, &v.Description, &v.BandwidthMbit); err != nil {
 		return v, nf(err)
 	}
 	json.Unmarshal([]byte(env), &v.Env)
@@ -456,41 +489,21 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 	if err := checkCapacity(ctx, tx, v.NodeID, "", v.Limits); err != nil {
 		return v, err
 	}
-	var ps, pe int
-	if err := tx.QueryRowContext(ctx, `SELECT port_start,port_end FROM nodes WHERE id=?`, v.NodeID).Scan(&ps, &pe); err != nil {
-		return v, nf(err)
+	port, err := pickPort(ctx, tx, v.NodeID, v.Port)
+	if err != nil {
+		return v, err
 	}
-	if v.Port == 0 {
-		rows, err := tx.QueryContext(ctx, `SELECT port FROM servers WHERE node_id=?`, v.NodeID)
-		if err != nil {
-			return v, err
-		}
-		used := map[int]bool{}
-		for rows.Next() {
-			var p int
-			rows.Scan(&p)
-			used[p] = true
-		}
-		rows.Close()
-		for p := ps; p <= pe; p++ {
-			if !used[p] {
-				v.Port = p
-				break
-			}
-		}
-		if v.Port == 0 {
-			return v, userErr("no free ports on this node")
-		}
-	} else if v.Port < ps || v.Port > pe {
-		return v, userErrf("port must be within the node range %d-%d", ps, pe)
-	}
+	v.Port = port
 	if v.Env == nil {
 		v.Env = map[string]string{}
 	}
 	env, _ := json.Marshal(v.Env)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),
-		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, now()); err != nil {
+		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, v.PortLimit, v.DatabaseLimit, v.Description, v.BandwidthMbit, now()); err != nil {
+		return v, err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO server_ports(node_id,port,server_uuid,created_at) VALUES(?,?,?,?)`, v.NodeID, v.Port, v.UUID, now()); err != nil {
 		return v, err
 	}
 	return v, tx.Commit()
@@ -570,4 +583,41 @@ func (s *Store) Labels(ctx context.Context) (eggs, nodes map[int64]string, err e
 		rows.Close()
 	}
 	return eggs, nodes, nil
+}
+
+// RenameServer changes a server's name and description.
+func (s *Store) RenameServer(ctx context.Context, uuid, name, description string) error {
+	res, err := s.exec(ctx, `UPDATE servers SET name=?, description=? WHERE uuid=?`, name, description, uuid)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetOwner hands a server to another account. If that account was a
+// subuser, its subuser entry goes: an owner holds every permission.
+func (s *Store) SetOwner(ctx context.Context, uuid, email string) (User, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return User{}, err
+	}
+	defer tx.Rollback()
+	var u User
+	if err := tx.QueryRowContext(ctx, `SELECT id,email,is_admin FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&u.ID, &u.Email, &u.IsAdmin); err != nil {
+		return u, userErr("no account with that email")
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE servers SET owner_id=? WHERE uuid=?`, u.ID, uuid)
+	if err != nil {
+		return u, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return u, ErrNotFound
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM server_users WHERE server_uuid=? AND user_id=?`, uuid, u.ID); err != nil {
+		return u, err
+	}
+	return u, tx.Commit()
 }

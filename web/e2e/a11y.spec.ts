@@ -18,9 +18,19 @@ test.describe("signed out", () => {
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
     await scan(page, "sign-in");
   });
+  test("password reset page", async ({ page }) => {
+    await page.goto("/reset#token=abcdefghijklmnopqrstuvwxyz");
+    await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
+    await scan(page, "reset");
+  });
+  test("forgot password page", async ({ page }) => {
+    await page.goto("/forgot");
+    await expect(page.getByRole("heading", { name: "Forgot your password?" })).toBeVisible();
+    await scan(page, "forgot");
+  });
 });
 
-for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["nodes", "/nodes"], ["eggs", "/eggs"], ["audit log", "/audit"], ["account", "/account"]] as const) {
+for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["nodes", "/nodes"], ["eggs", "/eggs"], ["database hosts", "/database-hosts"], ["audit log", "/audit"], ["account", "/account"]] as const) {
   test(`${name} page`, async ({ page }) => {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
@@ -28,7 +38,7 @@ for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["
   });
 }
 
-for (const tab of ["console", "files", "backups", "schedules", "users", "settings"]) {
+for (const tab of ["console", "files", "mods", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"]) {
   test(`server ${tab} tab`, async ({ page, panel }) => {
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=${tab}`);
     await page.waitForLoadState("networkidle");

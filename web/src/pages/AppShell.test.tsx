@@ -100,7 +100,7 @@ describe("quick switcher", () => {
   it("lists every server alphabetically, then the pages", async () => {
     await opened();
     const o = options();
-    expect(o).toEqual(["Creative Plots", "Rust Wipe Friday", "Server 2", "Server 10", "Skyblock", "Survival SMP", "Valheim Friends", "All servers", "Account", "New server", "Nodes", "Eggs", "Audit log"]);
+    expect(o).toEqual(["Creative Plots", "Rust Wipe Friday", "Server 2", "Server 10", "Skyblock", "Survival SMP", "Valheim Friends", "All servers", "Account", "New server", "Nodes", "Eggs", "Database hosts", "Audit log"]);
   });
   it("narrows as you type and matches game, node and port", async () => {
     await opened();

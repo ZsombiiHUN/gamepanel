@@ -95,14 +95,41 @@ test("deleting a search result removes that file only, after confirming", async 
   await page.goto(`/servers/${s.uuid}?tab=files`);
   await search(page).fill("config.yml");
   await expect(page.getByText(/2 matches/)).toBeVisible();
-  await page.getByRole("button", { name: "Delete plugins/WorldEdit/config.yml" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("permanently deletes");
+  const del = async () => {
+    await page.getByRole("button", { name: "Actions for plugins/WorldEdit/config.yml" }).click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+  };
+  await del();
+  const dialog = page.getByRole("dialog", { name: /^Delete/ });
+  await expect(dialog).toContainText("cannot be undone");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   expect(await panel.readFile(s.uuid, "plugins/WorldEdit/config.yml")).toContain("worldedit");
 
-  await page.getByRole("button", { name: "Delete plugins/WorldEdit/config.yml" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await del();
+  await page.getByRole("dialog", { name: /^Delete/ }).getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByText(/1 match\b/)).toBeVisible();
   expect(await panel.readFile(s.uuid, "plugins/Essentials/config.yml")).toContain("essentials");
+});
+
+test("uploading with the file picker streams the file to the server", async ({ page, panel }) => {
+  const s = await serverWithFiles(panel);
+  await page.goto(`/servers/${s.uuid}?tab=files&dir=/plugins`);
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Upload files" }).click();
+  await (await chooser).setFiles([{ name: "hello.txt", mimeType: "text/plain", buffer: Buffer.from("uploaded from a browser") }]);
+  await expect(page.getByRole("heading", { name: /Uploads finished/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "hello.txt", exact: true })).toBeVisible();
+  expect(await panel.readFile(s.uuid, "plugins/hello.txt")).toBe("uploaded from a browser");
+});
+
+test("renaming from the row menu", async ({ page, panel }) => {
+  const s = await serverWithFiles(panel);
+  await page.goto(`/servers/${s.uuid}?tab=files`);
+  await page.getByRole("button", { name: "Actions for ops.json" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const name = page.getByRole("dialog", { name: /^Rename/ }).getByRole("textbox", { name: "New name" });
+  await name.fill("admins.json");
+  await name.press("Enter");
+  await expect(page.getByRole("button", { name: "admins.json", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "ops.json", exact: true })).toHaveCount(0);
 });

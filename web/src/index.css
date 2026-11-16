@@ -30,15 +30,108 @@
 
   --color-side: #0b0d0f;
   --color-well: #090b0d;
+
+  /* Surfaces and status colours by role, so the light theme can redefine them. */
+  --color-line: #1b2025;
+  --color-line-strong: #23282e;
+  --color-row-hover: #161a1f;
+  --color-row-active: #181c21;
+  --color-thead: #101317;
+  --color-chip: #1d2229;
+  --color-good: #4cc27a;
+  --color-good-hover: #5fd28b;
+  --color-good-ink: #04150b;
+  --color-good-text: #7bdb9c;
+  --color-good-dim: #2f7d4f;
+  --color-good-bg: #12261a;
+  --color-warn: #e8a33d;
+  --color-warn-hover: #f5b455;
+  --color-warn-ink: #1a1203;
+  --color-warn-text: #f0b35a;
+  --color-warn-bg: #2a2010;
+  --color-bad: #f0685a;
+  --color-bad-hover: #f58074;
+  --color-bad-ink: #1f0705;
+  --color-bad-text: #ff8a7a;
+  --color-bad-bg: #2a1411;
+  --color-chart-cpu: #6fcf97;
+  --color-chart-calm: #8fa6ff;
+  --color-chart-warn: #e8a33d;
+  /* The terminal is dark in both themes (game logs are coloured for a dark background). */
+  --color-console: #090b0d;
 }
 
 :root { color-scheme: dark; }
+
+/*
+ * Light theme: the same roles, light. The zinc scale is turned around (950
+ * is the page, 100 the text), so every page follows without changes.
+ * The console and the file editor stay dark, as code surfaces usually are.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-zinc-50: #0d1014;
+  --color-zinc-100: #161a1f;
+  --color-zinc-200: #2a3038;
+  --color-zinc-300: #3b424a;
+  --color-zinc-400: #4f5760;
+  --color-zinc-500: #5b636c;
+  --color-zinc-600: #aab2bb;
+  --color-zinc-700: #cfd5db;
+  --color-zinc-800: #e3e7eb;
+  --color-zinc-900: #ffffff;
+  --color-zinc-950: #f3f5f7;
+
+  --color-indigo-200: #2f3fae;
+  --color-indigo-300: #3346c6;
+  --color-indigo-400: #3b4fd8;
+  --color-indigo-500: #4a5ee8;
+  --color-indigo-600: #3b4fd8;
+
+  --color-red-200: #912018;
+  --color-red-300: #b42318;
+  --color-red-400: #b42318;
+  --color-red-900: #f1b8b1;
+  --color-red-950: #fde8e6;
+  --color-emerald-300: #067647;
+  --color-emerald-400: #067647;
+  --color-amber-200: #7a4504;
+  --color-amber-300: #8a4b00;
+
+  --color-side: #eef1f4;
+  --color-well: #e9edf1;
+  --color-line: #e6e9ed;
+  --color-line-strong: #d6dbe0;
+  --color-row-hover: #f1f3f6;
+  --color-row-active: #e6eaef;
+  --color-thead: #f7f8fa;
+  --color-chip: #eef1f4;
+  --color-good: #1f7a45;
+  --color-good-hover: #186338;
+  --color-good-ink: #ffffff;
+  --color-good-text: #067647;
+  --color-good-dim: #7fc79c;
+  --color-good-bg: #e3f5ea;
+  --color-warn: #a8620b;
+  --color-warn-hover: #8f530a;
+  --color-warn-ink: #ffffff;
+  --color-warn-text: #8a4b00;
+  --color-warn-bg: #fdf0dc;
+  --color-bad: #c4392d;
+  --color-bad-hover: #a8301f;
+  --color-bad-ink: #ffffff;
+  --color-bad-text: #b42318;
+  --color-bad-bg: #fde8e6;
+  --color-chart-cpu: #1f8a4c;
+  --color-chart-calm: #4a5ee8;
+  --color-chart-warn: #c77a12;
+}
 body { @apply bg-zinc-950 text-zinc-100 antialiased; font-family: var(--font-sans); font-size: 15px; }
 h1, h2 { text-wrap: balance; }
 
 @layer components {
   .btn { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-sm font-medium text-zinc-100 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500; }
-  .btn-primary { @apply border-zinc-100 bg-zinc-100 font-semibold text-zinc-950 hover:bg-white; }
+  .btn-primary { @apply border-zinc-100 bg-zinc-100 font-semibold text-zinc-950 hover:bg-zinc-50; }
   .btn-danger { @apply border-red-900 bg-transparent text-red-300 hover:bg-red-950/60; }
   .btn-ghost { @apply border-transparent bg-transparent hover:bg-zinc-800; }
   .input { @apply w-full min-h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500; }

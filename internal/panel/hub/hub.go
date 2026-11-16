@@ -53,6 +53,9 @@ type Hub struct {
 	// OnHello runs (in its own goroutine) after a daemon connects, so the
 	// panel can push any servers the daemon is missing.
 	OnHello func(ctx context.Context, nodeID int64, h proto.Hello)
+	// OnStats, when set, sees every stats sample after it was checked (the
+	// panel keeps a history from them). It must not block.
+	OnStats func(s proto.Stats)
 	// Locate returns the node a server lives on. When set, events a node sends
 	// about a server on another node are dropped, so one compromised node
 	// cannot write into the consoles or state of servers it does not host.
@@ -239,6 +242,9 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		h.stats[s.UUID] = s
 		h.mu.Unlock()
 		h.publish(s.UUID, Event{Type: "stats", Data: proto.Marshal(s)})
+		if h.OnStats != nil {
+			h.OnStats(s)
+		}
 	}
 }
 

@@ -37,6 +37,11 @@ func (d *Daemon) backup(ctx context.Context, typ string, b proto.BackupReq) (jso
 		}
 		defer end()
 		res, err := d.backupCreate(b)
+		if err == nil && b.Remote {
+			if err = d.uploadBackup(ctx, b); err != nil {
+				os.Remove(d.backupPath(b.UUID, b.BackupID))
+			}
+		}
 		return proto.Marshal(res), err
 	case proto.ReqBackupRestore:
 		return nil, d.backupRestore(ctx, b)
@@ -108,7 +113,14 @@ func (d *Daemon) backupRestore(ctx context.Context, b proto.BackupReq) error {
 	if st, _ := d.rt.State(ctx, b.UUID); st != runtime.StateOffline {
 		return proto.Conflict("stop the server before restoring a backup")
 	}
-	f, err := os.Open(d.backupPath(b.UUID, b.BackupID))
+	path := d.backupPath(b.UUID, b.BackupID)
+	if b.URL != "" {
+		if path, err = d.fetchBackup(ctx, b); err != nil {
+			return err
+		}
+		defer os.Remove(path)
+	}
+	f, err := os.Open(path)
 	if err != nil {
 		return proto.NotFound("backup file not found on the node")
 	}

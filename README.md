@@ -24,8 +24,9 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 
 - **One binary, one SQLite file.** No PHP, no Redis, no queue workers. Back up one database and one key file.
 - **Eggs import unchanged.** Pterodactyl PTDL v1 and v2 eggs, including install scripts, work as they are.
-- **The daemon dials out.** Each node opens one websocket to the panel, so a node needs no inbound control port.
+- **The daemon dials out.** Each node opens one websocket to the panel, so a node needs no inbound control port. Uploads and downloads stream through the panel on a separate connection the node also opens itself.
 - **Safe where it matters.** File access goes through `os.Root` and is tested against hostile symlinks (the class of bug behind the Wings CVEs). Egg variables never reach a shell. Containers drop all capabilities.
+- **Light and dark.** Follows your system, or pick one; both themes pass the same accessibility checks.
 - **Fast to use.** Press `Ctrl K` to jump to any server or page. Filters and folders live in the URL, so you can link to them and Back works.
 - **Tested against a real browser.** Go tests, component tests and a Playwright suite (with accessibility scans at three screen sizes) run on every change.
 
@@ -33,14 +34,23 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 
 | | |
 |---|---|
-| **Servers** | Power controls, live console with command input, CPU, memory and disk charts, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, backups) |
-| **Files** | Browse, edit in the browser, delete, search every subfolder, and SFTP for uploads |
-| **Backups** | Create, lock, delete and restore |
+| **Servers** | Power controls, live console with command input, CPU, memory and disk charts with 30 days of history, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, network bandwidth, backups) |
+| **Files** | Browse, edit, search every subfolder; upload files and whole folders by drag and drop, download, rename, move, copy, change permissions, compress and extract (zip, tar.gz, tar.bz2), pull from a URL, act on many files at once; SFTP |
+| **Mods** | Search Modrinth for mods, plugins and datapacks (filtered by loader and game version, preset from the egg) and install with one click. Only files from Modrinth's CDN, checked against Modrinth's SHA-512 before they are kept |
+| **Startup** | Change the egg's variables (checked against its rules), pick another of its Docker images, and, as an admin, set a custom image or startup command. Changes to a running server apply at its next start |
+| **Network** | Several ports per server, each with a note; switch the primary port. Admins set how many extra ports an owner may add |
+| **Databases** | MySQL/MariaDB databases per server, each with its own user that can reach only that database; show, copy and rotate passwords. Admins register database hosts (tested before they are saved) and set a per-server limit |
+| **Backups** | Create, lock, delete, restore and download; keep them on the node or in any S3-compatible store (AWS, R2, B2, Wasabi, MinIO) without giving nodes the credentials |
 | **Schedules** | Cron-style tasks per server |
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
-| **Accounts** | Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts. Each control is mapped to its OWASP ASVS 5.0.0 requirement and test, with the known gaps, in [`docs/asvs.md`](docs/asvs.md) |
+| **Activity** | Each server's history in plain words (who restarted it, uploaded what, changed which setting), searchable; addresses shown only to the owner |
+| **Invitations** | Owners add people by email; anyone without an account gets an invitation (emailed, or a link to pass on) and the server access comes with it. Admins can invite new accounts. Optional open sign-up |
+| **Passkeys** | Sign in with a fingerprint, face or device PIN, no password and no second factor needed; phishing-resistant. Copied keys (a signature counter that goes backwards) are refused |
+| **Single sign-on** | GitHub, Discord and any OpenID Connect provider (Google, Microsoft, Authentik, Keycloak...), with PKCE. Identities are linked from the account page, never matched by email; two-factor still applies |
+| **Accounts** | Password reset by email (or `panel reset-link` without email), Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts. Each control is mapped to its OWASP ASVS 5.0.0 requirement and test, with the known gaps, in [`docs/asvs.md`](docs/asvs.md) |
 | **Admin** | Nodes with capacity tracking, eggs, an audit log you can search |
 | **API** | Everything the UI does goes through a documented OpenAPI 3.1 API ([`web/openapi.json`](web/openapi.json)) |
+| **Pterodactyl client API** | `/api/client` answers like Pterodactyl's for account, server list and details, resources, power, commands, files and backups, so bots and apps made for Pterodactyl work with a GamePanel API key |
 
 <p align="center">
   <img src="docs/screenshots/console.png" alt="A running server: usage charts above a live console" width="900">
@@ -72,7 +82,7 @@ GAMEPANEL_NODE_TOKEN=<token> bin/daemon
 Then import a Pterodactyl egg under **Eggs** and choose **New server**.
 
 > [!TIP]
-> Locked out of two-factor? Run `bin/panel reset-2fa you@example.com` on the panel host.
+> Locked out of two-factor? Run `bin/panel reset-2fa you@example.com` on the panel host. Forgot a password on a panel without email? `bin/panel reset-link you@example.com` prints a one-time reset link.
 
 ## Configuration
 
@@ -88,6 +98,19 @@ All settings are environment variables.
 | `GAMEPANEL_SESSION_IDLE` | `30m` | Sign out a session after this long without use |
 | `GAMEPANEL_SESSION_MAX` | `12h` | Sign out a session this long after sign-in, however busy |
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |
+| `GAMEPANEL_PUBLIC_URL` | unset | The panel's address, e.g. `https://panel.example.com`. Links in emails are built from it, never from a request's `Host` header. Passkeys and single sign-on need it too; passkeys need a domain name (or `localhost`), not an IP address |
+| `GAMEPANEL_SMTP_HOST` | unset | Send password resets and invitations by email. Needs `GAMEPANEL_PUBLIC_URL` too |
+| `GAMEPANEL_SMTP_PORT`, `GAMEPANEL_SMTP_USERNAME`, `GAMEPANEL_SMTP_PASSWORD`, `GAMEPANEL_SMTP_FROM` | 587 | `FROM` like `GamePanel <panel@example.com>` |
+| `GAMEPANEL_SMTP_TLS` | `starttls` | `tls` for implicit TLS (port 465), `none` only for a relay on the same machine |
+| `GAMEPANEL_SSO_GITHUB_CLIENT_ID`, `GAMEPANEL_SSO_GITHUB_CLIENT_SECRET` | unset | Sign in with GitHub. Callback: `<public url>/api/auth/sso/github/callback` |
+| `GAMEPANEL_SSO_DISCORD_CLIENT_ID`, `GAMEPANEL_SSO_DISCORD_CLIENT_SECRET` | unset | Sign in with Discord. Callback: `<public url>/api/auth/sso/discord/callback` |
+| `GAMEPANEL_SSO_OIDC_ISSUER`, `GAMEPANEL_SSO_OIDC_CLIENT_ID`, `GAMEPANEL_SSO_OIDC_CLIENT_SECRET`, `GAMEPANEL_SSO_OIDC_NAME` | unset | Any OpenID Connect provider; the name is shown on the button. Callback: `<public url>/api/auth/sso/oidc/callback`. Single sign-on needs `GAMEPANEL_PUBLIC_URL` |
+| `GAMEPANEL_SIGNUP` | `invite` | `open` lets anyone make an account; otherwise only invitations do |
+| `GAMEPANEL_S3_ENDPOINT` | unset | Store new backups in S3 instead of on the node, e.g. `https://s3.eu-central-1.amazonaws.com`. Nodes only get presigned URLs, never the keys. Backups already on a node stay there |
+| `GAMEPANEL_S3_BUCKET`, `GAMEPANEL_S3_ACCESS_KEY`, `GAMEPANEL_S3_SECRET_KEY` | unset | Required with an endpoint |
+| `GAMEPANEL_S3_REGION` | `us-east-1` | |
+| `GAMEPANEL_S3_PREFIX` | empty | Folder inside the bucket, e.g. `gamepanel/` |
+| `GAMEPANEL_S3_PATH_STYLE` | unset | Set to `1` for MinIO and most self-hosted stores (bucket in the path, not the host name) |
 | `GAMEPANEL_SECRET_KEY` | key file `<db>.key` | 64 hex characters that encrypt two-factor secrets at rest. If unset, a key file is created next to the database (mode 0600). **Back it up with the database**, or enrolled authenticators cannot be read |
 
 **Daemon**
@@ -98,6 +121,7 @@ All settings are environment variables.
 | `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | Where to reach the panel |
 | `GAMEPANEL_DATA_DIR` | `./daemon-data` | Server files |
 | `GAMEPANEL_RUNTIME` | `docker` | `fake` for development |
+| `GAMEPANEL_PULL_ALLOW_PRIVATE` | unset | Set to `1` to let "download from a URL" fetch from private and local addresses. Off by default, so server owners cannot make the node reach its own network |
 | `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | SFTP listener; `off` disables it. Sign in as `<email>.<first 8 characters of the server uuid>` with an **API key** (Account page) as the password. The host key is created in the data dir on first start |
 
 For production, run the panel behind a TLS reverse proxy and point the daemon at it with `wss://`.
@@ -122,9 +146,15 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Docker runtime** is verified against a real engine by [`scripts/docker-smoke.sh`](scripts/docker-smoke.sh): image pull, env, memory, CPU and PID limits, dropped capabilities, port publishing, console input, stats, stop, restart, kill and cleanup.
 
+**Server databases** are verified against a real MariaDB by `TestServerDatabases` when `GAMEPANEL_TEST_MYSQL` is set, including that a database's user cannot reach anything else.
+
+**S3 backups** are verified against a real S3-compatible store (RustFS) by `TestS3Backups` when `GAMEPANEL_TEST_S3_ENDPOINT` is set, and request signing against AWS's published example.
+
+**Network limits** are applied with `tc` inside the container's network namespace (needs root, `tc` and `nsenter` on the node; if they are missing the server starts unlimited and its console says so). The commands are checked against a real kernel in a network namespace, where shaping measured 10 Mbit/s up and policing under 10 Mbit/s down; they have not yet been run against a real Docker host.
+
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** backup download and S3 storage, network bandwidth limits, passkeys and SSO, a Pterodactyl API compatibility layer, Postgres, multi-port allocations, Windows servers, a mod manager, billing, metrics history, a light theme.
+**Not built yet:** Pterodactyl's application (admin) API and websocket, Postgres, Windows servers, billing, CurseForge.
 
 ## Development
 
