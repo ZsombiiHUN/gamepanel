@@ -60,6 +60,18 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 	if egg.InstallScript != "" {
 		inst = &proto.InstallSpec{Image: egg.InstallImage, Entrypoint: egg.InstallEntrypoint, Script: egg.InstallScript}
 	}
+	ports, err := a.Store.ListPorts(ctx, s.UUID)
+	if err != nil {
+		return proto.ServerSpec{}, err
+	}
+	if len(ports) == 0 { // never expected: every server has its primary port listed
+		ports = []store.ServerPort{{Port: s.Port, Primary: true}}
+	}
+	var maps []proto.PortMap
+	for _, p := range ports {
+		// Each port is open for both protocols: games differ, and many use both.
+		maps = append(maps, proto.PortMap{Host: p.Port, Container: p.Port, Proto: "tcp"}, proto.PortMap{Host: p.Port, Container: p.Port, Proto: "udp"})
+	}
 	image, startup := egg.DockerImage, egg.Startup
 	if s.Image != "" {
 		image = s.Image
@@ -72,10 +84,7 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 		UUID:    s.UUID, Image: image, Startup: shellStartup(startup), Stop: egg.Stop,
 		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
 		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB,
-		Ports: []proto.PortMap{
-			{Host: s.Port, Container: s.Port, Proto: "tcp"},
-			{Host: s.Port, Container: s.Port, Proto: "udp"},
-		},
+		Ports: maps,
 	}, nil
 }
 

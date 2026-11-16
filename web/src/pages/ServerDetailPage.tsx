@@ -10,6 +10,7 @@ import { ConsolePanel } from "./server/ConsolePanel";
 import { SchedulesTab } from "./SchedulesTab";
 import { ServerHeader } from "./server/ServerHeader";
 import { SettingsTab } from "./SettingsTab";
+import { NetworkTab } from "./NetworkTab";
 import { StartupTab } from "./StartupTab";
 import { UsageRow } from "./server/UsageRow";
 import { UsersTab } from "./UsersTab";
@@ -67,6 +68,7 @@ export function ServerDetailPage() {
       {tab === "backups" && <BackupsTab uuid={uuid} />}
       {tab === "schedules" && <SchedulesTab uuid={uuid} />}
       {tab === "startup" && can("startup.read") && <StartupTab uuid={uuid} />}
+      {tab === "network" && can("network.read") && <NetworkTab uuid={uuid} />}
       {tab === "users" && s.owner && <UsersTab uuid={uuid} />}
       {tab === "settings" && <SettingsTab server={s} />}
     </div>

@@ -629,6 +629,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a server's ports */
+        get: operations["getNetwork"];
+        put?: never;
+        /** Give the server another port */
+        post: operations["addPort"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/network/{port}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Label a port, or make it the primary one */
+        put: operations["updatePort"];
+        post?: never;
+        /** Take a port away from the server */
+        delete: operations["removePort"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/power": {
         parameters: {
             query?: never;
@@ -1031,6 +1067,11 @@ export interface components {
             pids_limit: number;
             /**
              * Format: int64
+             * @description ports the owner may add beyond the primary one (default 0)
+             */
+            port_limit?: number;
+            /**
+             * Format: int64
              * @description extra swap on top of memory: 0 = none, -1 = unlimited
              */
             swap_mb: number;
@@ -1044,6 +1085,19 @@ export interface components {
         Move: {
             from: string;
             to: string;
+        };
+        NetworkView: {
+            can_manage: boolean;
+            can_pick: boolean;
+            /** Format: int64 */
+            limit: number;
+            /** @description the server must restart to use the change */
+            pending: boolean;
+            ports: components["schemas"]["ServerPort"][];
+            /** Format: int64 */
+            range_from: number;
+            /** Format: int64 */
+            range_to: number;
         };
         Node: {
             /** Format: int64 */
@@ -1133,6 +1187,19 @@ export interface components {
         Permission: {
             description: string;
             id: string;
+        };
+        PortAddInBody: {
+            notes?: string;
+            /**
+             * Format: int64
+             * @description admins only; 0 = the next free port
+             */
+            port?: number;
+        };
+        PortUpdateInBody: {
+            notes?: string;
+            /** @description make this the primary port */
+            primary?: boolean;
         };
         PowerInBody: {
             /** @enum {string} */
@@ -1224,9 +1291,21 @@ export interface components {
             port?: number;
             /**
              * Format: int64
+             * @description ports the owner may add beyond the primary one
+             */
+            port_limit?: number;
+            /**
+             * Format: int64
              * @description 0 = none, -1 = unlimited
              */
             swap_mb?: number;
+        };
+        ServerPort: {
+            notes: string;
+            /** Format: int64 */
+            port: number;
+            /** @description the port the game listens on (SERVER_PORT) */
+            primary: boolean;
         };
         ServerView: {
             /**
@@ -1279,6 +1358,11 @@ export interface components {
             pids_limit: number;
             /** Format: int64 */
             port: number;
+            /**
+             * Format: int64
+             * @description ports the owner may add beyond the primary one (default 0)
+             */
+            port_limit?: number;
             startup: string;
             /** @description offline|starting|running|stopping|installing|install_failed|unknown */
             state: string;
@@ -2776,6 +2860,140 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    addPort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortAddInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updatePort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                port: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortUpdateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    removePort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                port: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetworkView"];
+                };
             };
             /** @description Error */
             default: {

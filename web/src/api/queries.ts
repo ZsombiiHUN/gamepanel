@@ -20,6 +20,7 @@ export const keys = {
   backups: (uuid: string) => ["backups", uuid] as const,
   schedules: (uuid: string) => ["schedules", uuid] as const,
   startup: (uuid: string) => ["startup", uuid] as const,
+  network: (uuid: string) => ["network", uuid] as const,
 };
 
 /** What a mutation refreshes on success. The query client applies it, so mutations do not repeat the plumbing. */
@@ -108,6 +109,12 @@ export const startupQuery = (uuid: string) =>
     queryFn: () => call(api.GET("/servers/{uuid}/startup", { params: { path: { uuid } } })),
     // While a change waits for the next start, notice when it has been applied.
     refetchInterval: (q) => (q.state.data?.pending ? 5000 : false),
+  });
+
+export const networkQuery = (uuid: string) =>
+  queryOptions({
+    queryKey: keys.network(uuid),
+    queryFn: () => call(api.GET("/servers/{uuid}/network", { params: { path: { uuid } } })),
   });
 
 export const backupsQuery = (uuid: string) =>
