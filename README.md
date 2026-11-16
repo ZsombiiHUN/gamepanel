@@ -42,7 +42,8 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Schedules** | Cron-style tasks per server |
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
 | **Activity** | Each server's history in plain words (who restarted it, uploaded what, changed which setting), searchable; addresses shown only to the owner |
-| **Accounts** | Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
+| **Invitations** | Owners add people by email; anyone without an account gets an invitation (emailed, or a link to pass on) and the server access comes with it. Admins can invite new accounts. Optional open sign-up |
+| **Accounts** | Password reset by email (or `panel reset-link` without email), Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
 | **Admin** | Nodes with capacity tracking, eggs, an audit log you can search |
 | **API** | Everything the UI does goes through a documented OpenAPI 3.1 API ([`web/openapi.json`](web/openapi.json)) |
 
@@ -76,7 +77,7 @@ GAMEPANEL_NODE_TOKEN=<token> bin/daemon
 Then import a Pterodactyl egg under **Eggs** and choose **New server**.
 
 > [!TIP]
-> Locked out of two-factor? Run `bin/panel reset-2fa you@example.com` on the panel host.
+> Locked out of two-factor? Run `bin/panel reset-2fa you@example.com` on the panel host. Forgot a password on a panel without email? `bin/panel reset-link you@example.com` prints a one-time reset link.
 
 ## Configuration
 
@@ -92,6 +93,11 @@ All settings are environment variables.
 | `GAMEPANEL_SESSION_IDLE` | `30m` | Sign out a session after this long without use |
 | `GAMEPANEL_SESSION_MAX` | `12h` | Sign out a session this long after sign-in, however busy |
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |
+| `GAMEPANEL_PUBLIC_URL` | unset | The panel's address, e.g. `https://panel.example.com`. Links in emails are built from it, never from a request's `Host` header |
+| `GAMEPANEL_SMTP_HOST` | unset | Send password resets and invitations by email. Needs `GAMEPANEL_PUBLIC_URL` too |
+| `GAMEPANEL_SMTP_PORT`, `GAMEPANEL_SMTP_USERNAME`, `GAMEPANEL_SMTP_PASSWORD`, `GAMEPANEL_SMTP_FROM` | 587 | `FROM` like `GamePanel <panel@example.com>` |
+| `GAMEPANEL_SMTP_TLS` | `starttls` | `tls` for implicit TLS (port 465), `none` only for a relay on the same machine |
+| `GAMEPANEL_SIGNUP` | `invite` | `open` lets anyone make an account; otherwise only invitations do |
 | `GAMEPANEL_S3_ENDPOINT` | unset | Store new backups in S3 instead of on the node, e.g. `https://s3.eu-central-1.amazonaws.com`. Nodes only get presigned URLs, never the keys. Backups already on a node stay there |
 | `GAMEPANEL_S3_BUCKET`, `GAMEPANEL_S3_ACCESS_KEY`, `GAMEPANEL_S3_SECRET_KEY` | unset | Required with an endpoint |
 | `GAMEPANEL_S3_REGION` | `us-east-1` | |

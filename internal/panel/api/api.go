@@ -23,6 +23,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
@@ -40,6 +41,12 @@ type Deps struct {
 	// context ends. SchedulerTick overrides the 20 s check interval (tests).
 	SchedulerCtx  context.Context
 	SchedulerTick time.Duration
+	// Mail sends password resets and invitations; nil = no email. Links in
+	// mail need PublicURL (https://panel.example.com), never a Host header.
+	Mail      mail.Sender
+	PublicURL string
+	// Signup is "invite" (default: accounts only by invitation) or "open".
+	Signup string
 	// S3, when set, is where new backups are stored instead of on the node.
 	S3 *s3.Client
 	// AuthRecheck is how often an open console websocket re-checks that its
@@ -52,9 +59,12 @@ type App struct {
 	Deps
 	limiter *limiter // login attempts per client IP
 	fails   *limiter // failed logins per account
-	running sync.Map // schedule id -> struct{}: one execution at a time
-	relays  sync.Map // relay ticket -> *relayTicket, see relay.go
-	uploads sync.Map // backup uuid -> S3 multipart upload id
+	// mailLimit bounds reset requests, invite lookups and sign-ups per
+	// address and per email.
+	mailLimit *limiter
+	running   sync.Map // schedule id -> struct{}: one execution at a time
+	relays    sync.Map // relay ticket -> *relayTicket, see relay.go
+	uploads   sync.Map // backup uuid -> S3 multipart upload id
 }
 
 type ctxKey struct{}
@@ -97,7 +107,7 @@ func requireAdmin(ctx context.Context) (store.User, error) {
 
 // New builds the full HTTP handler.
 func New(d Deps) http.Handler {
-	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute)}
+	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute), mailLimit: newLimiter(10, 15*time.Minute)}
 	errLog.Store(d.Log)
 	if a.AuthRecheck <= 0 {
 		a.AuthRecheck = 10 * time.Second
@@ -166,6 +176,7 @@ func (a *App) register(api huma.API) {
 	a.registerDatabases(api)
 	a.registerServerDetails(api)
 	a.registerActivity(api)
+	a.registerLinks(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running

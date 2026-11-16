@@ -16,6 +16,7 @@ import { DatabaseHostsPage } from "./pages/DatabaseHostsPage";
 import { EggsPage } from "./pages/EggsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NodesPage } from "./pages/NodesPage";
+import { ForgotPage, RegisterPage, ResetPage } from "./pages/PasswordPages";
 import { ServerDetailPage } from "./pages/ServerDetailPage";
 import { ServersPage } from "./pages/ServersPage";
 
@@ -77,6 +78,14 @@ const loginRoute = createRoute({
     if (await currentUser(context.queryClient)) throw redirect({ to: "/" });
   },
 });
+
+// Pages for people who are not signed in. Signed-in visitors skip forgot and sign-up.
+const skipWhenSignedIn = async ({ context }: { context: RouterContext }) => {
+  if (await currentUser(context.queryClient)) throw redirect({ to: "/" });
+};
+const forgotRoute = createRoute({ getParentRoute: () => rootRoute, path: "/forgot", component: ForgotPage, beforeLoad: skipWhenSignedIn });
+const resetRoute = createRoute({ getParentRoute: () => rootRoute, path: "/reset", component: ResetPage });
+const registerRoute = createRoute({ getParentRoute: () => rootRoute, path: "/register", component: RegisterPage, beforeLoad: skipWhenSignedIn });
 
 /** Everything behind sign-in. `me` is resolved before any page renders, so pages never handle "not signed in". */
 const appRoute = createRoute({
@@ -169,6 +178,9 @@ const auditRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  forgotRoute,
+  resetRoute,
+  registerRoute,
   appRoute.addChildren([indexRoute, serverRoute, accountRoute, adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, databaseHostsRoute, auditRoute])]),
 ]);
 

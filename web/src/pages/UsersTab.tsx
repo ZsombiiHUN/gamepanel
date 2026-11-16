@@ -2,8 +2,11 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, Loader2, Trash2, UserPlus } from "lucide-react";
 import { api, call } from "../api/client";
-import { invalidates, keys, permissionsQuery, subusersQuery } from "../api/queries";
-import { Avatar, ConfirmDialog, Empty, ErrorBox, Field, Pill, Section } from "../components/ui";
+import { invalidates, keys, permissionsQuery, serverInvitesQuery, subusersQuery } from "../api/queries";
+import { Avatar, ConfirmDialog, CopyButton, Empty, ErrorBox, Field, Pill, Section } from "../components/ui";
+
+/** Links come relative when the panel has no public address configured. */
+const absolute = (link: string) => (link.startsWith("/") ? window.location.origin + link : link);
 
 type Perm = { id: string; description: string };
 
@@ -48,10 +51,20 @@ export function UsersTab({ uuid }: { uuid: string }) {
   const [editing, setEditing] = useState<{ id: number; perms: string[] } | null>(null);
   const [toRemove, setToRemove] = useState<{ id: number; email: string } | null>(null);
 
+  // Adds an existing account at once, or invites the email (link to pass on, and emailed when the panel can).
+  const [sent, setSent] = useState<{ email: string; link: string; emailed: boolean } | null>(null);
+  const invites = useQuery(serverInvitesQuery(uuid));
   const add = useMutation({
-    mutationFn: () => call(api.POST("/servers/{uuid}/users", { params: { path: { uuid } }, body: { email, permissions: picked } })),
-    meta,
-    onSuccess: () => setEmail(""),
+    mutationFn: () => call(api.POST("/servers/{uuid}/invites", { params: { path: { uuid } }, body: { email: email.trim(), permissions: picked } })),
+    meta: invalidates(keys.subusers(uuid), keys.invites(uuid)),
+    onSuccess: (r) => {
+      setSent(r.added || !r.link ? null : { email: email.trim(), link: absolute(r.link), emailed: r.emailed });
+      setEmail("");
+    },
+  });
+  const withdraw = useMutation({
+    mutationFn: (id: number) => call(api.DELETE("/servers/{uuid}/invites/{id}", { params: { path: { uuid, id } } })),
+    meta: invalidates(keys.invites(uuid)),
   });
   const save = useMutation({
     mutationFn: (v: { id: number; perms: string[] }) =>
@@ -120,7 +133,7 @@ export function UsersTab({ uuid }: { uuid: string }) {
       <form onSubmit={submit}>
         <Section
           title="Give someone access"
-          desc="They need an existing account on this panel."
+          desc="If they have an account here they get access at once. If not, they get an invitation to make one, and the access comes with it."
           footer={
             <>
               <span>{picked.length} permission{picked.length === 1 ? "" : "s"} selected</span>
@@ -131,7 +144,16 @@ export function UsersTab({ uuid }: { uuid: string }) {
           }
         >
           <div className="space-y-5">
-            <Field label="Their account email">
+            {sent && (
+              <div role="status" className="space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-sm text-zinc-200">
+                <p>{sent.email} has no account yet, so they were invited{sent.emailed ? " by email" : ""}. {sent.emailed ? "You can also send them this link yourself:" : "Send them this link; it works once, for 7 days:"}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all rounded bg-zinc-950 px-2 py-1.5 text-xs text-zinc-300">{sent.link}</code>
+                  <CopyButton text={sent.link} label="Copy link" />
+                </div>
+              </div>
+            )}
+            <Field label="Their email">
               {(id) => <input id={id} className="input max-w-md" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />}
             </Field>
             <PermPicker all={all} value={picked} onChange={setPicked} />
@@ -139,6 +161,24 @@ export function UsersTab({ uuid }: { uuid: string }) {
           </div>
         </Section>
       </form>
+
+      {!!invites.data?.length && (
+        <Section title="Waiting for sign-up" desc="Invitations nobody has used yet. Withdraw one to make its link stop working.">
+          <ul className="divide-y divide-zinc-800 rounded-xl border border-zinc-800">
+            {invites.data.map((i) => (
+              <li key={i.id} className="flex flex-wrap items-center gap-3 p-3.5">
+                <Avatar name={i.email} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-zinc-100">{i.email}</div>
+                  <div className="text-xs text-zinc-500">Expires {new Date(i.expires_at * 1000).toLocaleDateString()} · {i.permissions.length} permissions</div>
+                </div>
+                <button type="button" className="btn btn-ghost" disabled={withdraw.isPending} onClick={() => withdraw.mutate(i.id)}>Withdraw</button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3"><ErrorBox error={withdraw.error} /></div>
+        </Section>
+      )}
 
       <ConfirmDialog
         open={!!toRemove}
