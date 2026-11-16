@@ -27,6 +27,7 @@ export const keys = {
   authOptions: ["auth-options"] as const,
   invite: ["invite"] as const,
   identities: ["identities"] as const,
+  passkeys: ["passkeys"] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
 };
 
@@ -74,6 +75,11 @@ export const authOptionsQuery = queryOptions({
 export const identitiesQuery = queryOptions({
   queryKey: keys.identities,
   queryFn: () => call(api.GET("/auth/identities")),
+});
+
+export const passkeysQuery = queryOptions({
+  queryKey: keys.passkeys,
+  queryFn: async () => (await call(api.GET("/auth/passkeys"))) ?? [],
 });
 
 /** What an invitation link is for (public). */

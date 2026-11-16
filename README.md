@@ -43,6 +43,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
 | **Activity** | Each server's history in plain words (who restarted it, uploaded what, changed which setting), searchable; addresses shown only to the owner |
 | **Invitations** | Owners add people by email; anyone without an account gets an invitation (emailed, or a link to pass on) and the server access comes with it. Admins can invite new accounts. Optional open sign-up |
+| **Passkeys** | Sign in with a fingerprint, face or device PIN, no password and no second factor needed; phishing-resistant. Copied keys (a signature counter that goes backwards) are refused |
 | **Single sign-on** | GitHub, Discord and any OpenID Connect provider (Google, Microsoft, Authentik, Keycloak...), with PKCE. Identities are linked from the account page, never matched by email; two-factor still applies |
 | **Accounts** | Password reset by email (or `panel reset-link` without email), Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
 | **Admin** | Nodes with capacity tracking, eggs, an audit log you can search |
@@ -94,7 +95,7 @@ All settings are environment variables.
 | `GAMEPANEL_SESSION_IDLE` | `30m` | Sign out a session after this long without use |
 | `GAMEPANEL_SESSION_MAX` | `12h` | Sign out a session this long after sign-in, however busy |
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |
-| `GAMEPANEL_PUBLIC_URL` | unset | The panel's address, e.g. `https://panel.example.com`. Links in emails are built from it, never from a request's `Host` header |
+| `GAMEPANEL_PUBLIC_URL` | unset | The panel's address, e.g. `https://panel.example.com`. Links in emails are built from it, never from a request's `Host` header. Passkeys and single sign-on need it too; passkeys need a domain name (or `localhost`), not an IP address |
 | `GAMEPANEL_SMTP_HOST` | unset | Send password resets and invitations by email. Needs `GAMEPANEL_PUBLIC_URL` too |
 | `GAMEPANEL_SMTP_PORT`, `GAMEPANEL_SMTP_USERNAME`, `GAMEPANEL_SMTP_PASSWORD`, `GAMEPANEL_SMTP_FROM` | 587 | `FROM` like `GamePanel <panel@example.com>` |
 | `GAMEPANEL_SMTP_TLS` | `starttls` | `tls` for implicit TLS (port 465), `none` only for a relay on the same machine |
@@ -148,7 +149,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** network bandwidth limits, passkeys, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history, a light theme.
+**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history, a light theme.
 
 ## Development
 

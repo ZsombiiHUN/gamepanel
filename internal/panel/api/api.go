@@ -21,6 +21,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
+	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
@@ -70,6 +71,11 @@ type App struct {
 	// Single sign-on round trips in flight (state -> ssoState) and sign-ins
 	// waiting for a second factor (token -> ssoPending).
 	ssoStates, ssoMFA sync.Map
+	// Passkeys: the WebAuthn relying party (made on first use) and
+	// ceremonies in flight.
+	waOnce       sync.Once
+	wa           *webauthn.WebAuthn
+	waCeremonies sync.Map
 }
 
 type ctxKey struct{}
@@ -185,6 +191,7 @@ func (a *App) register(api huma.API) {
 	a.registerActivity(api)
 	a.registerLinks(api)
 	a.registerSSO(api)
+	a.registerPasskeys(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running

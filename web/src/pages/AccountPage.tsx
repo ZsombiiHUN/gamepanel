@@ -5,6 +5,7 @@ import { api, call } from "../api/client";
 import { identitiesQuery, meQuery } from "../api/queries";
 import { Avatar, ErrorBox, Field, PageHeader, Pill, Section } from "../components/ui";
 import { ApiKeysSection } from "./ApiKeysSection";
+import { PasskeysSection } from "./PasskeysSection";
 import { FirstPassword, SignInMethods } from "./SignInMethods";
 import { TotpSection } from "./TotpSection";
 
@@ -78,6 +79,7 @@ export function AccountPage() {
         </form>
         )}
 
+        <PasskeysSection />
         <SignInMethods />
         <TotpSection />
         <ApiKeysSection />
