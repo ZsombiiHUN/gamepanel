@@ -82,7 +82,7 @@ test.describe("console", () => {
     test.skip(!isDrawer(page), "layout order only differs on small screens");
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=console`);
     const consoleTop = (await page.getByRole("region", { name: "Console" }).boundingBox())!.y;
-    const chartsTop = (await page.getByRole("region", { name: "Live usage" }).boundingBox())!.y;
+    const chartsTop = (await page.getByRole("region", { name: "Usage" }).boundingBox())!.y;
     expect(consoleTop).toBeLessThan(chartsTop);
   });
 
@@ -90,7 +90,7 @@ test.describe("console", () => {
     test.skip(isDrawer(page), "wide screens only");
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=console`);
     const consoleTop = (await page.getByRole("region", { name: "Console" }).boundingBox())!.y;
-    const chartsTop = (await page.getByRole("region", { name: "Live usage" }).boundingBox())!.y;
+    const chartsTop = (await page.getByRole("region", { name: "Usage" }).boundingBox())!.y;
     expect(chartsTop).toBeLessThan(consoleTop);
   });
 });

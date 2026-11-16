@@ -5,7 +5,7 @@ const H = 120;
 
 /** Area chart of readings since the page opened. `max` fixes the y-axis; `limit` draws a dashed line. */
 export function UsageChart({
-  title, value, unit, note, noteWarn, values, max, ticks, limit, color, action,
+  title, value, unit, note, noteWarn, values, max, ticks, limit, color, action, since = "earlier",
 }: {
   title: string;
   value: string;
@@ -18,6 +18,8 @@ export function UsageChart({
   limit?: number;
   color: string;
   action?: React.ReactNode;
+  /** Left end of the time axis ("earlier" for live readings, "24 h ago" for history). */
+  since?: string;
 }) {
   const gid = useId();
   const n = values.length;
@@ -58,7 +60,7 @@ export function UsageChart({
             )}
             {n > 1 && <polyline points={line} fill="none" style={{ stroke: color }} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
           </svg>
-          <div className="mt-2 flex justify-between font-mono text-[11.5px] text-zinc-500" aria-hidden><span>earlier</span><span>now</span></div>
+          <div className="mt-2 flex justify-between font-mono text-[11.5px] text-zinc-500" aria-hidden><span>{since}</span><span>now</span></div>
         </div>
       </div>
     </section>
