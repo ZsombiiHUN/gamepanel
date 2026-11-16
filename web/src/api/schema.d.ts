@@ -41,6 +41,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your single sign-on links */
+        get: operations["listIdentities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/identities/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlink a single sign-on provider */
+        delete: operations["unlinkIdentity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/invite": {
         parameters: {
             query?: never;
@@ -178,6 +212,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/password/first": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give a single sign-on account a password */
+        post: operations["setFirstPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -223,6 +274,23 @@ export interface paths {
         put?: never;
         /** Sign out everywhere except this browser */
         post: operations["revokeOtherSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sso/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish a single sign-on with the account's two-factor code */
+        post: operations["ssoVerify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1395,6 +1463,9 @@ export interface components {
             content: string;
             path: string;
         };
+        FirstPasswordInBody: {
+            password: string;
+        };
         FolderInBody: {
             path: string;
         };
@@ -1424,6 +1495,18 @@ export interface components {
             port: number;
             /** @description an account that may create databases and users */
             username: string;
+        };
+        IdentitiesOutBody: {
+            has_password: boolean;
+            identities: components["schemas"]["Identity"][];
+            providers: components["schemas"]["SsoProvider"][];
+        };
+        Identity: {
+            /** Format: int64 */
+            created_at: number;
+            /** @description the address the provider reported */
+            email: string;
+            provider: string;
         };
         InvitationResult: {
             added: boolean;
@@ -1875,6 +1958,9 @@ export interface components {
             id: string;
             name: string;
         };
+        SsoVerifyInBody: {
+            code: string;
+        };
         StartupInBody: {
             /** @description variables to change; others keep their values */
             env?: {
@@ -2050,6 +2136,64 @@ export interface operations {
         responses: {
             /** @description Accepted */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listIdentities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitiesOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    unlinkIdentity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2344,6 +2488,37 @@ export interface operations {
             };
         };
     };
+    setFirstPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirstPasswordInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     register: {
         parameters: {
             query?: never;
@@ -2424,6 +2599,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    ssoVerify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                gp_sso_mfa?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SsoVerifyInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
             };
             /** @description Error */
             default: {

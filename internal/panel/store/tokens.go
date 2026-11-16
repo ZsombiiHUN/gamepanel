@@ -53,7 +53,7 @@ func (s *Store) ResetPassword(ctx context.Context, token, password string) (User
 	if err := ValidatePassword(password, u.Email); err != nil {
 		return u, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=? WHERE id=?`, hashPassword(password), u.ID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=?, has_password=1 WHERE id=?`, hashPassword(password), u.ID); err != nil {
 		return u, err
 	}
 	// Whoever had the old password (or a session made with it) is out.

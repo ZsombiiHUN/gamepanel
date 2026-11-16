@@ -43,6 +43,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
 | **Activity** | Each server's history in plain words (who restarted it, uploaded what, changed which setting), searchable; addresses shown only to the owner |
 | **Invitations** | Owners add people by email; anyone without an account gets an invitation (emailed, or a link to pass on) and the server access comes with it. Admins can invite new accounts. Optional open sign-up |
+| **Single sign-on** | GitHub, Discord and any OpenID Connect provider (Google, Microsoft, Authentik, Keycloak...), with PKCE. Identities are linked from the account page, never matched by email; two-factor still applies |
 | **Accounts** | Password reset by email (or `panel reset-link` without email), Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
 | **Admin** | Nodes with capacity tracking, eggs, an audit log you can search |
 | **API** | Everything the UI does goes through a documented OpenAPI 3.1 API ([`web/openapi.json`](web/openapi.json)) |
@@ -97,6 +98,9 @@ All settings are environment variables.
 | `GAMEPANEL_SMTP_HOST` | unset | Send password resets and invitations by email. Needs `GAMEPANEL_PUBLIC_URL` too |
 | `GAMEPANEL_SMTP_PORT`, `GAMEPANEL_SMTP_USERNAME`, `GAMEPANEL_SMTP_PASSWORD`, `GAMEPANEL_SMTP_FROM` | 587 | `FROM` like `GamePanel <panel@example.com>` |
 | `GAMEPANEL_SMTP_TLS` | `starttls` | `tls` for implicit TLS (port 465), `none` only for a relay on the same machine |
+| `GAMEPANEL_SSO_GITHUB_CLIENT_ID`, `GAMEPANEL_SSO_GITHUB_CLIENT_SECRET` | unset | Sign in with GitHub. Callback: `<public url>/api/auth/sso/github/callback` |
+| `GAMEPANEL_SSO_DISCORD_CLIENT_ID`, `GAMEPANEL_SSO_DISCORD_CLIENT_SECRET` | unset | Sign in with Discord. Callback: `<public url>/api/auth/sso/discord/callback` |
+| `GAMEPANEL_SSO_OIDC_ISSUER`, `GAMEPANEL_SSO_OIDC_CLIENT_ID`, `GAMEPANEL_SSO_OIDC_CLIENT_SECRET`, `GAMEPANEL_SSO_OIDC_NAME` | unset | Any OpenID Connect provider; the name is shown on the button. Callback: `<public url>/api/auth/sso/oidc/callback`. Single sign-on needs `GAMEPANEL_PUBLIC_URL` |
 | `GAMEPANEL_SIGNUP` | `invite` | `open` lets anyone make an account; otherwise only invitations do |
 | `GAMEPANEL_S3_ENDPOINT` | unset | Store new backups in S3 instead of on the node, e.g. `https://s3.eu-central-1.amazonaws.com`. Nodes only get presigned URLs, never the keys. Backups already on a node stay there |
 | `GAMEPANEL_S3_BUCKET`, `GAMEPANEL_S3_ACCESS_KEY`, `GAMEPANEL_S3_SECRET_KEY` | unset | Required with an endpoint |
@@ -144,7 +148,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** network bandwidth limits, passkeys and SSO, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history, a light theme.
+**Not built yet:** network bandwidth limits, passkeys, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history, a light theme.
 
 ## Development
 

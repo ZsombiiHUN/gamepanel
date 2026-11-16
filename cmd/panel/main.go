@@ -140,6 +140,19 @@ func main() {
 			log.Warn("GAMEPANEL_SMTP_HOST is set but GAMEPANEL_PUBLIC_URL is not: emails need the panel's address for their links, so none are sent")
 		}
 	}
+	var sso []*api.SSOProvider
+	if id := os.Getenv("GAMEPANEL_SSO_GITHUB_CLIENT_ID"); id != "" {
+		sso = append(sso, api.GitHubSSO(id, os.Getenv("GAMEPANEL_SSO_GITHUB_CLIENT_SECRET")))
+	}
+	if id := os.Getenv("GAMEPANEL_SSO_DISCORD_CLIENT_ID"); id != "" {
+		sso = append(sso, api.DiscordSSO(id, os.Getenv("GAMEPANEL_SSO_DISCORD_CLIENT_SECRET")))
+	}
+	if iss := os.Getenv("GAMEPANEL_SSO_OIDC_ISSUER"); iss != "" {
+		sso = append(sso, api.OIDCSSO(os.Getenv("GAMEPANEL_SSO_OIDC_NAME"), iss, os.Getenv("GAMEPANEL_SSO_OIDC_CLIENT_ID"), os.Getenv("GAMEPANEL_SSO_OIDC_CLIENT_SECRET")))
+	}
+	if len(sso) > 0 && publicURL == "" {
+		log.Warn("single sign-on is configured but GAMEPANEL_PUBLIC_URL is not: the provider needs the panel's address to send people back, so it stays off")
+	}
 	signup := env("GAMEPANEL_SIGNUP", "invite")
 	if signup != "invite" && signup != "open" {
 		log.Error("GAMEPANEL_SIGNUP must be invite or open", "value", signup)
@@ -151,7 +164,7 @@ func main() {
 	deps := api.Deps{
 		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
 		TrustedProxies: proxies, S3: backups,
-		PublicURL: publicURL, Signup: signup,
+		PublicURL: publicURL, Signup: signup, SSO: sso,
 		CookieSecure: cookieSecure,
 	}
 	if mailer != nil { // never a typed nil in the interface
