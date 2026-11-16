@@ -29,6 +29,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/modrinth"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/web"
 )
@@ -108,7 +109,7 @@ func run(nServers int, dir, addr, readyFile string) error {
 	if _, port, err := net.SplitHostPort(addr); err == nil && port != "0" {
 		public = "http://localhost:" + port
 	}
-	handler := api.New(api.Deps{Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx, PublicURL: public})
+	handler := api.New(api.Deps{Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx, PublicURL: public, Modrinth: fakeModrinth()})
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -233,4 +234,27 @@ func run(nServers int, dir, addr, readyFile string) error {
 	fmt.Println(string(line))
 	<-ctx.Done()
 	return nil
+}
+
+// fakeModrinth answers the mod manager with canned results, so browser tests
+// never depend on the real Modrinth.
+func fakeModrinth() *modrinth.Client {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /search", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"total_hits": 2, "hits": []any{
+			map[string]any{"project_id": "Vebnzrzj", "slug": "luckperms", "title": "LuckPerms", "author": "Luck", "description": "A permissions plugin.", "downloads": 2400000, "project_type": "plugin"},
+			map[string]any{"project_id": "fALzjamp", "slug": "chunky", "title": "Chunky", "author": "pop4959", "description": "Pre-generates chunks.", "downloads": 870000, "project_type": "plugin"},
+		}})
+	})
+	mux.HandleFunc("GET /project/{id}/version", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]any{map[string]any{"id": "abc123", "project_id": r.PathValue("id"), "version_number": "5.4.0", "version_type": "release", "game_versions": []string{"1.21.1"}, "loaders": []string{"paper"}, "files": []any{}}})
+	})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(err)
+	}
+	go http.Serve(ln, mux)
+	c := modrinth.New()
+	c.BaseURL = "http://" + ln.Addr().String()
+	return c
 }

@@ -1,4 +1,4 @@
-export const TABS = ["console", "files", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"] as const;
+export const TABS = ["console", "files", "mods", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"] as const;
 export type Tab = (typeof TABS)[number];
 
 /**
@@ -8,6 +8,7 @@ export type Tab = (typeof TABS)[number];
 export const TAB_INFO: { id: Tab; label: string; need?: string; keywords?: string }[] = [
   { id: "console", label: "Console", need: "console.read" },
   { id: "files", label: "Files", need: "files.read" },
+  { id: "mods", label: "Mods", need: "files.write", keywords: "plugins modrinth datapacks install" },
   { id: "backups", label: "Backups", need: "backups.read" },
   { id: "schedules", label: "Schedules", need: "schedules.manage" },
   { id: "startup", label: "Startup", need: "startup.read", keywords: "variables docker image java version command" },

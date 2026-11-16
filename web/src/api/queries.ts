@@ -29,6 +29,7 @@ export const keys = {
   identities: ["identities"] as const,
   passkeys: ["passkeys"] as const,
   metrics: (uuid: string) => ["metrics", uuid] as const,
+  mods: (uuid: string) => ["mods", uuid] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
 };
 
@@ -87,6 +88,21 @@ export const metricsQuery = (uuid: string, range: MetricRange) =>
     queryFn: () => call(api.GET("/servers/{uuid}/metrics", { params: { path: { uuid }, query: { range } } })),
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
+  });
+
+export const modSearchQuery = (uuid: string, f: { q: string; type: "mod" | "plugin" | "datapack"; loader: string; version: string }) =>
+  queryOptions({
+    queryKey: [...keys.mods(uuid), "search", f] as const,
+    queryFn: () => call(api.GET("/servers/{uuid}/mods/search", { params: { path: { uuid }, query: { q: f.q, type: f.type, ...(f.loader ? { loader: f.loader } : {}), ...(f.version ? { version: f.version } : {}) } } })),
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
+  });
+
+export const modVersionsQuery = (uuid: string, project: string, loader: string, version: string) =>
+  queryOptions({
+    queryKey: [...keys.mods(uuid), "versions", project, loader, version] as const,
+    queryFn: async () => (await call(api.GET("/servers/{uuid}/mods/{project}/versions", { params: { path: { uuid, project }, query: { ...(loader ? { loader } : {}), ...(version ? { version } : {}) } } }))) ?? [],
+    staleTime: 5 * 60_000,
   });
 
 export const passkeysQuery = queryOptions({

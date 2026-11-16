@@ -1125,6 +1125,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/mods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install a Modrinth version into the server */
+        post: operations["installMod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/mods/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Modrinth */
+        get: operations["searchMods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/mods/{project}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A project's versions on Modrinth */
+        get: operations["modVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/network": {
         parameters: {
             query?: never;
@@ -1529,6 +1580,14 @@ export interface components {
              */
             type: string;
         };
+        File: {
+            filename: string;
+            hashes: components["schemas"]["FileHashesStruct"];
+            primary: boolean;
+            /** Format: int64 */
+            size: number;
+            url: string;
+        };
         FileChmodInBody: {
             /** @description octal permission bits, e.g. 644 */
             mode: string;
@@ -1560,6 +1619,9 @@ export interface components {
         };
         FileDeleteInBody: {
             paths: string[] | null;
+        };
+        FileHashesStruct: {
+            sha512: string;
         };
         FileInfo: {
             dir: boolean;
@@ -1595,6 +1657,20 @@ export interface components {
         ForgotInBody: {
             /** Format: email */
             email: string;
+        };
+        Hit: {
+            author: string;
+            categories: string[] | null;
+            description: string;
+            /** Format: int64 */
+            downloads: number;
+            icon_url: string;
+            project_id: string;
+            project_type: string;
+            slug: string;
+            title: string;
+            /** @description game versions it supports */
+            versions: string[] | null;
         };
         HostCreateInBody: {
             /** @description address the panel and the game servers reach it on */
@@ -1753,6 +1829,15 @@ export interface components {
              * @description seconds per point
              */
             step: number;
+        };
+        ModInstallInBody: {
+            folder?: string;
+            /**
+             * @description decides the folder unless one is given
+             * @enum {string}
+             */
+            type: "mod" | "plugin" | "datapack";
+            version_id: string;
         };
         Move: {
             from: string;
@@ -1967,6 +2052,11 @@ export interface components {
             /** @description skip runs while the server is not running */
             only_when_online?: boolean;
             tasks: components["schemas"]["TaskIn"][] | null;
+        };
+        SearchResult: {
+            hits: components["schemas"]["Hit"][];
+            /** Format: int64 */
+            total_hits: number;
         };
         ServerCreateInBody: {
             /**
@@ -2255,6 +2345,18 @@ export interface components {
             id: number;
             is_admin: boolean;
             totp_enabled: boolean;
+        };
+        Version: {
+            date_published: string;
+            files: components["schemas"]["File"][];
+            game_versions: string[] | null;
+            id: string;
+            loaders: string[] | null;
+            name: string;
+            project_id: string;
+            version_number: string;
+            /** @description release, beta or alpha */
+            version_type: string;
         };
     };
     responses: never;
@@ -4672,6 +4774,115 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    installMod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModInstallInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransferResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    searchMods: {
+        parameters: {
+            query?: {
+                q?: string;
+                type?: "mod" | "plugin" | "datapack";
+                /** @description fabric, forge, neoforge, quilt, paper, spigot, purpur, ... */
+                loader?: string;
+                /** @description game version, e.g. 1.21.1 */
+                version?: string;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    modVersions: {
+        parameters: {
+            query?: {
+                loader?: string;
+                version?: string;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"][] | null;
                 };
             };
             /** @description Error */

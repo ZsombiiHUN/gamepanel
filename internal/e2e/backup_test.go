@@ -35,7 +35,10 @@ type stack struct {
 }
 
 // newStack boots panel + daemon (fake runtime) and creates one server.
-func newStack(t *testing.T) *stack {
+func newStack(t *testing.T) *stack { t.Helper(); return newStackWith(t, nil, nil) }
+
+// newStackWith is newStack with changes to the panel's and the daemon's settings.
+func newStackWith(t *testing.T, panel func(*api.Deps), nodeCfg func(*daemon.Config)) *stack {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
@@ -47,7 +50,11 @@ func newStack(t *testing.T) *stack {
 	t.Cleanup(func() { st.Close() })
 	st.CreateUser(ctx, "admin@example.com", "correct-horse-battery", true)
 	h := hub.New(log)
-	ts := httptest.NewServer(api.New(api.Deps{Store: st, Hub: h, Log: log, SchedulerCtx: ctx, SchedulerTick: 100 * time.Millisecond, AuthRecheck: 100 * time.Millisecond}))
+	deps := api.Deps{Store: st, Hub: h, Log: log, SchedulerCtx: ctx, SchedulerTick: 100 * time.Millisecond, AuthRecheck: 100 * time.Millisecond}
+	if panel != nil {
+		panel(&deps)
+	}
+	ts := httptest.NewServer(api.New(deps))
 	t.Cleanup(ts.Close)
 	jar, _ := cookiejar.New(nil)
 	admin := &client{t, ts.URL, &http.Client{Jar: jar}}
@@ -59,7 +66,11 @@ func newStack(t *testing.T) *stack {
 	json.Unmarshal(admin.do("POST", "/api/nodes", map[string]any{"name": "n1", "port_start": 25565, "port_end": 25570}, 201), &node)
 	dataDir := t.TempDir()
 	fake := runtime.NewFake()
-	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir, StatsInterval: 150 * time.Millisecond, DiskCacheTTL: 100 * time.Millisecond, SFTPRecheck: 100 * time.Millisecond}, fake, log)
+	dcfg := daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir, StatsInterval: 150 * time.Millisecond, DiskCacheTTL: 100 * time.Millisecond, SFTPRecheck: 100 * time.Millisecond}
+	if nodeCfg != nil {
+		nodeCfg(&dcfg)
+	}
+	dm, err := daemon.New(dcfg, fake, log)
 	if err != nil {
 		t.Fatal(err)
 	}

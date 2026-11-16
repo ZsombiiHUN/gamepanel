@@ -12,6 +12,7 @@ import { SchedulesTab } from "./SchedulesTab";
 import { ServerHeader } from "./server/ServerHeader";
 import { SettingsTab } from "./SettingsTab";
 import { DatabasesTab } from "./DatabasesTab";
+import { ModsTab } from "./ModsTab";
 import { NetworkTab } from "./NetworkTab";
 import { StartupTab } from "./StartupTab";
 import { UsageRow } from "./server/UsageRow";
@@ -67,6 +68,7 @@ export function ServerDetailPage() {
           <FilesTab uuid={uuid} />
         </Suspense>
       )}
+      {tab === "mods" && can("files.write") && <ModsTab uuid={uuid} />}
       {tab === "backups" && <BackupsTab uuid={uuid} />}
       {tab === "schedules" && <SchedulesTab uuid={uuid} />}
       {tab === "startup" && can("startup.read") && <StartupTab uuid={uuid} />}
