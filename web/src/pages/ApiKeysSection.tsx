@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
-import { apiKeysQuery, invalidates, keys } from "../api/queries";
+import { apiKeysQuery, invalidates, keys, meQuery } from "../api/queries";
 import { CopyButton, ErrorBox, Field, Section } from "../components/ui";
 
 const when = (t: number) => (t ? new Date(t * 1000).toLocaleString() : "never");
@@ -10,15 +10,22 @@ const when = (t: number) => (t ? new Date(t * 1000).toLocaleString() : "never");
 export function ApiKeysSection() {
   const [name, setName] = useState("");
   const [days, setDays] = useState("0");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [secret, setSecret] = useState<string | null>(null);
   const list = useQuery(apiKeysQuery);
+  // A key outlives this session, so making one asks for the password (and a
+  // code, with two-factor on) again.
+  const mfa = useQuery(meQuery).data?.totp_enabled ?? false;
 
   const create = useMutation({
-    mutationFn: () => call(api.POST("/auth/keys", { body: { name, expires_in_days: Number(days) } })),
+    mutationFn: () => call(api.POST("/auth/keys", { body: { name, expires_in_days: Number(days), password, ...(mfa ? { code } : {}) } })),
     meta: invalidates(keys.apiKeys),
     onSuccess: (r) => {
       setSecret(r.token);
       setName("");
+      setPassword("");
+      setCode("");
     },
   });
   const del = useMutation({
@@ -86,6 +93,14 @@ export function ApiKeysSection() {
               </select>
             )}
           </Field>
+          <Field label="Your password">
+            {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required maxLength={256} value={password} onChange={(e) => setPassword(e.target.value)} />}
+          </Field>
+          {mfa && (
+            <Field label="Authenticator or recovery code">
+              {(id) => <input id={id} className="input w-48 font-mono" autoComplete="one-time-code" required maxLength={20} value={code} onChange={(e) => setCode(e.target.value)} />}
+            </Field>
+          )}
           <button type="submit" className="btn btn-primary" disabled={create.isPending}>
             {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create key
           </button>

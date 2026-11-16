@@ -13,10 +13,12 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func (s *stack) apiKey(c *client) string {
+// apiKey makes an API key for the account c is signed in as (pw is its
+// password: making a key asks for it again).
+func (s *stack) apiKey(c *client, pw string) string {
 	s.t.Helper()
 	var r struct{ Token string }
-	json.Unmarshal(c.do("POST", "/api/auth/keys", map[string]any{"name": "sftp"}, 201), &r)
+	json.Unmarshal(c.do("POST", "/api/auth/keys", map[string]any{"name": "sftp", "password": pw}, 201), &r)
 	return r.Token
 }
 
@@ -40,7 +42,7 @@ func TestSFTP(t *testing.T) {
 	s := newStack(t)
 	pre := s.server[:8]
 	adminUser := "admin@example.com." + pre
-	adminKey := s.apiKey(s.admin)
+	adminKey := s.apiKey(s.admin, "correct-horse-battery")
 
 	c, conn, err := s.dial(adminUser, adminKey)
 	if err != nil {
@@ -133,8 +135,8 @@ func TestSFTPAuthRules(t *testing.T) {
 	jar, _ := cookiejar.New(nil)
 	bob := &client{t, s.admin.base, &http.Client{Jar: jar}}
 	bob.do("POST", "/api/auth/login", map[string]string{"email": "bob@example.com", "password": "another-long-password"}, 200)
-	bobKey := s.apiKey(bob)
-	adminKey := s.apiKey(s.admin)
+	bobKey := s.apiKey(bob, "another-long-password")
+	adminKey := s.apiKey(s.admin, "correct-horse-battery")
 	s.write("a.txt", "A")
 
 	// not a subuser yet: indistinguishable from a wrong password
@@ -192,7 +194,7 @@ func TestSFTPAuthRules(t *testing.T) {
 func TestSFTPRespectsDiskLimit(t *testing.T) {
 	s := newStack(t)
 	s.setLimits(map[string]any{"disk_mb": 1}, 204)
-	c, _, err := s.dial("admin@example.com."+s.server[:8], s.apiKey(s.admin))
+	c, _, err := s.dial("admin@example.com."+s.server[:8], s.apiKey(s.admin, "correct-horse-battery"))
 	if err != nil {
 		t.Fatal(err)
 	}

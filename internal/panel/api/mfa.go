@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -47,6 +48,9 @@ func (a *App) confirmCode(ctx context.Context, u store.User, code string) error 
 		return huma.Error429TooManyRequests("too many failed attempts, try again later")
 	}
 	if _, err := a.Store.VerifySecondFactor(ctx, u.ID, code); err != nil {
+		if errors.Is(err, store.ErrSecondFactorLocked) {
+			return huma.Error429TooManyRequests(err.Error())
+		}
 		a.fails.add(u.Email)
 		a.audit(ctx, u, "reauth.fail", u.Email, "bad code")
 		return huma.Error403Forbidden("invalid code")
@@ -56,7 +60,7 @@ func (a *App) confirmCode(ctx context.Context, u store.User, code string) error 
 
 type totpSetupIn struct {
 	Body struct {
-		Password string `json:"password" minLength:"1"`
+		Password string `json:"password" minLength:"1" maxLength:"256"`
 	}
 }
 type totpSetupOut struct {
@@ -76,15 +80,14 @@ type recoveryOut struct {
 	}
 }
 type totpOffIn struct {
-	Session string `cookie:"gp_session"`
-	Body    struct {
-		Password string `json:"password" minLength:"1"`
+	Body struct {
+		Password string `json:"password" minLength:"1" maxLength:"256"`
 		Code     string `json:"code" minLength:"6" maxLength:"20" doc:"authenticator or recovery code"`
 	}
 }
 type regenIn struct {
 	Body struct {
-		Password string `json:"password" minLength:"1"`
+		Password string `json:"password" minLength:"1" maxLength:"256"`
 		Code     string `json:"code" minLength:"6" maxLength:"20"`
 	}
 }
@@ -93,6 +96,10 @@ type keyCreateIn struct {
 	Body struct {
 		Name       string `json:"name" minLength:"1" maxLength:"64"`
 		ExpiresInD int    `json:"expires_in_days,omitempty" minimum:"0" maximum:"3650" doc:"0 = never expires"`
+		// A key outlives the session that made it (sign-out and password
+		// changes do not revoke it), so making one asks who you are again.
+		Password string `json:"password" minLength:"1" maxLength:"256" doc:"your current password"`
+		Code     string `json:"code,omitempty" maxLength:"20" doc:"authenticator or recovery code; required when two-factor is on"`
 	}
 }
 type keyCreateOut struct {
@@ -166,7 +173,7 @@ func (a *App) registerMFA(api huma.API) {
 			if err := a.Store.DisableTOTP(ctx, u.ID); err != nil {
 				return nil, huma.Error500InternalServerError("db error")
 			}
-			a.Store.DeleteOtherSessions(ctx, u.ID, in.Session)
+			a.Store.DeleteOtherSessions(ctx, u.ID, sessionToken(ctx))
 			a.audit(ctx, u, "totp.disable", u.Email, "other sessions revoked")
 			return nil, nil
 		})
@@ -203,6 +210,17 @@ func (a *App) registerMFA(api huma.API) {
 			u, err := requireSession(ctx)
 			if err != nil {
 				return nil, err
+			}
+			if err := a.confirm(ctx, u, in.Body.Password); err != nil {
+				return nil, err
+			}
+			if u.TOTPEnabled {
+				if in.Body.Code == "" {
+					return nil, huma.Error403Forbidden("totp_required")
+				}
+				if err := a.confirmCode(ctx, u, in.Body.Code); err != nil {
+					return nil, err
+				}
 			}
 			ttl := time.Duration(in.Body.ExpiresInD) * 24 * time.Hour
 			k, tok, err := a.Store.CreateAPIKey(ctx, u.ID, in.Body.Name, ttl)

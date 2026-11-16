@@ -106,7 +106,7 @@ func TestSFTPSessionEndsWhenAccessEnds(t *testing.T) {
 		Key   struct{ ID int64 }
 		Token string
 	}
-	json.Unmarshal(s.admin.do("POST", "/api/auth/keys", map[string]any{"name": "sftp"}, 201), &k)
+	json.Unmarshal(s.admin.do("POST", "/api/auth/keys", map[string]any{"name": "sftp", "password": "correct-horse-battery"}, 201), &k)
 	c, _, err := s.dial("admin@example.com."+s.server[:8], k.Token)
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestSFTPSessionEndsWhenAccessEnds(t *testing.T) {
 	srv := "/api/servers/" + s.server
 	bob, bobID := s.login("bob@example.com")
 	s.admin.do("POST", srv+"/users", map[string]any{"email": "bob@example.com", "permissions": []string{"files.read", "files.write"}}, 201)
-	c, _, err = s.dial("bob@example.com."+s.server[:8], s.apiKey(bob))
+	c, _, err = s.dial("bob@example.com."+s.server[:8], s.apiKey(bob, "another-long-password"))
 	if err != nil {
 		t.Fatal(err)
 	}

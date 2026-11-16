@@ -767,12 +767,16 @@ export interface components {
             path: string;
         };
         KeyCreateInBody: {
+            /** @description authenticator or recovery code; required when two-factor is on */
+            code?: string;
             /**
              * Format: int64
              * @description 0 = never expires
              */
             expires_in_days?: number;
             name: string;
+            /** @description your current password */
+            password: string;
         };
         KeyCreateOutBody: {
             key: components["schemas"]["APIKey"];
@@ -1308,6 +1312,7 @@ export interface operations {
             path?: never;
             cookie?: {
                 gp_session?: string;
+                "__Host-gp_session"?: string;
             };
         };
         requestBody?: never;
@@ -1365,9 +1370,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                gp_session?: string;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
@@ -1398,9 +1401,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                gp_session?: string;
-            };
+            cookie?: never;
         };
         requestBody?: never;
         responses: {
@@ -1427,9 +1428,7 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: {
-                gp_session?: string;
-            };
+            cookie?: never;
         };
         requestBody: {
             content: {
