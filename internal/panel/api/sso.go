@@ -403,8 +403,9 @@ func (a *App) ssoSignIn(w http.ResponseWriter, r *http.Request, u store.User, pr
 		writeProblem(w, http.StatusInternalServerError, "could not create a session")
 		return
 	}
-	c := sessionCookie(r.Context(), tok, a.Store.SessionMax)
-	http.SetCookie(w, &c)
+	for _, c := range sessionCookies(r.Context(), tok, a.Store.SessionMax) {
+		http.SetCookie(w, &c)
+	}
 	a.audit(r.Context(), u, "login.ok", u.Email, "single sign-on with "+provider)
 }
 
@@ -457,7 +458,7 @@ func (a *App) registerSSO(api huma.API) {
 			}
 			a.audit(ctx, u, "login.ok", u.Email, "single sign-on with "+p.provider+" and a second factor")
 			clear := http.Cookie{Name: ssoMFACookie, Value: "", Path: "/api/auth/", MaxAge: -1, HttpOnly: true}
-			return &ssoVerifyOut{Body: u, SetCookie: []http.Cookie{sessionCookie(ctx, tok, a.Store.SessionMax), clear}}, nil
+			return &ssoVerifyOut{Body: u, SetCookie: append(sessionCookies(ctx, tok, a.Store.SessionMax), clear)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listIdentities", Method: "GET", Path: "/auth/identities", Summary: "Your single sign-on links"},

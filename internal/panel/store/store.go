@@ -29,8 +29,9 @@ type Store struct {
 	SessionMax, SessionIdle time.Duration
 }
 
-// Session lifetimes from OWASP ASVS 4.0 §3.3.2 (level 2): sign in again
-// after 12 hours, or after 30 minutes without activity.
+// Session lifetimes (ASVS v5.0.0-7.3.1 and v5.0.0-7.3.2; values from the NIST
+// SP 800-63B revision 3 AAL2 limits): sign in again after 12 hours, or after
+// 30 minutes without activity. See docs/asvs.md.
 const (
 	DefaultSessionMax  = 12 * time.Hour
 	DefaultSessionIdle = 30 * time.Minute

@@ -15,14 +15,18 @@ export function AccountPage() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
+  const [code, setCode] = useState("");
+  // With two-factor on, a password change needs a code as well.
+  const mfa = me.data?.totp_enabled ?? false;
   const mismatch = again !== "" && next !== again;
 
   const change = useMutation({
-    mutationFn: () => call(api.POST("/auth/password", { body: { current_password: current, new_password: next } })),
+    mutationFn: () => call(api.POST("/auth/password", { body: { current_password: current, new_password: next, ...(mfa ? { code } : {}) } })),
     onSuccess: () => {
       setCurrent("");
       setNext("");
       setAgain("");
+      setCode("");
     },
   });
   const revoke = useMutation({
@@ -72,6 +76,11 @@ export function AccountPage() {
               <Field label="Repeat new password">
                 {(id) => <input id={id} className="input" type="password" autoComplete="new-password" required value={again} onChange={(e) => setAgain(e.target.value)} aria-invalid={mismatch} />}
               </Field>
+              {mfa && (
+                <Field label="Authenticator or recovery code">
+                  {(id) => <input id={id} className="input w-48 font-mono" autoComplete="one-time-code" required maxLength={20} value={code} onChange={(e) => setCode(e.target.value)} />}
+                </Field>
+              )}
               {mismatch && <p role="alert" className="text-sm text-red-400">The passwords do not match.</p>}
               {change.error && <ErrorBox error={change.error} />}
             </div>

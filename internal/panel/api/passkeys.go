@@ -268,7 +268,7 @@ func (a *App) registerPasskeys(api huma.API) {
 			}
 			a.fails.reset(who.u.Email)
 			a.audit(ctx, who.u, "login.ok", who.u.Email, "passkey")
-			return &loginOut{Body: who.u, SetCookie: sessionCookie(ctx, tok, a.Store.SessionMax)}, nil
+			return &loginOut{Body: who.u, SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listPasskeys", Method: "GET", Path: "/auth/passkeys", Summary: "Your passkeys"},
