@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useNavigate, useParams, useRouteContext, useRouterState, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ClipboardList, Clock, FolderOpen, LayoutGrid, LogOut, Menu, Plus, Rocket, Search, Settings, SquareTerminal, Users, X, Egg, HardDrive } from "lucide-react";
+import { Archive, ChevronDown, ClipboardList, Clock, FolderOpen, LayoutGrid, LogOut, Menu, Network, Plus, Rocket, Search, Settings, SquareTerminal, Users, X, Egg, HardDrive } from "lucide-react";
 import { api, call } from "../api/client";
 import { serverQuery, serversQuery } from "../api/queries";
 import { CommandPalette } from "../components/CommandPalette";
@@ -14,7 +14,7 @@ const item = "flex min-h-9 items-center gap-2.5 rounded-[7px] px-2 text-sm text-
 const itemOn = "bg-[#181c21] font-medium !text-zinc-100";
 
 const icons: Record<Tab, typeof SquareTerminal> = {
-  console: SquareTerminal, files: FolderOpen, backups: Archive, schedules: Clock, startup: Rocket, users: Users, settings: Settings,
+  console: SquareTerminal, files: FolderOpen, backups: Archive, schedules: Clock, startup: Rocket, network: Network, users: Users, settings: Settings,
 };
 const sections = TAB_INFO.map((t) => ({ ...t, icon: icons[t.id] }));
 

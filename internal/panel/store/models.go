@@ -418,12 +418,12 @@ type Server struct {
 	Limits
 }
 
-const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup`
+const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup,port_limit`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var v Server
 	var env string
-	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup); err != nil {
+	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup, &v.PortLimit); err != nil {
 		return v, nf(err)
 	}
 	json.Unmarshal([]byte(env), &v.Env)
@@ -472,41 +472,21 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 	if err := checkCapacity(ctx, tx, v.NodeID, "", v.Limits); err != nil {
 		return v, err
 	}
-	var ps, pe int
-	if err := tx.QueryRowContext(ctx, `SELECT port_start,port_end FROM nodes WHERE id=?`, v.NodeID).Scan(&ps, &pe); err != nil {
-		return v, nf(err)
+	port, err := pickPort(ctx, tx, v.NodeID, v.Port)
+	if err != nil {
+		return v, err
 	}
-	if v.Port == 0 {
-		rows, err := tx.QueryContext(ctx, `SELECT port FROM servers WHERE node_id=?`, v.NodeID)
-		if err != nil {
-			return v, err
-		}
-		used := map[int]bool{}
-		for rows.Next() {
-			var p int
-			rows.Scan(&p)
-			used[p] = true
-		}
-		rows.Close()
-		for p := ps; p <= pe; p++ {
-			if !used[p] {
-				v.Port = p
-				break
-			}
-		}
-		if v.Port == 0 {
-			return v, userErr("no free ports on this node")
-		}
-	} else if v.Port < ps || v.Port > pe {
-		return v, userErrf("port must be within the node range %d-%d", ps, pe)
-	}
+	v.Port = port
 	if v.Env == nil {
 		v.Env = map[string]string{}
 	}
 	env, _ := json.Marshal(v.Env)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),
-		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, now()); err != nil {
+		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, v.PortLimit, now()); err != nil {
+		return v, err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO server_ports(node_id,port,server_uuid,created_at) VALUES(?,?,?,?)`, v.NodeID, v.Port, v.UUID, now()); err != nil {
 		return v, err
 	}
 	return v, tx.Commit()

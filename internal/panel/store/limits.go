@@ -19,6 +19,7 @@ type Limits struct {
 	IOWeight    int64  `json:"io_weight" minimum:"0" maximum:"1000" doc:"relative disk IO priority 10-1000, 0 = default"`
 	DiskMB      int64  `json:"disk_mb" minimum:"0" maximum:"104857600" doc:"disk quota, 0 = unlimited"`
 	BackupLimit int64  `json:"backup_limit" minimum:"1" maximum:"100" doc:"how many backups this server may keep"`
+	PortLimit   int64  `json:"port_limit" required:"false" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one (default 0)"`
 }
 
 // DefaultLimits are used for fields a request leaves out.
@@ -55,6 +56,8 @@ func (l *Limits) Normalize() error {
 		return userErr("disk limit must be 0 (unlimited) or a positive number of MB")
 	case l.BackupLimit < 1 || l.BackupLimit > 100:
 		return userErr("backup limit must be 1 to 100")
+	case l.PortLimit < 0 || l.PortLimit > 100:
+		return userErr("extra ports must be 0 to 100")
 	}
 	return nil
 }
@@ -119,8 +122,8 @@ func (s *Store) UpdateLimits(ctx context.Context, uuid string, l Limits) error {
 	if err := checkCapacity(ctx, s.DB, srv.NodeID, uuid, l); err != nil {
 		return err
 	}
-	_, err = s.exec(ctx, `UPDATE servers SET memory_mb=?,swap_mb=?,cpu_pct=?,cpuset=?,pids_limit=?,io_weight=?,disk_mb=?,backup_limit=? WHERE uuid=?`,
-		l.MemoryMB, l.SwapMB, l.CPUPct, l.CPUSet, l.PidsLimit, l.IOWeight, l.DiskMB, l.BackupLimit, uuid)
+	_, err = s.exec(ctx, `UPDATE servers SET memory_mb=?,swap_mb=?,cpu_pct=?,cpuset=?,pids_limit=?,io_weight=?,disk_mb=?,backup_limit=?,port_limit=? WHERE uuid=?`,
+		l.MemoryMB, l.SwapMB, l.CPUPct, l.CPUSet, l.PidsLimit, l.IOWeight, l.DiskMB, l.BackupLimit, l.PortLimit, uuid)
 	return err
 }
 
