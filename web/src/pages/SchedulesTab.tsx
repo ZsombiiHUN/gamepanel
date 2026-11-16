@@ -80,10 +80,10 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
           <span className="text-[13px] text-zinc-500">All times are UTC</span>
         </div>
         <div className="px-5 empty:hidden"><ErrorBox error={list.error ?? remove.error ?? run.error ?? toggle.error} /></div>
-        {list.data?.length === 0 && <p className="border-t border-[#1b2025] px-5 py-5 text-sm text-zinc-400">No schedules yet. Add one below to back up or restart on a timer.</p>}
+        {list.data?.length === 0 && <p className="border-t border-line px-5 py-5 text-sm text-zinc-400">No schedules yet. Add one below to back up or restart on a timer.</p>}
         <ul>
           {list.data?.map((s) => (
-            <li key={s.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[#1b2025] px-5 py-4 hover:bg-[#161a1f]">
+            <li key={s.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-line px-5 py-4 hover:bg-row-hover">
               <button
                 type="button"
                 role="switch"
@@ -91,7 +91,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
                 aria-label={`${s.name} enabled`}
                 disabled={toggle.isPending}
                 onClick={() => toggle.mutate(s)}
-                className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-indigo-500 ${s.enabled ? "bg-[#2f7d4f]" : "bg-zinc-700"}`}
+                className={`relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-indigo-500 ${s.enabled ? "bg-good-dim" : "bg-zinc-700"}`}
               >
                 <span className={`absolute top-[3px] h-4 w-4 rounded-full bg-white transition-all ${s.enabled ? "right-[3px]" : "left-[3px]"}`} />
               </button>
@@ -101,7 +101,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
               </div>
               <ol className="flex flex-wrap items-center gap-1.5" aria-label="Tasks">
                 {s.tasks.map((t) => (
-                  <li key={t.id} className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-[#22272d] bg-[#101317] px-2.5 text-[12.5px] text-zinc-200">
+                  <li key={t.id} className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-line-strong bg-thead px-2.5 text-[12.5px] text-zinc-200">
                     {t.action === "backup" ? <Database className="h-3 w-3" aria-hidden /> : t.action === "power" ? <Power className="h-3 w-3" aria-hidden /> : <Terminal className="h-3 w-3" aria-hidden />}
                     {t.action === "backup" ? "Back up" : t.action === "power" ? `Power: ${t.payload}` : `Command: ${t.payload}`}
                     {t.offset_seconds > 0 && <span className="text-zinc-500">after {t.offset_seconds}s</span>}
@@ -117,7 +117,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
                 <button type="button" className="btn !min-h-9" onClick={() => run.mutate(s.id)} disabled={run.isPending} aria-label={`Run ${s.name} now`}>
                   <Play className="h-4 w-4" aria-hidden /> Run now
                 </button>
-                <button type="button" className={`${ghost} hover:!text-[#ff8a7a]`} onClick={() => window.confirm(`Delete schedule "${s.name}"?`) && remove.mutate(s.id)} aria-label={`Delete ${s.name}`} title="Delete">
+                <button type="button" className={`${ghost} hover:!text-bad-text`} onClick={() => window.confirm(`Delete schedule "${s.name}"?`) && remove.mutate(s.id)} aria-label={`Delete ${s.name}`} title="Delete">
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
               </div>
@@ -129,7 +129,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
 
       <details className="group rounded-2xl border border-zinc-800 bg-zinc-900 open:p-0">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-[15px] font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500 [&::-webkit-details-marker]:hidden"><Plus className="h-4 w-4" aria-hidden /> New schedule</summary>
-      <form onSubmit={submit} className="space-y-3 border-t border-[#1b2025] p-5" aria-label="New schedule">
+      <form onSubmit={submit} className="space-y-3 border-t border-line p-5" aria-label="New schedule">
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Name">
             {(id) => <input id={id} className="input" required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />}

@@ -58,7 +58,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
           <div className="flex justify-between text-sm text-zinc-400"><span>Backups kept</span><span className="font-mono text-zinc-100">{kept}{max ? ` of ${max}` : ""}</span></div>
           {max > 0 && max <= 40 && (
             <div className="mt-3 flex gap-[3px]" aria-hidden>
-              {Array.from({ length: max }, (_, i) => <span key={i} className={`h-2 flex-1 rounded-[2px] ${i < kept ? (kept >= max ? "bg-[#e8a33d]" : "bg-indigo-400") : "bg-[#23282e]"}`} />)}
+              {Array.from({ length: max }, (_, i) => <span key={i} className={`h-2 flex-1 rounded-[2px] ${i < kept ? (kept >= max ? "bg-warn" : "bg-indigo-400") : "bg-line-strong"}`} />)}
             </div>
           )}
         </div>
@@ -84,27 +84,27 @@ export function BackupsTab({ uuid }: { uuid: string }) {
 
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900" aria-label="Your backups">
         <h2 className="px-5 py-4 text-[15px] font-semibold">Your backups</h2>
-        {list.data?.length === 0 && <p className="border-t border-[#1b2025] px-5 py-5 text-sm text-zinc-400">No backups yet. Create one before you try something risky.</p>}
+        {list.data?.length === 0 && <p className="border-t border-line px-5 py-5 text-sm text-zinc-400">No backups yet. Create one before you try something risky.</p>}
         <ul>
           {list.data?.map((b) => (
-            <li key={b.uuid} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#1b2025] px-5 py-3.5 hover:bg-[#161a1f]">
-              <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[#1b2027] text-indigo-400" aria-hidden><Database className="h-[17px] w-[17px]" /></span>
+            <li key={b.uuid} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-3.5 hover:bg-row-hover">
+              <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-chip text-indigo-400" aria-hidden><Database className="h-[17px] w-[17px]" /></span>
               <div className="min-w-0 flex-1 basis-56">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <span className="text-[15px] font-medium">{b.name}</span>
-                  {b.disk === "s3" && <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-[#1d2229] px-2.5 text-xs text-zinc-300" title="Stored in S3, off the node"><Cloud className="h-3 w-3" aria-hidden />S3</span>}
-                  {b.locked && <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-[#1d2229] px-2.5 text-xs text-zinc-300"><Lock className="h-3 w-3" aria-hidden />Locked</span>}
-                  {b.status === "running" && <span className="inline-flex items-center gap-1.5 text-xs text-[#f0b35a]"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Running</span>}
-                  {b.status !== "ok" && b.status !== "running" && <span className="text-xs text-[#ff8a7a]">{b.status}</span>}
-                  {b.restore_status === "running" && <span role="status" className="inline-flex items-center gap-1.5 text-xs text-[#f0b35a]"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Restoring</span>}
-                  {b.restore_status === "ok" && <span role="status" className="text-xs text-[#7bdb9c]">Restored {new Date(b.restored_at * 1000).toLocaleString()}</span>}
+                  {b.disk === "s3" && <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-chip px-2.5 text-xs text-zinc-300" title="Stored in S3, off the node"><Cloud className="h-3 w-3" aria-hidden />S3</span>}
+                  {b.locked && <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-chip px-2.5 text-xs text-zinc-300"><Lock className="h-3 w-3" aria-hidden />Locked</span>}
+                  {b.status === "running" && <span className="inline-flex items-center gap-1.5 text-xs text-warn-text"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Running</span>}
+                  {b.status !== "ok" && b.status !== "running" && <span className="text-xs text-bad-text">{b.status}</span>}
+                  {b.restore_status === "running" && <span role="status" className="inline-flex items-center gap-1.5 text-xs text-warn-text"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Restoring</span>}
+                  {b.restore_status === "ok" && <span role="status" className="text-xs text-good-text">Restored {new Date(b.restored_at * 1000).toLocaleString()}</span>}
                 </div>
                 <div className="mt-0.5 text-[13px] text-zinc-400">
                   {new Date(b.created_at * 1000).toLocaleString()}
                   {b.status === "ok" && <span className="ml-2 font-mono text-xs text-zinc-500" title="SHA-256">{b.sha256.slice(0, 12)}</span>}
                 </div>
-                {b.error && <div className="mt-0.5 text-xs text-[#ff8a7a]">{b.error}</div>}
-                {b.restore_status === "failed" && <div className="mt-0.5 text-xs text-[#ff8a7a]">Restore failed: {b.restore_error}</div>}
+                {b.error && <div className="mt-0.5 text-xs text-bad-text">{b.error}</div>}
+                {b.restore_status === "failed" && <div className="mt-0.5 text-xs text-bad-text">Restore failed: {b.restore_error}</div>}
               </div>
               <div className="w-20 text-right font-mono text-[13px] text-zinc-300">{b.status === "ok" ? formatBytes(b.size) : "-"}</div>
               <div className="flex items-center gap-1">
@@ -119,14 +119,14 @@ export function BackupsTab({ uuid }: { uuid: string }) {
                 <button type="button" className={iconBtn} aria-label={b.locked ? `Unlock ${b.name}` : `Lock ${b.name}`} title={b.locked ? "Locked: cannot be deleted" : "Lock"} onClick={() => lock.mutate({ backup: b.uuid, locked: !b.locked })}>
                   {b.locked ? <Lock className="h-4 w-4" aria-hidden /> : <LockOpen className="h-4 w-4" aria-hidden />}
                 </button>
-                <button type="button" className={`${iconBtn} hover:!text-[#ff8a7a]`} aria-label={`Delete ${b.name}`} title="Delete" disabled={b.locked || b.status === "running" || remove.isPending} onClick={() => window.confirm(`Delete backup "${b.name}"?`) && remove.mutate(b.uuid)}>
+                <button type="button" className={`${iconBtn} hover:!text-bad-text`} aria-label={`Delete ${b.name}`} title="Delete" disabled={b.locked || b.status === "running" || remove.isPending} onClick={() => window.confirm(`Delete backup "${b.name}"?`) && remove.mutate(b.uuid)}>
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
               </div>
             </li>
           ))}
         </ul>
-        <label className="flex items-center gap-2 border-t border-[#1b2025] px-5 py-3 text-[13px] text-zinc-400">
+        <label className="flex items-center gap-2 border-t border-line px-5 py-3 text-[13px] text-zinc-400">
           <input type="checkbox" checked={truncate} onChange={(e) => setTruncate(e.target.checked)} />
           When restoring, delete all current files first
         </label>

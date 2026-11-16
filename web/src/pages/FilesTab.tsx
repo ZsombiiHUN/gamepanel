@@ -174,7 +174,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
           <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Files">
             <table className="w-full text-sm sm:min-w-[620px]">
               <caption className="sr-only">Files in {dir}</caption>
-              <thead className="bg-[#101317] text-left text-[12.5px] text-zinc-500">
+              <thead className="bg-thead text-left text-[12.5px] text-zinc-500">
                 <tr>
                   <th scope="col" className="w-10 py-2.5 pl-4">
                     <input type="checkbox" className="h-4 w-4 accent-indigo-500" aria-label="Select all" checked={allChosen} ref={(el) => { if (el) el.indeterminate = chosen.length > 0 && !allChosen; }} onChange={() => setSelected(allChosen ? new Set() : new Set(rows.map((r) => r.path)))} disabled={rows.length === 0} />
@@ -188,7 +188,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
               </thead>
               <tbody>
                 {dir !== "/" && !needle && (
-                  <tr className="border-t border-[#1b2025]">
+                  <tr className="border-t border-line">
                     <td />
                     <td className="px-2 py-2.5" colSpan={5}>
                       <button type="button" className="link inline-flex items-center gap-2" onClick={() => setDir(parentPath(dir))}>
@@ -198,7 +198,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
                   </tr>
                 )}
                 {rows.length === 0 && !(needle && searching) && (
-                  <tr className="border-t border-[#1b2025]">
+                  <tr className="border-t border-line">
                     <td />
                     <td className="px-2 py-4 text-zinc-500" colSpan={5}>
                       {needle ? `No files or folders named “${needle}” in ${dir === "/" ? "any folder" : dir + " or its subfolders"}.` : canWrite ? "Empty directory. Drop files here to upload them." : "Empty directory."}
@@ -206,7 +206,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
                   </tr>
                 )}
                 {rows.map((f) => (
-                  <tr key={f.path} className={`group border-t border-[#1b2025] hover:bg-[#161a1f] ${selected.has(f.path) ? "bg-indigo-500/5" : ""}`}>
+                  <tr key={f.path} className={`group border-t border-line hover:bg-row-hover ${selected.has(f.path) ? "bg-indigo-500/5" : ""}`}>
                     <td className="py-2.5 pl-4">
                       <input type="checkbox" className="h-4 w-4 accent-indigo-500" aria-label={`Select ${f.path.slice(1)}`} checked={selected.has(f.path)} onChange={() => toggle(f.path)} />
                     </td>

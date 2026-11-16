@@ -114,7 +114,7 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
               aria-selected={i === idx}
               onMouseMove={() => setActive(i)}
               onClick={() => choose(it)}
-              className={`flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm ${i === idx ? "bg-[#1d2229] text-zinc-100" : "text-zinc-300"}`}
+              className={`flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-3 text-sm ${i === idx ? "bg-chip text-zinc-100" : "text-zinc-300"}`}
             >
               {it.state && <StateMark state={it.state} />}
               <span className="flex-1 truncate">{it.label}</span>

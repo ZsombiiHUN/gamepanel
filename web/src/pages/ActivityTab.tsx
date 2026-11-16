@@ -26,7 +26,7 @@ export function ActivityTab({ uuid }: { uuid: string }) {
           <Empty icon={<History className="h-5 w-5" aria-hidden />} title={term ? "Nothing matches" : "Nothing yet"}>{term ? "Try other words." : "Power actions, file changes, backups and access changes show up here."}</Empty>
         </div>
       )}
-      <ol className="divide-y divide-[#1b2025] border-t border-[#1b2025]">
+      <ol className="divide-y divide-line border-t border-line">
         {rows.map((e) => (
           <li key={e.id} className="flex items-start gap-3 px-5 py-3">
             <Avatar name={e.actor_email || "?"} size={30} />
@@ -44,7 +44,7 @@ export function ActivityTab({ uuid }: { uuid: string }) {
         ))}
       </ol>
       {(page > 0 || rows.length === PAGE) && (
-        <div className="flex justify-between border-t border-[#1b2025] px-5 py-3">
+        <div className="flex justify-between border-t border-line px-5 py-3">
           <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage(page - 1)}>Newer</button>
           <button type="button" className="btn btn-ghost" disabled={rows.length < PAGE} onClick={() => setPage(page + 1)}>Older</button>
         </div>

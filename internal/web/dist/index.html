@@ -1,12 +1,21 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
+    <script>
+      // Pick the theme before the first paint, so a light page never flashes dark (or the reverse).
+      (function () {
+        var pref = "system";
+        try { pref = localStorage.getItem("gp-theme") || "system"; } catch (e) {}
+        var light = pref === "light" || (pref === "system" && window.matchMedia("(prefers-color-scheme: light)").matches);
+        document.documentElement.dataset.theme = light ? "light" : "dark";
+      })();
+    </script>
     <title>GamePanel</title>
-    <script type="module" crossorigin src="/assets/index-RpN-rR16.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-2F-l-BzS.css">
+    <script type="module" crossorigin src="/assets/index-BW8-wYy9.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-ByS1s6B5.css">
   </head>
   <body>
     <div id="root"></div>

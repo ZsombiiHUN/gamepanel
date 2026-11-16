@@ -5,13 +5,14 @@ import { Archive, ChevronDown, History, Database as DatabaseIcon, ClipboardList,
 import { api, call } from "../api/client";
 import { serverQuery, serversQuery } from "../api/queries";
 import { CommandPalette } from "../components/CommandPalette";
+import { ThemeSwitch } from "../components/ThemeSwitch";
 import { StateMark } from "../components/ui";
 import { isTypingTarget } from "../lib/palette";
 import { sortServers } from "../lib/servers";
 import { canSee, TAB_INFO, type Tab } from "../lib/tabs";
 
-const item = "flex min-h-9 items-center gap-2.5 rounded-[7px] px-2 text-sm text-zinc-400 hover:bg-[#14181c] hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
-const itemOn = "bg-[#181c21] font-medium !text-zinc-100";
+const item = "flex min-h-9 items-center gap-2.5 rounded-[7px] px-2 text-sm text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
+const itemOn = "bg-row-active font-medium !text-zinc-100";
 
 const icons: Record<Tab, typeof SquareTerminal> = {
   console: SquareTerminal, files: FolderOpen, backups: Archive, schedules: Clock, startup: Rocket, network: Network, databases: DatabaseIcon, activity: History, users: Users, settings: Settings,
@@ -31,7 +32,7 @@ function Sidebar({ isAdmin, email, onSignOut, signingOut, onSearch }: { isAdmin:
       <Link to="/" className="flex shrink-0 items-center gap-2.5 px-2 py-1 font-display text-lg font-bold tracking-tight focus-visible:outline-2 focus-visible:outline-indigo-500">
         <span className="h-5 w-5 rounded-md bg-indigo-500" aria-hidden /> GamePanel
       </Link>
-      <button type="button" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K" className="flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-zinc-800 bg-[#101317] px-2.5 text-[13px] text-zinc-400 hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-indigo-500">
+      <button type="button" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K" className="flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-zinc-800 bg-thead px-2.5 text-[13px] text-zinc-400 hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-indigo-500">
         <Search className="h-4 w-4" aria-hidden /> <span className="flex-1 text-left">Search <span className="sr-only">servers and pages</span></span>
         <kbd className="rounded border border-zinc-700 px-1.5 font-mono text-[11px]" aria-hidden>Ctrl K</kbd>
       </button>
@@ -49,7 +50,7 @@ function Sidebar({ isAdmin, email, onSignOut, signingOut, onSearch }: { isAdmin:
                 <StateMark state={s.state} /> <span className="flex-1 truncate">{s.name}</span>
                 <ChevronDown className="h-3.5 w-3.5 text-zinc-500" aria-hidden />
               </Link>
-              <ul className="ml-[15px] mt-0.5 mb-1.5 flex flex-col gap-px border-l border-[#22272d] pl-2">
+              <ul className="ml-[15px] mt-0.5 mb-1.5 flex flex-col gap-px border-l border-line-strong pl-2">
                 {sections.filter((x) => can(x.need)).map((x) => {
                   const on = path.startsWith("/servers/") && tab === x.id;
                   return (
@@ -84,9 +85,13 @@ function Sidebar({ isAdmin, email, onSignOut, signingOut, onSearch }: { isAdmin:
           ))}
         </nav>
       )}
-      <div className="flex shrink-0 items-center gap-1 border-t border-[#1b1f24] pt-2.5">
+      <div className="flex shrink-0 items-center justify-between px-2">
+        <span className="text-xs text-zinc-500">Theme</span>
+        <ThemeSwitch />
+      </div>
+      <div className="flex shrink-0 items-center gap-1 border-t border-line pt-2.5">
         <Link to="/account" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[7px] px-2 py-1.5 text-[13.5px] text-zinc-400 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500">
-          <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-[#23282e] text-xs font-semibold text-zinc-100" aria-hidden>{email.slice(0, 1).toUpperCase()}</span>
+          <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-line-strong text-xs font-semibold text-zinc-100" aria-hidden>{email.slice(0, 1).toUpperCase()}</span>
           <span className="truncate">{email}</span>
         </Link>
         <button type="button" className="btn btn-ghost !min-h-8 !px-2" aria-label="Sign out" title="Sign out" onClick={onSignOut} disabled={signingOut}>
@@ -136,14 +141,14 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen lg:flex">
-      <header className="flex items-center gap-2 border-b border-[#1b1f24] bg-side px-3 py-2 lg:hidden">
+      <header className="flex items-center gap-2 border-b border-line bg-side px-3 py-2 lg:hidden">
         <button type="button" className="btn btn-ghost !px-2" aria-label="Open menu" aria-expanded={open} onClick={() => setOpen(true)}><Menu className="h-5 w-5" aria-hidden /></button>
         <span className="font-display text-lg font-bold tracking-tight">GamePanel</span>
       </header>
       {open && <div className="fixed inset-0 z-30 bg-black/60 lg:hidden" onClick={() => setOpen(false)} aria-hidden />}
       <aside
         aria-label="Navigation"
-        className={`fixed left-0 top-0 z-40 h-dvh w-64 overflow-hidden border-r border-[#1b1f24] bg-side transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[248px] lg:shrink-0 lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed left-0 top-0 z-40 h-dvh w-64 overflow-hidden border-r border-line bg-side transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[248px] lg:shrink-0 lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <button type="button" className="btn btn-ghost absolute right-2 top-2 !px-2 lg:hidden" aria-label="Close menu" onClick={() => setOpen(false)}><X className="h-5 w-5" aria-hidden /></button>
         <Sidebar isAdmin={user.is_admin} email={user.email} onSignOut={() => logout.mutate()} signingOut={logout.isPending} onSearch={() => { setOpen(false); setPalette(true); }} />
