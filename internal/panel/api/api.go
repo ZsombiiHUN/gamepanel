@@ -50,6 +50,7 @@ type App struct {
 	limiter *limiter // login attempts per client IP
 	fails   *limiter // failed logins per account
 	running sync.Map // schedule id -> struct{}: one execution at a time
+	relays  sync.Map // relay ticket -> *relayTicket, see relay.go
 }
 
 type ctxKey struct{}
@@ -119,6 +120,12 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
 	mux.HandleFunc("POST /daemon/sftp-auth", a.sftpAuth)
+	// File transfers stream outside huma (it would buffer the bodies).
+	mux.HandleFunc("PUT /api/servers/{uuid}/files/upload", a.uploadFile)
+	mux.HandleFunc("GET /api/servers/{uuid}/files/download", a.downloadFile)
+	mux.HandleFunc("GET /api/servers/{uuid}/backups/{backup}/download", a.downloadBackup)
+	mux.HandleFunc("GET /daemon/relay/{ticket}", a.relayHandler)
+	mux.HandleFunc("POST /daemon/relay/{ticket}", a.relayHandler)
 	if d.Web != nil {
 		mux.Handle("/", d.Web)
 	}
@@ -148,6 +155,7 @@ func (a *App) register(api huma.API) {
 	a.registerSchedules(api)
 	a.registerSubusers(api)
 	a.registerStartup(api)
+	a.registerFiles(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running

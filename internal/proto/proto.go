@@ -84,6 +84,73 @@ const (
 	ReqFilesWrite    = "files.write"
 	ReqFilesDelete   = "files.delete"
 	ReqFilesMkdir    = "files.mkdir"
+	// ReqFilesOp runs a file manager operation (FileOp.Op).
+	ReqFilesOp = "files.op"
+	// Transfers stream through the relay (see Transfer).
+	ReqFilesUpload    = "files.upload"
+	ReqFilesDownload  = "files.download"
+	ReqFilesPull      = "files.pull"
+	ReqBackupDownload = "backup.download"
+)
+
+// File manager operations carried by files.op.
+const (
+	OpMove       = "move"       // Moves
+	OpCopy       = "copy"       // Path -> a free "<name> copy" next to it
+	OpChmod      = "chmod"      // Paths, Mode
+	OpDelete     = "delete"     // Paths
+	OpCompress   = "compress"   // Root, Paths, Format
+	OpDecompress = "decompress" // Path into Root
+)
+
+// FileOp is one file manager operation. Paths are relative to the server's
+// directory, like every other file request.
+type FileOp struct {
+	UUID   string   `json:"uuid"`
+	Op     string   `json:"op"`
+	Root   string   `json:"root,omitempty"`
+	Path   string   `json:"path,omitempty"`
+	Paths  []string `json:"paths,omitempty"`
+	Moves  []Move   `json:"moves,omitempty"`
+	Mode   uint32   `json:"mode,omitempty"`
+	Format string   `json:"format,omitempty"` // compress: zip | tar.gz
+}
+
+type Move struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+// FileOpResult is the reply to files.op.
+type FileOpResult struct {
+	// Path of what was created (copy, compress), if anything.
+	Path string `json:"path,omitempty"`
+}
+
+// Transfer asks the daemon to stream a file through the panel's relay. The
+// daemon connects to <panel>/daemon/relay/<Ticket> with its node token:
+// downloads POST the file there, uploads GET the bytes from there. Transfers
+// thus need no inbound port on the node and never pass through the control
+// websocket.
+type Transfer struct {
+	UUID     string `json:"uuid"`
+	Path     string `json:"path,omitempty"`      // file to read or write
+	BackupID string `json:"backup_id,omitempty"` // backup.download
+	Ticket   string `json:"ticket,omitempty"`
+	Size     int64  `json:"size,omitempty"` // upload: bytes the browser announced
+	URL      string `json:"url,omitempty"`  // files.pull: where to fetch from
+}
+
+// TransferResult is the reply to a transfer once it finished.
+type TransferResult struct {
+	Path string `json:"path"`
+	Size int64  `json:"size"`
+}
+
+// Relay headers a daemon sends with a download.
+const (
+	HeaderRelaySize = "X-Gamepanel-Size"
+	HeaderRelayName = "X-Gamepanel-Name"
 )
 
 // Daemon -> panel event types (no reply expected).
@@ -164,6 +231,10 @@ type FileInfo struct {
 	Dir     bool   `json:"dir"`
 	Size    int64  `json:"size"`
 	ModUnix int64  `json:"mod_unix"`
+	// Mode is the permission bits (0644); Symlink marks a link, which the
+	// panel never follows.
+	Mode    uint32 `json:"mode"`
+	Symlink bool   `json:"symlink,omitempty"`
 }
 
 type Console struct {

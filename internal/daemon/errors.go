@@ -3,6 +3,7 @@ package daemon
 import (
 	"errors"
 	"io/fs"
+	"strings"
 	"syscall"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
@@ -32,6 +33,16 @@ func forPeople(err error) error {
 		return proto.Invalid("that name is too long")
 	case errors.Is(err, fsx.ErrTooLarge):
 		return proto.Invalid(fsx.ErrTooLarge.Error())
+	case errors.Is(err, fsx.ErrUnsupportedArchive):
+		return proto.Invalid(fsx.ErrUnsupportedArchive.Error())
+	case errors.Is(err, fsx.ErrArchiveTooLarge), errors.Is(err, fsx.ErrTooBig):
+		return &proto.Error{Code: proto.CodeDiskFull, Msg: "that does not fit in the server's disk limit"}
+	case errors.Is(err, syscall.EINVAL):
+		return proto.Invalid("a folder cannot be moved or copied into itself")
+	case strings.Contains(err.Error(), "unsafe path in archive"):
+		return proto.Invalid("the archive contains unsafe paths and was not extracted")
+	case strings.Contains(err.Error(), "damaged") || strings.Contains(err.Error(), "not a gzip"):
+		return proto.Invalid("the archive is damaged or not what its name says")
 	}
 	return err
 }

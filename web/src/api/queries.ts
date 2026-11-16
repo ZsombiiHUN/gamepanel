@@ -27,6 +27,16 @@ export function invalidates(...queryKeys: QueryKey[]) {
   return { invalidates: queryKeys };
 }
 
+/** Like invalidates, but also after a failure: for requests that may have changed something before failing. */
+export function invalidatesAlways(...queryKeys: QueryKey[]) {
+  return { invalidates: queryKeys, evenOnError: true };
+}
+
+/** Look again now, for changes made outside a mutation (uploads). */
+export function refreshNow(qc: QueryClient, queryKey: QueryKey) {
+  void qc.invalidateQueries({ queryKey });
+}
+
 /** Look again after `ms`, for work the server finishes in the background. */
 export function refreshLater(qc: QueryClient, queryKey: QueryKey, ms: number) {
   setTimeout(() => void qc.invalidateQueries({ queryKey }), ms);
@@ -34,7 +44,7 @@ export function refreshLater(qc: QueryClient, queryKey: QueryKey, ms: number) {
 
 declare module "@tanstack/react-query" {
   interface Register {
-    mutationMeta: { invalidates?: QueryKey[] };
+    mutationMeta: { invalidates?: QueryKey[]; evenOnError?: boolean };
   }
 }
 
