@@ -28,18 +28,18 @@ const stateTone: Record<string, Tone> = {
   running: "ok", starting: "warn", stopping: "warn", installing: "warn", install_failed: "bad", offline: "off", unknown: "off",
 };
 const toneCls: Record<Tone, string> = {
-  ok: "bg-[#12261a] text-[#7bdb9c]",
-  warn: "bg-[#2a2010] text-[#f0b35a]",
-  off: "bg-[#1b1f24] text-[#9ba2aa]",
-  bad: "bg-[#2a1411] text-[#ff8a7a]",
+  ok: "bg-good-bg text-good-text",
+  warn: "bg-warn-bg text-warn-text",
+  off: "bg-line text-zinc-400",
+  bad: "bg-bad-bg text-bad-text",
 };
 
 /** Status mark. Shape carries the meaning as well as colour: filled dot, square, ring, triangle. */
 export function StateMark({ state }: { state: string }) {
   const tone = stateTone[state] ?? "off";
-  if (tone === "ok") return <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[#4cc27a]" aria-hidden />;
-  if (tone === "warn") return <span className="inline-block h-2 w-2 shrink-0 rounded-[2px] bg-[#e8a33d]" aria-hidden />;
-  if (tone === "bad") return <span className="inline-block h-0 w-0 shrink-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-[#ff8a7a]" aria-hidden />;
+  if (tone === "ok") return <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-good" aria-hidden />;
+  if (tone === "warn") return <span className="inline-block h-2 w-2 shrink-0 rounded-[2px] bg-warn" aria-hidden />;
+  if (tone === "bad") return <span className="inline-block h-0 w-0 shrink-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-bad-text" aria-hidden />;
   return <span className="inline-block h-2 w-2 shrink-0 rounded-full border-[1.5px] border-zinc-500" aria-hidden />;
 }
 
@@ -72,7 +72,7 @@ export function ServerIcon({ name, size = 44 }: { name: string; size?: number })
 export function OnlineDot({ online, label }: { online: boolean; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-zinc-300">
-      <span className={`h-2 w-2 rounded-full ${online ? "bg-[#4cc27a]" : "bg-[#ff8a7a]"}`} aria-hidden />
+      <span className={`h-2 w-2 rounded-full ${online ? "bg-good" : "bg-bad-text"}`} aria-hidden />
       {label}: {online ? "online" : "offline"}
     </span>
   );
@@ -224,10 +224,10 @@ export function Meter({ label, text, pct, warnAt = 85 }: { label: string; text: 
     <div className="flex flex-col gap-1.5">
       <div className="flex justify-between text-[12.5px]">
         <span className="text-zinc-500">{label}</span>
-        <span className={`font-mono ${warn ? "text-[#f0b35a]" : "text-zinc-200"}`}>{text}</span>
+        <span className={`font-mono ${warn ? "text-warn-text" : "text-zinc-200"}`}>{text}</span>
       </div>
-      <div className="h-1 rounded-full bg-[#23282e]" role="presentation">
-        <div className={`h-full rounded-full ${warn ? "bg-[#e8a33d]" : "bg-indigo-400"}`} style={{ width: `${w}%` }} />
+      <div className="h-1 rounded-full bg-line-strong" role="presentation">
+        <div className={`h-full rounded-full ${warn ? "bg-warn" : "bg-indigo-400"}`} style={{ width: `${w}%` }} />
       </div>
     </div>
   );
@@ -261,7 +261,7 @@ export function Section({ title, desc, children, footer, danger = false, id }: {
         {desc && <p className="mt-1 max-w-2xl text-sm text-zinc-400">{desc}</p>}
         {children && <div className="mt-4">{children}</div>}
       </div>
-      {footer && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-black/15 px-5 py-3 text-sm text-zinc-500">{footer}</div>}
+      {footer && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-thead px-5 py-3 text-sm text-zinc-500">{footer}</div>}
     </section>
   );
 }

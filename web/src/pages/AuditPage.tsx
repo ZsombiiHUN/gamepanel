@@ -58,7 +58,7 @@ export function AuditPage() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between border-t border-zinc-800 bg-black/15 px-4 py-2.5 text-sm text-zinc-500">
+          <div className="flex items-center justify-between border-t border-zinc-800 bg-thead px-4 py-2.5 text-sm text-zinc-500">
             <span aria-live="polite">Page {page + 1}{q.data.length ? ` · ${q.data.length} events` : ""}{term ? ` matching “${term}”` : ""}</span>
             <div className="flex gap-2">
               <button type="button" className="btn" disabled={page === 0} onClick={() => goTo(page - 1)}><ChevronLeft className="h-4 w-4" aria-hidden /> Newer</button>

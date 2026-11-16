@@ -27,14 +27,14 @@ export function ConsolePanel({ uuid, termRef, active, canSend, status }: { uuid:
 
   return (
     <section aria-label="Console" className="overflow-clip rounded-2xl border border-zinc-800 bg-well">
-      <div className="flex items-center gap-3 border-b border-[#161a1f] py-1.5 pl-[18px] pr-2.5">
+      <div className="flex items-center gap-3 border-b border-row-hover py-1.5 pl-[18px] pr-2.5">
         <h2 className="flex items-center gap-2.5 text-[15px] font-semibold">
-          <span className={`h-[7px] w-[7px] rounded-full ${status === "open" ? "bg-[#4cc27a]" : status === "closed" ? "bg-[#ff8a7a]" : "bg-[#e8a33d]"}`} title={status === "open" ? "Following live output" : status === "closed" ? "Disconnected: you no longer have access to this console" : "Reconnecting"} aria-hidden />
+          <span className={`h-[7px] w-[7px] rounded-full ${status === "open" ? "bg-good" : status === "closed" ? "bg-bad-text" : "bg-warn"}`} title={status === "open" ? "Following live output" : status === "closed" ? "Disconnected: you no longer have access to this console" : "Reconnecting"} aria-hidden />
           Console
         </h2>
         <div className="ml-auto flex items-center gap-0.5">
           <button type="button" className={tool} aria-label={copied ? "Copied" : "Copy log"} title="Copy log" onClick={() => { void navigator.clipboard?.writeText(termRef.current?.text() ?? "").then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => undefined); }}>
-            {copied ? <Check className="h-4 w-4 text-[#4cc27a]" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+            {copied ? <Check className="h-4 w-4 text-good" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
           </button>
           <button type="button" className={tool} aria-label="Clear" title="Clear" onClick={() => termRef.current?.clear()}><Eraser className="h-4 w-4" aria-hidden /></button>
           <button type="button" className={tool} aria-label={expanded ? "Shrink" : "Expand"} aria-pressed={expanded} title={expanded ? "Shrink" : "Expand"} onClick={() => setExpanded((v) => !v)}>
@@ -42,10 +42,10 @@ export function ConsolePanel({ uuid, termRef, active, canSend, status }: { uuid:
           </button>
         </div>
       </div>
-      {status === "closed" && <p role="status" className="border-b border-[#161a1f] px-[18px] py-2 text-[13px] text-[#ff8a7a]">The console was closed because you no longer have access to it.</p>}
+      {status === "closed" && <p role="status" className="border-b border-row-hover px-[18px] py-2 text-[13px] text-bad-text">The console was closed because you no longer have access to it.</p>}
       <ConsoleTerminal ref={termRef} expanded={expanded} />
       {canSend && (
-        <form onSubmit={submit} aria-label="Send a console command" className="sticky bottom-0 z-10 flex items-center gap-2.5 border-t border-[#161a1f] bg-[#0c0e11] pl-[18px] pr-2.5">
+        <form onSubmit={submit} aria-label="Send a console command" className="sticky bottom-0 z-10 flex items-center gap-2.5 border-t border-row-hover bg-thead pl-[18px] pr-2.5">
           <span className="font-mono text-zinc-600" aria-hidden>›</span>
           <label htmlFor="cmd" className="sr-only">Console command</label>
           <input id="cmd" className="min-h-12 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-zinc-500" placeholder="Send a command" autoComplete="off" maxLength={2048} value={cmd} onChange={(e) => setCmd(e.target.value)} />

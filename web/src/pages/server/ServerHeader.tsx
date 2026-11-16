@@ -51,9 +51,9 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!running && btn("start", "Start", <Play className="h-[17px] w-[17px]" aria-hidden />, "!bg-[#4cc27a] !border-[#4cc27a] !text-[#04150b] font-semibold hover:!bg-[#5fd28b]")}
-          {running && btn("restart", "Restart", <RotateCw className="h-[17px] w-[17px]" aria-hidden />, "!bg-[#f0a53a] !border-[#f0a53a] !text-[#1a1203] font-semibold hover:!bg-[#f5b455]")}
-          {running && btn("stop", "Stop", <Square className="h-[17px] w-[17px]" aria-hidden />, "!bg-[#f0685a] !border-[#f0685a] !text-[#1f0705] font-semibold hover:!bg-[#f58074]")}
+          {!running && btn("start", "Start", <Play className="h-[17px] w-[17px]" aria-hidden />, "!bg-good !border-good !text-good-ink font-semibold hover:!bg-good-hover")}
+          {running && btn("restart", "Restart", <RotateCw className="h-[17px] w-[17px]" aria-hidden />, "!bg-warn !border-warn !text-warn-ink font-semibold hover:!bg-warn-hover")}
+          {running && btn("stop", "Stop", <Square className="h-[17px] w-[17px]" aria-hidden />, "!bg-bad !border-bad !text-bad-ink font-semibold hover:!bg-bad-hover")}
           <MoreMenu>
             <button type="button" role="menuitem" className="menu-item" disabled={power.isPending || !s.node_online || !can("power")} onClick={() => power.mutate("kill")}><Skull className="h-4 w-4" aria-hidden /> Kill</button>
             <button
@@ -81,13 +81,13 @@ function CopyChip({ text, label }: { text: string; label: string }) {
     <button
       type="button"
       title="Copy"
-      className="inline-flex min-h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-[#101317] px-2.5 font-mono text-[13px] text-zinc-200 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500"
+      className="inline-flex min-h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-thead px-2.5 font-mono text-[13px] text-zinc-200 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500"
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1800); }).catch(() => undefined);
       }}
     >
       {label}
-      {done ? <Check className="h-3.5 w-3.5 text-[#4cc27a]" aria-hidden /> : <Copy className="h-3.5 w-3.5 text-zinc-500" aria-hidden />}
+      {done ? <Check className="h-3.5 w-3.5 text-good" aria-hidden /> : <Copy className="h-3.5 w-3.5 text-zinc-500" aria-hidden />}
       <span className="sr-only" aria-live="polite">{done ? "Copied" : ""}</span>
     </button>
   );

@@ -26,6 +26,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 - **Eggs import unchanged.** Pterodactyl PTDL v1 and v2 eggs, including install scripts, work as they are.
 - **The daemon dials out.** Each node opens one websocket to the panel, so a node needs no inbound control port. Uploads and downloads stream through the panel on a separate connection the node also opens itself.
 - **Safe where it matters.** File access goes through `os.Root` and is tested against hostile symlinks (the class of bug behind the Wings CVEs). Egg variables never reach a shell. Containers drop all capabilities.
+- **Light and dark.** Follows your system, or pick one; both themes pass the same accessibility checks.
 - **Fast to use.** Press `Ctrl K` to jump to any server or page. Filters and folders live in the URL, so you can link to them and Back works.
 - **Tested against a real browser.** Go tests, component tests and a Playwright suite (with accessibility scans at three screen sizes) run on every change.
 
@@ -149,7 +150,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history, a light theme.
+**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history.
 
 ## Development
 

@@ -27,7 +27,7 @@ export function AuthLayout({ title, sub, children }: { title: string; sub: React
             ))}
           </div>
         </div>
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#0b0d0f] via-[#0b0d0f]/90 to-transparent p-12 pt-24">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-side via-side/90 to-transparent p-12 pt-24">
           <p className="h-display max-w-md text-2xl leading-snug text-zinc-100">Game servers, without the panel you have to babysit.</p>
         </div>
       </aside>

@@ -40,7 +40,7 @@ function ServerCard({ s }: { s: ServerView }) {
         {s.stats && <Meter label="Disk" text={`${formatBytes(s.stats.disk_bytes)} / ${s.disk_mb ? formatBytes(s.disk_mb * 1024 * 1024) : "no limit"}`} pct={diskPct} />}
         {!s.stats && <p className="py-1 text-[13px] text-zinc-500">{s.state === "installing" ? "Setting up files. This takes a few minutes the first time." : "Not running. Start it to see live usage."}</p>}
       </div>
-      <div className="mt-auto flex gap-2 border-t border-[#1d2127] pt-4">
+      <div className="mt-auto flex gap-2 border-t border-line pt-4">
         <Link to="/servers/$uuid" params={{ uuid: s.uuid }} search={{ tab: "console" }} className="btn flex-1">
           <SquareTerminal className="h-4 w-4" aria-hidden /> Console
         </Link>
@@ -127,7 +127,7 @@ export function ServersPage() {
         ))}
         {me.data?.is_admin && !filtering && all.length > 0 && (
           <li>
-            <Link to="/servers/new" className="flex min-h-48 h-full flex-col items-center justify-center gap-2.5 rounded-[14px] border border-dashed border-zinc-700 text-zinc-400 hover:bg-[#14181c] focus-visible:outline-2 focus-visible:outline-indigo-500">
+            <Link to="/servers/new" className="flex min-h-48 h-full flex-col items-center justify-center gap-2.5 rounded-[14px] border border-dashed border-zinc-700 text-zinc-400 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-indigo-500">
               <span className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 text-zinc-200"><Plus className="h-[18px] w-[18px]" aria-hidden /></span>
               New server
             </Link>
