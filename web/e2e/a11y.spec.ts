@@ -18,6 +18,16 @@ test.describe("signed out", () => {
     await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
     await scan(page, "sign-in");
   });
+  test("password reset page", async ({ page }) => {
+    await page.goto("/reset#token=abcdefghijklmnopqrstuvwxyz");
+    await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
+    await scan(page, "reset");
+  });
+  test("forgot password page", async ({ page }) => {
+    await page.goto("/forgot");
+    await expect(page.getByRole("heading", { name: "Forgot your password?" })).toBeVisible();
+    await scan(page, "forgot");
+  });
 });
 
 for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["nodes", "/nodes"], ["eggs", "/eggs"], ["database hosts", "/database-hosts"], ["audit log", "/audit"], ["account", "/account"]] as const) {

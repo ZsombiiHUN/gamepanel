@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/web"
@@ -57,6 +59,13 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "reset-2fa" {
 		if err := reset2FA(st, os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "reset-link" {
+		if err := resetLink(st, os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
@@ -117,14 +126,38 @@ func main() {
 		cancel()
 		log.Info("new backups go to S3", "endpoint", ep, "bucket", os.Getenv("GAMEPANEL_S3_BUCKET"))
 	}
+	var mailer *mail.SMTP
+	publicURL := strings.TrimRight(os.Getenv("GAMEPANEL_PUBLIC_URL"), "/")
+	if h := os.Getenv("GAMEPANEL_SMTP_HOST"); h != "" {
+		port, _ := strconv.Atoi(os.Getenv("GAMEPANEL_SMTP_PORT"))
+		mailer, err = mail.New(mail.Config{Host: h, Port: port, Username: os.Getenv("GAMEPANEL_SMTP_USERNAME"), Password: os.Getenv("GAMEPANEL_SMTP_PASSWORD"),
+			From: os.Getenv("GAMEPANEL_SMTP_FROM"), TLS: os.Getenv("GAMEPANEL_SMTP_TLS")})
+		if err != nil {
+			log.Error("invalid SMTP settings", "err", err)
+			os.Exit(1)
+		}
+		if publicURL == "" {
+			log.Warn("GAMEPANEL_SMTP_HOST is set but GAMEPANEL_PUBLIC_URL is not: emails need the panel's address for their links, so none are sent")
+		}
+	}
+	signup := env("GAMEPANEL_SIGNUP", "invite")
+	if signup != "invite" && signup != "open" {
+		log.Error("GAMEPANEL_SIGNUP must be invite or open", "value", signup)
+		os.Exit(1)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	h := hub.New(log)
-	handler := api.New(api.Deps{
+	deps := api.Deps{
 		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
 		TrustedProxies: proxies, S3: backups,
+		PublicURL: publicURL, Signup: signup,
 		CookieSecure: cookieSecure,
-	})
+	}
+	if mailer != nil { // never a typed nil in the interface
+		deps.Mail = mailer
+	}
+	handler := api.New(deps)
 	if st.CountUsers(context.Background()) == 0 {
 		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")
 	}
@@ -150,6 +183,28 @@ func isLoopback(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// resetLink prints a password reset link for an account: the way to reset a
+// password on a panel without email.
+func resetLink(st *store.Store, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: panel reset-link you@example.com")
+	}
+	u, err := st.UserByEmail(context.Background(), args[0])
+	if err != nil {
+		return errors.New("no account with that email")
+	}
+	tok, err := st.NewResetToken(context.Background(), u.ID)
+	if err != nil {
+		return err
+	}
+	base := strings.TrimRight(os.Getenv("GAMEPANEL_PUBLIC_URL"), "/")
+	if base == "" {
+		base = "<panel address>"
+	}
+	fmt.Printf("Password reset link for %s (valid for %s, works once):\n%s/reset#token=%s\n", u.Email, store.ResetTTL, base, tok)
+	return nil
 }
 
 // createAdmin makes an admin with a random password, printed once to the

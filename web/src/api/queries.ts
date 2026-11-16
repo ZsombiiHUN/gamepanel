@@ -24,6 +24,9 @@ export const keys = {
   databases: (uuid: string) => ["databases", uuid] as const,
   databaseHosts: ["database-hosts"] as const,
   activity: (uuid: string) => ["activity", uuid] as const,
+  authOptions: ["auth-options"] as const,
+  invite: ["invite"] as const,
+  invites: (uuid: string) => ["invites", uuid] as const,
 };
 
 /** What a mutation refreshes on success. The query client applies it, so mutations do not repeat the plumbing. */
@@ -58,6 +61,28 @@ export const meQuery = queryOptions({
   retry: false,
   staleTime: 60_000,
 });
+
+/** How this panel lets people in (public; no session needed). */
+export const authOptionsQuery = queryOptions({
+  queryKey: keys.authOptions,
+  queryFn: () => call(api.GET("/auth/options")),
+  staleTime: 5 * 60_000,
+});
+
+/** What an invitation link is for (public). */
+export const inviteQuery = (token: string) =>
+  queryOptions({
+    queryKey: [...keys.invite, token] as const,
+    queryFn: () => call(api.POST("/auth/invite", { body: { token } })),
+    retry: false,
+  });
+
+/** Invitations to a server that nobody has used yet. */
+export const serverInvitesQuery = (uuid: string) =>
+  queryOptions({
+    queryKey: keys.invites(uuid),
+    queryFn: async () => (await call(api.GET("/servers/{uuid}/invites", { params: { path: { uuid } } }))) ?? [],
+  });
 
 export const serversQuery = queryOptions({
   queryKey: keys.servers,

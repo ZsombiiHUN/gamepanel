@@ -21,6 +21,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Email a password reset link
+         * @description Always answers the same, whether or not the email has an account.
+         */
+        post: operations["forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** What an invitation is for (public) */
+        post: operations["lookupInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/keys": {
         parameters: {
             query?: never;
@@ -107,6 +144,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ways to sign in on this panel (public) */
+        get: operations["authOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password": {
         parameters: {
             query?: never;
@@ -118,6 +172,40 @@ export interface paths {
         put?: never;
         /** Change your password (signs out every other session) */
         post: operations["changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an account (signs you in) */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a new password with a reset link (signs out everywhere) */
+        post: operations["resetPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -273,6 +361,41 @@ export interface paths {
         /** Import a Pterodactyl (PTDL) egg */
         post: operations["importEgg"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pending account invitations (admin) */
+        get: operations["listInvites"];
+        put?: never;
+        /** Invite someone to make an account (admin) */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw an account invitation (admin) */
+        delete: operations["deleteInvite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -751,6 +874,44 @@ export interface paths {
          */
         post: operations["pullFile"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pending invitations to a server */
+        get: operations["listServerInvites"];
+        put?: never;
+        /**
+         * Give someone access by email, inviting them if they have no account
+         * @description If the email has an account it is added as a subuser at once (added: true). Otherwise an invitation is made: on sign-up the account gets these permissions.
+         */
+        post: operations["inviteToServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/invites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw an invitation to a server */
+        delete: operations["deleteServerInvite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1237,6 +1398,10 @@ export interface components {
         FolderInBody: {
             path: string;
         };
+        ForgotInBody: {
+            /** Format: email */
+            email: string;
+        };
         HostCreateInBody: {
             /** @description address the panel and the game servers reach it on */
             host: string;
@@ -1259,6 +1424,30 @@ export interface components {
             port: number;
             /** @description an account that may create databases and users */
             username: string;
+        };
+        InvitationResult: {
+            added: boolean;
+            emailed: boolean;
+            invite?: components["schemas"]["Invite"];
+            link?: string;
+        };
+        Invite: {
+            /** Format: int64 */
+            created_at: number;
+            email: string;
+            /** Format: int64 */
+            expires_at: number;
+            /** Format: int64 */
+            id: number;
+            is_admin: boolean;
+            permissions: string[];
+            server_name?: string;
+            server_uuid?: string;
+        };
+        InviteCreateInBody: {
+            admin?: boolean;
+            /** Format: email */
+            email: string;
         };
         KeyCreateInBody: {
             /** @description authenticator or recovery code; required when two-factor is on */
@@ -1426,6 +1615,13 @@ export interface components {
             /** Format: int64 */
             port_start: number;
         };
+        OptionsOutBody: {
+            passkeys: boolean;
+            password_reset: boolean;
+            /** @enum {string} */
+            signup: "invite" | "open";
+            sso: components["schemas"]["SsoProvider"][];
+        };
         OwnerInBody: {
             /** Format: email */
             email: string;
@@ -1467,9 +1663,20 @@ export interface components {
             code: string;
             password: string;
         };
+        RegisterInBody: {
+            /** @description ignored with a token: the invited address is used */
+            email?: string;
+            password: string;
+            /** @description invitation token; required unless sign-up is open */
+            token?: string;
+        };
         RenameInBody: {
             description?: string;
             name: string;
+        };
+        ResetInBody: {
+            password: string;
+            token: string;
         };
         Schedule: {
             /** Format: int64 */
@@ -1578,6 +1785,11 @@ export interface components {
             remote: string;
             username: string;
         };
+        ServerInviteInBody: {
+            /** Format: email */
+            email: string;
+            permissions: string[] | null;
+        };
         ServerPort: {
             notes: string;
             /** Format: int64 */
@@ -1658,6 +1870,10 @@ export interface components {
              */
             swap_mb: number;
             uuid: string;
+        };
+        SsoProvider: {
+            id: string;
+            name: string;
         };
         StartupInBody: {
             /** @description variables to change; others keep their values */
@@ -1744,6 +1960,9 @@ export interface components {
             offset_seconds?: number;
             payload?: string;
         };
+        TokenInBody: {
+            token: string;
+        };
         TotpEnableInBody: {
             code: string;
         };
@@ -1803,6 +2022,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEntry"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    forgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotInBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    lookupInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"];
                 };
             };
             /** @description Error */
@@ -2001,6 +2284,35 @@ export interface operations {
             };
         };
     };
+    authOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     changePassword: {
         parameters: {
             query?: never;
@@ -2011,6 +2323,71 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PasswordInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetInBody"];
             };
         };
         responses: {
@@ -2331,6 +2708,97 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Egg"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -3434,6 +3902,102 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TransferResult"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listServerInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    inviteToServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServerInviteInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteServerInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
