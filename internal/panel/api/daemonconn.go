@@ -81,21 +81,29 @@ func (a *App) pushServer(ctx context.Context, s store.Server) error {
 	return err
 }
 
-// nodeErr turns a failed node request into an HTTP error. The daemon's
-// message is written for people, so it is passed on; the status comes from
-// the error code it sent.
+// nodeErr turns a failed node request into an HTTP error. A daemon error
+// with a code was written for people and keeps its message; any other is
+// logged and replaced with a generic one.
 func nodeErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, hub.ErrNodeOffline) {
+	switch {
+	case errors.Is(err, hub.ErrNodeOffline):
 		return huma.Error503ServiceUnavailable("the node is offline")
+	case errors.Is(err, hub.ErrTimeout):
+		return huma.Error504GatewayTimeout("the node did not reply in time")
 	}
+	msg := err.Error()
 	switch proto.CodeOf(err) {
 	case proto.CodeDiskFull:
-		return huma.NewError(http.StatusInsufficientStorage, err.Error())
+		return huma.NewError(http.StatusInsufficientStorage, msg)
 	case proto.CodeConflict:
-		return huma.Error409Conflict(err.Error())
+		return huma.Error409Conflict(msg)
+	case proto.CodeInvalid:
+		return huma.Error422UnprocessableEntity(msg)
+	case proto.CodeNotFound:
+		return huma.Error404NotFound(msg)
 	}
-	return huma.Error502BadGateway(err.Error())
+	return hidden(http.StatusBadGateway, "The node could not complete the request.", "node request failed", err)
 }

@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"regexp"
 )
@@ -41,21 +40,21 @@ func (l *Limits) Normalize() error {
 	}
 	switch {
 	case l.MemoryMB < 64 || l.MemoryMB > 1<<20:
-		return errors.New("memory must be 64 to 1048576 MB")
+		return userErr("memory must be 64 to 1048576 MB")
 	case l.SwapMB < -1 || l.SwapMB > 1<<20:
-		return errors.New("swap must be -1 (unlimited), 0 (none) or up to 1048576 MB")
+		return userErr("swap must be -1 (unlimited), 0 (none) or up to 1048576 MB")
 	case l.CPUPct < 0 || l.CPUPct > 6400:
-		return errors.New("CPU limit must be 0 to 6400 percent")
+		return userErr("CPU limit must be 0 to 6400 percent")
 	case l.CPUSet != "" && !cpusetRe.MatchString(l.CPUSet):
-		return errors.New("cpuset must look like 0-3 or 0,2")
+		return userErr("cpuset must look like 0-3 or 0,2")
 	case l.PidsLimit < 16 || l.PidsLimit > 65536:
-		return errors.New("process limit must be 16 to 65536")
+		return userErr("process limit must be 16 to 65536")
 	case l.IOWeight != 0 && (l.IOWeight < 10 || l.IOWeight > 1000):
-		return errors.New("IO weight must be 0 (default) or 10 to 1000")
+		return userErr("IO weight must be 0 (default) or 10 to 1000")
 	case l.DiskMB < 0 || l.DiskMB > 100<<20:
-		return errors.New("disk limit must be 0 (unlimited) or a positive number of MB")
+		return userErr("disk limit must be 0 (unlimited) or a positive number of MB")
 	case l.BackupLimit < 1 || l.BackupLimit > 100:
-		return errors.New("backup limit must be 1 to 100")
+		return userErr("backup limit must be 1 to 100")
 	}
 	return nil
 }
@@ -128,7 +127,7 @@ func (s *Store) UpdateLimits(ctx context.Context, uuid string, l Limits) error {
 // SetNodeCapacity records what a node can hold (0 = not tracked).
 func (s *Store) SetNodeCapacity(ctx context.Context, id, memMB, diskMB, overPct int64) error {
 	if memMB < 0 || diskMB < 0 || overPct < 0 || overPct > 1000 {
-		return errors.New("capacity must not be negative; over-allocation 0 to 1000 percent")
+		return userErr("capacity must not be negative; over-allocation 0 to 1000 percent")
 	}
 	res, err := s.exec(ctx, `UPDATE nodes SET memory_mb=?,disk_mb=?,overallocate_pct=? WHERE id=?`, memMB, diskMB, overPct, id)
 	if err != nil {

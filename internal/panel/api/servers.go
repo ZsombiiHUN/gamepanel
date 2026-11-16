@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -175,7 +176,7 @@ func (a *App) registerServers(api huma.API) {
 				},
 			})
 			if err != nil {
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			// Provision on the node. If that fails the DB row is rolled back so the
 			// panel never lists a server that does not exist anywhere.
@@ -217,7 +218,7 @@ func (a *App) registerServers(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			if err := a.Store.DeleteServer(ctx, s.UUID); err != nil {
-				return nil, huma.Error500InternalServerError("the node deleted the server but the panel could not: " + err.Error())
+				return nil, huma.Error500InternalServerError("the node deleted the server but the panel could not", err)
 			}
 			a.Hub.Forget(s.UUID)
 			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, s.Name)
@@ -237,7 +238,7 @@ func (a *App) registerServers(api huma.API) {
 			}
 			l := in.Body
 			if err := l.Normalize(); err != nil {
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			// Validate against node capacity before touching the node.
 			next := s
@@ -245,9 +246,9 @@ func (a *App) registerServers(api huma.API) {
 			if err := a.Store.CheckLimits(ctx, s.UUID, l); err != nil {
 				var ce store.ErrCapacity
 				if errors.As(err, &ce) {
-					return nil, huma.Error409Conflict(err.Error())
+					return nil, userErr(http.StatusConflict, err)
 				}
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			spec, err := a.specFor(ctx, next)
 			if err != nil {
@@ -257,7 +258,7 @@ func (a *App) registerServers(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			if err := a.Store.UpdateLimits(ctx, s.UUID, l); err != nil {
-				return nil, huma.Error500InternalServerError("limits were applied on the node but could not be saved: " + err.Error())
+				return nil, huma.Error500InternalServerError("limits were applied on the node but could not be saved", err)
 			}
 			a.audit(ctx, u, "server.limits", s.UUID, fmt.Sprintf("mem=%d swap=%d cpu=%d disk=%d", l.MemoryMB, l.SwapMB, l.CPUPct, l.DiskMB))
 			return nil, nil

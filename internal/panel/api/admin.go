@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -68,7 +69,7 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			if b := in.Body; b.MemoryMB > 0 || b.DiskMB > 0 || b.OverallocatePct > 0 {
 				if err := a.Store.SetNodeCapacity(ctx, n.ID, b.MemoryMB, b.DiskMB, b.OverallocatePct); err != nil {
-					return nil, huma.Error422UnprocessableEntity(err.Error())
+					return nil, userErr(http.StatusUnprocessableEntity, err)
 				}
 				n.MemoryMB, n.DiskMB, n.OverallocatePct = b.MemoryMB, b.DiskMB, b.OverallocatePct
 			}
@@ -90,7 +91,7 @@ func (a *App) registerAdmin(api huma.API) {
 				if errors.Is(err, store.ErrNotFound) {
 					return nil, huma.Error404NotFound("node not found")
 				}
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "node.capacity", strconv.FormatInt(in.ID, 10), fmt.Sprintf("mem=%d disk=%d over=%d%%", b.MemoryMB, b.DiskMB, b.OverallocatePct))
 			return nil, nil
@@ -140,7 +141,7 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			e, err := importPTDL(in.RawBody)
 			if err != nil {
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			e, err = a.Store.CreateEgg(ctx, e)
 			if err != nil {

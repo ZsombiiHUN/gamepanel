@@ -2,9 +2,12 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { Gamepad2, Loader2 } from "lucide-react";
-import { api, call } from "../api/client";
+import { api, ApiError, call } from "../api/client";
 import { invalidates, keys } from "../api/queries";
 import { ErrorBox, Field, ServerIcon } from "../components/ui";
+
+/** The password was right and the account wants its second factor: a step, not an error. */
+const needsCode = (err: unknown) => err instanceof ApiError && err.detail === "totp_required";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -16,7 +19,7 @@ export function LoginPage() {
     mutationFn: () => call(api.POST("/auth/login", { body: { email, password, ...(needCode ? { totp_code: code } : {}) } })),
     onError: (err) => {
       // The server answers 401 "totp_required" once the password is right.
-      if (err instanceof Error && err.message.includes("totp_required")) setNeedCode(true);
+      if (needsCode(err)) setNeedCode(true);
     },
     meta: invalidates(keys.me),
     onSuccess: () => void navigate({ to: "/" }),
@@ -28,7 +31,7 @@ export function LoginPage() {
   };
 
   const totpStep = needCode;
-  const shown = totpStep && login.error?.message.includes("totp_required") ? null : login.error;
+  const shown = needsCode(login.error) ? null : login.error;
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">

@@ -35,8 +35,8 @@ export function EggsPage() {
       const parsed: unknown = JSON.parse(text);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Egg must be a JSON object");
       imp.mutate(parsed as Record<string, unknown>);
-    } catch (err) {
-      setParseError(`Invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      setParseError("That is not valid egg JSON. Check that you picked the right file.");
     }
   };
 

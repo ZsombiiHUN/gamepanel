@@ -1,9 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, createRoute, createRouter, Link, Outlet, redirect, type ErrorComponentProps, type RouterHistory } from "@tanstack/react-router";
-import { Compass, Lock } from "lucide-react";
+import { AlertTriangle, Compass, Lock } from "lucide-react";
 import { ApiError } from "./api/client";
 import { auditQuery, eggsQuery, meQuery, nodesQuery, serverQuery, serversQuery } from "./api/queries";
 import { Empty } from "./components/ui";
+import { errorText } from "./lib/problem";
 import { GROUPS } from "./lib/servers";
 import { oneOf, page, text } from "./lib/search";
 import { TABS } from "./lib/tabs";
@@ -31,6 +32,18 @@ function NotFound() {
   );
 }
 
+/** Last stop for a page that failed to load or crashed: a plain message and a way out, never a stack trace. */
+function AppError({ error }: ErrorComponentProps) {
+  return (
+    <div role="alert" className="mx-auto max-w-md px-6 pt-24">
+      <Empty icon={<AlertTriangle className="h-5 w-5" aria-hidden />} title="This page could not be shown">
+        {errorText(error)}{" "}
+        <button type="button" className="link" onClick={() => window.location.reload()}>Reload</button>
+      </Empty>
+    </div>
+  );
+}
+
 class Forbidden extends Error {}
 
 function ForbiddenPage({ error }: ErrorComponentProps) {
@@ -52,7 +65,7 @@ async function currentUser(queryClient: QueryClient) {
   }
 }
 
-const rootRoute = createRootRouteWithContext<RouterContext>()({ component: Outlet, notFoundComponent: NotFound });
+const rootRoute = createRootRouteWithContext<RouterContext>()({ component: Outlet, notFoundComponent: NotFound, errorComponent: AppError });
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,

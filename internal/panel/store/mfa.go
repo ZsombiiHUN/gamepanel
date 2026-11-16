@@ -118,7 +118,7 @@ func (s *Store) BeginTOTP(ctx context.Context, userID int64) (string, error) {
 		return "", err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return "", errors.New("two-factor authentication is already enabled")
+		return "", userErr("two-factor authentication is already enabled")
 	}
 	return b32.EncodeToString(raw), nil
 }
@@ -130,7 +130,7 @@ func (s *Store) totpSecret(ctx context.Context, userID int64) (secret []byte, en
 		return
 	}
 	if enc == "" {
-		return nil, false, 0, errors.New("two-factor setup not started")
+		return nil, false, 0, userErr("two-factor setup not started")
 	}
 	plain, err := s.open(enc)
 	if err != nil {
@@ -148,11 +148,11 @@ func (s *Store) EnableTOTP(ctx context.Context, userID int64, code string) ([]st
 		return nil, err
 	}
 	if enabled {
-		return nil, errors.New("two-factor authentication is already enabled")
+		return nil, userErr("two-factor authentication is already enabled")
 	}
 	step, ok := verifyTOTP(secret, code, time.Now(), last)
 	if !ok {
-		return nil, errors.New("invalid code")
+		return nil, userErr("invalid code")
 	}
 	if _, err := s.exec(ctx, `UPDATE users SET totp_enabled=1, totp_last_step=? WHERE id=?`, step, userID); err != nil {
 		return nil, err
@@ -188,7 +188,7 @@ func (s *Store) NewRecoveryCodes(ctx context.Context, userID int64) ([]string, e
 // kind is "totp" or "recovery".
 func (s *Store) VerifySecondFactor(ctx context.Context, userID int64, code string) (kind string, err error) {
 	code = strings.ToLower(strings.TrimSpace(code))
-	bad := errors.New("invalid code")
+	bad := userErr("invalid code")
 	if len(code) == 6 {
 		secret, enabled, last, err := s.totpSecret(ctx, userID)
 		if err != nil || !enabled {

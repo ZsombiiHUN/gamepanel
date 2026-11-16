@@ -159,7 +159,7 @@ describe("Servers page", () => {
     it("shows an error from the API instead of a blank page", async () => {
       const { problem } = await import("../test/harness");
       renderApp(new FakeApi({ "GET /api/servers": () => problem(500, "db is on fire") }), "/");
-      expect(await screen.findByText(/db is on fire/)).toBeInTheDocument();
+      expect(await screen.findByText(/db is on fire/i)).toBeInTheDocument();
     });
   });
 });

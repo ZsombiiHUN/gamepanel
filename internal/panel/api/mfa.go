@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -118,7 +119,7 @@ func (a *App) registerMFA(api huma.API) {
 			}
 			secret, err := a.Store.BeginTOTP(ctx, u.ID)
 			if err != nil {
-				return nil, huma.Error409Conflict(err.Error())
+				return nil, userErr(http.StatusConflict, err)
 			}
 			out := &totpSetupOut{}
 			out.Body.Secret, out.Body.URI = secret, store.TOTPURI(totpIssuer, u.Email, secret)
@@ -138,7 +139,7 @@ func (a *App) registerMFA(api huma.API) {
 			codes, err := a.Store.EnableTOTP(ctx, u.ID, in.Body.Code)
 			if err != nil {
 				a.fails.add(u.Email)
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "totp.enable", u.Email, "")
 			out := &recoveryOut{}
@@ -206,7 +207,7 @@ func (a *App) registerMFA(api huma.API) {
 			ttl := time.Duration(in.Body.ExpiresInD) * 24 * time.Hour
 			k, tok, err := a.Store.CreateAPIKey(ctx, u.ID, in.Body.Name, ttl)
 			if err != nil {
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "apikey.create", strconv.FormatInt(k.ID, 10), k.Name)
 			out := &keyCreateOut{}

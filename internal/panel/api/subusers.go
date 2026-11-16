@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -63,7 +64,7 @@ func (a *App) registerSubusers(api huma.API) {
 			}
 			v, err := a.Store.AddSubuser(ctx, s.UUID, in.Body.Email, in.Body.Permissions)
 			if err != nil {
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "subuser.add", s.UUID, v.Email+": "+strings.Join(v.Permissions, ","))
 			return &subuserOut{Body: v}, nil
@@ -79,7 +80,7 @@ func (a *App) registerSubusers(api huma.API) {
 				if errors.Is(err, store.ErrNotFound) {
 					return nil, huma.Error404NotFound("that user has no access to this server")
 				}
-				return nil, huma.Error422UnprocessableEntity(err.Error())
+				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "subuser.update", s.UUID, strconv.FormatInt(in.UserID, 10)+": "+strings.Join(in.Body.Permissions, ","))
 			return nil, nil
