@@ -28,6 +28,7 @@ export function server(over: Partial<ServerView> & { name: string }): ServerView
     pids_limit: 1024,
     backup_limit: 20,
     env: {},
+    description: "",
     owner: true,
     permissions: ["power", "console.read", "console.send", "files.read", "backups.read", "schedules.manage"],
     ...over,

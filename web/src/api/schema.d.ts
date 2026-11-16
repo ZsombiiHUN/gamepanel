@@ -544,6 +544,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename a server and set its description */
+        put: operations["renameServer"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/files": {
         parameters: {
             query?: never;
@@ -767,6 +784,26 @@ export interface paths {
         post?: never;
         /** Take a port away from the server */
         delete: operations["removePort"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Hand a server to another account (admin)
+         * @description The previous owner loses access unless an admin adds them back as a subuser.
+         */
+        put: operations["setServerOwner"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1369,6 +1406,10 @@ export interface components {
             /** Format: int64 */
             port_start: number;
         };
+        OwnerInBody: {
+            /** Format: email */
+            email: string;
+        };
         PasswordInBody: {
             current_password: string;
             new_password: string;
@@ -1405,6 +1446,10 @@ export interface components {
         RegenInBody: {
             code: string;
             password: string;
+        };
+        RenameInBody: {
+            description?: string;
+            name: string;
         };
         Schedule: {
             /** Format: int64 */
@@ -1538,6 +1583,7 @@ export interface components {
              * @description databases the owner may create (default 0)
              */
             database_limit?: number;
+            description: string;
             /**
              * Format: int64
              * @description disk quota, 0 = unlimited
@@ -1566,6 +1612,7 @@ export interface components {
             node_name: string;
             node_online: boolean;
             owner: boolean;
+            owner_email?: string;
             /** Format: int64 */
             owner_id: number;
             permissions: string[];
@@ -2908,6 +2955,41 @@ export interface operations {
             };
         };
     };
+    renameServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listFiles: {
         parameters: {
             query?: {
@@ -3462,6 +3544,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NetworkView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setServerOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerView"];
                 };
             };
             /** @description Error */

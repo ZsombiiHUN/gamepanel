@@ -26,6 +26,8 @@ type serverView struct {
 	// owner and admins, who can also manage who else has access.
 	Permissions []string `json:"permissions" nullable:"false"`
 	Owner       bool     `json:"owner"`
+	// OwnerEmail is filled for admins viewing one server.
+	OwnerEmail string `json:"owner_email,omitempty"`
 }
 
 // viewFor builds the server as the caller may see it. Only admins get the raw
@@ -205,6 +207,11 @@ func (a *App) registerServers(api huma.API) {
 			}
 			v := a.viewFor(ctx, u, s)
 			a.label(ctx, &v)
+			if u.IsAdmin {
+				if o, err := a.Store.GetUser(ctx, s.OwnerID); err == nil {
+					v.OwnerEmail = o.Email
+				}
+			}
 			return &serverOut{Body: v}, nil
 		})
 
@@ -390,4 +397,64 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "..."
+}
+
+type renameIn struct {
+	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+	Body struct {
+		Name        string `json:"name" minLength:"1" maxLength:"64"`
+		Description string `json:"description,omitempty" maxLength:"500"`
+	}
+}
+type ownerIn struct {
+	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+	Body struct {
+		Email string `json:"email" format:"email" maxLength:"254"`
+	}
+}
+
+func (a *App) registerServerDetails(api huma.API) {
+	huma.Register(api, huma.Operation{OperationID: "renameServer", Method: "PUT", Path: "/servers/{uuid}/details", Summary: "Rename a server and set its description"},
+		func(ctx context.Context, in *renameIn) (*serverOut, error) {
+			u, s, err := a.authorizeP(ctx, in.UUID, PermRename)
+			if err != nil {
+				return nil, err
+			}
+			name := strings.TrimSpace(in.Body.Name)
+			if name == "" || strings.ContainsAny(name, "\r\n\t") {
+				return nil, huma.Error422UnprocessableEntity("give the server a name on one line")
+			}
+			if err := a.Store.RenameServer(ctx, s.UUID, name, strings.TrimSpace(in.Body.Description)); err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
+			if name != s.Name {
+				a.audit(ctx, u, "server.rename", s.UUID, s.Name+" -> "+name)
+			}
+			s, _ = a.Store.GetServer(ctx, s.UUID)
+			v := a.viewFor(ctx, u, s)
+			a.label(ctx, &v)
+			return &serverOut{Body: v}, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "setServerOwner", Method: "PUT", Path: "/servers/{uuid}/owner",
+		Summary: "Hand a server to another account (admin)", Description: "The previous owner loses access unless an admin adds them back as a subuser."},
+		func(ctx context.Context, in *ownerIn) (*serverOut, error) {
+			u, err := requireAdmin(ctx)
+			if err != nil {
+				return nil, err
+			}
+			s, err := a.Store.GetServer(ctx, in.UUID)
+			if err != nil {
+				return nil, huma.Error404NotFound("server not found")
+			}
+			owner, err := a.Store.SetOwner(ctx, s.UUID, in.Body.Email)
+			if err != nil {
+				return nil, userErr(http.StatusUnprocessableEntity, err)
+			}
+			a.audit(ctx, u, "server.owner", s.UUID, owner.Email)
+			s, _ = a.Store.GetServer(ctx, s.UUID)
+			v := a.viewFor(ctx, u, s)
+			a.label(ctx, &v)
+			return &serverOut{Body: v}, nil
+		})
 }

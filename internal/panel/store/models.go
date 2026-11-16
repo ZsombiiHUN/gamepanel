@@ -405,25 +405,26 @@ func (s *Store) ListEggs(ctx context.Context) ([]Egg, error) {
 // ---- servers ----
 
 type Server struct {
-	UUID    string            `json:"uuid"`
-	Name    string            `json:"name"`
-	OwnerID int64             `json:"owner_id"`
-	NodeID  int64             `json:"node_id"`
-	EggID   int64             `json:"egg_id"`
-	Port    int               `json:"port"`
-	Env     map[string]string `json:"env"`
+	UUID        string            `json:"uuid"`
+	Name        string            `json:"name"`
+	OwnerID     int64             `json:"owner_id"`
+	NodeID      int64             `json:"node_id"`
+	EggID       int64             `json:"egg_id"`
+	Port        int               `json:"port"`
+	Env         map[string]string `json:"env"`
+	Description string            `json:"description"`
 	// Image and Startup override the egg's; "" means use the egg's.
 	Image   string `json:"image"`
 	Startup string `json:"startup"`
 	Limits
 }
 
-const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup,port_limit,database_limit`
+const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup,port_limit,database_limit,description`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var v Server
 	var env string
-	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup, &v.PortLimit, &v.DatabaseLimit); err != nil {
+	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup, &v.PortLimit, &v.DatabaseLimit, &v.Description); err != nil {
 		return v, nf(err)
 	}
 	json.Unmarshal([]byte(env), &v.Env)
@@ -481,9 +482,9 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 		v.Env = map[string]string{}
 	}
 	env, _ := json.Marshal(v.Env)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),
-		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, v.PortLimit, v.DatabaseLimit, now()); err != nil {
+		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, v.PortLimit, v.DatabaseLimit, v.Description, now()); err != nil {
 		return v, err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO server_ports(node_id,port,server_uuid,created_at) VALUES(?,?,?,?)`, v.NodeID, v.Port, v.UUID, now()); err != nil {
@@ -566,4 +567,41 @@ func (s *Store) Labels(ctx context.Context) (eggs, nodes map[int64]string, err e
 		rows.Close()
 	}
 	return eggs, nodes, nil
+}
+
+// RenameServer changes a server's name and description.
+func (s *Store) RenameServer(ctx context.Context, uuid, name, description string) error {
+	res, err := s.exec(ctx, `UPDATE servers SET name=?, description=? WHERE uuid=?`, name, description, uuid)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetOwner hands a server to another account. If that account was a
+// subuser, its subuser entry goes: an owner holds every permission.
+func (s *Store) SetOwner(ctx context.Context, uuid, email string) (User, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return User{}, err
+	}
+	defer tx.Rollback()
+	var u User
+	if err := tx.QueryRowContext(ctx, `SELECT id,email,is_admin FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&u.ID, &u.Email, &u.IsAdmin); err != nil {
+		return u, userErr("no account with that email")
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE servers SET owner_id=? WHERE uuid=?`, u.ID, uuid)
+	if err != nil {
+		return u, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return u, ErrNotFound
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM server_users WHERE server_uuid=? AND user_id=?`, uuid, u.ID); err != nil {
+		return u, err
+	}
+	return u, tx.Commit()
 }

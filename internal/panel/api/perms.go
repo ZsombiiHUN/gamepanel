@@ -23,6 +23,7 @@ const (
 	PermBackupsDownload = "backups.download"
 	PermSchedulesManage = "schedules.manage"
 	PermReinstall       = "settings.reinstall"
+	PermRename          = "settings.rename"
 	PermStartupRead     = "startup.read"
 	PermStartupUpdate   = "startup.update"
 	PermStartupImage    = "startup.docker-image"

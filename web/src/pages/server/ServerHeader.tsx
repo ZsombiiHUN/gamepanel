@@ -43,6 +43,7 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
             <h1 className="h-display text-[30px] font-bold leading-tight">{s.name}</h1>
             <StateBadge state={state} />
           </div>
+          {s.description && <p className="mt-1 text-sm text-zinc-400">{s.description}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-zinc-400">
             <CopyChip text={String(s.port)} label={`Port ${s.port}`} />
             <OnlineDot online={s.node_online} label="Node" />
