@@ -15,6 +15,9 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go test -race -count=1 ./...
+      # The daemon usually runs as root; files it creates must still belong to the game user.
+      - name: File ownership as root
+        run: sudo -E env "PATH=$PATH" go test -count=1 -run TestRootDaemon -v ./internal/daemon/fsx/
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -37,7 +40,9 @@ jobs:
       - run: pnpm test
   e2e:
     # Real browser against a real panel with a fake daemon: layout, keyboard, search, accessibility.
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.58 cannot install Chromium on ubuntu-latest (26.04). Move back to
+    # ubuntu-latest after upgrading @playwright/test to a release that supports it.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: web
