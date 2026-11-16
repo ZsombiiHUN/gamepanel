@@ -34,7 +34,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 
 | | |
 |---|---|
-| **Servers** | Power controls, live console with command input, CPU, memory and disk charts, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, backups) |
+| **Servers** | Power controls, live console with command input, CPU, memory and disk charts with 30 days of history, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, backups) |
 | **Files** | Browse, edit, search every subfolder; upload files and whole folders by drag and drop, download, rename, move, copy, change permissions, compress and extract (zip, tar.gz, tar.bz2), pull from a URL, act on many files at once; SFTP |
 | **Startup** | Change the egg's variables (checked against its rules), pick another of its Docker images, and, as an admin, set a custom image or startup command. Changes to a running server apply at its next start |
 | **Network** | Several ports per server, each with a note; switch the primary port. Admins set how many extra ports an owner may add |
@@ -150,7 +150,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing, metrics history.
+**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, a mod manager, billing.
 
 ## Development
 

@@ -28,6 +28,7 @@ export const keys = {
   invite: ["invite"] as const,
   identities: ["identities"] as const,
   passkeys: ["passkeys"] as const,
+  metrics: (uuid: string) => ["metrics", uuid] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
 };
 
@@ -76,6 +77,17 @@ export const identitiesQuery = queryOptions({
   queryKey: keys.identities,
   queryFn: () => call(api.GET("/auth/identities")),
 });
+
+export type MetricRange = "1h" | "6h" | "24h" | "7d" | "30d";
+
+/** Usage history. Refreshed every minute: that is how often the panel adds a point. */
+export const metricsQuery = (uuid: string, range: MetricRange) =>
+  queryOptions({
+    queryKey: [...keys.metrics(uuid), range] as const,
+    queryFn: () => call(api.GET("/servers/{uuid}/metrics", { params: { path: { uuid }, query: { range } } })),
+    refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
+  });
 
 export const passkeysQuery = queryOptions({
   queryKey: keys.passkeys,

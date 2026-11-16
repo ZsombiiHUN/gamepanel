@@ -42,6 +42,9 @@ type Deps struct {
 	// context ends. SchedulerTick overrides the 20 s check interval (tests).
 	SchedulerCtx  context.Context
 	SchedulerTick time.Duration
+	// MetricsFlush is how often finished minutes of usage history are
+	// written (default 15 s; tests use less). Runs with SchedulerCtx.
+	MetricsFlush time.Duration
 	// Mail sends password resets and invitations; nil = no email. Links in
 	// mail need PublicURL (https://panel.example.com), never a Host header.
 	Mail      mail.Sender
@@ -76,6 +79,7 @@ type App struct {
 	waOnce       sync.Once
 	wa           *webauthn.WebAuthn
 	waCeremonies sync.Map
+	metrics      metricsCollector
 }
 
 type ctxKey struct{}
@@ -126,6 +130,7 @@ func New(d Deps) http.Handler {
 	mux := http.NewServeMux()
 	api := humago.NewWithPrefix(mux, "/api", apiConfig())
 	d.Hub.OnHello = a.onHello
+	d.Hub.OnStats = a.collect
 	d.Hub.Locate = func(ctx context.Context, uuid string) (int64, error) {
 		s, err := a.Store.GetServer(ctx, uuid)
 		return s.NodeID, err
@@ -139,6 +144,11 @@ func New(d Deps) http.Handler {
 			tick = 20 * time.Second
 		}
 		go a.RunScheduler(d.SchedulerCtx, tick)
+		every := d.MetricsFlush
+		if every <= 0 {
+			every = 15 * time.Second
+		}
+		go a.runMetrics(d.SchedulerCtx, every)
 	}
 	a.register(api)
 
@@ -192,6 +202,7 @@ func (a *App) register(api huma.API) {
 	a.registerLinks(api)
 	a.registerSSO(api)
 	a.registerPasskeys(api)
+	a.registerMetrics(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running

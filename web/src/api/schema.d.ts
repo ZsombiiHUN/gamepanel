@@ -1105,6 +1105,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Usage history
+         * @description CPU, memory and disk over time. Minutes are kept for two days, quarter hours for 30 days.
+         */
+        get: operations["serverMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/network": {
         parameters: {
             query?: never;
@@ -1706,6 +1726,33 @@ export interface components {
             email: string;
             password: string;
             totp_code?: string;
+        };
+        Metric: {
+            /**
+             * Format: int64
+             * @description bucket start, unix seconds
+             */
+            at: number;
+            /** Format: double */
+            cpu_avg: number;
+            /** Format: double */
+            cpu_max: number;
+            /** Format: int64 */
+            disk: number;
+            /** Format: int64 */
+            mem_avg: number;
+            /** Format: int64 */
+            mem_max: number;
+            /** @description the server ran during the bucket */
+            running: boolean;
+        };
+        MetricsOutBody: {
+            points: components["schemas"]["Metric"][];
+            /**
+             * Format: int64
+             * @description seconds per point
+             */
+            step: number;
         };
         Move: {
             from: string;
@@ -4593,6 +4640,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    serverMetrics: {
+        parameters: {
+            query?: {
+                range?: "1h" | "6h" | "24h" | "7d" | "30d";
+            };
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricsOutBody"];
+                };
             };
             /** @description Error */
             default: {
