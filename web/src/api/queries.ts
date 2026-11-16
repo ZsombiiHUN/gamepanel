@@ -95,8 +95,8 @@ export const backupsQuery = (uuid: string) =>
   queryOptions({
     queryKey: keys.backups(uuid),
     queryFn: () => call(api.GET("/servers/{uuid}/backups", { params: { path: { uuid } } })),
-    // Poll only while something is running.
-    refetchInterval: (q) => (q.state.data?.some((b) => b.status === "running") ? 2000 : false),
+    // Poll only while a backup or a restore is running.
+    refetchInterval: (q) => (q.state.data?.some((b) => b.status === "running" || b.restore_status === "running") ? 2000 : false),
   });
 
 /** One folder. Shared by the file list and the recursive search, so each folder is fetched once. */

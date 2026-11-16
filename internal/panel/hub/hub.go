@@ -19,6 +19,10 @@ import (
 
 const backlogLines = 500
 
+// DefaultRequestTimeout bounds a request whose context has no deadline of its
+// own. Long operations (backups, restores) pass a context with a longer one.
+const DefaultRequestTimeout = 5 * time.Minute
+
 var ErrNodeOffline = errors.New("node is offline")
 
 type Event struct {
@@ -46,10 +50,17 @@ type Hub struct {
 	// OnHello runs (in its own goroutine) after a daemon connects, so the
 	// panel can push any servers the daemon is missing.
 	OnHello func(ctx context.Context, nodeID int64, h proto.Hello)
+	// Locate returns the node a server lives on. When set, events a node sends
+	// about a server on another node are dropped, so one compromised node
+	// cannot write into the consoles or state of servers it does not host.
+	Locate func(ctx context.Context, uuid string) (int64, error)
+	// RequestTimeout bounds a request whose context has no deadline of its
+	// own (default DefaultRequestTimeout).
+	RequestTimeout time.Duration
 
 	mu      sync.RWMutex
 	nodes   map[int64]*nodeConn
-	srvNode map[string]int64 // server uuid -> node, learned from DB lookups by callers
+	srvNode map[string]int64 // server uuid -> node, cached results of Locate
 	states  map[string]string
 	stats   map[string]proto.Stats
 	backlog map[string][]string
@@ -58,7 +69,7 @@ type Hub struct {
 
 func New(log *slog.Logger) *Hub {
 	return &Hub{
-		log: log, nodes: map[int64]*nodeConn{},
+		log: log, nodes: map[int64]*nodeConn{}, srvNode: map[string]int64{}, RequestTimeout: DefaultRequestTimeout,
 		states: map[string]string{}, stats: map[string]proto.Stats{},
 		backlog: map[string][]string{}, subs: map[string]map[*Sub]struct{}{},
 	}
@@ -87,13 +98,21 @@ func (h *Hub) Stats(uuid string) (proto.Stats, bool) {
 	return s, ok
 }
 
-// Request sends a request to a node and waits for its reply.
+// Request sends a request to a node and waits for its reply. A failed reply
+// is returned as a *proto.Error carrying the daemon's message and code. If ctx
+// has no deadline, RequestTimeout applies; long operations (backups,
+// restores) pass a context with their own, longer deadline.
 func (h *Hub) Request(ctx context.Context, nodeID int64, typ string, payload any) (json.RawMessage, error) {
 	h.mu.RLock()
 	nc := h.nodes[nodeID]
 	h.mu.RUnlock()
 	if nc == nil {
 		return nil, ErrNodeOffline
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, h.RequestTimeout)
+		defer cancel()
 	}
 	id := fmt.Sprintf("%d", nc.seq.Add(1))
 	ch := make(chan proto.Envelope, 1)
@@ -116,13 +135,14 @@ func (h *Hub) Request(ctx context.Context, nodeID int64, typ string, payload any
 	select {
 	case r := <-ch:
 		if r.Err != "" {
-			return nil, errors.New(r.Err)
+			return nil, &proto.Error{Code: r.Code, Msg: r.Err}
 		}
 		return r.Data, nil
 	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, errors.New("node did not reply in time")
+		}
 		return nil, ctx.Err()
-	case <-time.After(5 * time.Minute): // image pulls can be slow
-		return nil, errors.New("node did not reply in time")
 	}
 }
 
@@ -174,7 +194,10 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		ch := nc.pending[env.ID]
 		nc.pmu.Unlock()
 		if ch != nil {
-			ch <- env
+			select { // a duplicate reply must never stall the read loop
+			case ch <- env:
+			default:
+			}
 		}
 	case proto.EvtHello:
 		var hello proto.Hello
@@ -184,7 +207,7 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		}
 	case proto.EvtConsole:
 		var c proto.Console
-		if json.Unmarshal(env.Data, &c) != nil {
+		if json.Unmarshal(env.Data, &c) != nil || !h.hosts(ctx, nc.id, c.UUID) {
 			return
 		}
 		h.mu.Lock()
@@ -197,7 +220,7 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		h.publish(c.UUID, Event{Type: "console", Data: proto.Marshal(c)})
 	case proto.EvtState:
 		var s proto.State
-		if json.Unmarshal(env.Data, &s) != nil {
+		if json.Unmarshal(env.Data, &s) != nil || !h.hosts(ctx, nc.id, s.UUID) {
 			return
 		}
 		h.mu.Lock()
@@ -206,13 +229,49 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		h.publish(s.UUID, Event{Type: "state", Data: proto.Marshal(s)})
 	case proto.EvtStats:
 		var s proto.Stats
-		if json.Unmarshal(env.Data, &s) != nil {
+		if json.Unmarshal(env.Data, &s) != nil || !h.hosts(ctx, nc.id, s.UUID) {
 			return
 		}
 		h.mu.Lock()
 		h.stats[s.UUID] = s
 		h.mu.Unlock()
 		h.publish(s.UUID, Event{Type: "stats", Data: proto.Marshal(s)})
+	}
+}
+
+// hosts reports whether server uuid lives on node. Servers never move between
+// nodes, so a positive answer is cached until Forget.
+func (h *Hub) hosts(ctx context.Context, node int64, uuid string) bool {
+	if h.Locate == nil {
+		return true
+	}
+	h.mu.RLock()
+	n, ok := h.srvNode[uuid]
+	h.mu.RUnlock()
+	if !ok {
+		var err error
+		if n, err = h.Locate(ctx, uuid); err != nil {
+			return false
+		}
+		h.mu.Lock()
+		h.srvNode[uuid] = n
+		h.mu.Unlock()
+	}
+	if n != node {
+		h.log.Warn("dropped an event for a server on another node", "node", node, "server", uuid)
+		return false
+	}
+	return true
+}
+
+// Disconnect drops a node's connection, e.g. after the node was deleted and
+// its token no longer exists.
+func (h *Hub) Disconnect(nodeID int64) {
+	h.mu.RLock()
+	nc := h.nodes[nodeID]
+	h.mu.RUnlock()
+	if nc != nil {
+		nc.ws.Close(websocket.StatusPolicyViolation, "node deleted")
 	}
 }
 
@@ -252,4 +311,5 @@ func (h *Hub) Forget(uuid string) {
 	delete(h.states, uuid)
 	delete(h.stats, uuid)
 	delete(h.backlog, uuid)
+	delete(h.srvNode, uuid)
 }

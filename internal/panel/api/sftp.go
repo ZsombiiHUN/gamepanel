@@ -2,10 +2,10 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"net/http"
 	"strings"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
@@ -15,6 +15,10 @@ import (
 //
 // The node token authenticates the daemon, and the server must live on that
 // node, so one node can never authorise access to another node's servers.
+//
+// The daemon also calls this periodically for open sessions (Recheck), so a
+// revoked key or lost permission ends the session. Rechecks are not sign-ins:
+// they are not audited and a refusal is not counted as a guess.
 func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 	deny := func() {
 		w.Header().Set("Content-Type", "application/json")
@@ -41,14 +45,18 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 
 	// Guess limits: per account and per client address (reported by the daemon).
 	acct, byIP := "sftp:"+email, "sftpip:"+req.IP
-	if a.fails.over(acct) || a.fails.over(byIP) {
+	// A recheck holds a key that already worked, so someone guessing at this
+	// account must not be able to cut the owner's open session.
+	if !req.Recheck && (a.fails.over(acct) || a.fails.over(byIP)) {
 		deny()
 		return
 	}
 	fail := func() {
-		a.fails.add(acct)
-		a.fails.add(byIP)
-		a.Store.Audit(r.Context(), storeAudit(email, "sftp.fail", prefix, req.IP))
+		if !req.Recheck {
+			a.fails.add(acct)
+			a.fails.add(byIP)
+			a.Store.Audit(r.Context(), storeAudit(email, "sftp.fail", prefix, req.IP))
+		}
 		deny()
 	}
 	if !strings.HasPrefix(req.Password, "gp_") {
@@ -71,8 +79,10 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 		fail()
 		return
 	}
-	a.fails.reset(acct)
-	a.Store.Audit(r.Context(), storeAudit(email, "sftp.login", s.UUID, req.IP))
+	if !req.Recheck {
+		a.fails.reset(acct)
+		a.Store.Audit(r.Context(), storeAudit(email, "sftp.login", s.UUID, req.IP))
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(proto.SFTPAuthResp{OK: true, ServerUUID: s.UUID, Read: read, Write: write})
 }

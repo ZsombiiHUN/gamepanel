@@ -8,6 +8,10 @@ let onUnauthorized: () => void = () => {};
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }
+/** Report that the session ended outside a fetch (e.g. the console socket was closed for it). */
+export function notifyUnauthorized() {
+  onUnauthorized();
+}
 
 const authMiddleware: Middleware = {
   onResponse({ request, response }) {

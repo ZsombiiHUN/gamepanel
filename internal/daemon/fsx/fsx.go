@@ -14,6 +14,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
@@ -22,7 +23,16 @@ const MaxEditSize = 10 << 20 // refuse to load >10 MiB files into the editor
 
 var ErrTooLarge = errors.New("file too large to edit")
 
-type Dir struct{ root *os.Root }
+type Dir struct {
+	root *os.Root
+	// The game container runs as whoever owns the directory, with every
+	// capability dropped. When the daemon runs as root, anything it creates
+	// would belong to root and be read-only to the game, so new files and
+	// directories are handed to the directory's owner (adopt).
+	chown    bool
+	uid, gid int
+	adopted  func(name string) // test hook: called for every adopted path
+}
 
 // Open creates the directory if needed and confines all access to it.
 func Open(hostPath string) (*Dir, error) {
@@ -33,7 +43,88 @@ func Open(hostPath string) (*Dir, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Dir{root: r}, nil
+	d := &Dir{root: r}
+	if fi, err := r.Stat("."); err == nil {
+		if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+			d.uid, d.gid = int(st.Uid), int(st.Gid)
+			d.chown = os.Geteuid() == 0 && (d.uid != 0 || d.gid != 0)
+		}
+	}
+	return d, nil
+}
+
+// adopt gives a path the daemon just created to the directory's owner. Lchown
+// never follows a symlink and the root confines it, so a swapped path cannot
+// redirect it.
+func (d *Dir) adopt(name string) error {
+	if d.adopted != nil {
+		d.adopted(name)
+	}
+	if !d.chown {
+		return nil
+	}
+	return d.root.Lchown(name, d.uid, d.gid)
+}
+
+// adoptFile is adopt for a file the daemon holds open (no path lookup at all).
+func (d *Dir) adoptFile(f *os.File, name string) error {
+	if d.adopted != nil {
+		d.adopted(name)
+	}
+	if !d.chown {
+		return nil
+	}
+	return f.Chown(d.uid, d.gid)
+}
+
+// mkdirAll is os.Root.MkdirAll, adopting each directory it creates.
+func (d *Dir) mkdirAll(name string) error {
+	if name == "." {
+		return nil
+	}
+	cur := ""
+	for _, part := range strings.Split(name, "/") {
+		if cur == "" {
+			cur = part
+		} else {
+			cur += "/" + part
+		}
+		err := d.root.Mkdir(cur, 0o755)
+		switch {
+		case err == nil:
+			if err := d.adopt(cur); err != nil {
+				return err
+			}
+		case errors.Is(err, fs.ErrExist):
+			fi, serr := d.root.Stat(cur)
+			if serr != nil {
+				return serr
+			}
+			if !fi.IsDir() {
+				return &fs.PathError{Op: "mkdir", Path: cur, Err: syscall.ENOTDIR}
+			}
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
+// create opens name for writing (creating or truncating it) and makes sure a
+// file the daemon created belongs to the directory's owner.
+func (d *Dir) create(name string, flag int, perm fs.FileMode) (*os.File, error) {
+	_, statErr := d.root.Lstat(name)
+	f, err := d.root.OpenFile(name, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+	if errors.Is(statErr, fs.ErrNotExist) {
+		if err := d.adoptFile(f, name); err != nil {
+			f.Close()
+			return nil, err
+		}
+	}
+	return f, nil
 }
 
 func (d *Dir) Close() error { return d.root.Close() }
@@ -95,15 +186,21 @@ func (d *Dir) Write(p string, data []byte) error {
 	if name == "." {
 		return fs.ErrInvalid
 	}
-	if dir := path.Dir(name); dir != "." {
-		if err := d.root.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
+	if err := d.mkdirAll(path.Dir(name)); err != nil {
+		return err
 	}
-	return d.root.WriteFile(name, data, 0o644)
+	f, err := d.create(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return err
 }
 
-func (d *Dir) Mkdir(p string) error { return d.root.MkdirAll(clean(p), 0o755) }
+func (d *Dir) Mkdir(p string) error { return d.mkdirAll(clean(p)) }
 
 func (d *Dir) Delete(p string) error {
 	name := clean(p)

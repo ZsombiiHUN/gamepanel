@@ -18,6 +18,9 @@ func (d *Dir) OpenFile(p string, flag int, perm fs.FileMode) (*os.File, error) {
 	if name == "." {
 		return nil, fs.ErrInvalid
 	}
+	if flag&os.O_CREATE != 0 {
+		return d.create(name, flag, perm&0o777)
+	}
 	return d.root.OpenFile(name, flag, perm&0o777)
 }
 
@@ -53,7 +56,10 @@ func (d *Dir) MkdirOne(p string) error {
 	if name == "." {
 		return fs.ErrExist
 	}
-	return d.root.Mkdir(name, 0o755)
+	if err := d.root.Mkdir(name, 0o755); err != nil {
+		return err
+	}
+	return d.adopt(name)
 }
 
 // Remove deletes one file or one empty directory. The root itself is never removable.

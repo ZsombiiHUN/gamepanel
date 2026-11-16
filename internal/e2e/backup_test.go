@@ -29,6 +29,8 @@ type stack struct {
 	server  string
 	sftp    string // host:port of the daemon's SFTP listener
 	dataDir string // the daemon's data dir on disk
+	hub     *hub.Hub
+	node    int64
 }
 
 // newStack boots panel + daemon (fake runtime) and creates one server.
@@ -44,7 +46,7 @@ func newStack(t *testing.T) *stack {
 	t.Cleanup(func() { st.Close() })
 	st.CreateUser(ctx, "admin@example.com", "correct-horse-battery", true)
 	h := hub.New(log)
-	ts := httptest.NewServer(api.New(api.Deps{Store: st, Hub: h, Log: log, SchedulerCtx: ctx, SchedulerTick: 100 * time.Millisecond}))
+	ts := httptest.NewServer(api.New(api.Deps{Store: st, Hub: h, Log: log, SchedulerCtx: ctx, SchedulerTick: 100 * time.Millisecond, AuthRecheck: 100 * time.Millisecond}))
 	t.Cleanup(ts.Close)
 	jar, _ := cookiejar.New(nil)
 	admin := &client{t, ts.URL, &http.Client{Jar: jar}}
@@ -55,7 +57,7 @@ func newStack(t *testing.T) *stack {
 	}
 	json.Unmarshal(admin.do("POST", "/api/nodes", map[string]any{"name": "n1", "port_start": 25565, "port_end": 25570}, 201), &node)
 	dataDir := t.TempDir()
-	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir, StatsInterval: 150 * time.Millisecond, DiskCacheTTL: 100 * time.Millisecond}, runtime.NewFake(), log)
+	dm, err := daemon.New(daemon.Config{PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect", Token: node.Token, DataDir: dataDir, StatsInterval: 150 * time.Millisecond, DiskCacheTTL: 100 * time.Millisecond, SFTPRecheck: 100 * time.Millisecond}, runtime.NewFake(), log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +71,7 @@ func newStack(t *testing.T) *stack {
 	json.Unmarshal(admin.do("POST", "/api/eggs/import", egg, 201), &e)
 	var s struct{ UUID string }
 	json.Unmarshal(admin.do("POST", "/api/servers", map[string]any{"name": "s", "node_id": node.Node.ID, "egg_id": e.ID, "memory_mb": 256}, 201), &s)
-	return &stack{t, ctx, st, admin, s.UUID, sftpAddr, dataDir}
+	return &stack{t, ctx, st, admin, s.UUID, sftpAddr, dataDir, h, node.Node.ID}
 }
 
 func (s *stack) write(path, content string) {
@@ -115,6 +117,26 @@ func (s *stack) makeBackup(body map[string]any) store.Backup {
 	return b
 }
 
+// restore starts a restore (it runs in the background) and waits for its
+// outcome, which is recorded on the backup.
+func (s *stack) restore(id string, truncate bool) store.Backup {
+	s.t.Helper()
+	s.admin.do("POST", "/api/servers/"+s.server+"/backups/"+id+"/restore", map[string]any{"truncate": truncate}, 202)
+	var b store.Backup
+	waitFor(s.t, "restore finished", func() bool {
+		var l []store.Backup
+		json.Unmarshal(s.admin.do("GET", "/api/servers/"+s.server+"/backups", nil, 200), &l)
+		for _, x := range l {
+			if x.UUID == id && x.RestoreStatus != store.BackupRunning {
+				b = x
+				return true
+			}
+		}
+		return false
+	})
+	return b
+}
+
 func TestBackupRestoreLifecycle(t *testing.T) {
 	s := newStack(t)
 	base := "/api/servers/" + s.server + "/backups/"
@@ -128,7 +150,9 @@ func TestBackupRestoreLifecycle(t *testing.T) {
 	s.write("world/level.dat", "v2-corrupted")
 	s.write("extra.txt", "added later")
 	// plain restore overwrites changed files but keeps unrelated ones
-	s.admin.do("POST", base+b.UUID+"/restore", map[string]any{}, 204)
+	if r := s.restore(b.UUID, false); r.RestoreStatus != store.BackupOK || r.RestoredAt == 0 {
+		t.Fatalf("restore not recorded as ok: %+v", r)
+	}
 	if got, _ := s.read("world/level.dat"); got != "v1" {
 		t.Fatalf("restore did not revert: %q", got)
 	}
@@ -136,7 +160,7 @@ func TestBackupRestoreLifecycle(t *testing.T) {
 		t.Fatal("non-truncating restore removed a file")
 	}
 	// truncating restore removes files that were not in the backup, and ignored ones
-	s.admin.do("POST", base+b.UUID+"/restore", map[string]any{"truncate": true}, 204)
+	s.restore(b.UUID, true)
 	if _, code := s.read("extra.txt"); code == 200 {
 		t.Fatal("truncating restore left extra.txt")
 	}

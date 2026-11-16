@@ -2,8 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -26,8 +26,10 @@ type scheduleBody struct {
 	Tasks          []taskIn `json:"tasks" maxItems:"20"`
 }
 
-func (b scheduleBody) toSchedule(server string, id int64) store.Schedule {
-	v := store.Schedule{ID: id, ServerUUID: server, Name: b.Name, Cron: b.Cron, Enabled: b.Enabled, OnlyWhenOnline: b.OnlyWhenOnline}
+// toSchedule builds the schedule as saved by author, whose permissions its
+// tasks will run with.
+func (b scheduleBody) toSchedule(server string, id int64, author store.User) store.Schedule {
+	v := store.Schedule{ID: id, ServerUUID: server, Name: b.Name, Cron: b.Cron, Enabled: b.Enabled, OnlyWhenOnline: b.OnlyWhenOnline, CreatedBy: author.ID}
 	for _, t := range b.Tasks {
 		v.Tasks = append(v.Tasks, store.Task{Action: t.Action, Payload: t.Payload, OffsetSeconds: t.OffsetSeconds, ContinueOnFailure: t.ContinueOnFailure})
 	}
@@ -73,7 +75,7 @@ func (a *App) registerSchedules(api huma.API) {
 			if err := a.checkTaskPerms(ctx, u, s, in.Body); err != nil {
 				return nil, err
 			}
-			v, err := a.Store.SaveSchedule(ctx, in.Body.toSchedule(s.UUID, 0))
+			v, err := a.Store.SaveSchedule(ctx, in.Body.toSchedule(s.UUID, 0, u))
 			if err != nil {
 				return nil, huma.Error422UnprocessableEntity(err.Error())
 			}
@@ -90,8 +92,8 @@ func (a *App) registerSchedules(api huma.API) {
 			if err := a.checkTaskPerms(ctx, u, s, in.Body); err != nil {
 				return nil, err
 			}
-			v, err := a.Store.SaveSchedule(ctx, in.Body.toSchedule(s.UUID, in.ID))
-			if err == store.ErrNotFound {
+			v, err := a.Store.SaveSchedule(ctx, in.Body.toSchedule(s.UUID, in.ID, u))
+			if errors.Is(err, store.ErrNotFound) {
 				return nil, huma.Error404NotFound("schedule not found")
 			}
 			if err != nil {
@@ -137,10 +139,8 @@ func (a *App) registerSchedules(api huma.API) {
 
 // ---- scheduler ----
 
-var running sync.Map // schedule id -> struct{}; one execution at a time
-
 func (a *App) beginRun(id int64) bool {
-	_, loaded := running.LoadOrStore(id, struct{}{})
+	_, loaded := a.running.LoadOrStore(id, struct{}{})
 	return !loaded
 }
 
@@ -173,9 +173,13 @@ func (a *App) RunScheduler(ctx context.Context, tick time.Duration) {
 // runSchedule executes the tasks in order. A failed task stops the run unless
 // it is marked continue_on_failure. manual runs ignore only_when_online.
 func (a *App) runSchedule(ctx context.Context, s store.Server, v store.Schedule, manual bool) {
-	defer running.Delete(v.ID)
+	defer a.running.Delete(v.ID)
 	if !manual && v.OnlyWhenOnline && a.Hub.State(s.UUID) != "running" {
 		a.Store.SetScheduleStatus(ctx, v.ID, "skipped: server was not running")
+		return
+	}
+	if err := a.authorPermits(ctx, s, v); err != nil {
+		a.Store.SetScheduleStatus(ctx, v.ID, "skipped: "+err.Error())
 		return
 	}
 	status := "ok"
@@ -214,6 +218,31 @@ func (a *App) runTask(ctx context.Context, s store.Server, t store.Task) error {
 		return <-done
 	}
 	return fmt.Errorf("unknown action %q", t.Action)
+}
+
+// authorPermits checks, at run time, that whoever saved the schedule may still
+// do every task in it. Permissions change after a schedule is saved (a
+// subuser is removed or loses "power"); the schedule must not keep doing what
+// its author no longer could. Schedules saved before authors were recorded
+// run with the owner's permissions.
+func (a *App) authorPermits(ctx context.Context, s store.Server, v store.Schedule) error {
+	if v.CreatedBy == 0 {
+		return nil
+	}
+	u, err := a.Store.GetUser(ctx, v.CreatedBy)
+	if err != nil {
+		return errors.New("the account that saved this schedule no longer exists")
+	}
+	perms, _, ok := a.access(ctx, u, s)
+	if !ok {
+		return fmt.Errorf("%s no longer has access to this server", u.Email)
+	}
+	for _, t := range v.Tasks {
+		if p := taskPerm(t.Action); !has(perms, p) {
+			return fmt.Errorf("%s no longer has the %s permission", u.Email, p)
+		}
+	}
+	return nil
 }
 
 // checkTaskPerms refuses tasks the caller could not perform directly.

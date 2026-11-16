@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
@@ -32,9 +30,14 @@ type serverView struct {
 // viewFor builds the server as the caller may see it. Subusers do not get the
 // environment, which commonly holds secrets such as RCON passwords.
 func (a *App) viewFor(ctx context.Context, u store.User, s store.Server) serverView {
+	perms, owner, _ := a.access(ctx, u, s)
+	return a.viewWith(s, perms, owner)
+}
+
+func (a *App) viewWith(s store.Server, perms []string, owner bool) serverView {
 	v := a.view(s)
-	v.Permissions, v.Owner, _ = a.access(ctx, u, s)
-	if !v.Owner {
+	v.Permissions, v.Owner = perms, owner
+	if !owner {
 		v.Env = map[string]string{}
 	}
 	return v
@@ -118,19 +121,6 @@ type fileWriteIn struct {
 	}
 }
 
-func (a *App) nodeErr(err error) error {
-	if err == nil {
-		return nil
-	}
-	if strings.Contains(err.Error(), "offline") {
-		return huma.Error503ServiceUnavailable("the node is offline")
-	}
-	if strings.Contains(err.Error(), "disk limit exceeded") {
-		return huma.NewError(http.StatusInsufficientStorage, err.Error())
-	}
-	return huma.Error502BadGateway(err.Error())
-}
-
 func (a *App) registerServers(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "listServers", Method: "GET", Path: "/servers", Summary: "List servers you can access"},
 		func(ctx context.Context, _ *struct{}) (*serverListOut, error) {
@@ -142,9 +132,18 @@ func (a *App) registerServers(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("db error")
 			}
+			// One query for every server shared with the caller, not one per server.
+			shared, err := a.Store.SubuserServers(ctx, u.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error")
+			}
 			out := &serverListOut{Body: []serverView{}}
 			for _, s := range ss {
-				out.Body = append(out.Body, a.viewFor(ctx, u, s))
+				if u.IsAdmin || s.OwnerID == u.ID {
+					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true))
+				} else {
+					out.Body = append(out.Body, a.viewWith(s, shared[s.UUID], false))
+				}
 			}
 			ptrs := make([]*serverView, len(out.Body))
 			for i := range out.Body {
@@ -181,8 +180,11 @@ func (a *App) registerServers(api huma.API) {
 			// Provision on the node. If that fails the DB row is rolled back so the
 			// panel never lists a server that does not exist anywhere.
 			if err := a.pushServer(ctx, s); err != nil {
-				a.Store.DeleteServer(ctx, s.UUID)
-				return nil, a.nodeErr(err)
+				if derr := a.Store.DeleteServer(ctx, s.UUID); derr != nil {
+					a.Log.Error("could not roll back a server the node refused", "server", s.UUID, "err", derr)
+				}
+				a.Hub.Forget(s.UUID)
+				return nil, nodeErr(err)
 			}
 			a.audit(ctx, u, "server.create", s.UUID, s.Name)
 			v := a.viewFor(ctx, u, s)
@@ -212,9 +214,11 @@ func (a *App) registerServers(api huma.API) {
 			}
 			// Node first: if it is unreachable we keep the row so data is never orphaned.
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerDelete, proto.UUIDOnly{UUID: s.UUID}); err != nil {
-				return nil, a.nodeErr(err)
+				return nil, nodeErr(err)
 			}
-			a.Store.DeleteServer(ctx, s.UUID)
+			if err := a.Store.DeleteServer(ctx, s.UUID); err != nil {
+				return nil, huma.Error500InternalServerError("the node deleted the server but the panel could not: " + err.Error())
+			}
 			a.Hub.Forget(s.UUID)
 			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, s.Name)
 			return nil, nil
@@ -250,10 +254,7 @@ func (a *App) registerServers(api huma.API) {
 				return nil, huma.Error500InternalServerError("could not build the server spec")
 			}
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerUpdate, spec); err != nil {
-				if errors.Is(err, hub.ErrNodeOffline) {
-					return nil, huma.Error503ServiceUnavailable("the node is offline")
-				}
-				return nil, huma.Error409Conflict(err.Error())
+				return nil, nodeErr(err)
 			}
 			if err := a.Store.UpdateLimits(ctx, s.UUID, l); err != nil {
 				return nil, huma.Error500InternalServerError("limits were applied on the node but could not be saved: " + err.Error())
@@ -269,10 +270,7 @@ func (a *App) registerServers(api huma.API) {
 				return nil, err
 			}
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerReinstall, proto.UUIDOnly{UUID: s.UUID}); err != nil {
-				if strings.Contains(err.Error(), "offline") {
-					return nil, huma.Error503ServiceUnavailable("the node is offline")
-				}
-				return nil, huma.Error409Conflict(err.Error())
+				return nil, nodeErr(err)
 			}
 			a.audit(ctx, u, "server.reinstall", s.UUID, s.Name)
 			return nil, nil
@@ -280,36 +278,41 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "power", Method: "POST", Path: "/servers/{uuid}/power", Summary: "Start, stop, restart or kill", DefaultStatus: 202},
 		func(ctx context.Context, in *powerIn) (*struct{}, error) {
-			_, s, err := a.authorizeP(ctx, in.UUID, PermPower)
+			u, s, err := a.authorizeP(ctx, in.UUID, PermPower)
 			if err != nil {
 				return nil, err
 			}
+			if !a.Hub.Online(s.NodeID) {
+				return nil, huma.Error503ServiceUnavailable("the node is offline")
+			}
+			action := in.Body.Action
+			a.audit(ctx, u, "server.power", s.UUID, action)
 			// Detached from the HTTP request: a graceful stop can outlive it, and the
 			// browser follows progress through state events on the console socket.
 			go func() {
 				c, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
-				if _, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: in.Body.Action}); err != nil {
-					a.Log.Warn("power failed", "server", s.UUID, "action", in.Body.Action, "err", err)
+				if _, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: action}); err != nil {
+					a.Log.Warn("power failed", "server", s.UUID, "action", action, "err", err)
 				}
 			}()
-			if !a.Hub.Online(s.NodeID) {
-				return nil, huma.Error503ServiceUnavailable("the node is offline")
-			}
 			return nil, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "sendCommand", Method: "POST", Path: "/servers/{uuid}/command", Summary: "Send a console command", DefaultStatus: 204},
 		func(ctx context.Context, in *commandIn) (*struct{}, error) {
-			_, s, err := a.authorizeP(ctx, in.UUID, PermConsoleSend)
+			u, s, err := a.authorizeP(ctx, in.UUID, PermConsoleSend)
 			if err != nil {
 				return nil, err
 			}
 			if strings.ContainsAny(in.Body.Command, "\r\n") {
 				return nil, huma.Error422UnprocessableEntity("command must be a single line")
 			}
-			_, err = a.Hub.Request(ctx, s.NodeID, proto.ReqServerInput, proto.Input{UUID: s.UUID, Line: in.Body.Command})
-			return nil, a.nodeErr(err)
+			if _, err = a.Hub.Request(ctx, s.NodeID, proto.ReqServerInput, proto.Input{UUID: s.UUID, Line: in.Body.Command}); err != nil {
+				return nil, nodeErr(err)
+			}
+			a.audit(ctx, u, "server.command", s.UUID, truncate(in.Body.Command, 200))
+			return nil, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listFiles", Method: "GET", Path: "/servers/{uuid}/files", Summary: "List a directory"},
@@ -320,7 +323,7 @@ func (a *App) registerServers(api huma.API) {
 			}
 			raw, err := a.Hub.Request(ctx, s.NodeID, proto.ReqFilesList, proto.FileReq{UUID: s.UUID, Path: in.Path})
 			if err != nil {
-				return nil, a.nodeErr(err)
+				return nil, nodeErr(err)
 			}
 			out := &fileListOut{}
 			json.Unmarshal(raw, &out.Body)
@@ -338,7 +341,7 @@ func (a *App) registerServers(api huma.API) {
 			}
 			raw, err := a.Hub.Request(ctx, s.NodeID, proto.ReqFilesRead, proto.FileReq{UUID: s.UUID, Path: in.Path})
 			if err != nil {
-				return nil, a.nodeErr(err)
+				return nil, nodeErr(err)
 			}
 			var f proto.FileReq
 			json.Unmarshal(raw, &f)
@@ -349,21 +352,35 @@ func (a *App) registerServers(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "writeFile", Method: "PUT", Path: "/servers/{uuid}/files/content", Summary: "Write a text file", DefaultStatus: 204, MaxBodyBytes: 12 << 20},
 		func(ctx context.Context, in *fileWriteIn) (*struct{}, error) {
-			_, s, err := a.authorizeP(ctx, in.UUID, PermFilesWrite)
+			u, s, err := a.authorizeP(ctx, in.UUID, PermFilesWrite)
 			if err != nil {
 				return nil, err
 			}
-			_, err = a.Hub.Request(ctx, s.NodeID, proto.ReqFilesWrite, proto.FileReq{UUID: s.UUID, Path: in.Body.Path, Content: []byte(in.Body.Content)})
-			return nil, a.nodeErr(err)
+			if _, err = a.Hub.Request(ctx, s.NodeID, proto.ReqFilesWrite, proto.FileReq{UUID: s.UUID, Path: in.Body.Path, Content: []byte(in.Body.Content)}); err != nil {
+				return nil, nodeErr(err)
+			}
+			a.audit(ctx, u, "file.write", s.UUID, fmt.Sprintf("%s (%d bytes)", in.Body.Path, len(in.Body.Content)))
+			return nil, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "deleteFile", Method: "DELETE", Path: "/servers/{uuid}/files", Summary: "Delete a file or directory", DefaultStatus: 204},
 		func(ctx context.Context, in *filePathIn) (*struct{}, error) {
-			_, s, err := a.authorizeP(ctx, in.UUID, PermFilesWrite)
+			u, s, err := a.authorizeP(ctx, in.UUID, PermFilesWrite)
 			if err != nil {
 				return nil, err
 			}
-			_, err = a.Hub.Request(ctx, s.NodeID, proto.ReqFilesDelete, proto.FileReq{UUID: s.UUID, Path: in.Path})
-			return nil, a.nodeErr(err)
+			if _, err = a.Hub.Request(ctx, s.NodeID, proto.ReqFilesDelete, proto.FileReq{UUID: s.UUID, Path: in.Path}); err != nil {
+				return nil, nodeErr(err)
+			}
+			a.audit(ctx, u, "file.delete", s.UUID, in.Path)
+			return nil, nil
 		})
+}
+
+// truncate shortens s to at most n bytes for log details.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }

@@ -29,14 +29,18 @@ const (
 // the caller has no relationship with the server at all.
 func (a *App) access(ctx context.Context, u store.User, s store.Server) (perms []string, full, ok bool) {
 	if u.IsAdmin || s.OwnerID == u.ID {
-		all := make([]string, len(store.AllPermissions))
-		for i, p := range store.AllPermissions {
-			all[i] = p.ID
-		}
-		return all, true, true
+		return allPermissions(), true, true
 	}
 	perms, ok = a.Store.SubuserPermissions(ctx, s.UUID, u.ID)
 	return perms, false, ok
+}
+
+func allPermissions() []string {
+	all := make([]string, len(store.AllPermissions))
+	for i, p := range store.AllPermissions {
+		all[i] = p.ID
+	}
+	return all
 }
 
 func has(perms []string, p string) bool {
@@ -77,7 +81,7 @@ func (a *App) authorizeOwner(ctx context.Context, uuid string) (store.User, stor
 	if err != nil {
 		return u, s, err
 	}
-	if _, full, _ := a.access(ctx, u, s); !full {
+	if !u.IsAdmin && s.OwnerID != u.ID {
 		return u, s, huma.Error403Forbidden("only the owner can do that")
 	}
 	return u, s, nil

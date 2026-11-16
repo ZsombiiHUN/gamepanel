@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path"
 	"strings"
 )
@@ -125,31 +126,22 @@ func (zeroReader) Read(p []byte) (int, error) { clear(p); return len(p), nil }
 // ErrArchiveTooLarge is returned when extraction would exceed the byte limit.
 var ErrArchiveTooLarge = errors.New("archive expands beyond the allowed size")
 
-// Extract unpacks a tar.gz stream into the directory. If truncate is set the
-// directory is emptied first. Entries that would leave the directory, and
-// anything other than plain files and directories, are rejected or ignored.
-// maxBytes bounds the total extracted size (0 = unlimited) against zip bombs.
-func (d *Dir) Extract(r io.Reader, truncate bool, maxBytes int64) error {
+// entries walks a tar.gz stream, rejecting unsafe paths, and calls fn for
+// every entry with its cleaned name ("." entries are skipped).
+func entries(r io.Reader, fn func(h *tar.Header, name string, body io.Reader) error) error {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("not a gzip archive: %w", err)
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
-
-	if truncate {
-		if err := d.clear(); err != nil {
-			return err
-		}
-	}
-	var total int64
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
 			return nil
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("damaged archive: %w", err)
 		}
 		name := path.Clean(h.Name)
 		if name == "." {
@@ -158,37 +150,80 @@ func (d *Dir) Extract(r io.Reader, truncate bool, maxBytes int64) error {
 		if path.IsAbs(name) || name == ".." || strings.HasPrefix(name, "../") {
 			return fmt.Errorf("unsafe path in archive: %q", h.Name)
 		}
+		if err := fn(h, name, tr); err != nil {
+			return err
+		}
+	}
+}
+
+// Scan reads a whole tar.gz stream without writing anything and returns the
+// total size of its regular files. It fails on a damaged archive or an unsafe
+// path, which is what Extract checks before it changes anything.
+func Scan(r io.Reader) (int64, error) {
+	var total int64
+	err := entries(r, func(h *tar.Header, _ string, body io.Reader) error {
+		if h.Typeflag == tar.TypeReg {
+			total += h.Size
+			// Read the body so a truncated or corrupt stream is caught here.
+			if _, err := io.Copy(io.Discard, body); err != nil {
+				return fmt.Errorf("damaged archive: %w", err)
+			}
+		}
+		return nil
+	})
+	return total, err
+}
+
+// Extract unpacks a tar.gz stream into the directory. The whole archive is
+// checked first (Scan): a damaged archive, an unsafe path, or one bigger than
+// maxBytes (0 = unlimited) fails before any file is touched, so a bad backup
+// never leaves a server emptied or half-restored. If truncate is set the
+// directory is emptied before unpacking. Only plain files and directories are
+// restored; links and devices are ignored.
+func (d *Dir) Extract(r io.ReadSeeker, truncate bool, maxBytes int64) error {
+	total, err := Scan(r)
+	if err != nil {
+		return err
+	}
+	if maxBytes > 0 && total > maxBytes {
+		return ErrArchiveTooLarge
+	}
+	if _, err := r.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	if truncate {
+		if err := d.clear(); err != nil {
+			return err
+		}
+	}
+	var written int64
+	return entries(r, func(h *tar.Header, name string, body io.Reader) error {
 		switch h.Typeflag {
 		case tar.TypeDir:
-			if err := d.root.MkdirAll(name, 0o755); err != nil {
-				return err
-			}
+			return d.mkdirAll(name)
 		case tar.TypeReg:
-			if maxBytes > 0 && total+h.Size > maxBytes {
+			// The archive was scanned, but a file could change underneath us.
+			if maxBytes > 0 && written+h.Size > maxBytes {
 				return ErrArchiveTooLarge
 			}
-			total += h.Size
-			if dir := path.Dir(name); dir != "." {
-				if err := d.root.MkdirAll(dir, 0o755); err != nil {
-					return err
-				}
+			written += h.Size
+			if err := d.mkdirAll(path.Dir(name)); err != nil {
+				return err
 			}
 			// Permission bits only: never restore setuid/setgid/sticky.
 			mode := fs.FileMode(h.Mode)&0o777 | 0o600
-			f, err := d.root.OpenFile(name, 0x1|0x40|0x200, mode) // O_WRONLY|O_CREATE|O_TRUNC
+			f, err := d.create(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 			if err != nil {
 				return err
 			}
-			_, err = io.Copy(f, io.LimitReader(tr, h.Size))
+			_, err = io.Copy(f, io.LimitReader(body, h.Size))
 			if cerr := f.Close(); err == nil {
 				err = cerr
 			}
-			if err != nil {
-				return err
-			}
-		default: // symlinks, hardlinks, devices: not restored
+			return err
 		}
-	}
+		return nil // symlinks, hardlinks, devices: not restored
+	})
 }
 
 func (d *Dir) clear() error {

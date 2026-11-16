@@ -29,7 +29,7 @@ export function ConsolePanel({ uuid, termRef, active, canSend, status }: { uuid:
     <section aria-label="Console" className="overflow-clip rounded-2xl border border-zinc-800 bg-well">
       <div className="flex items-center gap-3 border-b border-[#161a1f] py-1.5 pl-[18px] pr-2.5">
         <h2 className="flex items-center gap-2.5 text-[15px] font-semibold">
-          <span className={`h-[7px] w-[7px] rounded-full ${status === "open" ? "bg-[#4cc27a]" : "bg-[#e8a33d]"}`} title={status === "open" ? "Following live output" : "Reconnecting"} aria-hidden />
+          <span className={`h-[7px] w-[7px] rounded-full ${status === "open" ? "bg-[#4cc27a]" : status === "closed" ? "bg-[#ff8a7a]" : "bg-[#e8a33d]"}`} title={status === "open" ? "Following live output" : status === "closed" ? "Disconnected: you no longer have access to this console" : "Reconnecting"} aria-hidden />
           Console
         </h2>
         <div className="ml-auto flex items-center gap-0.5">
@@ -42,6 +42,7 @@ export function ConsolePanel({ uuid, termRef, active, canSend, status }: { uuid:
           </button>
         </div>
       </div>
+      {status === "closed" && <p role="status" className="border-b border-[#161a1f] px-[18px] py-2 text-[13px] text-[#ff8a7a]">The console was closed because you no longer have access to it.</p>}
       <ConsoleTerminal ref={termRef} expanded={expanded} />
       {canSend && (
         <form onSubmit={submit} aria-label="Send a console command" className="sticky bottom-0 z-10 flex items-center gap-2.5 border-t border-[#161a1f] bg-[#0c0e11] pl-[18px] pr-2.5">

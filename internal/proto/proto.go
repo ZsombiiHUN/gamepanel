@@ -4,7 +4,11 @@
 // inbound ports for the control channel. All frames are JSON envelopes.
 package proto
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"regexp"
+)
 
 // Envelope is the single frame type on the wire.
 type Envelope struct {
@@ -12,6 +16,39 @@ type Envelope struct {
 	ID   string          `json:"id,omitempty"` // request/reply correlation
 	Data json.RawMessage `json:"data,omitempty"`
 	Err  string          `json:"err,omitempty"` // set on failed replies
+	// Code classifies a failed reply so the panel can pick a status without
+	// parsing the message, which is meant for people.
+	Code string `json:"code,omitempty"`
+}
+
+// Error codes carried in Envelope.Code.
+const (
+	// CodeConflict: the server is in the wrong state for the request (running,
+	// installing, busy with another operation). Retrying later can succeed.
+	CodeConflict = "conflict"
+	// CodeDiskFull: the request would take the server past its disk limit.
+	CodeDiskFull = "disk_full"
+)
+
+// Error is a failed request: Msg for people, Code for programs.
+type Error struct {
+	Code string
+	Msg  string
+}
+
+func (e *Error) Error() string   { return e.Msg }
+func (e *Error) ErrCode() string { return e.Code }
+
+// Conflict reports that the server is in the wrong state for a request.
+func Conflict(msg string) error { return &Error{Code: CodeConflict, Msg: msg} }
+
+// CodeOf returns the code of err (or of an error it wraps), "" if none.
+func CodeOf(err error) string {
+	var c interface{ ErrCode() string }
+	if errors.As(err, &c) {
+		return c.ErrCode()
+	}
+	return ""
 }
 
 // Panel -> daemon request types.
@@ -69,6 +106,12 @@ type ServerSpec struct {
 
 // InstallSpec describes a one-shot installer container. The script is
 // mounted read-only and run as `<Entrypoint> <script>`.
+var entrypointRe = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
+
+// ValidEntrypoint reports whether s is a plain program name or path. The
+// daemon places it into a shell command line, so nothing else is allowed.
+func ValidEntrypoint(s string) bool { return entrypointRe.MatchString(s) }
+
 type InstallSpec struct {
 	Image      string `json:"image"`
 	Entrypoint string `json:"entrypoint"`
@@ -150,6 +193,9 @@ type SFTPAuthReq struct {
 	Username string `json:"username"` // <email>.<first 8 hex of the server uuid>
 	Password string `json:"password"`
 	IP       string `json:"ip"` // the SFTP client's address, for rate limiting
+	// Recheck marks a periodic re-validation of an open session: it is not a
+	// new sign-in, so it is neither audited as one nor counted as a failed guess.
+	Recheck bool `json:"recheck,omitempty"`
 }
 
 // SFTPAuthResp is the panel's decision.

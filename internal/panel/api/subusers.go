@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -75,7 +76,7 @@ func (a *App) registerSubusers(api huma.API) {
 				return nil, err
 			}
 			if err := a.Store.SetSubuserPermissions(ctx, s.UUID, in.UserID, in.Body.Permissions); err != nil {
-				if err == store.ErrNotFound {
+				if errors.Is(err, store.ErrNotFound) {
 					return nil, huma.Error404NotFound("that user has no access to this server")
 				}
 				return nil, huma.Error422UnprocessableEntity(err.Error())

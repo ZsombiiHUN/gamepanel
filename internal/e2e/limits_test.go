@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
 func (s *stack) limits(extra map[string]any) map[string]any {
@@ -158,11 +160,16 @@ func TestDiskLimitEnforcement(t *testing.T) {
 	b := s.makeBackup(map[string]any{"name": "fits"})
 	os.WriteFile(filepath.Join(dir, "extra.bin"), []byte(strings.Repeat("e", 700_000)), 0o644)
 	waitFor(t, "usage includes the extra file", func() bool { st := s.view().Stats; return st != nil && st.DiskBytes > 1<<20 })
-	if got := string(s.admin.do("POST", srv+"/backups/"+b.UUID+"/restore", map[string]any{}, 409)); !strings.Contains(got, "disk limit") {
-		t.Fatalf("restore error should mention the disk limit: %s", got)
+	if r := s.restore(b.UUID, false); r.RestoreStatus != store.BackupFailed || !strings.Contains(r.RestoreError, "disk limit") {
+		t.Fatalf("restore should fail on the disk limit: %+v", r)
+	}
+	if _, code := s.read("extra.bin"); code != 200 {
+		t.Fatal("a restore that did not fit changed the server's files")
 	}
 	// ... but a truncating restore replaces everything, so it fits
-	s.admin.do("POST", srv+"/backups/"+b.UUID+"/restore", map[string]any{"truncate": true}, 204)
+	if r := s.restore(b.UUID, true); r.RestoreStatus != store.BackupOK {
+		t.Fatalf("truncating restore failed: %+v", r)
+	}
 }
 
 func mustReq(method, url, body string) *http.Request {

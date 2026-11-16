@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
@@ -47,16 +48,26 @@ func (d *Docker) Ping(ctx context.Context) error {
 	return err
 }
 
-func (d *Docker) Create(ctx context.Context, s Spec) error {
-	// Replace any previous container for this server (e.g. changed settings).
-	_ = d.Remove(ctx, s.UUID)
-
-	pull, err := d.cli.ImagePull(ctx, s.Image, client.ImagePullOptions{})
+func (d *Docker) pull(ctx context.Context, image string) error {
+	pull, err := d.cli.ImagePull(ctx, image, client.ImagePullOptions{})
 	if err != nil {
-		return fmt.Errorf("pull %s: %w", s.Image, err)
+		return fmt.Errorf("pull %s: %w", image, err)
 	}
 	if err := pull.Wait(ctx); err != nil {
-		return fmt.Errorf("pull %s: %w", s.Image, err)
+		return fmt.Errorf("pull %s: %w", image, err)
+	}
+	return nil
+}
+
+func (d *Docker) Create(ctx context.Context, s Spec) error {
+	// Pull before touching the existing container: if the registry is down,
+	// the server keeps the container it has instead of being left with none.
+	if err := d.pull(ctx, s.Image); err != nil {
+		return err
+	}
+	// Replace any previous container for this server (e.g. changed settings).
+	if err := d.Remove(ctx, s.UUID); err != nil {
+		return err
 	}
 
 	env := make([]string, 0, len(s.Env))
@@ -176,8 +187,13 @@ func (d *Docker) Kill(ctx context.Context, uuid string) error {
 	return err
 }
 
+// Remove deletes the server's container. A container that does not exist
+// counts as removed.
 func (d *Docker) Remove(ctx context.Context, uuid string) error {
 	_, err := d.cli.ContainerRemove(ctx, name(uuid), client.ContainerRemoveOptions{Force: true})
+	if cerrdefs.IsNotFound(err) {
+		return nil
+	}
 	return err
 }
 
@@ -315,18 +331,14 @@ func (d *Docker) Install(ctx context.Context, r InstallRun, out io.Writer) error
 	if err != nil {
 		return err
 	}
-	if !numericIDRe.MatchString(owner) || !entrypointOK(r.Entrypoint) {
+	if !numericIDRe.MatchString(owner) || !proto.ValidEntrypoint(r.Entrypoint) {
 		return errors.New("invalid installer settings")
 	}
 	ctx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
 
-	pull, err := d.cli.ImagePull(ctx, r.Image, client.ImagePullOptions{})
-	if err != nil {
-		return fmt.Errorf("pull %s: %w", r.Image, err)
-	}
-	if err := pull.Wait(ctx); err != nil {
-		return fmt.Errorf("pull %s: %w", r.Image, err)
+	if err := d.pull(ctx, r.Image); err != nil {
+		return err
 	}
 
 	env := make([]string, 0, len(r.Env))
@@ -397,7 +409,3 @@ func (d *Docker) Install(ctx context.Context, r InstallRun, out io.Writer) error
 		return fmt.Errorf("install: %w", ctx.Err())
 	}
 }
-
-var entrypointRe = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
-
-func entrypointOK(s string) bool { return entrypointRe.MatchString(s) }

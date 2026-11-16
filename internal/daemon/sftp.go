@@ -167,26 +167,40 @@ func (s *sftpServer) noteFail(ip string) {
 	s.mu.Unlock()
 }
 
-func (s *sftpServer) auth(c ssh.ConnMetadata, pw []byte) (*ssh.Permissions, error) {
-	ip, _, _ := net.SplitHostPort(c.RemoteAddr().String())
-	body, _ := json.Marshal(proto.SFTPAuthReq{Username: c.User(), Password: string(pw), IP: ip})
+// ask has the panel check a login. err is set only when the panel could not
+// be asked; a refusal is a response with OK false.
+func (s *sftpServer) ask(user, pw, ip string, recheck bool) (proto.SFTPAuthResp, error) {
+	var r proto.SFTPAuthResp
+	body, _ := json.Marshal(proto.SFTPAuthReq{Username: user, Password: pw, IP: ip, Recheck: recheck})
 	req, _ := http.NewRequest(http.MethodPost, s.authURL, bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+s.d.cfg.Token)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.http.Do(req)
 	if err != nil {
-		return nil, errors.New("unavailable")
+		return r, err
 	}
 	defer resp.Body.Close()
-	var r proto.SFTPAuthResp
-	if resp.StatusCode != 200 || json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&r) != nil || !r.OK || !uuidRe.MatchString(r.ServerUUID) {
+	if resp.StatusCode != 200 || json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&r) != nil || !uuidRe.MatchString(r.ServerUUID) {
+		return proto.SFTPAuthResp{}, nil
+	}
+	return r, nil
+}
+
+func (s *sftpServer) auth(c ssh.ConnMetadata, pw []byte) (*ssh.Permissions, error) {
+	ip, _, _ := net.SplitHostPort(c.RemoteAddr().String())
+	r, err := s.ask(c.User(), string(pw), ip, false)
+	if err != nil {
+		return nil, errors.New("unavailable")
+	}
+	if !r.OK {
 		s.noteFail(ip)
 		return nil, errors.New("denied")
 	}
 	if _, err := s.d.spec(r.ServerUUID); err != nil { // panel and node disagree about this server
 		return nil, errors.New("denied")
 	}
-	ext := map[string]string{"server": r.ServerUUID}
+	// The key stays in memory for the session so watchAccess can re-check it.
+	ext := map[string]string{"server": r.ServerUUID, "key": string(pw)}
 	if r.Read {
 		ext["read"] = "1"
 	}
@@ -194,6 +208,26 @@ func (s *sftpServer) auth(c ssh.ConnMetadata, pw []byte) (*ssh.Permissions, erro
 		ext["write"] = "1"
 	}
 	return &ssh.Permissions{Extensions: ext}, nil
+}
+
+// watchAccess re-checks an open session with the panel and closes it once the
+// key is revoked, the account loses access, or its file permissions change
+// (the client reconnects with the new ones). Access is otherwise only checked
+// at sign-in. If the panel cannot be reached the session is kept: a panel
+// restart should not cut every transfer.
+func (s *sftpServer) watchAccess(ctx context.Context, conn *ssh.ServerConn, ip string) {
+	ext := conn.Permissions.Extensions
+	for sleep(ctx, s.d.cfg.sftpRecheck()) {
+		r, err := s.ask(conn.User(), ext["key"], ip, true)
+		if err != nil {
+			continue
+		}
+		if !r.OK || r.ServerUUID != ext["server"] || r.Read != (ext["read"] == "1") || r.Write != (ext["write"] == "1") {
+			s.d.log.Info("sftp access changed, closing the session", "server", ext["server"], "ip", ip)
+			conn.Close()
+			return
+		}
+	}
 }
 
 func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
@@ -205,8 +239,11 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 	}
 	nc.SetDeadline(time.Time{})
 	defer conn.Close()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	go ssh.DiscardRequests(reqs)
 	go func() { <-ctx.Done(); conn.Close() }()
+	go s.watchAccess(ctx, conn, ip)
 
 	ext := conn.Permissions.Extensions
 	dir, err := s.d.dir(ext["server"])
@@ -215,7 +252,7 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 	}
 	defer dir.Close()
 	h := &sftpFS{dir: dir, read: ext["read"] == "1", write: ext["write"] == "1",
-		check: func(extra int64) error { return s.d.checkDisk(ext["server"], extra) }}
+		check: func(extra int64) error { return s.d.reserveDisk(ext["server"], extra) }}
 
 	for nch := range chans {
 		if nch.ChannelType() != "session" { // no port forwarding, no x11
@@ -254,23 +291,26 @@ type sftpFS struct {
 }
 
 // limitedWriter refuses writes that would grow the file past the disk limit.
-// It tracks the high-water mark so rewriting existing bytes is free.
+// Only growth past the high-water mark is reserved, so rewriting existing
+// bytes is free and every new byte is counted exactly once. The sftp package
+// may call WriteAt concurrently, hence the lock.
 type limitedWriter struct {
-	f       *os.File
-	initial int64 // size when opened (after any truncate)
-	high    int64
-	check   func(extra int64) error
+	f     *os.File
+	mu    sync.Mutex
+	high  int64                   // file size so far (when opened, after any truncate)
+	check func(extra int64) error // reserves extra bytes, failing past the limit
 }
 
 func (w *limitedWriter) WriteAt(p []byte, off int64) (int, error) {
+	w.mu.Lock()
 	if end := off + int64(len(p)); end > w.high {
-		w.high = end
-		if grow := end - w.initial; grow > 0 {
-			if err := w.check(grow); err != nil {
-				return 0, err
-			}
+		if err := w.check(end - w.high); err != nil {
+			w.mu.Unlock()
+			return 0, err
 		}
+		w.high = end
 	}
+	w.mu.Unlock()
 	return w.f.WriteAt(p, off)
 }
 
@@ -336,7 +376,7 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 		f.Close()
 		return nil, err
 	}
-	return &limitedWriter{f: f, initial: fi.Size(), high: fi.Size(), check: h.check}, nil
+	return &limitedWriter{f: f, high: fi.Size(), check: h.check}, nil
 }
 
 func (h *sftpFS) Filecmd(r *sftp.Request) error {
