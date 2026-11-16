@@ -174,7 +174,21 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		}
 		var resolve func(context.Context) (store.User, error)
 		viaKey := false
-		if tok, ok := readSessionCookie(r); ok {
+		tok, legacy, hasCookie := readSessionCookie(r)
+		if hasCookie && legacy && secure {
+			// Over HTTPS the bare cookie name is only a one-time migration
+			// path for sessions from before the upgrade (see cookie.go).
+			if exp, err := a.Store.ClaimLegacySession(r.Context(), tok); err == nil {
+				for _, c := range sessionCookies(r.Context(), tok, time.Until(exp)) {
+					http.SetCookie(w, &c)
+				}
+			} else {
+				hasCookie = false
+				c := clearLegacyCookie()
+				http.SetCookie(w, &c)
+			}
+		}
+		if hasCookie {
 			resolve = func(ctx context.Context) (store.User, error) { return a.Store.UserBySession(ctx, tok) }
 			r = r.WithContext(context.WithValue(r.Context(), sessionKey{}, tok))
 		} else if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && strings.HasPrefix(tok, store.KeyPrefix) {

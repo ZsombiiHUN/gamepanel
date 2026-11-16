@@ -54,9 +54,10 @@ const (
 	MaxPasswordLen = 256
 )
 
-// ValidatePassword enforces the password policy of OWASP ASVS §2.1: a length
-// range, no composition rules, and no password that is known to be common or
-// leaked, or that is built from the account's own email address.
+// ValidatePassword enforces the password policy (ASVS v5.0.0-6.2.1, 6.2.4,
+// 6.2.5, 6.2.9, 6.2.11 and 6.2.12): a length range, no composition rules, and
+// no password that is known to be common or leaked, or that is built from the
+// account's own email address or the site's name. See docs/asvs.md.
 func ValidatePassword(pw, email string) error {
 	if n := utf8.RuneCountInString(pw); n < MinPasswordLen || n > MaxPasswordLen {
 		return userErrf("password must be %d to %d characters", MinPasswordLen, MaxPasswordLen)
@@ -179,6 +180,21 @@ func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
 		s.exec(ctx, `UPDATE sessions SET last_seen_at=? WHERE token_hash=?`, now(), h)
 	}
 	return u, nil
+}
+
+// ClaimLegacySession moves a session that existed before the upgrade (see
+// migration 00010) off the old gp_session cookie name: it succeeds once per
+// such session, while it is still live, and returns when the session ends.
+// Sessions made since the upgrade never qualify.
+func (s *Store) ClaimLegacySession(ctx context.Context, token string) (time.Time, error) {
+	var exp int64
+	err := s.DB.QueryRowContext(ctx, `UPDATE sessions SET legacy_cookie=0, last_seen_at=?
+		WHERE token_hash=? AND legacy_cookie=1 AND expires_at>? AND last_seen_at>? RETURNING expires_at`,
+		now(), HashToken(token), now(), s.idleCutoff()).Scan(&exp)
+	if err != nil {
+		return time.Time{}, nf(err)
+	}
+	return time.Unix(exp, 0), nil
 }
 
 // ChangePassword verifies the current password, sets the new one, and revokes
