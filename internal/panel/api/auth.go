@@ -15,8 +15,8 @@ import (
 
 type loginIn struct {
 	Body struct {
-		Email    string `json:"email" format:"email"`
-		Password string `json:"password" minLength:"1"`
+		Email    string `json:"email" format:"email" maxLength:"254"`
+		Password string `json:"password" minLength:"1" maxLength:"256"`
 		// TOTPCode is an authenticator or recovery code, required when the
 		// account has two-factor enabled.
 		TOTPCode string `json:"totp_code,omitempty" maxLength:"20"`
@@ -28,7 +28,8 @@ type loginOut struct {
 	Body      store.User
 }
 type logoutIn struct {
-	Session string `cookie:"gp_session"`
+	Session     string `cookie:"gp_session"`
+	HostSession string `cookie:"__Host-gp_session"`
 }
 type logoutOut struct {
 	SetCookie http.Cookie `header:"Set-Cookie"`
@@ -55,6 +56,10 @@ func (a *App) registerAuth(api huma.API) {
 					return nil, huma.Error401Unauthorized("totp_required")
 				}
 				kind, err := a.Store.VerifySecondFactor(ctx, u.ID, in.Body.TOTPCode)
+				if errors.Is(err, store.ErrSecondFactorLocked) {
+					a.audit(ctx, u, "login.blocked", email, "too many wrong two-factor codes in a row")
+					return nil, huma.Error429TooManyRequests(err.Error())
+				}
 				if err != nil {
 					a.fails.add(email)
 					a.audit(ctx, u, "login.fail", email, "bad second factor")
@@ -70,21 +75,21 @@ func (a *App) registerAuth(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}
-			return &loginOut{Body: u, SetCookie: http.Cookie{
-				Name: cookieName, Value: tok, Path: "/", HttpOnly: true, Secure: a.CookieSecure,
-				SameSite: http.SameSiteLaxMode, MaxAge: int(store.SessionTTL.Seconds()),
-			}}, nil
+			return &loginOut{Body: u, SetCookie: sessionCookie(ctx, tok, a.Store.SessionMax)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "logout", Method: "POST", Path: "/auth/logout", Summary: "Sign out"},
 		func(ctx context.Context, in *logoutIn) (*logoutOut, error) {
-			if in.Session != "" {
-				a.Store.DeleteSession(ctx, in.Session) // revoke server-side, not just in the browser
+			// Revoke server-side, not just in the browser, under either cookie name.
+			for _, s := range []string{in.HostSession, in.Session} {
+				if s != "" {
+					a.Store.DeleteSession(ctx, s)
+				}
 			}
 			if u, ok := userFrom(ctx); ok {
 				a.audit(ctx, u, "logout", u.Email, "")
 			}
-			return &logoutOut{SetCookie: http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.CookieSecure, SameSite: http.SameSiteLaxMode}}, nil
+			return &logoutOut{SetCookie: sessionCookie(ctx, "", 0)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "me", Method: "GET", Path: "/auth/me", Summary: "Current user"},
@@ -100,14 +105,10 @@ func (a *App) registerAuth(api huma.API) {
 // ---- account ----
 
 type passwordIn struct {
-	Session string `cookie:"gp_session"`
-	Body    struct {
+	Body struct {
 		Current string `json:"current_password" minLength:"1" maxLength:"256"`
 		New     string `json:"new_password" minLength:"12" maxLength:"256"`
 	}
-}
-type revokeIn struct {
-	Session string `cookie:"gp_session"`
 }
 type auditIn struct {
 	Limit  int    `query:"limit" default:"100" minimum:"1" maximum:"500"`
@@ -128,7 +129,7 @@ func (a *App) registerAccount(api huma.API) {
 			if a.fails.over(u.Email) {
 				return nil, huma.Error429TooManyRequests("too many failed attempts, try again later")
 			}
-			if err := a.Store.ChangePassword(ctx, u.ID, in.Body.Current, in.Body.New, in.Session); err != nil {
+			if err := a.Store.ChangePassword(ctx, u.ID, in.Body.Current, in.Body.New, sessionToken(ctx)); err != nil {
 				if errors.Is(err, store.ErrBadPassword) {
 					a.fails.add(u.Email)
 					a.audit(ctx, u, "password.change.fail", u.Email, "")
@@ -142,12 +143,12 @@ func (a *App) registerAccount(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "revokeOtherSessions", Method: "POST", Path: "/auth/sessions/revoke-others",
 		Summary: "Sign out everywhere except this browser", DefaultStatus: 204},
-		func(ctx context.Context, in *revokeIn) (*struct{}, error) {
+		func(ctx context.Context, _ *struct{}) (*struct{}, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
 				return nil, err
 			}
-			if err := a.Store.DeleteOtherSessions(ctx, u.ID, in.Session); err != nil {
+			if err := a.Store.DeleteOtherSessions(ctx, u.ID, sessionToken(ctx)); err != nil {
 				return nil, huma.Error500InternalServerError("db error")
 			}
 			a.audit(ctx, u, "sessions.revoke_others", u.Email, "")

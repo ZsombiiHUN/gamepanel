@@ -38,7 +38,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Backups** | Create, lock, delete and restore |
 | **Schedules** | Cron-style tasks per server |
 | **Access** | Subusers with per-server permissions; non-owners get a 404 for servers they can't see |
-| **Accounts** | Argon2id passwords, TOTP two-factor with recovery codes, API keys, rate-limited login |
+| **Accounts** | Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
 | **Admin** | Nodes with capacity tracking, eggs, an audit log you can search |
 | **API** | Everything the UI does goes through a documented OpenAPI 3.1 API ([`web/openapi.json`](web/openapi.json)) |
 
@@ -84,7 +84,9 @@ All settings are environment variables.
 |---|---|---|
 | `GAMEPANEL_ADDR` | `127.0.0.1:8080` | Listen address |
 | `GAMEPANEL_DB` | `./panel.db` | SQLite path |
-| `GAMEPANEL_COOKIE_SECURE` | unset | Set to `1` behind HTTPS |
+| `GAMEPANEL_COOKIE_SECURE` | unset | Set to `1` to always treat browsers as on HTTPS. Not needed when HTTPS reaches the panel directly or through a trusted proxy that sends `X-Forwarded-Proto: https`; then the session cookie is `__Host-gp_session`, marked `Secure`, and HSTS is sent |
+| `GAMEPANEL_SESSION_IDLE` | `30m` | Sign out a session after this long without use |
+| `GAMEPANEL_SESSION_MAX` | `12h` | Sign out a session this long after sign-in, however busy |
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |
 | `GAMEPANEL_SECRET_KEY` | key file `<db>.key` | 64 hex characters that encrypt two-factor secrets at rest. If unset, a key file is created next to the database (mode 0600). **Back it up with the database**, or enrolled authenticators cannot be read |
 
@@ -112,7 +114,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 - **Stack:** Go `net/http` with [huma](https://github.com/danielgtaylor/huma), SQLite ([modernc](https://gitlab.com/cznic/sqlite)) with goose, coder/websocket, Docker through `moby/moby/client`. The UI is React 19, Vite, TanStack Query and Router, Tailwind 4, xterm.js and CodeMirror, embedded with `go:embed`.
 - **Eggs:** `{{VAR}}` becomes `${VAR}`, and values reach the process only as environment variables. A variable can never inject shell syntax, and no secret is ever substituted into a script.
 - **Containers:** all capabilities dropped, `no-new-privileges`, a PID limit and no swap.
-- **Sessions:** opaque cookies (only a hash is stored), node tokens stored hashed, websocket origin checked.
+- **Sessions:** opaque cookies (only a hash is stored) that end after 30 minutes idle or 12 hours, `__Host-` prefixed and `Secure` over HTTPS; API answers are never cached; node tokens stored hashed; websocket origin checked.
 
 ## Status
 

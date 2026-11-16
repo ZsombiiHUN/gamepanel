@@ -25,8 +25,6 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
-const cookieName = "gp_session"
-
 type Deps struct {
 	Store        *store.Store
 	Hub          *hub.Hub
@@ -104,7 +102,7 @@ func New(d Deps) http.Handler {
 	// which only signed-in users may read.
 	cfg.CreateHooks = nil
 	cfg.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		"session": {Type: "apiKey", In: "cookie", Name: cookieName},
+		"session": {Type: "apiKey", In: "cookie", Name: secureCookieName, Description: "`__Host-gp_session` over HTTPS, `gp_session` over plain HTTP"},
 		"apikey":  {Type: "http", Scheme: "bearer"},
 	}
 	api := humago.NewWithPrefix(mux, "/api", cfg)
@@ -149,8 +147,21 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "same-origin")
+		secure := a.isSecure(r)
+		if secure {
+			// Browsers that have seen the panel over HTTPS never try plain HTTP
+			// again, so the session cookie cannot be stripped in transit.
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/daemon/") {
+			// API answers carry account data and one-time secrets (new API
+			// keys, recovery codes, node tokens): never keep them in a cache.
+			h.Set("Cache-Control", "no-store")
+		}
 		ip := a.clientIP(r)
-		r = r.WithContext(context.WithValue(r.Context(), ipKey{}, ip))
+		ctx := context.WithValue(r.Context(), ipKey{}, ip)
+		ctx = context.WithValue(ctx, secureKey{}, secure)
+		r = r.WithContext(ctx)
 		if !sameOrigin(r) {
 			writeProblem(w, http.StatusForbidden, "This request came from another site and was blocked. Open the panel directly and try again.")
 			return
@@ -163,8 +174,9 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		}
 		var resolve func(context.Context) (store.User, error)
 		viaKey := false
-		if c, err := r.Cookie(cookieName); err == nil {
-			resolve = func(ctx context.Context) (store.User, error) { return a.Store.UserBySession(ctx, c.Value) }
+		if tok, ok := readSessionCookie(r); ok {
+			resolve = func(ctx context.Context) (store.User, error) { return a.Store.UserBySession(ctx, tok) }
+			r = r.WithContext(context.WithValue(r.Context(), sessionKey{}, tok))
 		} else if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && strings.HasPrefix(tok, store.KeyPrefix) {
 			// API keys: no cookie, so no CSRF exposure; flagged so sensitive
 			// account actions can insist on a browser session.

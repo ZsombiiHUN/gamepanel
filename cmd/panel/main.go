@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -67,13 +68,31 @@ func main() {
 		log.Error("invalid GAMEPANEL_TRUSTED_PROXIES", "err", err)
 		os.Exit(1)
 	}
+	for _, d := range []struct {
+		name string
+		dst  *time.Duration
+	}{{"GAMEPANEL_SESSION_MAX", &st.SessionMax}, {"GAMEPANEL_SESSION_IDLE", &st.SessionIdle}} {
+		if v := os.Getenv(d.name); v != "" {
+			dur, err := time.ParseDuration(v)
+			if err != nil || dur < time.Minute {
+				log.Error("invalid "+d.name+": want a duration of at least 1m, such as 30m or 12h", "value", v)
+				os.Exit(1)
+			}
+			*d.dst = dur
+		}
+	}
+	cookieSecure := env("GAMEPANEL_COOKIE_SECURE", "") == "1"
+	if host, _, err := net.SplitHostPort(*addr); err == nil && !cookieSecure && len(proxies) == 0 && !isLoopback(host) {
+		log.Warn("listening beyond this machine without HTTPS settings: session cookies are not marked Secure. " +
+			"Put the panel behind an HTTPS proxy and set GAMEPANEL_TRUSTED_PROXIES (or GAMEPANEL_COOKIE_SECURE=1)")
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	h := hub.New(log)
 	handler := api.New(api.Deps{
 		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
 		TrustedProxies: proxies,
-		CookieSecure:   env("GAMEPANEL_COOKIE_SECURE", "") == "1",
+		CookieSecure:   cookieSecure,
 	})
 	if st.CountUsers(context.Background()) == 0 {
 		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")
@@ -91,6 +110,15 @@ func main() {
 		log.Error("serve", "err", err)
 		os.Exit(1)
 	}
+}
+
+// isLoopback reports whether a listen host only accepts local connections.
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // createAdmin makes an admin with a random password, printed once to the

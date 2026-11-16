@@ -23,7 +23,18 @@ var migrations embed.FS
 type Store struct {
 	DB  *sql.DB
 	key []byte // optional AES key for secrets at rest, see SetSecretKey
+
+	// SessionMax is how long a session lasts from sign-in, however busy it
+	// is; SessionIdle ends it sooner when it goes unused. Set before serving.
+	SessionMax, SessionIdle time.Duration
 }
+
+// Session lifetimes from OWASP ASVS 4.0 §3.3.2 (level 2): sign in again
+// after 12 hours, or after 30 minutes without activity.
+const (
+	DefaultSessionMax  = 12 * time.Hour
+	DefaultSessionIdle = 30 * time.Minute
+)
 
 func Open(path string) (*Store, error) {
 	// WAL + busy timeout + FK enforcement; one writer connection avoids
@@ -42,7 +53,7 @@ func Open(path string) (*Store, error) {
 	if err := goose.Up(db, "migrations"); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	return &Store{DB: db}, nil
+	return &Store{DB: db, SessionMax: DefaultSessionMax, SessionIdle: DefaultSessionIdle}, nil
 }
 
 func (s *Store) Close() error { return s.DB.Close() }

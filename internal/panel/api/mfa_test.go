@@ -146,7 +146,14 @@ func TestAPIKeys(t *testing.T) {
 		Key   struct{ ID int64 }
 		Token string
 	}
-	code, body := a.do("POST", "/api/auth/keys", map[string]any{"name": "ci"}, nil)
+	// A key outlives the session that made it, so making one asks for the password.
+	if code, _ := a.do("POST", "/api/auth/keys", map[string]any{"name": "ci"}, nil); code != 422 {
+		t.Fatalf("create without password: %d", code)
+	}
+	if code, _ := a.do("POST", "/api/auth/keys", map[string]any{"name": "ci", "password": "wrong-wrong-wrong"}, nil); code != 403 {
+		t.Fatalf("create with wrong password: %d", code)
+	}
+	code, body := a.do("POST", "/api/auth/keys", map[string]any{"name": "ci", "password": pw}, nil)
 	if code != 201 {
 		t.Fatalf("create: %d %s", code, body)
 	}
@@ -168,7 +175,7 @@ func TestAPIKeys(t *testing.T) {
 		t.Fatalf("bogus key: %d", code)
 	}
 	// a leaked key must not escalate: no new keys, no password change, no 2FA
-	if code, _ := k.do("POST", "/api/auth/keys", map[string]any{"name": "evil"}, bearer); code != 403 {
+	if code, _ := k.do("POST", "/api/auth/keys", map[string]any{"name": "evil", "password": pw}, bearer); code != 403 {
 		t.Fatalf("key minted a key: %d", code)
 	}
 	if code, _ := k.do("POST", "/api/auth/password", map[string]string{"current_password": pw, "new_password": "brand-new-password-1"}, bearer); code != 403 {

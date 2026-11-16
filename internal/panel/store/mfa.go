@@ -184,22 +184,59 @@ func (s *Store) NewRecoveryCodes(ctx context.Context, userID int64) ([]string, e
 	return codes, tx.Commit()
 }
 
+// ErrSecondFactorLocked: too many wrong authenticator codes in a row; the
+// account must wait (or use a recovery code) before trying another.
+var ErrSecondFactorLocked = userErr("too many wrong codes: wait before trying again, or use a recovery code")
+
+// mfaFreeFailures wrong authenticator codes in a row are allowed before each
+// further one adds a delay that doubles, up to mfaMaxLock. A 6-digit code (3
+// accepted per try with clock skew) then survives years of guessing, even by
+// someone who has the password and many IP addresses, and the count survives
+// restarts. NIST SP 800-63B §5.2.2 asks for at most 100 failures in a row.
+const (
+	mfaFreeFailures = 5
+	mfaMaxLock      = 24 * time.Hour
+)
+
+// mfaLockFor is the wait imposed after the n-th wrong code in a row.
+func mfaLockFor(n int64) time.Duration {
+	if n < mfaFreeFailures {
+		return 0
+	}
+	shift := n - mfaFreeFailures
+	if shift > 20 {
+		return mfaMaxLock
+	}
+	return min(time.Minute<<shift, mfaMaxLock)
+}
+
 // VerifySecondFactor checks a TOTP code or a recovery code (single use).
-// kind is "totp" or "recovery".
+// kind is "totp" or "recovery". Authenticator codes are refused with
+// ErrSecondFactorLocked while the account is serving a guessing delay;
+// recovery codes (80 bits, not guessable) still work then, and a good one
+// clears the delay.
 func (s *Store) VerifySecondFactor(ctx context.Context, userID int64, code string) (kind string, err error) {
 	code = strings.ToLower(strings.TrimSpace(code))
 	bad := userErr("invalid code")
 	if len(code) == 6 {
+		var until int64
+		if err := s.DB.QueryRowContext(ctx, `SELECT mfa_locked_until FROM users WHERE id=?`, userID).Scan(&until); err != nil {
+			return "", bad
+		}
+		if until > now() {
+			return "", ErrSecondFactorLocked
+		}
 		secret, enabled, last, err := s.totpSecret(ctx, userID)
 		if err != nil || !enabled {
 			return "", bad
 		}
 		step, ok := verifyTOTP(secret, code, time.Now(), last)
 		if !ok {
+			s.secondFactorFailed(ctx, userID)
 			return "", bad
 		}
 		// Compare-and-set so two concurrent logins cannot both use one code.
-		res, err := s.exec(ctx, `UPDATE users SET totp_last_step=? WHERE id=? AND totp_last_step<?`, step, userID, step)
+		res, err := s.exec(ctx, `UPDATE users SET totp_last_step=?, mfa_fail_count=0, mfa_locked_until=0 WHERE id=? AND totp_last_step<?`, step, userID, step)
 		if err != nil {
 			return "", err
 		}
@@ -213,14 +250,28 @@ func (s *Store) VerifySecondFactor(ctx context.Context, userID int64, code strin
 		return "", err
 	}
 	if n, _ := res.RowsAffected(); n == 1 {
+		s.exec(ctx, `UPDATE users SET mfa_fail_count=0, mfa_locked_until=0 WHERE id=?`, userID)
 		return "recovery", nil
 	}
 	return "", bad
 }
 
+// secondFactorFailed counts a wrong authenticator code and starts the delay
+// that the count calls for. The increment is atomic, so parallel guesses
+// cannot share one count.
+func (s *Store) secondFactorFailed(ctx context.Context, userID int64) {
+	var n int64
+	if err := s.DB.QueryRowContext(ctx, `UPDATE users SET mfa_fail_count=mfa_fail_count+1 WHERE id=? RETURNING mfa_fail_count`, userID).Scan(&n); err != nil {
+		return
+	}
+	if d := mfaLockFor(n); d > 0 {
+		s.exec(ctx, `UPDATE users SET mfa_locked_until=? WHERE id=?`, time.Now().Add(d).Unix(), userID)
+	}
+}
+
 // DisableTOTP removes the second factor and recovery codes.
 func (s *Store) DisableTOTP(ctx context.Context, userID int64) error {
-	if _, err := s.exec(ctx, `UPDATE users SET totp_secret='', totp_enabled=0, totp_last_step=0 WHERE id=?`, userID); err != nil {
+	if _, err := s.exec(ctx, `UPDATE users SET totp_secret='', totp_enabled=0, totp_last_step=0, mfa_fail_count=0, mfa_locked_until=0 WHERE id=?`, userID); err != nil {
 		return err
 	}
 	_, err := s.exec(ctx, `DELETE FROM recovery_codes WHERE user_id=?`, userID)

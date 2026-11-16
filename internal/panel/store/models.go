@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -46,13 +47,42 @@ const (
 	argT, argM, argP, argKey = 3, 64 * 1024, 4, 32
 )
 
-// ValidatePassword enforces the length policy (argon2 input is capped so a
-// huge password cannot be used to burn CPU).
-func ValidatePassword(pw string) error {
-	if len(pw) < 12 || len(pw) > 256 {
-		return userErr("password must be 12 to 256 characters")
+// Password length limits, in characters (not bytes, so non-Latin scripts
+// get the same minimum). The cap stops a huge password being used to burn CPU.
+const (
+	MinPasswordLen = 12
+	MaxPasswordLen = 256
+)
+
+// ValidatePassword enforces the password policy of OWASP ASVS §2.1: a length
+// range, no composition rules, and no password that is known to be common or
+// leaked, or that is built from the account's own email address.
+func ValidatePassword(pw, email string) error {
+	if n := utf8.RuneCountInString(pw); n < MinPasswordLen || n > MaxPasswordLen {
+		return userErrf("password must be %d to %d characters", MinPasswordLen, MaxPasswordLen)
+	}
+	if isCommonPassword(pw) {
+		return userErr("this password is too common (it appears in lists of leaked passwords); choose another")
+	}
+	// A password that is mostly the account name or the site's name is the
+	// first thing a targeted guesser tries: refuse it when what is left after
+	// removing that word would be too short to pass on its own.
+	lower := strings.ToLower(pw)
+	local, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(email)), "@")
+	if mostly(lower, local) {
+		return userErr("the password is too close to your email address")
+	}
+	if mostly(lower, "gamepanel") {
+		return userErr("the password is too close to the name of this site")
 	}
 	return nil
+}
+
+func mostly(pw, word string) bool {
+	if utf8.RuneCountInString(word) < 4 || !strings.Contains(pw, word) {
+		return false
+	}
+	return utf8.RuneCountInString(strings.ReplaceAll(pw, word, "")) < MinPasswordLen
 }
 
 func hashPassword(pw string) string {
@@ -77,7 +107,7 @@ func checkPassword(pw, enc string) bool {
 }
 
 func (s *Store) CreateUser(ctx context.Context, email, password string, admin bool) (User, error) {
-	if err := ValidatePassword(password); err != nil {
+	if err := ValidatePassword(password, email); err != nil {
 		return User{}, err
 	}
 	res, err := s.exec(ctx, `INSERT INTO users(email,password_hash,is_admin,created_at) VALUES(?,?,?,?)`,
@@ -111,39 +141,61 @@ func (s *Store) Login(ctx context.Context, email, password string) (User, error)
 	return u, nil
 }
 
-const SessionTTL = 14 * 24 * time.Hour
+// touchEvery is how stale a session's last_seen_at may get before a request
+// refreshes it, so busy sessions do not turn every request into a write.
+const touchEvery = 60
 
-// NewSession starts a session. Signing in is also when expired sessions are
-// cleared out, so the table does not grow forever.
+// idleCutoff is the newest last_seen_at at which a session counts as idle.
+func (s *Store) idleCutoff() int64 {
+	return now() - int64(s.SessionIdle.Seconds())
+}
+
+// NewSession starts a session. Signing in is also when expired and idle
+// sessions are cleared out, so the table does not grow forever.
 func (s *Store) NewSession(ctx context.Context, userID int64) (string, error) {
-	if _, err := s.exec(ctx, `DELETE FROM sessions WHERE expires_at<=?`, now()); err != nil {
+	if _, err := s.exec(ctx, `DELETE FROM sessions WHERE expires_at<=? OR last_seen_at<=?`, now(), s.idleCutoff()); err != nil {
 		return "", err
 	}
 	tok, h := NewToken()
-	_, err := s.exec(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)`,
-		h, userID, time.Now().Add(SessionTTL).Unix())
+	_, err := s.exec(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at,last_seen_at) VALUES(?,?,?,?)`,
+		h, userID, time.Now().Add(s.SessionMax).Unix(), now())
 	return tok, err
 }
 
+// UserBySession resolves a session cookie. A session ends at its absolute
+// expiry, or earlier once it has gone unused for SessionIdle; each use pushes
+// the idle deadline back (at most once a minute).
 func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled FROM sessions s JOIN users u ON u.id=s.user_id
-		WHERE s.token_hash=? AND s.expires_at>?`, HashToken(token), now()).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
-	return u, nf(err)
+	var seen int64
+	h := HashToken(token)
+	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,s.last_seen_at FROM sessions s JOIN users u ON u.id=s.user_id
+		WHERE s.token_hash=? AND s.expires_at>? AND s.last_seen_at>?`, h, now(), s.idleCutoff()).
+		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &seen)
+	if err != nil {
+		return User{}, nf(err)
+	}
+	if now()-seen >= touchEvery {
+		s.exec(ctx, `UPDATE sessions SET last_seen_at=? WHERE token_hash=?`, now(), h)
+	}
+	return u, nil
 }
 
 // ChangePassword verifies the current password, sets the new one, and revokes
 // every session except keepToken (the caller's own).
 func (s *Store) ChangePassword(ctx context.Context, userID int64, current, next, keepToken string) error {
-	if err := ValidatePassword(next); err != nil {
-		return err
-	}
-	var enc string
-	if err := s.DB.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id=?`, userID).Scan(&enc); err != nil {
+	var enc, email string
+	if err := s.DB.QueryRowContext(ctx, `SELECT password_hash,email FROM users WHERE id=?`, userID).Scan(&enc, &email); err != nil {
+		checkPassword(current, dummyHash)
 		return ErrBadPassword
 	}
+	// Check the current password first, so the policy message for the new one
+	// is only shown to someone who has proved who they are.
 	if !checkPassword(current, enc) {
 		return ErrBadPassword
+	}
+	if err := ValidatePassword(next, email); err != nil {
+		return err
 	}
 	if _, err := s.exec(ctx, `UPDATE users SET password_hash=? WHERE id=?`, hashPassword(next), userID); err != nil {
 		return err
