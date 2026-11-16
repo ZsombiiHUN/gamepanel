@@ -34,7 +34,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 
 | | |
 |---|---|
-| **Servers** | Power controls, live console with command input, CPU, memory and disk charts with 30 days of history, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, backups) |
+| **Servers** | Power controls, live console with command input, CPU, memory and disk charts with 30 days of history, per-server limits (memory, swap, CPU, cores, disk quota, processes, IO priority, network bandwidth, backups) |
 | **Files** | Browse, edit, search every subfolder; upload files and whole folders by drag and drop, download, rename, move, copy, change permissions, compress and extract (zip, tar.gz, tar.bz2), pull from a URL, act on many files at once; SFTP |
 | **Mods** | Search Modrinth for mods, plugins and datapacks (filtered by loader and game version, preset from the egg) and install with one click. Only files from Modrinth's CDN, checked against Modrinth's SHA-512 before they are kept |
 | **Startup** | Change the egg's variables (checked against its rules), pick another of its Docker images, and, as an admin, set a custom image or startup command. Changes to a running server apply at its next start |
@@ -150,9 +150,11 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **S3 backups** are verified against a real S3-compatible store (RustFS) by `TestS3Backups` when `GAMEPANEL_TEST_S3_ENDPOINT` is set, and request signing against AWS's published example.
 
+**Network limits** are applied with `tc` inside the container's network namespace (needs root, `tc` and `nsenter` on the node; if they are missing the server starts unlimited and its console says so). The commands are checked against a real kernel in a network namespace, where shaping measured 10 Mbit/s up and policing under 10 Mbit/s down; they have not yet been run against a real Docker host.
+
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** network bandwidth limits, Pterodactyl's application (admin) API and websocket, Postgres, Windows servers, billing, CurseForge.
+**Not built yet:** Pterodactyl's application (admin) API and websocket, Postgres, Windows servers, billing, CurseForge.
 
 ## Development
 

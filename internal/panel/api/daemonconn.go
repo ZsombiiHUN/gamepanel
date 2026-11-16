@@ -83,7 +83,7 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 		Install: inst,
 		UUID:    s.UUID, Image: image, Startup: shellStartup(startup), Stop: egg.Stop,
 		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
-		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB,
+		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB, BandwidthMbit: s.BandwidthMbit,
 		Ports: maps,
 	}, nil
 }

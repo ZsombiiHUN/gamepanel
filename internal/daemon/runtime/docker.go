@@ -153,7 +153,7 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 			AttachStdout: true,
 			AttachStderr: true,
 			ExposedPorts: exposed,
-			Labels:       map[string]string{labelServer: s.UUID},
+			Labels:       map[string]string{labelServer: s.UUID, labelBandwidth: strconv.FormatInt(s.BandwidthMbit, 10)},
 		},
 		HostConfig: hc,
 	})

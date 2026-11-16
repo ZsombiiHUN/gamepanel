@@ -721,6 +721,14 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 		return err
 	}
 	d.attach(ctx, uuid)
+	if spec.BandwidthMbit > 0 {
+		if err := d.rt.LimitBandwidth(ctx, uuid); err != nil {
+			// Not fatal: the server runs, unlimited, and its owner is told why.
+			d.log.Warn("could not apply the bandwidth limit", "server", uuid, "err", err)
+			_ = d.send(ctx, proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid,
+				Line: "\x1b[33m[gamepanel] the network limit could not be applied on this node (it needs tc and nsenter); the server runs without it\x1b[0m"})})
+		}
+	}
 	d.emitState(ctx, uuid, runtime.StateRunning)
 	return nil
 }

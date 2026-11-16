@@ -89,6 +89,7 @@ type serverCreateIn struct {
 		BackupLimit   int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
 		PortLimit     int64             `json:"port_limit,omitempty" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one"`
 		DatabaseLimit int64             `json:"database_limit,omitempty" minimum:"0" maximum:"100" doc:"databases the owner may create"`
+		BandwidthMbit int64             `json:"bandwidth_mbit,omitempty" minimum:"0" maximum:"100000" doc:"network limit each way in Mbit/s, 0 = unlimited"`
 		Port          int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
 		Env           map[string]string `json:"env,omitempty"`
 	}
@@ -178,7 +179,7 @@ func (a *App) registerServers(api huma.API) {
 				Port: b.Port, Env: b.Env,
 				Limits: store.Limits{
 					MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
-					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit, DatabaseLimit: b.DatabaseLimit,
+					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit, DatabaseLimit: b.DatabaseLimit, BandwidthMbit: b.BandwidthMbit,
 				},
 			})
 			if err != nil {

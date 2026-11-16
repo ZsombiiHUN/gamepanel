@@ -21,6 +21,7 @@ type Limits struct {
 	BackupLimit   int64  `json:"backup_limit" minimum:"1" maximum:"100" doc:"how many backups this server may keep"`
 	PortLimit     int64  `json:"port_limit" required:"false" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one (default 0)"`
 	DatabaseLimit int64  `json:"database_limit" required:"false" minimum:"0" maximum:"100" doc:"databases the owner may create (default 0)"`
+	BandwidthMbit int64  `json:"bandwidth_mbit" required:"false" minimum:"0" maximum:"100000" doc:"network limit each way in Mbit/s, 0 = unlimited"`
 }
 
 // DefaultLimits are used for fields a request leaves out.
@@ -59,6 +60,8 @@ func (l *Limits) Normalize() error {
 		return userErr("backup limit must be 1 to 100")
 	case l.PortLimit < 0 || l.PortLimit > 100:
 		return userErr("extra ports must be 0 to 100")
+	case l.BandwidthMbit < 0 || l.BandwidthMbit > 100000:
+		return userErr("bandwidth must be 0 (unlimited) to 100000 Mbit/s")
 	case l.DatabaseLimit < 0 || l.DatabaseLimit > 100:
 		return userErr("databases must be 0 to 100")
 	}
@@ -125,8 +128,8 @@ func (s *Store) UpdateLimits(ctx context.Context, uuid string, l Limits) error {
 	if err := checkCapacity(ctx, s.DB, srv.NodeID, uuid, l); err != nil {
 		return err
 	}
-	_, err = s.exec(ctx, `UPDATE servers SET memory_mb=?,swap_mb=?,cpu_pct=?,cpuset=?,pids_limit=?,io_weight=?,disk_mb=?,backup_limit=?,port_limit=?,database_limit=? WHERE uuid=?`,
-		l.MemoryMB, l.SwapMB, l.CPUPct, l.CPUSet, l.PidsLimit, l.IOWeight, l.DiskMB, l.BackupLimit, l.PortLimit, l.DatabaseLimit, uuid)
+	_, err = s.exec(ctx, `UPDATE servers SET memory_mb=?,swap_mb=?,cpu_pct=?,cpuset=?,pids_limit=?,io_weight=?,disk_mb=?,backup_limit=?,port_limit=?,database_limit=?,bandwidth_mbit=? WHERE uuid=?`,
+		l.MemoryMB, l.SwapMB, l.CPUPct, l.CPUSet, l.PidsLimit, l.IOWeight, l.DiskMB, l.BackupLimit, l.PortLimit, l.DatabaseLimit, l.BandwidthMbit, uuid)
 	return err
 }
 

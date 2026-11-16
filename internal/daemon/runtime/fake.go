@@ -231,3 +231,6 @@ func (f *Fake) Install(_ context.Context, r InstallRun, out io.Writer) error {
 	}
 	return os.WriteFile(filepath.Join(r.DataDir, "installed.txt"), b, 0o644)
 }
+
+// LimitBandwidth records nothing: the fake has no network.
+func (f *Fake) LimitBandwidth(context.Context, string) error { return nil }
