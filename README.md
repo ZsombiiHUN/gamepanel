@@ -50,6 +50,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Accounts** | Password reset by email (or `panel reset-link` without email), Argon2id passwords checked against leaked-password lists, TOTP two-factor with recovery codes and a lockout that survives restarts, API keys, rate-limited login, idle and absolute session timeouts (OWASP ASVS level 2) |
 | **Admin** | Nodes with capacity tracking, eggs, an audit log you can search |
 | **API** | Everything the UI does goes through a documented OpenAPI 3.1 API ([`web/openapi.json`](web/openapi.json)) |
+| **Pterodactyl client API** | `/api/client` answers like Pterodactyl's for account, server list and details, resources, power, commands, files and backups, so bots and apps made for Pterodactyl work with a GamePanel API key |
 
 <p align="center">
   <img src="docs/screenshots/console.png" alt="A running server: usage charts above a live console" width="900">
@@ -151,7 +152,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
-**Not built yet:** network bandwidth limits, a Pterodactyl API compatibility layer, Postgres, Windows servers, billing, CurseForge.
+**Not built yet:** network bandwidth limits, Pterodactyl's application (admin) API and websocket, Postgres, Windows servers, billing, CurseForge.
 
 ## Development
 

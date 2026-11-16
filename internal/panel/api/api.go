@@ -156,6 +156,7 @@ func New(d Deps) http.Handler {
 	a.register(api)
 
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
+	a.registerPtero(mux)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
 	mux.HandleFunc("POST /daemon/sftp-auth", a.sftpAuth)
 	// File transfers stream outside huma (it would buffer the bodies).
