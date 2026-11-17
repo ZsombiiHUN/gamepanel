@@ -259,23 +259,28 @@ func (d *Daemon) session(ctx context.Context) error {
 
 	go d.watchEvents(sctx)
 	go d.statsLoop(sctx)
-	for _, id := range ids { // surface servers whose install did not finish
+	// Report every server's state: the panel keeps state only in memory, so
+	// after it restarts a server it hears nothing about shows as unknown.
+	for _, id := range ids {
 		d.mu.Lock()
 		m := d.servers[id]
-		st := ""
+		install := ""
 		if m != nil {
-			st = m.install
+			install = m.install
 		}
 		d.mu.Unlock()
-		if st != "" {
-			d.emitState(sctx, id, st)
+		if install != "" { // install did not finish
+			d.emitState(sctx, id, install)
+			continue
 		}
-	}
-	for _, id := range ids { // re-attach consoles of already-running servers
-		if st, err := d.rt.State(sctx, id); err == nil && st == runtime.StateRunning {
+		st, err := d.rt.State(sctx, id)
+		if err != nil {
+			continue
+		}
+		if st == runtime.StateRunning { // re-attach the console
 			d.attach(sctx, id)
-			d.emitState(sctx, id, st)
 		}
+		d.emitState(sctx, id, st)
 	}
 
 	for {
