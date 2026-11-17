@@ -132,3 +132,27 @@ func TestWriteProblemIsProblemJSON(t *testing.T) {
 		t.Fatalf("got %q %s", rec.Header().Get("Content-Type"), rec.Body)
 	}
 }
+
+// A failed power action is explained in the console. Node errors written for
+// users are shown as they are; anything else stays generic.
+func TestPowerFailureMessage(t *testing.T) {
+	cases := []struct {
+		err  error
+		want string
+	}{
+		{&proto.Error{Code: proto.CodeDiskFull, Msg: "disk limit exceeded (2 MB used of 1 MB)"}, "start failed: disk limit exceeded (2 MB used of 1 MB)"},
+		{&proto.Error{Code: proto.CodeConflict, Msg: "server is not installed (install_failed)"}, "start failed: server is not installed (install_failed)"},
+		{hub.ErrNodeOffline, "start failed: the node is offline"},
+		{hub.ErrTimeout, "start failed: the node did not reply in time"},
+		{&proto.Error{Msg: "pull docker.io/x: dial tcp 10.0.0.5:443: i/o timeout"}, "start failed: the node could not complete the request"},
+	}
+	for _, c := range cases {
+		got := powerFailure("start", c.err)
+		if !strings.Contains(got, c.want) {
+			t.Errorf("%v: got %q, want %q", c.err, got, c.want)
+		}
+		if strings.Contains(got, "10.0.0.5") {
+			t.Errorf("internal detail leaked: %q", got)
+		}
+	}
+}

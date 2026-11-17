@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -230,4 +232,84 @@ func readUntil(t *testing.T, ctx context.Context, c *websocket.Conn, sub string)
 			return
 		}
 	}
+}
+
+// The panel keeps server state only in memory. After it restarts, the node
+// must report stopped servers too, or they show as unknown.
+func TestStoppedServerStateSurvivesPanelRestart(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	st, err := store.Open(filepath.Join(t.TempDir(), "panel.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	st.CreateUser(ctx, "admin@example.com", "correct-horse-battery", true)
+
+	h := hub.New(log)
+	ts := httptest.NewUnstartedServer(api.New(api.Deps{Store: st, Hub: h, Log: log}))
+	var (
+		mu       sync.Mutex
+		hijacked []net.Conn // the node's websocket, which Close leaves open
+	)
+	ts.Config.ConnState = func(c net.Conn, s http.ConnState) {
+		if s == http.StateHijacked {
+			mu.Lock()
+			hijacked = append(hijacked, c)
+			mu.Unlock()
+		}
+	}
+	ts.Start()
+	defer func() { ts.Close() }()
+
+	jar, _ := cookiejar.New(nil)
+	admin := &client{t, ts.URL, &http.Client{Jar: jar}}
+	admin.do("POST", "/api/auth/login", map[string]string{"email": "admin@example.com", "password": "correct-horse-battery"}, 200)
+	var nodeResp struct {
+		Token string             `json:"token"`
+		Node  struct{ ID int64 } `json:"node"`
+	}
+	json.Unmarshal(admin.do("POST", "/api/nodes", map[string]any{"name": "n1", "port_start": 25565, "port_end": 25570}, 201), &nodeResp)
+	dm, err := daemon.New(daemon.Config{
+		PanelURL: "ws" + strings.TrimPrefix(ts.URL, "http") + "/daemon/connect",
+		Token:    nodeResp.Token, DataDir: t.TempDir(),
+	}, runtime.NewFake(), log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go dm.Run(ctx)
+	waitFor(t, "node online", func() bool { return h.Online(nodeResp.Node.ID) })
+
+	var eggResp struct{ ID int64 }
+	json.Unmarshal(admin.do("POST", "/api/eggs/import", egg, 201), &eggResp)
+	var srv struct{ UUID string }
+	json.Unmarshal(admin.do("POST", "/api/servers", map[string]any{
+		"name": "s1", "node_id": nodeResp.Node.ID, "egg_id": eggResp.ID, "memory_mb": 512,
+	}, 201), &srv)
+	admin.do("POST", "/api/servers/"+srv.UUID+"/power", map[string]string{"action": "start"}, 202)
+	waitFor(t, "running", func() bool { return h.State(srv.UUID) == "running" })
+	admin.do("POST", "/api/servers/"+srv.UUID+"/power", map[string]string{"action": "stop"}, 202)
+	waitFor(t, "offline", func() bool { return h.State(srv.UUID) == "offline" })
+
+	// Restart the panel on the same address with a fresh hub.
+	addr := ts.Listener.Addr().String()
+	ts.Close()
+	mu.Lock()
+	for _, c := range hijacked {
+		c.Close()
+	}
+	mu.Unlock()
+	h2 := hub.New(log)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts = httptest.NewUnstartedServer(api.New(api.Deps{Store: st, Hub: h2, Log: log}))
+	ts.Listener.Close()
+	ts.Listener = ln
+	ts.Start()
+	waitFor(t, "node back online", func() bool { return h2.Online(nodeResp.Node.ID) })
+	waitFor(t, "offline after the restart", func() bool { return h2.State(srv.UUID) == "offline" })
 }
