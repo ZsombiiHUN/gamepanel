@@ -216,14 +216,7 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		if json.Unmarshal(env.Data, &c) != nil || !h.hosts(ctx, nc.id, c.UUID) {
 			return
 		}
-		h.mu.Lock()
-		bl := append(h.backlog[c.UUID], c.Line)
-		if len(bl) > backlogLines {
-			bl = bl[len(bl)-backlogLines:]
-		}
-		h.backlog[c.UUID] = bl
-		h.mu.Unlock()
-		h.publish(c.UUID, Event{Type: "console", Data: proto.Marshal(c)})
+		h.console(c)
 	case proto.EvtState:
 		var s proto.State
 		if json.Unmarshal(env.Data, &s) != nil || !h.hosts(ctx, nc.id, s.UUID) {
@@ -282,6 +275,23 @@ func (h *Hub) Disconnect(nodeID int64) {
 	if nc != nil {
 		nc.ws.Close(websocket.StatusPolicyViolation, "node deleted")
 	}
+}
+
+// Notice prints a line from the panel itself to a server's console, e.g. why
+// a power action failed. Viewers see it live and in the backlog.
+func (h *Hub) Notice(uuid, line string) {
+	h.console(proto.Console{UUID: uuid, Line: line})
+}
+
+func (h *Hub) console(c proto.Console) {
+	h.mu.Lock()
+	bl := append(h.backlog[c.UUID], c.Line)
+	if len(bl) > backlogLines {
+		bl = bl[len(bl)-backlogLines:]
+	}
+	h.backlog[c.UUID] = bl
+	h.mu.Unlock()
+	h.publish(c.UUID, Event{Type: "console", Data: proto.Marshal(c)})
 }
 
 func (h *Hub) publish(uuid string, ev Event) {

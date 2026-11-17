@@ -199,3 +199,23 @@ func TestDisconnectDropsTheNode(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// Panel notices reach live viewers and the backlog a new viewer gets.
+func TestNoticeReachesTheConsole(t *testing.T) {
+	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	id := "00000000-0000-4000-8000-000000000001"
+	sub, _ := h.Subscribe(id)
+	defer h.Unsubscribe(sub)
+	h.Notice(id, "start failed: disk limit exceeded")
+	select {
+	case ev := <-sub.C:
+		if ev.Type != "console" || !strings.Contains(string(ev.Data), "disk limit exceeded") {
+			t.Fatalf("event %s %s", ev.Type, ev.Data)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no console event")
+	}
+	if _, bl := h.Subscribe(id); len(bl) != 1 || !strings.Contains(bl[0], "disk limit exceeded") {
+		t.Fatalf("backlog %q", bl)
+	}
+}
