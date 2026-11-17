@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
@@ -309,6 +310,7 @@ func (a *App) registerServers(api huma.API) {
 				defer cancel()
 				if _, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: action}); err != nil {
 					a.Log.Warn("power failed", "server", s.UUID, "action", action, "err", err)
+					a.Hub.Notice(s.UUID, powerFailure(action, err))
 				}
 			}()
 			return nil, nil
@@ -458,4 +460,20 @@ func (a *App) registerServerDetails(api huma.API) {
 			a.label(ctx, &v)
 			return &serverOut{Body: v}, nil
 		})
+}
+
+// powerFailure is the console line telling the user why a power action
+// failed. Coded node errors are written for users and shown as they are;
+// anything else could leak internals and gets a generic reason, as in nodeErr.
+func powerFailure(action string, err error) string {
+	reason := "the node could not complete the request"
+	switch {
+	case errors.Is(err, hub.ErrNodeOffline):
+		reason = "the node is offline"
+	case errors.Is(err, hub.ErrTimeout):
+		reason = "the node did not reply in time"
+	case proto.CodeOf(err) != "":
+		reason = err.Error()
+	}
+	return fmt.Sprintf("\x1b[31m[gamepanel] %s failed: %s\x1b[0m", action, reason)
 }
