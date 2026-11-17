@@ -1,9 +1,12 @@
 package daemon
 
 import (
+	"errors"
 	"os"
 	"sync"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/pkg/sftp"
 
@@ -133,5 +136,240 @@ func TestSFTPConcurrentTruncatesCreditOnce(t *testing.T) {
 	c.mu.Unlock()
 	if cached < 4<<20 {
 		t.Fatalf("cache says %d bytes used, the files hold %d", cached, 4<<20)
+	}
+}
+
+func usedBytes(d *Daemon, id string) int64 {
+	c := d.cacheFor(id)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.bytes
+}
+
+func cmd(h *sftpFS, method, path, target string) error {
+	r := sftp.NewRequest(method, path)
+	r.Target = target
+	return h.Filecmd(r)
+}
+
+// setstat with a size used to report success and change nothing, leaving
+// stale bytes at the end of files written by sshfs or rclone.
+func TestSFTPSetstatTruncates(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 1) // 1 MB
+	h := sftpHandler(t, d, id)
+	path := d.serverDir(id) + "/f.bin"
+	os.WriteFile(path, make([]byte, 600<<10), 0o644)
+	d.reserveDisk(id, 0)
+
+	setSize := func(n uint64) error {
+		r := sftp.NewRequest("Setstat", "/f.bin")
+		r.Flags = 0x1 // SSH_FILEXFER_ATTR_SIZE
+		r.Attrs = []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		for i := range 8 {
+			r.Attrs[i] = byte(n >> (56 - 8*i))
+		}
+		return h.Filecmd(r)
+	}
+	if err := setSize(100 << 10); err != nil {
+		t.Fatal(err)
+	}
+	if fi, _ := os.Stat(path); fi.Size() != 100<<10 {
+		t.Fatalf("size %d after shrinking to 100 KB", fi.Size())
+	}
+	if got := usedBytes(d, id); got != 100<<10 {
+		t.Fatalf("usage %d after the shrink, want %d", got, 100<<10)
+	}
+	if err := setSize(2 << 20); err == nil {
+		t.Fatal("growing past the disk limit was allowed")
+	}
+	if fi, _ := os.Stat(path); fi.Size() != 100<<10 {
+		t.Fatalf("a refused grow changed the size to %d", fi.Size())
+	}
+}
+
+// Deleting files must make room at once, not after the next measurement.
+func TestSFTPRemoveFreesSpace(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 1)
+	h := sftpHandler(t, d, id)
+	os.WriteFile(d.serverDir(id)+"/big.bin", make([]byte, 2<<20), 0o644)
+	if _, err := openForWrite(h, "/new.bin", fxfWrite|fxfCreat); err == nil {
+		t.Fatal("upload allowed while over the limit")
+	}
+	if err := cmd(h, "Remove", "/big.bin", ""); err != nil {
+		t.Fatal(err)
+	}
+	w, err := openForWrite(h, "/new.bin", fxfWrite|fxfCreat)
+	if err != nil {
+		t.Fatalf("still refused right after freeing space: %v", err)
+	}
+	if _, err := w.WriteAt(make([]byte, 100<<10), 0); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+}
+
+// Plain rename must not replace a file; posix-rename does, and frees its size.
+func TestSFTPRename(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 10)
+	h := sftpHandler(t, d, id)
+	dir := d.serverDir(id)
+	os.WriteFile(dir+"/a", []byte("new"), 0o644)
+	os.WriteFile(dir+"/b", make([]byte, 1<<20), 0o644)
+	d.reserveDisk(id, 0)
+	before := usedBytes(d, id)
+
+	if err := cmd(h, "Rename", "/a", "/b"); err == nil {
+		t.Fatal("rename replaced an existing file")
+	}
+	if fi, _ := os.Stat(dir + "/b"); fi.Size() != 1<<20 {
+		t.Fatal("the refused rename touched the target")
+	}
+	if err := cmd(h, "PosixRename", "/a", "/b"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(dir + "/b"); string(b) != "new" {
+		t.Fatalf("target holds %q", b)
+	}
+	if got := usedBytes(d, id); got != before-1<<20 {
+		t.Fatalf("usage %d, want %d", got, before-1<<20)
+	}
+	if err := cmd(h, "Rename", "/b", "/c"); err != nil {
+		t.Fatalf("rename to a free name: %v", err)
+	}
+}
+
+// Opening a named pipe used to block until the other end opened.
+func TestSFTPNamedPipe(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 0)
+	h := sftpHandler(t, d, id)
+	if err := syscall.Mkfifo(d.serverDir(id)+"/pipe", 0o644); err != nil {
+		t.Skip("mkfifo:", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if _, err := h.Fileread(sftp.NewRequest("Get", "/pipe")); err == nil {
+			t.Error("reading a pipe was allowed")
+		}
+		if _, err := openForWrite(h, "/pipe", fxfWrite); err == nil {
+			t.Error("writing a pipe was allowed")
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("opening a named pipe hung")
+	}
+}
+
+// Write-only users may look up paths (clients do before uploading) but not
+// list directories.
+func TestSFTPWriteOnlyStat(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 0)
+	h := sftpHandler(t, d, id)
+	h.read = false
+	os.WriteFile(d.serverDir(id)+"/f", []byte("x"), 0o644)
+	if _, err := h.Filelist(sftp.NewRequest("Stat", "/f")); err != nil {
+		t.Fatalf("stat refused for a write-only user: %v", err)
+	}
+	if _, err := h.Filelist(sftp.NewRequest("List", "/")); err == nil {
+		t.Fatal("listing allowed without read access")
+	}
+	if _, err := h.Fileread(sftp.NewRequest("Get", "/f")); err == nil {
+		t.Fatal("reading allowed without read access")
+	}
+}
+
+// Writes arriving out of order, as the sftp package delivers them, are each
+// counted once, and a file another session truncated is counted again when
+// rewritten.
+func TestSFTPWriterCountsGrowthOnce(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 10)
+	h := sftpHandler(t, d, id)
+	d.reserveDisk(id, 0)
+
+	w, err := openForWrite(h, "/f.bin", fxfWrite|fxfCreat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const chunk, n = 32 << 10, 64
+	var wg sync.WaitGroup
+	for i := n - 1; i >= 0; i-- {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := w.WriteAt(make([]byte, chunk), int64(i*chunk)); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := usedBytes(d, id); got < chunk*n {
+		t.Fatalf("usage %d is below the %d bytes written", got, chunk*n)
+	}
+
+	// Another session empties the file; rewriting it must be counted again.
+	w2, err := openForWrite(h, "/f.bin", fxfWrite|fxfTrunc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w2.Close()
+	if _, err := w.WriteAt(make([]byte, chunk*n), 0); err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	if got := usedBytes(d, id); got < chunk*n {
+		t.Fatalf("usage %d after rewriting a truncated file, want at least %d", got, chunk*n)
+	}
+}
+
+// A stale figure is used while a fresh one is measured in the background, so
+// writes do not wait for a walk of the whole directory.
+func TestDiskEstimateDoesNotWait(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 10)
+	d.reserveDisk(id, 0)
+	os.WriteFile(d.serverDir(id)+"/f", make([]byte, 1<<20), 0o644)
+
+	c := d.cacheFor(id)
+	c.mu.Lock()
+	c.at = time.Now().Add(-time.Hour)
+	c.mu.Unlock()
+	if n, _ := d.diskEstimate(id); n != 0 {
+		t.Fatalf("estimate %d: should have returned the stale figure", n)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for usedBytes(d, id) != 1<<20 {
+		if time.Now().After(deadline) {
+			t.Fatalf("background measurement never landed: %d", usedBytes(d, id))
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A measurement after the server is deleted must not recreate its folder.
+func TestDiskWalkDoesNotRecreateFolder(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 10)
+	os.RemoveAll(d.serverDir(id))
+	if _, err := d.walkUsage(id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(d.serverDir(id)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("measuring recreated the deleted folder")
 	}
 }
