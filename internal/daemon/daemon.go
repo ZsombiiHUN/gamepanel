@@ -154,6 +154,8 @@ type Daemon struct {
 	relayClient *http.Client // transfers to and from the panel's relay
 
 	sftp *sftpServer // set by StartSFTP; nil when SFTP is off
+
+	walkHook func(uuid string) (int64, error) // tests: replaces the disk walk
 }
 
 func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
@@ -629,6 +631,8 @@ func (d *Daemon) runInstall(ctx context.Context, uuid string) {
 	}, pw)
 	pw.Close()
 	<-done
+	// The installer wrote files the daemon did not account for.
+	d.cacheFor(uuid).invalidate()
 	if err != nil {
 		fail(err)
 		return

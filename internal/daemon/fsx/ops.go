@@ -86,6 +86,15 @@ func (d *Dir) Rename(oldp, newp string) error {
 	return d.root.Rename(from, to)
 }
 
+// Link gives oldp's file the additional name newp, failing if newp exists.
+func (d *Dir) Link(oldp, newp string) error {
+	from, to := clean(oldp), clean(newp)
+	if from == "." || to == "." {
+		return fs.ErrInvalid
+	}
+	return d.root.Link(from, to)
+}
+
 // Chmod applies permission bits only (never setuid/setgid/sticky).
 func (d *Dir) Chmod(p string, mode fs.FileMode) error {
 	return d.root.Chmod(clean(p), mode.Perm()|0o600)

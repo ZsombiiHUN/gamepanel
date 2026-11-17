@@ -222,7 +222,7 @@ func TestDiskReservationsCannotShareHeadroom(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { f.Close() })
-		return &limitedWriter{f: f, check: h.check}
+		return &limitedWriter{f: f, shape: &d.cacheFor(id2).shape, check: h.check}
 	}
 	a, b := open("a.bin"), open("b.bin")
 	chunk := make([]byte, 700<<10)

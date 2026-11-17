@@ -44,16 +44,27 @@ type diskCache struct {
 	// or may not see those bytes, so they are added to its result: counting
 	// them twice until the next walk is safe, missing them is not.
 	grown int64
+	// freed is set when space was released while run walks the directory.
+	// Whether the walk counted the freed file depends on whether it got there
+	// before the release, so its result is only an upper bound: it is used
+	// (safe), and a second walk, started after the release, settles it.
+	freed bool
 
-	// shape serializes the SFTP operations that release space (truncate,
-	// remove, overwrite by rename), so the bytes of one file are released
-	// once however many sessions race to free them.
-	shape sync.Mutex
+	// shape orders SFTP writes against the operations that shrink files
+	// (truncate, remove, overwrite by rename). Writes hold it shared from the
+	// size check until the bytes land, so a shrink never sees a size the
+	// write was not measured against; shrinks hold it exclusively, so the
+	// bytes of one file are released once however many sessions race to free
+	// them. Uploads do not serialize against each other.
+	shape sync.RWMutex
 }
 
 type measurement struct {
 	done chan struct{}
 	err  error
+	// settles is set on a walk started because space was freed during the
+	// previous one: a writer refused for lack of room waits for it.
+	settles bool
 }
 
 // invalidate forces a new measurement before the figure is used again, for
@@ -74,8 +85,12 @@ func (c *diskCache) reserve(extra, limit int64) error {
 	if c.bytes+extra > limit {
 		return ErrDiskFull{c.bytes, limit}
 	}
+	if extra < 0 { // a write that frees space first (an upload over a truncated file)
+		c.credit(-extra)
+		return nil
+	}
 	c.bytes += extra
-	if c.run != nil && extra > 0 {
+	if c.run != nil {
 		c.grown += extra
 	}
 	return nil
@@ -85,8 +100,32 @@ func (c *diskCache) reserve(extra, limit int64) error {
 // allowed, even over the limit.
 func (c *diskCache) release(n int64) {
 	c.mu.Lock()
-	c.bytes = max(c.bytes-n, 0)
+	c.credit(n)
 	c.mu.Unlock()
+}
+
+// credit subtracts n freed bytes; c.mu must be held. The figure never goes
+// below zero, so a release larger than the figure (it was stale) cannot turn
+// into room that does not exist.
+func (c *diskCache) credit(n int64) {
+	if n <= 0 {
+		return
+	}
+	c.bytes = max(c.bytes-n, 0)
+	if c.run != nil {
+		c.freed = true
+	}
+}
+
+// settling returns the walk a refused writer should wait for before giving
+// up, if one is running because space was freed during the last walk.
+func (c *diskCache) settling() *measurement {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.run != nil && c.run.settles {
+		return c.run
+	}
+	return nil
 }
 
 func (d *Daemon) cacheFor(uuid string) *diskCache {
@@ -105,10 +144,10 @@ func (d *Daemon) measure(uuid string, c *diskCache) *measurement {
 		return c.run
 	}
 	m := &measurement{done: make(chan struct{})}
-	c.run, c.grown = m, 0
+	c.run, c.grown, c.freed = m, 0, false
 	gen := c.gen
 	go func() {
-		n, err := d.walkUsage(uuid)
+		n, err := d.walk(uuid)
 		c.mu.Lock()
 		if err == nil {
 			c.bytes = n + c.grown
@@ -119,10 +158,23 @@ func (d *Daemon) measure(uuid string, c *diskCache) *measurement {
 		}
 		m.err = err
 		c.run = nil
+		if err == nil && c.freed {
+			// The result may still count what was freed during the walk; a
+			// walk starting now cannot.
+			d.measure(uuid, c).settles = true
+		}
 		c.mu.Unlock()
 		close(m.done)
 	}()
 	return m
+}
+
+// walk measures a server's directory; tests replace it to control timing.
+func (d *Daemon) walk(uuid string) (int64, error) {
+	if d.walkHook != nil {
+		return d.walkHook(uuid)
+	}
+	return d.walkUsage(uuid)
 }
 
 // walkUsage never creates the directory: a walk racing a delete must not
@@ -209,7 +261,17 @@ func (d *Daemon) reserveDisk(uuid string, extra int64) error {
 	if _, err := d.diskEstimate(uuid); err != nil {
 		return err
 	}
-	return d.cacheFor(uuid).reserve(extra, limit)
+	c := d.cacheFor(uuid)
+	err := c.reserve(extra, limit)
+	if err != nil {
+		// Space freed during the last walk may not show until the next one;
+		// wait for it rather than refuse a write that fits.
+		if m := c.settling(); m != nil {
+			<-m.done
+			err = c.reserve(extra, limit)
+		}
+	}
+	return err
 }
 
 // diskHeadroom is how many more bytes may be written (-1 = unlimited).
