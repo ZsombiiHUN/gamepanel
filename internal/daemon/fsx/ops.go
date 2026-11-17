@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"sort"
+	"syscall"
 	"time"
 )
 
@@ -12,12 +13,18 @@ import (
 // semantics (SFTP). They are as confined as everything else in this package:
 // every path goes through the *os.Root.
 
-// OpenFile opens a file for streaming. The caller closes it.
+// OpenFile opens a file for streaming. The caller closes it, and checks that
+// it is a regular file before using it.
+//
+// O_NONBLOCK: opening a named pipe (a game can create one) would otherwise
+// block until something opens the other end, possibly forever. It changes
+// nothing for regular files.
 func (d *Dir) OpenFile(p string, flag int, perm fs.FileMode) (*os.File, error) {
 	name := clean(p)
 	if name == "." {
 		return nil, fs.ErrInvalid
 	}
+	flag |= syscall.O_NONBLOCK
 	if flag&os.O_CREATE != 0 {
 		return d.create(name, flag, perm&0o777)
 	}

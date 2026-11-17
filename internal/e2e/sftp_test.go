@@ -3,14 +3,19 @@ package e2e
 import (
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/ZsombiiHUN/gamepanel/internal/daemon"
 )
 
 // apiKey makes an API key for the account c is signed in as (pw is its
@@ -218,5 +223,104 @@ func TestSFTPRespectsDiskLimit(t *testing.T) {
 	fi, err := os.Stat(filepath.Join(s.dataDir, "servers", s.server, "huge.bin"))
 	if err == nil && fi.Size() > 2<<20 {
 		t.Fatalf("the oversized upload still wrote %d bytes", fi.Size())
+	}
+}
+
+// waitClosed fails the test unless the SFTP session stops working in time.
+func waitClosed(t *testing.T, c *sftp.Client, within time.Duration, why string) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for {
+		if _, err := c.Stat("/"); err != nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(why)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// Deleting a server ends its SFTP sessions at once; they used to keep writing
+// into the removed folder, with no disk limit, until the next access check.
+func TestSFTPSessionsEndWhenServerDeleted(t *testing.T) {
+	s := newStackWith(t, nil, func(c *daemon.Config) { c.SFTPRecheck = time.Hour })
+	c, _, err := s.dial("admin@example.com."+s.server[:8], s.apiKey(s.admin, "correct-horse-battery"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Stat("/"); err != nil {
+		t.Fatal(err)
+	}
+	s.admin.do("DELETE", "/api/servers/"+s.server, nil, 204)
+	waitClosed(t, c, 5*time.Second, "the session outlived the server")
+}
+
+// A client that stops answering is disconnected, freeing its slot.
+func TestSFTPKeepAliveDropsDeadClients(t *testing.T) {
+	s := newStackWith(t, nil, func(c *daemon.Config) {
+		c.SFTPRecheck = time.Hour
+		c.SFTPKeepAlive = 100 * time.Millisecond
+	})
+	// A proxy that can go silent, like a client whose network dropped.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	var silent atomic.Bool
+	upClosed := make(chan struct{})
+	go func() {
+		down, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer down.Close()
+		up, err := net.Dial("tcp", s.sftp)
+		if err != nil {
+			return
+		}
+		defer up.Close()
+		pipe := func(dst, src net.Conn) error {
+			buf := make([]byte, 32<<10)
+			for {
+				n, err := src.Read(buf)
+				if err != nil {
+					return err
+				}
+				if !silent.Load() {
+					dst.Write(buf[:n])
+				}
+			}
+		}
+		go pipe(up, down)
+		pipe(down, up) // returns when the daemon closes its side
+		close(upClosed)
+	}()
+
+	cfg := &ssh.ClientConfig{User: "admin@example.com." + s.server[:8],
+		Auth:            []ssh.AuthMethod{ssh.Password(s.apiKey(s.admin, "correct-horse-battery"))},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second}
+	conn, err := ssh.Dial("tcp", ln.Addr().String(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	c, err := sftp.NewClient(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// A live client answers the keepalives and keeps its session.
+	time.Sleep(time.Second)
+	if _, err := c.Stat("/"); err != nil {
+		t.Fatalf("a responsive client was dropped: %v", err)
+	}
+	silent.Store(true)
+	select {
+	case <-upClosed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the daemon kept a silent client's session open")
 	}
 }

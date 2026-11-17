@@ -2,10 +2,13 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"sync"
 	"time"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
@@ -21,36 +24,44 @@ const (
 	defaultDiskCacheTTL  = 30 * time.Second
 	defaultStatsInterval = 5 * time.Second
 	defaultSFTPRecheck   = 30 * time.Second
+	defaultSFTPKeepAlive = 30 * time.Second
 )
 
+// diskCache is a server's disk usage: the last measurement, adjusted by every
+// change the daemon accounts for since (reserve adds, release subtracts).
+//
+// Measuring walks the whole data directory, which takes seconds on a large
+// world, so there is at most one walk per server at a time and writers never
+// wait for one once a figure exists: a stale figure is still used while a
+// fresh one is measured in the background.
 type diskCache struct {
 	mu    sync.Mutex
 	bytes int64
-	at    time.Time
-	// trunc serializes truncating SFTP opens, so a file's size is credited
-	// as freed at most once (see sftpFS.Filewrite).
-	trunc sync.Mutex
+	at    time.Time    // when bytes was measured; zero = must measure before use
+	gen   uint64       // bumped by invalidate
+	run   *measurement // the walk in progress, if any
+	// grown is what was reserved while run walks the directory. The walk may
+	// or may not see those bytes, so they are added to its result: counting
+	// them twice until the next walk is safe, missing them is not.
+	grown int64
+
+	// shape serializes the SFTP operations that release space (truncate,
+	// remove, overwrite by rename), so the bytes of one file are released
+	// once however many sessions race to free them.
+	shape sync.Mutex
 }
 
-func (c *diskCache) get(maxAge time.Duration) (int64, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.at.IsZero() || time.Since(c.at) > maxAge {
-		return 0, false
-	}
-	return c.bytes, true
+type measurement struct {
+	done chan struct{}
+	err  error
 }
 
-func (c *diskCache) set(n int64) {
-	c.mu.Lock()
-	c.bytes, c.at = n, time.Now()
-	c.mu.Unlock()
-}
-
-// invalidate forces the next check to measure again.
+// invalidate forces a new measurement before the figure is used again, for
+// changes the daemon cannot account for exactly.
 func (c *diskCache) invalidate() {
 	c.mu.Lock()
 	c.at = time.Time{}
+	c.gen++
 	c.mu.Unlock()
 }
 
@@ -64,7 +75,18 @@ func (c *diskCache) reserve(extra, limit int64) error {
 		return ErrDiskFull{c.bytes, limit}
 	}
 	c.bytes += extra
+	if c.run != nil && extra > 0 {
+		c.grown += extra
+	}
 	return nil
+}
+
+// release accounts for n bytes freed. It never fails: freeing space is always
+// allowed, even over the limit.
+func (c *diskCache) release(n int64) {
+	c.mu.Lock()
+	c.bytes = max(c.bytes-n, 0)
+	c.mu.Unlock()
 }
 
 func (d *Daemon) cacheFor(uuid string) *diskCache {
@@ -76,24 +98,87 @@ func (d *Daemon) cacheFor(uuid string) *diskCache {
 	return &diskCache{}
 }
 
-// diskUsage returns the data directory size, measuring if the cached figure is
-// older than maxAge.
-func (d *Daemon) diskUsage(uuid string, maxAge time.Duration) (int64, error) {
-	c := d.cacheFor(uuid)
-	if n, ok := c.get(maxAge); ok {
-		return n, nil
+// measure starts a walk of the server's directory unless one is running.
+// c.mu must be held.
+func (d *Daemon) measure(uuid string, c *diskCache) *measurement {
+	if c.run != nil {
+		return c.run
 	}
-	dir, err := d.dir(uuid)
+	m := &measurement{done: make(chan struct{})}
+	c.run, c.grown = m, 0
+	gen := c.gen
+	go func() {
+		n, err := d.walkUsage(uuid)
+		c.mu.Lock()
+		if err == nil {
+			c.bytes = n + c.grown
+			c.at = time.Now()
+			if c.gen != gen { // invalidated mid-walk: the walk may predate the change
+				c.at = time.Time{}
+			}
+		}
+		m.err = err
+		c.run = nil
+		c.mu.Unlock()
+		close(m.done)
+	}()
+	return m
+}
+
+// walkUsage never creates the directory: a walk racing a delete must not
+// bring the server's folder back.
+func (d *Daemon) walkUsage(uuid string) (int64, error) {
+	if !uuidRe.MatchString(uuid) {
+		return 0, proto.Invalid("invalid server id")
+	}
+	dir, err := fsx.OpenExisting(d.serverDir(uuid))
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
 	if err != nil {
 		return 0, err
 	}
 	defer dir.Close()
-	n, err := dir.Usage()
-	if err != nil {
-		return 0, err
+	return dir.Usage()
+}
+
+// diskUsage returns the data directory size, measuring (and waiting for the
+// walk) if the figure is older than maxAge.
+func (d *Daemon) diskUsage(uuid string, maxAge time.Duration) (int64, error) {
+	return d.usage(uuid, maxAge, true)
+}
+
+// diskEstimate returns the current figure without waiting for a walk, unless
+// there is no usable figure at all. A stale one starts a walk in the
+// background.
+func (d *Daemon) diskEstimate(uuid string) (int64, error) {
+	return d.usage(uuid, d.cfg.diskTTL(), false)
+}
+
+func (d *Daemon) usage(uuid string, maxAge time.Duration, wait bool) (int64, error) {
+	c := d.cacheFor(uuid)
+	c.mu.Lock()
+	if !c.at.IsZero() {
+		n := c.bytes
+		if time.Since(c.at) <= maxAge {
+			c.mu.Unlock()
+			return n, nil
+		}
+		if !wait {
+			d.measure(uuid, c)
+			c.mu.Unlock()
+			return n, nil
+		}
 	}
-	c.set(n)
-	return n, nil
+	m := d.measure(uuid, c)
+	c.mu.Unlock()
+	<-m.done
+	if m.err != nil {
+		return 0, m.err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.bytes, nil
 }
 
 func (d *Daemon) diskLimitBytes(uuid string) int64 {
@@ -121,7 +206,7 @@ func (d *Daemon) reserveDisk(uuid string, extra int64) error {
 	if limit == 0 {
 		return nil
 	}
-	if _, err := d.diskUsage(uuid, d.cfg.diskTTL()); err != nil {
+	if _, err := d.diskEstimate(uuid); err != nil {
 		return err
 	}
 	return d.cacheFor(uuid).reserve(extra, limit)
@@ -133,7 +218,7 @@ func (d *Daemon) diskHeadroom(uuid string) int64 {
 	if limit == 0 {
 		return -1
 	}
-	used, err := d.diskUsage(uuid, d.cfg.diskTTL())
+	used, err := d.diskEstimate(uuid)
 	if err != nil {
 		return 0
 	}
@@ -143,7 +228,8 @@ func (d *Daemon) diskHeadroom(uuid string) int64 {
 // enforceDisk runs from the stats loop: it reports usage for every server and
 // gracefully stops a running one that has outgrown its limit.
 func (d *Daemon) enforceDisk(ctx context.Context, uuid string, running bool) (int64, bool) {
-	used, err := d.diskUsage(uuid, d.cfg.diskTTL())
+	// The estimate keeps the loop from stalling on one server's walk.
+	used, err := d.diskEstimate(uuid)
 	if err != nil {
 		return 0, false
 	}
@@ -195,4 +281,11 @@ func (c Config) statsEvery() time.Duration {
 		return c.StatsInterval
 	}
 	return defaultStatsInterval
+}
+
+func (c Config) sftpKeepAlive() time.Duration {
+	if c.SFTPKeepAlive > 0 {
+		return c.SFTPKeepAlive
+	}
+	return defaultSFTPKeepAlive
 }
