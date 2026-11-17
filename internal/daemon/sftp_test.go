@@ -373,3 +373,173 @@ func TestDiskWalkDoesNotRecreateFolder(t *testing.T) {
 		t.Fatal("measuring recreated the deleted folder")
 	}
 }
+
+// A truncate must not slip between a write's size check and its bytes
+// landing: it would release the size the write was measured against, and the
+// write would then grow the file without being counted.
+func TestSFTPWriteAndTruncateDoNotInterleave(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 10)
+	h := sftpHandler(t, d, id)
+	path := d.serverDir(id) + "/f"
+	os.WriteFile(path, make([]byte, 1000), 0o644)
+	d.reserveDisk(id, 0)
+
+	w, err := openForWrite(h, "/f", fxfWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	truncated := make(chan error, 1)
+	check := w.check
+	w.check = func(extra int64) error { // runs after the size check, before the write
+		go func() { truncated <- h.truncate("/f", 0) }()
+		select {
+		case <-truncated:
+			t.Error("truncate ran between the write's size check and its write")
+		case <-time.After(100 * time.Millisecond):
+		}
+		return check(extra)
+	}
+	if _, err := w.WriteAt(make([]byte, 600), 900); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-truncated; err != nil {
+		t.Fatal(err)
+	}
+	fi, _ := os.Stat(path)
+	if got := usedBytes(d, id); got != fi.Size() {
+		t.Fatalf("usage %d, file is %d bytes", got, fi.Size())
+	}
+}
+
+// walkControl replaces the disk walk with one that returns the sizes the test
+// sends, so a walk can be held open while files change.
+func walkControl(d *Daemon) chan<- int64 {
+	sizes := make(chan int64)
+	d.walkHook = func(string) (int64, error) { return <-sizes, nil }
+	return sizes
+}
+
+func walking(d *Daemon, id string) bool {
+	c := d.cacheFor(id)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.run != nil
+}
+
+// Space freed while a walk runs must not be lost when the walk lands, whether
+// the walk reached the freed file before it was deleted (and counted it) or
+// after (and did not).
+func TestDiskReleaseDuringWalk(t *testing.T) {
+	const mb = 1 << 20
+	for _, tc := range []struct {
+		name string
+		seen bool // the walk counted the file before it was deleted
+	}{{"walk counted the file", true}, {"walk missed the file", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := newTestDaemon(t, runtime.NewFake())
+			id := uuidN(1)
+			addServer(t, d, id, 2) // 2 MB
+			sizes := walkControl(d)
+
+			first := make(chan error, 1)
+			go func() { first <- d.reserveDisk(id, 0) }()
+			sizes <- 3 * mb // over the limit: a 2 MB file and 1 MB of other data
+			<-first
+
+			c := d.cacheFor(id)
+			c.mu.Lock()
+			c.at = time.Now().Add(-time.Hour)
+			c.mu.Unlock()
+			d.diskEstimate(id) // starts a background walk, held open below
+			if !walking(d, id) {
+				t.Fatal("no walk started")
+			}
+			c.release(2 * mb) // the 2 MB file is deleted mid-walk
+			if tc.seen {
+				sizes <- 3 * mb
+			} else {
+				sizes <- 1 * mb
+			}
+
+			// A second walk is now settling the figure; a write that fits
+			// once the freed file is gone must wait for it, not fail.
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				if s := c.settling(); s != nil {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("no settling walk after a release during the walk")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			wrote := make(chan error, 1)
+			go func() { wrote <- d.reserveDisk(id, mb/2) }()
+			if tc.seen {
+				select {
+				case err := <-wrote:
+					t.Fatalf("write decided before the settling walk: %v", err)
+				case <-time.After(50 * time.Millisecond):
+				}
+			}
+			sizes <- 1 * mb
+			if err := <-wrote; err != nil {
+				t.Fatalf("write refused after freeing room: %v", err)
+			}
+			for walking(d, id) {
+				time.Sleep(time.Millisecond)
+			}
+			if got := usedBytes(d, id); got != mb+mb/2 {
+				t.Fatalf("usage %d, want %d", got, mb+mb/2)
+			}
+		})
+	}
+}
+
+// A release larger than a stale figure must not turn into room that does
+// not exist.
+func TestDiskCreditFloorsAtZero(t *testing.T) {
+	var c diskCache
+	c.bytes = 100
+	if err := c.reserve(-500, 1000); err != nil {
+		t.Fatal(err)
+	}
+	c.release(500)
+	if c.bytes != 0 {
+		t.Fatalf("figure %d, want 0", c.bytes)
+	}
+	if err := c.reserve(1001, 1000); err == nil {
+		t.Fatal("reserved past the limit")
+	}
+}
+
+// Plain rename moves files and directories but never replaces either.
+func TestSFTPRenameNoReplace(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 10)
+	h := sftpHandler(t, d, id)
+	dir := d.serverDir(id)
+	os.WriteFile(dir+"/f", []byte("x"), 0o644)
+	os.Mkdir(dir+"/d", 0o755)
+	os.Mkdir(dir+"/other", 0o755)
+
+	if err := cmd(h, "Rename", "/d", "/other"); err == nil {
+		t.Fatal("rename replaced an existing directory")
+	}
+	if err := cmd(h, "Rename", "/d", "/e"); err != nil {
+		t.Fatalf("directory rename: %v", err)
+	}
+	if err := cmd(h, "Rename", "/f", "/e/f"); err != nil {
+		t.Fatalf("file rename: %v", err)
+	}
+	if _, err := os.Stat(dir + "/f"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the old name is still there")
+	}
+	if b, _ := os.ReadFile(dir + "/e/f"); string(b) != "x" {
+		t.Fatalf("moved file holds %q", b)
+	}
+}

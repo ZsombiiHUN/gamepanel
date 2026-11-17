@@ -383,8 +383,13 @@ type sftpFS struct {
 // session is noticed) and against this handle's writes still in flight,
 // which the size does not show yet. The sftp package calls WriteAt
 // concurrently, hence the lock.
+//
+// Each write holds the server's shape lock shared from the size check until
+// its bytes land: a truncate in between would release the size the write
+// was measured against, and the write would then grow the file unaccounted.
 type limitedWriter struct {
 	f        *os.File
+	shape    *sync.RWMutex
 	mu       sync.Mutex
 	inflight int   // writes reserved but not finished
 	ahead    int64 // furthest end among them
@@ -393,6 +398,8 @@ type limitedWriter struct {
 
 func (w *limitedWriter) WriteAt(p []byte, off int64) (int, error) {
 	end := off + int64(len(p))
+	w.shape.RLock()
+	defer w.shape.RUnlock()
 	w.mu.Lock()
 	fi, err := w.f.Stat()
 	if err != nil {
@@ -510,7 +517,7 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 		}
 		stale = fi.Size() != freed
 	}
-	return &limitedWriter{f: f, check: h.check}, nil
+	return &limitedWriter{f: f, shape: &h.disk.shape, check: h.check}, nil
 }
 
 // truncate sets a file's size (setstat with a size, as sent by sshfs, rclone
@@ -576,12 +583,40 @@ func (h *sftpFS) rename(from, to string, replace bool) error {
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
 		return deny(err)
 	}
+	if !replace {
+		return h.renameNoReplace(from, to, src)
+	}
 	if err := h.dir.Rename(from, to); err != nil {
 		return deny(err)
 	}
 	// Renaming one name of a file onto another name of it changes nothing.
 	if dst != nil && dst.Mode().IsRegular() && !os.SameFile(src, dst) {
 		h.disk.release(dst.Size())
+	}
+	return nil
+}
+
+// renameNoReplace renames without ever replacing a target that appears after
+// the check (the game can create files at any time). A file is hard-linked
+// to the new name, which fails if it exists, then unlinked from the old one.
+// A directory is renamed directly: rename(2) can then only replace an empty
+// directory created in between, never a file or anything with content.
+func (h *sftpFS) renameNoReplace(from, to string, src fs.FileInfo) error {
+	if src.IsDir() {
+		return deny(h.dir.Rename(from, to))
+	}
+	err := h.dir.Link(from, to)
+	switch {
+	case errors.Is(err, fs.ErrExist):
+		return sftp.ErrSSHFxFailure
+	case err != nil:
+		// No hard links here (some filesystems, a file another user owns
+		// under protected_hardlinks): the check above is all there is.
+		return deny(h.dir.Rename(from, to))
+	}
+	if err := h.dir.Remove(from); err != nil {
+		h.dir.Remove(to) // undo: the file keeps its old name only
+		return deny(err)
 	}
 	return nil
 }
