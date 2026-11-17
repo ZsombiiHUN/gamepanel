@@ -354,14 +354,24 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 	if p.Creat {
 		flag |= os.O_CREATE
 	}
-	if p.Trunc {
-		flag |= os.O_TRUNC
-	}
 	if p.Excl {
 		flag |= os.O_EXCL
 	}
-	if p.Append {
-		flag |= os.O_APPEND
+	// No O_APPEND: os.File.WriteAt refuses files opened with it, and the
+	// client sends the offset of every write anyway.
+	//
+	// No O_TRUNC either: the open must not change the file until the disk
+	// check has passed. Truncating counts as freeing the file's current size,
+	// so emptying a file still works over the limit if that brings usage
+	// back under it.
+	var freed int64
+	if p.Trunc {
+		if fi, err := h.dir.Stat(r.Filepath); err == nil && fi.Mode().IsRegular() {
+			freed = fi.Size()
+		}
+	}
+	if err := h.check(-freed); err != nil { // over the limit: no new writes
+		return nil, err
 	}
 	f, err := h.dir.OpenFile(r.Filepath, flag, 0o644)
 	if err != nil {
@@ -372,11 +382,15 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 		f.Close()
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
-	if err := h.check(0); err != nil { // already over the limit: no new writes
-		f.Close()
-		return nil, err
+	size := fi.Size()
+	if p.Trunc {
+		if err := f.Truncate(0); err != nil {
+			f.Close()
+			return nil, deny(err)
+		}
+		size = 0
 	}
-	return &limitedWriter{f: f, high: fi.Size(), check: h.check}, nil
+	return &limitedWriter{f: f, high: size, check: h.check}, nil
 }
 
 func (h *sftpFS) Filecmd(r *sftp.Request) error {
