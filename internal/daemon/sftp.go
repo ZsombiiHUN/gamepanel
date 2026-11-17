@@ -30,6 +30,8 @@ const (
 	sftpMaxPerIP    = 20              // concurrent connections from one address
 	sftpAuthWindow  = 5 * time.Minute // failed logins counted per address
 	sftpAuthMaxFail = 10
+	// A session is closed when keepalives go unanswered this many intervals.
+	sftpKeepAliveMisses = 3
 )
 
 // sftpServer serves each server's data directory over SFTP. Authentication is
@@ -41,9 +43,10 @@ type sftpServer struct {
 	authURL string
 	http    *http.Client
 
-	mu    sync.Mutex
-	conns map[string]int
-	fails map[string][]time.Time
+	mu       sync.Mutex
+	conns    map[string]int
+	fails    map[string][]time.Time
+	sessions map[string]map[*ssh.ServerConn]struct{} // by server uuid
 }
 
 // hostKey loads (or creates, mode 0600) the daemon's persistent SSH host key,
@@ -88,7 +91,8 @@ func (d *Daemon) StartSFTP(ctx context.Context, addr string) (string, error) {
 	u.Path, u.RawQuery = "/daemon/sftp-auth", ""
 
 	s := &sftpServer{d: d, authURL: u.String(), http: &http.Client{Timeout: 10 * time.Second},
-		conns: map[string]int{}, fails: map[string][]time.Time{}}
+		conns: map[string]int{}, fails: map[string][]time.Time{},
+		sessions: map[string]map[*ssh.ServerConn]struct{}{}}
 	s.cfg = &ssh.ServerConfig{
 		MaxAuthTries:  3,
 		ServerVersion: "SSH-2.0-GamePanel",
@@ -103,6 +107,9 @@ func (d *Daemon) StartSFTP(ctx context.Context, addr string) (string, error) {
 	}
 	s.ln = ln
 	go func() { <-ctx.Done(); ln.Close() }()
+	d.mu.Lock()
+	d.sftp = s
+	d.mu.Unlock()
 	go s.serve(ctx)
 	d.log.Info("sftp listening", "addr", ln.Addr().String())
 	return ln.Addr().String(), nil
@@ -230,6 +237,70 @@ func (s *sftpServer) watchAccess(ctx context.Context, conn *ssh.ServerConn, ip s
 	}
 }
 
+// track registers an open session so closeSFTP can end it; the returned
+// func unregisters it.
+func (s *sftpServer) track(uuid string, c *ssh.ServerConn) func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sessions[uuid] == nil {
+		s.sessions[uuid] = map[*ssh.ServerConn]struct{}{}
+	}
+	s.sessions[uuid][c] = struct{}{}
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		delete(s.sessions[uuid], c)
+		if len(s.sessions[uuid]) == 0 {
+			delete(s.sessions, uuid)
+		}
+	}
+}
+
+// closeSFTP ends every open SFTP session for a server (it is being deleted:
+// a session would otherwise keep writing into the removed directory).
+func (d *Daemon) closeSFTP(uuid string) {
+	d.mu.Lock()
+	s := d.sftp
+	d.mu.Unlock()
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for c := range s.sessions[uuid] {
+		c.Close()
+	}
+}
+
+// keepAlive closes a session whose client stopped answering: a dropped
+// connection would otherwise hold one of the address's slots until the
+// kernel gives up on it, which can take hours.
+func (s *sftpServer) keepAlive(ctx context.Context, conn *ssh.ServerConn) {
+	every := s.d.cfg.sftpKeepAlive()
+	for sleep(ctx, every) {
+		reply := make(chan error, 1)
+		go func() { // returns when the client answers or the connection closes
+			_, _, err := conn.SendRequest("keepalive@openssh.com", true, nil)
+			reply <- err
+		}()
+		t := time.NewTimer(sftpKeepAliveMisses * every)
+		select {
+		case err := <-reply:
+			t.Stop()
+			if err != nil {
+				return
+			}
+		case <-t.C:
+			s.d.log.Info("sftp client stopped answering, closing the session", "server", conn.Permissions.Extensions["server"])
+			conn.Close()
+			return
+		case <-ctx.Done():
+			t.Stop()
+			return
+		}
+	}
+}
+
 func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 	defer nc.Close()
 	nc.SetDeadline(time.Now().Add(30 * time.Second)) // handshake + auth
@@ -244,16 +315,29 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 	go ssh.DiscardRequests(reqs)
 	go func() { <-ctx.Done(); conn.Close() }()
 	go s.watchAccess(ctx, conn, ip)
+	go s.keepAlive(ctx, conn)
 
 	ext := conn.Permissions.Extensions
-	dir, err := s.d.dir(ext["server"])
+	uuid := ext["server"]
+	defer s.track(uuid, conn)()
+	// Tracked first, then checked: a delete either sees this session or has
+	// already removed the server, never neither.
+	if _, err := s.d.spec(uuid); err != nil {
+		return
+	}
+	dir, err := fsx.OpenExisting(s.d.serverDir(uuid))
 	if err != nil {
 		return
 	}
 	defer dir.Close()
 	h := &sftpFS{dir: dir, read: ext["read"] == "1", write: ext["write"] == "1",
-		check: func(extra int64) error { return s.d.reserveDisk(ext["server"], extra) },
-		disk:  s.d.cacheFor(ext["server"])}
+		check: func(extra int64) error {
+			if _, err := s.d.spec(uuid); err != nil { // deleted: no limit left to check against
+				return sftp.ErrSSHFxPermissionDenied
+			}
+			return s.d.reserveDisk(uuid, extra)
+		},
+		disk: s.d.cacheFor(uuid)}
 
 	for nch := range chans {
 		if nch.ChannelType() != "session" { // no port forwarding, no x11
@@ -287,33 +371,52 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 type sftpFS struct {
 	dir         *fsx.Dir
 	read, write bool
-	// check fails when extra more bytes would exceed the server's disk limit.
+	// check reserves extra bytes, failing when they would pass the server's
+	// disk limit.
 	check func(extra int64) error
-	disk  *diskCache // the server's usage cache; its trunc lock guards truncating opens
+	disk  *diskCache // the server's usage figure; its shape lock guards releases
 }
 
 // limitedWriter refuses writes that would grow the file past the disk limit.
-// Only growth past the high-water mark is reserved, so rewriting existing
-// bytes is free and every new byte is counted exactly once. The sftp package
-// may call WriteAt concurrently, hence the lock.
+// Only growth is reserved: a write is measured against the file's current
+// size (so rewriting existing bytes is free, and a truncate by another
+// session is noticed) and against this handle's writes still in flight,
+// which the size does not show yet. The sftp package calls WriteAt
+// concurrently, hence the lock.
 type limitedWriter struct {
-	f     *os.File
-	mu    sync.Mutex
-	high  int64                   // file size so far (when opened, after any truncate)
-	check func(extra int64) error // reserves extra bytes, failing past the limit
+	f        *os.File
+	mu       sync.Mutex
+	inflight int   // writes reserved but not finished
+	ahead    int64 // furthest end among them
+	check    func(extra int64) error
 }
 
 func (w *limitedWriter) WriteAt(p []byte, off int64) (int, error) {
+	end := off + int64(len(p))
 	w.mu.Lock()
-	if end := off + int64(len(p)); end > w.high {
-		if err := w.check(end - w.high); err != nil {
+	fi, err := w.f.Stat()
+	if err != nil {
+		w.mu.Unlock()
+		return 0, err
+	}
+	if base := max(fi.Size(), w.ahead); end > base {
+		if err := w.check(end - base); err != nil {
 			w.mu.Unlock()
 			return 0, err
 		}
-		w.high = end
+	}
+	w.inflight++
+	w.ahead = max(w.ahead, end)
+	w.mu.Unlock()
+
+	n, err := w.f.WriteAt(p, off)
+
+	w.mu.Lock()
+	if w.inflight--; w.inflight == 0 {
+		w.ahead = 0 // all landed: the size shows them now
 	}
 	w.mu.Unlock()
-	return w.f.WriteAt(p, off)
+	return n, err
 }
 
 func (w *limitedWriter) Close() error { return w.f.Close() }
@@ -363,17 +466,17 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 	// client sends the offset of every write anyway.
 	//
 	// No O_TRUNC either: the open must not change the file until the disk
-	// check has passed. Truncating counts as freeing the file's current size,
-	// so emptying a file still works over the limit if that brings usage
-	// back under it.
+	// check has passed. Truncating releases the file's current size, so
+	// emptying a file still works over the limit if that brings usage back
+	// under it.
 	//
-	// Crediting and truncating happen under the server's truncate lock: two
-	// concurrent opens of the same file would otherwise both credit its size
-	// while the filesystem frees it only once.
+	// Releasing and truncating happen under the shape lock: two concurrent
+	// opens of the same file would otherwise both release its size while the
+	// filesystem frees it only once.
 	var freed int64
 	if p.Trunc {
-		h.disk.trunc.Lock()
-		defer h.disk.trunc.Unlock()
+		h.disk.shape.Lock()
+		defer h.disk.shape.Unlock()
 		if fi, err := h.dir.Stat(r.Filepath); err == nil && fi.Mode().IsRegular() {
 			freed = fi.Size()
 		}
@@ -381,10 +484,10 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 	if err := h.check(-freed); err != nil { // over the limit: no new writes
 		return nil, err
 	}
-	stale := true // until the truncate frees exactly what was credited
+	stale := true // until the truncate frees exactly what was released
 	if freed > 0 {
-		// Wrong credit (open or truncate failed, or the file changed since
-		// the stat): measure again on the next check.
+		// Wrong release (open or truncate failed, or the file changed since
+		// the stat): measure again before the figure is used.
 		defer func() {
 			if stale {
 				h.disk.invalidate()
@@ -400,16 +503,87 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 		f.Close()
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
-	size := fi.Size()
 	if p.Trunc {
 		if err := f.Truncate(0); err != nil {
 			f.Close()
 			return nil, deny(err)
 		}
-		stale = size != freed
-		size = 0
+		stale = fi.Size() != freed
 	}
-	return &limitedWriter{f: f, high: size, check: h.check}, nil
+	return &limitedWriter{f: f, check: h.check}, nil
+}
+
+// truncate sets a file's size (setstat with a size, as sent by sshfs, rclone
+// and resuming clients), reserving growth and releasing what a shrink frees.
+func (h *sftpFS) truncate(p string, size int64) error {
+	h.disk.shape.Lock()
+	defer h.disk.shape.Unlock()
+	f, err := h.dir.OpenFile(p, os.O_WRONLY, 0)
+	if err != nil {
+		return deny(err)
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		return sftp.ErrSSHFxPermissionDenied
+	}
+	old := fi.Size()
+	if size > old {
+		if err := h.check(size - old); err != nil {
+			return err
+		}
+	}
+	if err := f.Truncate(size); err != nil {
+		return deny(err)
+	}
+	if size < old {
+		h.disk.release(old - size)
+	}
+	return nil
+}
+
+// remove deletes a file or an empty directory, releasing a file's size.
+func (h *sftpFS) remove(p string) error {
+	h.disk.shape.Lock()
+	defer h.disk.shape.Unlock()
+	fi, err := h.dir.Lstat(p)
+	if err != nil {
+		return deny(err)
+	}
+	if err := h.dir.Remove(p); err != nil {
+		return deny(err)
+	}
+	if fi.Mode().IsRegular() {
+		h.disk.release(fi.Size())
+	}
+	return nil
+}
+
+// rename moves from to to. Plain SFTP rename must not replace an existing
+// target (clients rely on it to avoid clobbering files); posix-rename does,
+// releasing the replaced file's size.
+func (h *sftpFS) rename(from, to string, replace bool) error {
+	h.disk.shape.Lock()
+	defer h.disk.shape.Unlock()
+	src, err := h.dir.Lstat(from)
+	if err != nil {
+		return deny(err)
+	}
+	dst, err := h.dir.Lstat(to)
+	switch {
+	case err == nil && !replace:
+		return sftp.ErrSSHFxFailure
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		return deny(err)
+	}
+	if err := h.dir.Rename(from, to); err != nil {
+		return deny(err)
+	}
+	// Renaming one name of a file onto another name of it changes nothing.
+	if dst != nil && dst.Mode().IsRegular() && !os.SameFile(src, dst) {
+		h.disk.release(dst.Size())
+	}
+	return nil
 }
 
 func (h *sftpFS) Filecmd(r *sftp.Request) error {
@@ -418,19 +592,28 @@ func (h *sftpFS) Filecmd(r *sftp.Request) error {
 	}
 	switch r.Method {
 	case "Setstat":
-		a := r.Attributes()
-		if r.AttrFlags().Permissions {
+		a, set := r.Attributes(), r.AttrFlags()
+		if set.Size {
+			if err := h.truncate(r.Filepath, int64(a.Size)); err != nil {
+				return err
+			}
+		}
+		if set.Permissions {
 			if err := h.dir.Chmod(r.Filepath, a.FileMode()); err != nil {
 				return deny(err)
 			}
 		}
-		if r.AttrFlags().Acmodtime {
+		if set.Acmodtime {
 			return deny(h.dir.Chtimes(r.Filepath, a.AccessTime(), a.ModTime()))
 		}
-		return nil // uid/gid/size changes are ignored
-	case "Rename", "PosixRename":
-		return deny(h.dir.Rename(r.Filepath, r.Target))
-	case "Rmdir", "Remove":
+		return nil // uid/gid changes are ignored
+	case "Rename":
+		return h.rename(r.Filepath, r.Target, false)
+	case "PosixRename":
+		return h.rename(r.Filepath, r.Target, true)
+	case "Remove":
+		return h.remove(r.Filepath)
+	case "Rmdir":
 		return deny(h.dir.Remove(r.Filepath))
 	case "Mkdir":
 		return deny(h.dir.MkdirOne(r.Filepath))
@@ -453,7 +636,9 @@ func (l listerAt) ListAt(f []os.FileInfo, off int64) (int, error) {
 }
 
 func (h *sftpFS) Filelist(r *sftp.Request) (sftp.ListerAt, error) {
-	if !h.read {
+	// Stat of a path the client names is allowed with write access alone:
+	// clients look up the target before every upload. Listing needs read.
+	if !h.read && (r.Method == "List" || !h.write) {
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
 	switch r.Method {

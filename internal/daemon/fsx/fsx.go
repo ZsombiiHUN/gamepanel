@@ -39,6 +39,11 @@ func Open(hostPath string) (*Dir, error) {
 	if err := os.MkdirAll(hostPath, 0o755); err != nil {
 		return nil, err
 	}
+	return OpenExisting(hostPath)
+}
+
+// OpenExisting is Open for a directory that must already exist.
+func OpenExisting(hostPath string) (*Dir, error) {
 	r, err := os.OpenRoot(hostPath)
 	if err != nil {
 		return nil, err
