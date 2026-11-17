@@ -46,6 +46,9 @@ type Config struct {
 	// SFTPRecheck is how often an open SFTP session's access is re-checked
 	// with the panel (default 30 s).
 	SFTPRecheck time.Duration
+	// SFTPKeepAlive is how often SFTP clients are pinged; a session that
+	// misses three in a row is closed (default 30 s).
+	SFTPKeepAlive time.Duration
 	// PullAllowPrivate lets "pull from URL" fetch from private and loopback
 	// addresses (off by default: see pull).
 	PullAllowPrivate bool
@@ -149,6 +152,8 @@ type Daemon struct {
 	conn *websocket.Conn
 
 	relayClient *http.Client // transfers to and from the panel's relay
+
+	sftp *sftpServer // set by StartSFTP; nil when SFTP is off
 }
 
 func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
@@ -795,6 +800,7 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	d.mu.Lock()
 	delete(d.servers, uuid)
 	d.mu.Unlock()
+	d.closeSFTP(uuid)
 	_ = os.Remove(d.statePath(uuid))
 	_ = os.Remove(d.installedPath(uuid))
 	_ = os.Remove(d.stalePath(uuid))
