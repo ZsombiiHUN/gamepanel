@@ -27,6 +27,9 @@ type diskCache struct {
 	mu    sync.Mutex
 	bytes int64
 	at    time.Time
+	// trunc serializes truncating SFTP opens, so a file's size is credited
+	// as freed at most once (see sftpFS.Filewrite).
+	trunc sync.Mutex
 }
 
 func (c *diskCache) get(maxAge time.Duration) (int64, bool) {

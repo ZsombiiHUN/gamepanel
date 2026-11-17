@@ -252,7 +252,8 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 	}
 	defer dir.Close()
 	h := &sftpFS{dir: dir, read: ext["read"] == "1", write: ext["write"] == "1",
-		check: func(extra int64) error { return s.d.reserveDisk(ext["server"], extra) }}
+		check: func(extra int64) error { return s.d.reserveDisk(ext["server"], extra) },
+		disk:  s.d.cacheFor(ext["server"])}
 
 	for nch := range chans {
 		if nch.ChannelType() != "session" { // no port forwarding, no x11
@@ -288,6 +289,7 @@ type sftpFS struct {
 	read, write bool
 	// check fails when extra more bytes would exceed the server's disk limit.
 	check func(extra int64) error
+	disk  *diskCache // the server's usage cache; its trunc lock guards truncating opens
 }
 
 // limitedWriter refuses writes that would grow the file past the disk limit.
@@ -364,14 +366,30 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 	// check has passed. Truncating counts as freeing the file's current size,
 	// so emptying a file still works over the limit if that brings usage
 	// back under it.
+	//
+	// Crediting and truncating happen under the server's truncate lock: two
+	// concurrent opens of the same file would otherwise both credit its size
+	// while the filesystem frees it only once.
 	var freed int64
 	if p.Trunc {
+		h.disk.trunc.Lock()
+		defer h.disk.trunc.Unlock()
 		if fi, err := h.dir.Stat(r.Filepath); err == nil && fi.Mode().IsRegular() {
 			freed = fi.Size()
 		}
 	}
 	if err := h.check(-freed); err != nil { // over the limit: no new writes
 		return nil, err
+	}
+	stale := true // until the truncate frees exactly what was credited
+	if freed > 0 {
+		// Wrong credit (open or truncate failed, or the file changed since
+		// the stat): measure again on the next check.
+		defer func() {
+			if stale {
+				h.disk.invalidate()
+			}
+		}()
 	}
 	f, err := h.dir.OpenFile(r.Filepath, flag, 0o644)
 	if err != nil {
@@ -388,6 +406,7 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 			f.Close()
 			return nil, deny(err)
 		}
+		stale = size != freed
 		size = 0
 	}
 	return &limitedWriter{f: f, high: size, check: h.check}, nil

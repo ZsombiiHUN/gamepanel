@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/pkg/sftp"
@@ -24,7 +25,7 @@ func sftpHandler(t *testing.T, d *Daemon, id string) *sftpFS {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { dir.Close() })
-	return &sftpFS{dir: dir, read: true, write: true, check: func(n int64) error { return d.reserveDisk(id, n) }}
+	return &sftpFS{dir: dir, read: true, write: true, check: func(n int64) error { return d.reserveDisk(id, n) }, disk: d.cacheFor(id)}
 }
 
 func openForWrite(h *sftpFS, path string, flags uint32) (*limitedWriter, error) {
@@ -93,5 +94,44 @@ func TestSFTPTruncateOverTheLimit(t *testing.T) {
 	w.Close()
 	if fi, _ := os.Stat(d.serverDir(id) + "/big.bin"); fi.Size() != 100<<10 {
 		t.Fatalf("big.bin size %d after truncate and rewrite", fi.Size())
+	}
+}
+
+// Concurrent truncating opens of one file must credit its size once: the
+// filesystem frees it only once, and a double credit lets later writes pass
+// the limit.
+func TestSFTPConcurrentTruncatesCreditOnce(t *testing.T) {
+	d := newTestDaemon(t, runtime.NewFake())
+	id := uuidN(1)
+	addServer(t, d, id, 10) // 10 MB
+	h := sftpHandler(t, d, id)
+	os.WriteFile(d.serverDir(id)+"/other.bin", make([]byte, 4<<20), 0o644)
+	os.WriteFile(d.serverDir(id)+"/big.bin", make([]byte, 4<<20), 0o644)
+	if err := d.reserveDisk(id, 0); err != nil { // measure: 8 MB used
+		t.Fatal(err)
+	}
+
+	const n = 16
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if w, err := openForWrite(h, "/big.bin", fxfWrite|fxfTrunc); err == nil {
+				w.Close()
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	c := d.cacheFor(id)
+	c.mu.Lock()
+	cached := c.bytes
+	c.mu.Unlock()
+	if cached < 4<<20 {
+		t.Fatalf("cache says %d bytes used, the files hold %d", cached, 4<<20)
 	}
 }
