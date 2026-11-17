@@ -32,6 +32,7 @@ type stack struct {
 	hub     *hub.Hub
 	node    int64
 	fake    *runtime.Fake
+	token   string // the node's token, as its daemon uses it
 }
 
 // newStack boots panel + daemon (fake runtime) and creates one server.
@@ -84,7 +85,7 @@ func newStackWith(t *testing.T, panel func(*api.Deps), nodeCfg func(*daemon.Conf
 	json.Unmarshal(admin.do("POST", "/api/eggs/import", egg, 201), &e)
 	var s struct{ UUID string }
 	json.Unmarshal(admin.do("POST", "/api/servers", map[string]any{"name": "s", "node_id": node.Node.ID, "egg_id": e.ID, "memory_mb": 256}, 201), &s)
-	return &stack{t, ctx, st, admin, s.UUID, sftpAddr, dataDir, h, node.Node.ID, fake}
+	return &stack{t, ctx, st, admin, s.UUID, sftpAddr, dataDir, h, node.Node.ID, fake, node.Token}
 }
 
 func (s *stack) write(path, content string) {

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net"
@@ -17,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/pkg/sftp"
@@ -32,6 +34,9 @@ const (
 	sftpAuthMaxFail = 10
 	// A session is closed when keepalives go unanswered this many intervals.
 	sftpKeepAliveMisses = 3
+	// No real user name or API key comes near this; longer ones are refused
+	// as a guess without asking the panel.
+	sftpMaxCredential = 1024
 )
 
 // sftpServer serves each server's data directory over SFTP. Authentication is
@@ -174,8 +179,9 @@ func (s *sftpServer) noteFail(ip string) {
 	s.mu.Unlock()
 }
 
-// ask has the panel check a login. err is set only when the panel could not
-// be asked; a refusal is a response with OK false.
+// ask has the panel check a login. err is set when the panel could not
+// answer: unreachable, or any status but 200 (a reverse proxy answers 502
+// while the panel restarts). A refusal is a 200 with OK false.
 func (s *sftpServer) ask(user, pw, ip string, recheck bool) (proto.SFTPAuthResp, error) {
 	var r proto.SFTPAuthResp
 	body, _ := json.Marshal(proto.SFTPAuthReq{Username: user, Password: pw, IP: ip, Recheck: recheck})
@@ -187,7 +193,10 @@ func (s *sftpServer) ask(user, pw, ip string, recheck bool) (proto.SFTPAuthResp,
 		return r, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 || json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&r) != nil || !uuidRe.MatchString(r.ServerUUID) {
+	if resp.StatusCode != http.StatusOK {
+		return r, fmt.Errorf("panel answered %s", resp.Status)
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&r) != nil || !uuidRe.MatchString(r.ServerUUID) {
 		return proto.SFTPAuthResp{}, nil
 	}
 	return r, nil
@@ -195,6 +204,10 @@ func (s *sftpServer) ask(user, pw, ip string, recheck bool) (proto.SFTPAuthResp,
 
 func (s *sftpServer) auth(c ssh.ConnMetadata, pw []byte) (*ssh.Permissions, error) {
 	ip, _, _ := net.SplitHostPort(c.RemoteAddr().String())
+	if len(c.User()) > sftpMaxCredential || len(pw) > sftpMaxCredential {
+		s.noteFail(ip)
+		return nil, errors.New("denied")
+	}
 	r, err := s.ask(c.User(), string(pw), ip, false)
 	if err != nil {
 		return nil, errors.New("unavailable")
@@ -387,6 +400,15 @@ type sftpFS struct {
 // Each write holds the server's shape lock shared from the size check until
 // its bytes land: a truncate in between would release the size the write
 // was measured against, and the write would then grow the file unaccounted.
+//
+// A handle opened with the append flag (SSH_FXF_APPEND) must add to the end of
+// the file. Clients differ in the offsets they send with it: most (OpenSSH's
+// reput, WinSCP, curl) send real offsets starting at the end, some (Go's
+// pkg/sftp) count from zero and leave the placing to the server. Writes are
+// served concurrently, so "always at the current end" would scramble a
+// pipelined upload; instead the first write decides. An offset below the
+// size at open can only be counted from zero, and then every write of the
+// handle is moved past that size.
 type limitedWriter struct {
 	f        *os.File
 	shape    *sync.RWMutex
@@ -394,13 +416,34 @@ type limitedWriter struct {
 	inflight int   // writes reserved but not finished
 	ahead    int64 // furthest end among them
 	check    func(extra int64) error
+	read     bool // the handle may also be read (opened read-write with read access)
+
+	appendAt int64 // size at open for an append handle, -1 otherwise
+	decided  bool  // the first append write has fixed shift
+	shift    int64 // added to every offset of an append handle
+}
+
+func (w *limitedWriter) ReadAt(p []byte, off int64) (int, error) {
+	if !w.read {
+		return 0, sftp.ErrSSHFxPermissionDenied
+	}
+	return w.f.ReadAt(p, off)
 }
 
 func (w *limitedWriter) WriteAt(p []byte, off int64) (int, error) {
-	end := off + int64(len(p))
 	w.shape.RLock()
 	defer w.shape.RUnlock()
 	w.mu.Lock()
+	if w.appendAt >= 0 {
+		if !w.decided {
+			w.decided = true
+			if off < w.appendAt {
+				w.shift = w.appendAt
+			}
+		}
+		off += w.shift
+	}
+	end := off + int64(len(p))
 	fi, err := w.f.Stat()
 	if err != nil {
 		w.mu.Unlock()
@@ -517,8 +560,35 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 		}
 		stale = fi.Size() != freed
 	}
-	return &limitedWriter{f: f, shape: &h.disk.shape, check: h.check}, nil
+	w := &limitedWriter{f: f, shape: &h.disk.shape, check: h.check, appendAt: -1}
+	if p.Append {
+		w.appendAt = fi.Size()
+		if p.Trunc {
+			w.appendAt = 0
+		}
+	}
+	return w, nil
 }
+
+// OpenFile serves opens for reading and writing at once (sshfs, editors).
+// Without read access the handle still writes, but every read is refused.
+func (h *sftpFS) OpenFile(r *sftp.Request) (sftp.WriterAtReaderAt, error) {
+	w, err := h.Filewrite(r)
+	if err != nil {
+		return nil, err
+	}
+	lw := w.(*limitedWriter)
+	lw.read = h.read
+	return lw, nil
+}
+
+// PosixRename replaces an existing target (posix-rename@openssh.com). The
+// sftp package hands it to Filecmd as a plain rename unless this exists.
+func (h *sftpFS) PosixRename(r *sftp.Request) error { return h.Filecmd(r) }
+
+// Lstat reports a symlink as a symlink. The sftp package answers lstat with
+// a stat, following the link, unless this exists.
+func (h *sftpFS) Lstat(r *sftp.Request) (sftp.ListerAt, error) { return h.Filelist(r) }
 
 // truncate sets a file's size (setstat with a size, as sent by sshfs, rclone
 // and resuming clients), reserving growth and releasing what a shrink frees.
@@ -649,6 +719,13 @@ func (h *sftpFS) Filecmd(r *sftp.Request) error {
 	case "Remove":
 		return h.remove(r.Filepath)
 	case "Rmdir":
+		fi, err := h.dir.Lstat(r.Filepath)
+		if err != nil {
+			return deny(err)
+		}
+		if !fi.IsDir() { // a file goes through Remove, which frees its size
+			return &fs.PathError{Op: "rmdir", Path: r.Filepath, Err: syscall.ENOTDIR}
+		}
 		return deny(h.dir.Remove(r.Filepath))
 	case "Mkdir":
 		return deny(h.dir.MkdirOne(r.Filepath))
