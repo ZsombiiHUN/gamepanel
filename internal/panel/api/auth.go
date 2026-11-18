@@ -78,7 +78,7 @@ func (a *App) registerAuth(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}
-			return &loginOut{Body: u, SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
+			return &loginOut{Body: a.loginUser(u, method), SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "logout", Method: "POST", Path: "/auth/logout", Summary: "Sign out"},

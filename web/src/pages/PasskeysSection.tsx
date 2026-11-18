@@ -66,7 +66,7 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
       }
       return call(api.POST("/auth/passkeys/register/finish", { body: { name: name.trim(), credential: credential as unknown as Record<string, unknown> } }));
     },
-    meta: invalidates(keys.passkeys),
+    meta: invalidates(keys.passkeys, keys.me),
     onSuccess: onClose,
   });
   return (

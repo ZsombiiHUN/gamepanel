@@ -466,7 +466,7 @@ func (a *App) registerSSO(api huma.API) {
 			}
 			a.audit(ctx, u, "login.ok", u.Email, "single sign-on with "+p.provider+" and a second factor")
 			clear := http.Cookie{Name: ssoMFACookie, Value: "", Path: "/api/auth/", MaxAge: -1, HttpOnly: true}
-			return &ssoVerifyOut{Body: u, SetCookie: append(sessionCookies(ctx, tok, a.Store.SessionMax), clear)}, nil
+			return &ssoVerifyOut{Body: a.loginUser(u, store.MethodSSOTOTP), SetCookie: append(sessionCookies(ctx, tok, a.Store.SessionMax), clear)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listIdentities", Method: "GET", Path: "/auth/identities", Summary: "Your single sign-on links"},

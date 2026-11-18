@@ -93,9 +93,12 @@ const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "app",
   component: AppShell,
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     const me = await currentUser(context.queryClient);
     if (!me) throw redirect({ to: "/login" });
+    // The panel requires two factors and this session has not used them yet:
+    // only the account page (where they are set up) works.
+    if (me.mfa_required && location.pathname !== "/account") throw redirect({ to: "/account" });
     return { me };
   },
 });

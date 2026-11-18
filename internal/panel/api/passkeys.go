@@ -200,6 +200,7 @@ func (a *App) registerPasskeys(api huma.API) {
 			if err != nil {
 				return nil, userErr(http.StatusConflict, err)
 			}
+			a.secondFactorProved(ctx) // registration requires user verification
 			a.audit(ctx, u, "passkey.add", u.Email, p.Name)
 			return &passkeyOut{Body: p}, nil
 		})
@@ -268,7 +269,7 @@ func (a *App) registerPasskeys(api huma.API) {
 			}
 			a.fails.reset(who.u.Email)
 			a.audit(ctx, who.u, "login.ok", who.u.Email, "passkey")
-			return &loginOut{Body: who.u, SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
+			return &loginOut{Body: a.loginUser(who.u, store.MethodPasskey), SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listPasskeys", Method: "GET", Path: "/auth/passkeys", Summary: "Your passkeys"},
@@ -301,6 +302,15 @@ func (a *App) registerPasskeys(api huma.API) {
 			u, err := requireSession(ctx)
 			if err != nil {
 				return nil, err
+			}
+			if a.mfaRequired(u) && !u.TOTPEnabled {
+				l, err := a.Store.ListPasskeys(ctx, u.ID)
+				if err != nil {
+					return nil, huma.Error500InternalServerError("db error", err)
+				}
+				if err := a.keepsSecondFactor(u, false, len(l) > 1); err != nil {
+					return nil, err
+				}
 			}
 			if err := a.Store.DeletePasskey(ctx, u.ID, in.ID); err != nil {
 				if errors.Is(err, store.ErrNotFound) {
