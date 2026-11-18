@@ -11,6 +11,7 @@ import (
 // RFC 6238 appendix B, SHA-1 secret "12345678901234567890", 6-digit truncation
 // of the published 8-digit values.
 func TestTOTPRFC6238Vectors(t *testing.T) {
+	t.Parallel()
 	secret := []byte("12345678901234567890")
 	for ts, want := range map[int64]string{59: "287082", 1111111109: "081804", 1111111111: "050471", 1234567890: "005924", 2000000000: "279037"} {
 		if got := hotp(secret, uint64(ts/30)); got != want {
@@ -20,6 +21,7 @@ func TestTOTPRFC6238Vectors(t *testing.T) {
 }
 
 func TestVerifyTOTPWindowAndReplay(t *testing.T) {
+	t.Parallel()
 	secret := []byte("12345678901234567890")
 	at := time.Unix(1111111109, 0)
 	cur := at.Unix() / 30
@@ -42,6 +44,7 @@ func TestVerifyTOTPWindowAndReplay(t *testing.T) {
 }
 
 func TestSecretsEncryptedAtRest(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, err := Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
@@ -73,6 +76,7 @@ func TestSecretsEncryptedAtRest(t *testing.T) {
 }
 
 func TestRecoveryCodesAreSingleUse(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := Open(filepath.Join(t.TempDir(), "p.db"))
 	defer s.Close()

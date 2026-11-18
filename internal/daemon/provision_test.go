@@ -46,6 +46,7 @@ func provisioned(d *Daemon, id string) func() bool {
 // the panel never gives up on a server the node goes on to build. Until the
 // build ends the server counts as installing and nothing else runs on it.
 func TestCreateRepliesBeforeTheImageIsPulled(t *testing.T) {
+	t.Parallel()
 	rt := &slowRuntime{Fake: runtime.NewFake(), gate: make(chan struct{})}
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -86,6 +87,7 @@ func TestCreateRepliesBeforeTheImageIsPulled(t *testing.T) {
 // its console, and builds the container at its next start, also after the
 // daemon restarts in between.
 func TestAFailedImagePullIsRetriedAtStart(t *testing.T) {
+	t.Parallel()
 	rt := &slowRuntime{Fake: runtime.NewFake(), failing: true}
 	d := newTestDaemon(t, rt)
 	var mu sync.Mutex
@@ -144,6 +146,7 @@ func TestAFailedImagePullIsRetriedAtStart(t *testing.T) {
 // pulled (the installer has its own image), and a server with no container
 // yet can be reinstalled: nothing of it is running.
 func TestInstallAndReinstallWithoutAContainer(t *testing.T) {
+	t.Parallel()
 	rt := &slowRuntime{Fake: runtime.NewFake(), failing: true}
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -169,6 +172,7 @@ func TestInstallAndReinstallWithoutAContainer(t *testing.T) {
 // A create that fails before replying leaves nothing on the node, since the
 // panel rolls the server back.
 func TestAFailedCreateLeavesNothingBehind(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	// A directory where the state file goes makes writing it fail.

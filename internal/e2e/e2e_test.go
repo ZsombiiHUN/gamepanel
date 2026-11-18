@@ -58,6 +58,7 @@ func (c *client) do(method, path string, body any, want int) []byte {
 }
 
 func TestFullFlow(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -159,6 +160,7 @@ func TestFullFlow(t *testing.T) {
 }
 
 func TestDaemonRejectsBadToken(t *testing.T) {
+	t.Parallel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	st, _ := store.Open(filepath.Join(t.TempDir(), "p.db"))
 	defer st.Close()
@@ -172,6 +174,7 @@ func TestDaemonRejectsBadToken(t *testing.T) {
 }
 
 func TestCrossOriginConsoleBlocked(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	st, _ := store.Open(filepath.Join(t.TempDir(), "p.db"))
@@ -237,6 +240,8 @@ func readUntil(t *testing.T, ctx context.Context, c *websocket.Conn, sub string)
 // The panel keeps server state only in memory. After it restarts, the node
 // must report stopped servers too, or they show as unknown.
 func TestStoppedServerStateSurvivesPanelRestart(t *testing.T) {
+	// Not parallel: the panel comes back on the port it let go of, which a test
+	// running alongside could take in between.
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))

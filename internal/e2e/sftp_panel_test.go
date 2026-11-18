@@ -39,6 +39,7 @@ func (s *stack) sftpAuthRaw(token string, body []byte) (proto.SFTPAuthResp, int)
 }
 
 func TestSFTPAuthEndpoint(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	pre := s.server[:8]
 	key := s.apiKey(s.admin, "correct-horse-battery")
@@ -103,6 +104,7 @@ func TestSFTPAuthEndpoint(t *testing.T) {
 }
 
 func TestSFTPAuthEndpointPermissions(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	pre := s.server[:8]
 	s.st.CreateUser(s.ctx, "bob@example.com", "another-long-password", false)
@@ -139,6 +141,7 @@ func TestSFTPAuthEndpointPermissions(t *testing.T) {
 }
 
 func TestSFTPAuthEndpointGuessing(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	pre := s.server[:8]
 	key := s.apiKey(s.admin, "correct-horse-battery")
@@ -184,6 +187,7 @@ func TestSFTPAuthEndpointGuessing(t *testing.T) {
 }
 
 func TestSFTPAuthEndpointPerAddressLimit(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	pre := s.server[:8]
 	key := s.apiKey(s.admin, "correct-horse-battery")

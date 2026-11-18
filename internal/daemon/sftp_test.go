@@ -44,6 +44,7 @@ func openForWrite(h *sftpFS, path string, flags uint32) (*limitedWriter, error) 
 // Clients open with the append flag and still send an offset with each write;
 // O_APPEND would make every WriteAt fail.
 func TestSFTPAppendWrites(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -66,6 +67,7 @@ func TestSFTPAppendWrites(t *testing.T) {
 // A truncating open refused for being over the disk limit must leave the file
 // as it was; one that frees enough room to get back under the limit works.
 func TestSFTPTruncateOverTheLimit(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1) // 1 MB
@@ -104,6 +106,7 @@ func TestSFTPTruncateOverTheLimit(t *testing.T) {
 // filesystem frees it only once, and a double credit lets later writes pass
 // the limit.
 func TestSFTPConcurrentTruncatesCreditOnce(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 10) // 10 MB
@@ -155,6 +158,7 @@ func cmd(h *sftpFS, method, path, target string) error {
 // setstat with a size used to report success and change nothing, leaving
 // stale bytes at the end of files written by sshfs or rclone.
 func TestSFTPSetstatTruncates(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1) // 1 MB
@@ -191,6 +195,7 @@ func TestSFTPSetstatTruncates(t *testing.T) {
 
 // Deleting files must make room at once, not after the next measurement.
 func TestSFTPRemoveFreesSpace(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1)
@@ -214,6 +219,7 @@ func TestSFTPRemoveFreesSpace(t *testing.T) {
 
 // Plain rename must not replace a file; posix-rename does, and frees its size.
 func TestSFTPRename(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 10)
@@ -246,6 +252,7 @@ func TestSFTPRename(t *testing.T) {
 
 // Opening a named pipe used to block until the other end opened.
 func TestSFTPNamedPipe(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -273,6 +280,7 @@ func TestSFTPNamedPipe(t *testing.T) {
 // Write-only users may look up paths (clients do before uploading) but not
 // list directories.
 func TestSFTPWriteOnlyStat(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -294,6 +302,7 @@ func TestSFTPWriteOnlyStat(t *testing.T) {
 // counted once, and a file another session truncated is counted again when
 // rewritten.
 func TestSFTPWriterCountsGrowthOnce(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 10)
@@ -338,6 +347,7 @@ func TestSFTPWriterCountsGrowthOnce(t *testing.T) {
 // A stale figure is used while a fresh one is measured in the background, so
 // writes do not wait for a walk of the whole directory.
 func TestDiskEstimateDoesNotWait(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 10)
@@ -362,6 +372,7 @@ func TestDiskEstimateDoesNotWait(t *testing.T) {
 
 // A measurement after the server is deleted must not recreate its folder.
 func TestDiskWalkDoesNotRecreateFolder(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 10)
@@ -378,6 +389,7 @@ func TestDiskWalkDoesNotRecreateFolder(t *testing.T) {
 // landing: it would release the size the write was measured against, and the
 // write would then grow the file without being counted.
 func TestSFTPWriteAndTruncateDoNotInterleave(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 10)
@@ -433,6 +445,7 @@ func walking(d *Daemon, id string) bool {
 // the walk reached the freed file before it was deleted (and counted it) or
 // after (and did not).
 func TestDiskReleaseDuringWalk(t *testing.T) {
+	t.Parallel()
 	const mb = 1 << 20
 	for _, tc := range []struct {
 		name string
@@ -502,6 +515,7 @@ func TestDiskReleaseDuringWalk(t *testing.T) {
 // A release larger than a stale figure must not turn into room that does
 // not exist.
 func TestDiskCreditFloorsAtZero(t *testing.T) {
+	t.Parallel()
 	var c diskCache
 	c.bytes = 100
 	if err := c.reserve(-500, 1000); err != nil {
@@ -518,6 +532,7 @@ func TestDiskCreditFloorsAtZero(t *testing.T) {
 
 // Plain rename moves files and directories but never replaces either.
 func TestSFTPRenameNoReplace(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 10)

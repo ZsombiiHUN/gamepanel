@@ -48,6 +48,7 @@ func (e *env) restarted() *env {
 // bounded across IP addresses and restarts, not only per 15-minute in-memory
 // window.
 func TestSecondFactorLockoutSurvivesRestart(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "127.0.0.1")
 	a := e.client()
 	a.login(bobEmail, bobPW)
@@ -85,6 +86,7 @@ func TestSecondFactorLockoutSurvivesRestart(t *testing.T) {
 // ASVS v5.0.0-7.3.1 and v5.0.0-7.3.2: a session ends after a period without
 // use, and after an absolute lifetime however busy it is.
 func TestSessionIdleAndAbsoluteTimeout(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	shift := func(col string, secs int) {
 		t.Helper()
@@ -120,6 +122,7 @@ func TestSessionIdleAndAbsoluteTimeout(t *testing.T) {
 // ASVS v5.0.0-7.5.1: making a credential that outlives the session needs full
 // re-authentication, the second factor too when the account has one.
 func TestAPIKeyNeedsSecondFactor(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)
@@ -138,6 +141,7 @@ func TestAPIKeyNeedsSecondFactor(t *testing.T) {
 // ASVS v5.0.0-6.2.4 and v5.0.0-6.2.12: common and known-leaked passwords are
 // refused.
 func TestCommonPasswordRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)
@@ -185,6 +189,7 @@ func sessionSetCookie(t *testing.T, resp *http.Response) *http.Cookie {
 // on the server, and API answers are not cached. HSTS is sent, but without
 // includeSubDomains, so v5.0.0-3.4.1 is only met at Level 1 (docs/asvs.md).
 func TestCookieAndHeaderHardening(t *testing.T) {
+	t.Parallel()
 	login := map[string]string{"email": bobEmail, "password": bobPW}
 
 	// Behind a trusted HTTPS proxy.
@@ -247,6 +252,7 @@ func cookieNamed(resp *http.Response, name string) *http.Cookie {
 // HTTPS once: they are re-issued under __Host- and the old cookie is removed.
 // Any other gp_session cookie over HTTPS is refused; plain HTTP is unchanged.
 func TestLegacyCookieMigration(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "127.0.0.1")
 	login := map[string]string{"email": bobEmail, "password": bobPW}
 	https := func(cookie string) map[string]string {
@@ -311,6 +317,7 @@ func TestLegacyCookieMigration(t *testing.T) {
 // password needs a code as well as the current password; a failed attempt
 // changes nothing.
 func TestPasswordChangeNeedsSecondFactor(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	ctx := t.Context()
 	id, _ := e.st.UserIDByEmail(ctx, bobEmail)

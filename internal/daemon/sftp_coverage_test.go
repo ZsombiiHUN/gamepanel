@@ -27,6 +27,7 @@ import (
 // One connection cannot hold an unbounded number of the daemon's file
 // descriptors (the daemon serves every server on the node).
 func TestSFTPOpenFilesPerConnectionAreCapped(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	r.put("a.txt", "a")
 	c := r.owner()
@@ -87,6 +88,7 @@ func TestSFTPOpenFilesPerConnectionAreCapped(t *testing.T) {
 }
 
 func TestSFTPSessionsPerConnectionAreCapped(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	conn, err := r.sshDial(r.sshConfig(ownerUser, ownerKey))
 	if err != nil {
@@ -128,6 +130,7 @@ func TestSFTPSessionsPerConnectionAreCapped(t *testing.T) {
 // ---- what the server advertises ----
 
 func TestSFTPAdvertisedExtensions(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	for ext, want := range map[string]bool{
@@ -142,6 +145,7 @@ func TestSFTPAdvertisedExtensions(t *testing.T) {
 }
 
 func TestSFTPStatVFS(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 10, nil) // 10 MB
 	r.put("used.bin", string(make([]byte, 3<<20)))
 	r.measured()
@@ -190,6 +194,7 @@ func TestSFTPStatVFS(t *testing.T) {
 // ---- the panel answering badly or slowly ----
 
 func TestSFTPUnreadablePanelAnswer(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, func(c *Config) { c.SFTPRecheck = 30 * time.Millisecond })
 	c := r.owner()
 	n := len(r.p.requests())
@@ -216,6 +221,7 @@ func (r *sftpRig) failCount(ip string) int {
 }
 
 func TestSFTPSlowPanel(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, func(c *Config) {
 		c.sftpPanelWait = 200 * time.Millisecond
 		c.SFTPRecheck = 30 * time.Millisecond
@@ -243,6 +249,7 @@ func TestSFTPSlowPanel(t *testing.T) {
 // ---- connections that never sign in ----
 
 func TestSFTPHandshakeDeadline(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, func(c *Config) { c.sftpHandshakeTimeout = 200 * time.Millisecond })
 	silent, err := net.Dial("tcp", r.addr)
 	if err != nil {
@@ -278,6 +285,7 @@ func TestSFTPHandshakeDeadline(t *testing.T) {
 }
 
 func TestSFTPLockoutExpires(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	for range sftpAuthMaxFail {
 		r.dial(ownerUser, "gp_guess")
@@ -303,6 +311,7 @@ func TestSFTPLockoutExpires(t *testing.T) {
 
 // Addresses are counted without their port, IPv6 included.
 func TestSFTPIPv6(t *testing.T) {
+	t.Parallel()
 	if ln, err := net.Listen("tcp", "[::1]:0"); err != nil {
 		t.Skip("no IPv6 loopback")
 	} else {
@@ -327,6 +336,7 @@ func TestSFTPIPv6(t *testing.T) {
 // ---- the server changing under an open session ----
 
 func TestSFTPServerDeletedMidUpload(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	f, err := c.Create("/big.bin")
@@ -356,6 +366,7 @@ func TestSFTPServerDeletedMidUpload(t *testing.T) {
 }
 
 func TestSFTPLimitChangesApplyToOpenSessions(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 10, nil)
 	r.measured()
 	c := r.owner()
@@ -382,6 +393,7 @@ func TestSFTPLimitChangesApplyToOpenSessions(t *testing.T) {
 // Reinstalling runs the installer over the files the session is using: the
 // session stays, and usage is measured again.
 func TestSFTPReinstallKeepsSessionsAndRemeasures(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	id := uuidN(3)
 	if err := r.d.create(context.Background(), proto.ServerSpec{UUID: id, Image: "img", Startup: "run", Stop: "^C", MemoryMB: 128, DiskMB: 50,
@@ -421,6 +433,7 @@ func TestSFTPReinstallKeepsSessionsAndRemeasures(t *testing.T) {
 // ---- files the game shares or changes ----
 
 func TestSFTPGameHardLinks(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 10, nil)
 	r.put("a.bin", string(make([]byte, 1<<20)))
 	os.Link(r.path("a.bin"), r.path("b.bin"))
@@ -438,6 +451,7 @@ func TestSFTPGameHardLinks(t *testing.T) {
 }
 
 func TestSFTPReadWhileTheGameRewrites(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	r.put("log.txt", strings.Repeat("x", 100<<10))
 	c := r.owner()
@@ -501,6 +515,7 @@ func setstat(h *sftpFS, p string, flags uint32, a []byte) error {
 }
 
 func TestSFTPSetstatCombined(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1)
@@ -556,6 +571,7 @@ func TestSFTPSetstatCombined(t *testing.T) {
 }
 
 func TestSFTPChownIsIgnored(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	r.put("a", "a")
 	if err := r.owner().Chown("/a", 0, 0); err != nil {
@@ -570,6 +586,7 @@ func TestSFTPChownIsIgnored(t *testing.T) {
 // ---- rename without hard links ----
 
 func TestSFTPRenameWithoutHardLinks(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -619,6 +636,7 @@ func (s *syncBuf) String() string {
 }
 
 func TestSFTPKeysNeverLogged(t *testing.T) {
+	t.Parallel()
 	var log syncBuf
 	r := newSFTPRigWith(t, 0, rigOpts{log: &log, cfg: func(c *Config) {
 		c.SFTPRecheck = 30 * time.Millisecond

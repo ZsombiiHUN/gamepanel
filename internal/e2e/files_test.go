@@ -30,6 +30,7 @@ func (c *client) raw(method, path string, body []byte) (int, []byte, http.Header
 }
 
 func TestFileManager(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	q := func(p string) string { return url.QueryEscape(p) }
@@ -145,6 +146,7 @@ func TestFileManager(t *testing.T) {
 }
 
 func TestUploadRespectsDiskLimit(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	s.setLimits(map[string]any{"disk_mb": 1}, 204)
@@ -159,6 +161,7 @@ func TestUploadRespectsDiskLimit(t *testing.T) {
 // The editor goes through the relay, not the control connection: it still
 // refuses files over 10 MB, and saving keeps a script's permissions.
 func TestEditorThroughRelay(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	q := url.QueryEscape

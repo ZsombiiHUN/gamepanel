@@ -18,6 +18,7 @@ func open(t *testing.T) *Store {
 }
 
 func TestPasswordsAndSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	if _, err := s.CreateUser(ctx, "a@b.co", "short", false); err == nil {
@@ -59,6 +60,7 @@ func TestPasswordsAndSessions(t *testing.T) {
 }
 
 func TestPortAllocation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	u, _ := s.CreateUser(ctx, "a@b.co", "a-long-enough-password", true)
@@ -84,6 +86,7 @@ func TestPortAllocation(t *testing.T) {
 }
 
 func TestNodeTokenLookup(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	n, tok, _ := s.CreateNode(ctx, "n", 25565, 25570)

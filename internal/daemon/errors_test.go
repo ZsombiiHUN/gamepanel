@@ -15,6 +15,7 @@ import (
 // File system errors carry paths and syscall names; the daemon replaces the
 // common ones with a code and a plain message before they leave the node.
 func TestCommonFailuresAreDescribedForPeople(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		err  error
 		code string
@@ -39,6 +40,7 @@ func TestCommonFailuresAreDescribedForPeople(t *testing.T) {
 // End to end through dispatch: reading a missing file is a not-found with a
 // plain message, not an os error.
 func TestMissingFileReplyIsPlain(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)

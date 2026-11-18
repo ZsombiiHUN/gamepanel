@@ -63,6 +63,7 @@ func addServer(t testing.TB, d *Daemon, uuid string, diskMB int64) {
 func req(typ string, v any) proto.Envelope { return proto.Envelope{Type: typ, Data: proto.Marshal(v)} }
 
 func TestOperationsThatConflictAreRefused(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -122,6 +123,7 @@ func TestOperationsThatConflictAreRefused(t *testing.T) {
 // A restore must not run while the server is being started (and vice versa):
 // the "is it offline?" check and the action are one claim.
 func TestRestoreIsRefusedWhileStarting(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -134,6 +136,7 @@ func TestRestoreIsRefusedWhileStarting(t *testing.T) {
 }
 
 func TestAPanickingRequestDoesNotKillTheDaemon(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, &hookRuntime{Fake: runtime.NewFake(), stopPanic: true})
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -149,6 +152,7 @@ func TestAPanickingRequestDoesNotKillTheDaemon(t *testing.T) {
 // Requests run concurrently. Deleting a server while other requests for it are
 // in flight used to dereference a server that was gone and crash the daemon.
 func TestConcurrentRequestsDuringDelete(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	ctx := context.Background()
 	for i := range 30 {
@@ -179,6 +183,7 @@ func TestConcurrentRequestsDuringDelete(t *testing.T) {
 // If the container cannot be removed, the server's files must stay: deleting
 // the data while the panel forgets the server would orphan a running container.
 func TestDeleteKeepsDataWhenTheContainerCannotBeRemoved(t *testing.T) {
+	t.Parallel()
 	rt := &hookRuntime{Fake: runtime.NewFake(), removeErr: errors.New("engine unavailable")}
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -205,6 +210,7 @@ func TestDeleteKeepsDataWhenTheContainerCannotBeRemoved(t *testing.T) {
 // Writers that check the limit at the same time must not both spend the same
 // free space: the check and the accounting are one step.
 func TestDiskReservationsCannotShareHeadroom(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1) // 1 MB
@@ -248,6 +254,7 @@ func TestDiskReservationsCannotShareHeadroom(t *testing.T) {
 // Errors carry a code across the websocket so the panel never has to match
 // on message text.
 func TestRepliesCarryErrorCodes(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1)

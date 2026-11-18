@@ -20,6 +20,7 @@ type netResp struct {
 }
 
 func TestPorts(t *testing.T) {
+	t.Parallel()
 	s := newStack(t) // node range 25565-25570; the server has 25565
 	srv := "/api/servers/" + s.server
 	containerPorts := func() []int {

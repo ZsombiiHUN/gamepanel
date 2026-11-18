@@ -7,11 +7,10 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
-
-	"github.com/pressly/goose/v3"
 )
 
 func TestClip(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		in, want string
 		n        int
@@ -32,6 +31,7 @@ func TestClip(t *testing.T) {
 }
 
 func TestSessionListIsPerUserAndSkipsDeadSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	a, _ := s.CreateUser(ctx, "a@b.co", "a-long-enough-password", false)
@@ -79,16 +79,18 @@ func TestSessionListIsPerUserAndSkipsDeadSessions(t *testing.T) {
 // Migration 00114 gives sessions from before it a distinct public id, so each
 // shows up in the list and can be revoked on its own.
 func TestSessionDetailsMigration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "p.db")
 	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	goose.SetBaseFS(migrations)
-	goose.SetDialect("sqlite3")
-	goose.SetLogger(goose.NopLogger())
-	if err := goose.UpTo(db, "migrations", 113); err != nil {
+	m, err := migrator(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.UpTo(context.Background(), 113); err != nil {
 		t.Fatal(err)
 	}
 	n := now()
@@ -123,16 +125,18 @@ func TestSessionDetailsMigration(t *testing.T) {
 // Migration 00116 counts sessions as two-factor from their recorded method,
 // or when the account has an authenticator; new sessions from their method.
 func TestSessionMFAMigration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "p.db")
 	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	goose.SetBaseFS(migrations)
-	goose.SetDialect("sqlite3")
-	goose.SetLogger(goose.NopLogger())
-	if err := goose.UpTo(db, "migrations", 115); err != nil {
+	m, err := migrator(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.UpTo(context.Background(), 115); err != nil {
 		t.Fatal(err)
 	}
 	n := now()

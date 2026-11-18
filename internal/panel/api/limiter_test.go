@@ -10,6 +10,7 @@ import (
 // saw used to stay in the map; once it is large, stale keys must be swept so
 // a stream of distinct addresses cannot grow it without bound.
 func TestLimiterForgetsStaleKeys(t *testing.T) {
+	t.Parallel()
 	l := newLimiter(3, 10*time.Millisecond)
 	for wave := range 3 {
 		for i := range sweepAbove {
@@ -24,6 +25,7 @@ func TestLimiterForgetsStaleKeys(t *testing.T) {
 }
 
 func TestLimiterAllow(t *testing.T) {
+	t.Parallel()
 	l := newLimiter(2, 50*time.Millisecond)
 	if !l.allow("a") || !l.allow("a") || l.allow("a") {
 		t.Fatal("the third attempt inside the window should be refused")

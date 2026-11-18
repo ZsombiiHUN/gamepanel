@@ -1,4 +1,4 @@
-import { expect, isDrawer, openMenuIfDrawer, test } from "./support";
+import { expect, isDrawer, openMenuIfDrawer, settled, test } from "./support";
 
 // These run at 1440x900, 1366x768 and 390x844. Layout bugs only show up in a real browser.
 
@@ -44,7 +44,7 @@ test.describe("page width", () => {
   for (const path of pages) {
     test(`${path} does not scroll sideways`, async ({ page }) => {
       await page.goto(path);
-      await page.waitForLoadState("networkidle");
+      await settled(page);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(over, "horizontal overflow in px").toBeLessThanOrEqual(0);
     });
@@ -52,7 +52,7 @@ test.describe("page width", () => {
   for (const tab of tabs) {
     test(`server tab "${tab}" does not scroll sideways`, async ({ page, panel }) => {
       await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=${tab}`);
-      await page.waitForLoadState("networkidle");
+      await settled(page);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(over, "horizontal overflow in px").toBeLessThanOrEqual(0);
     });

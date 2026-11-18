@@ -7,6 +7,7 @@ import (
 )
 
 func TestValidatePassword(t *testing.T) {
+	t.Parallel()
 	const email = "Gabriella.Kovacs@example.com"
 	for pw, ok := range map[string]bool{
 		"a-perfectly-fine-passphrase": true,
@@ -34,6 +35,7 @@ func TestValidatePassword(t *testing.T) {
 }
 
 func TestCommonPasswordListLoaded(t *testing.T) {
+	t.Parallel()
 	if n := len(commonPasswords()); n < 10000 {
 		t.Fatalf("only %d common passwords loaded", n)
 	}
@@ -45,6 +47,7 @@ func TestCommonPasswordListLoaded(t *testing.T) {
 }
 
 func TestMFALockSchedule(t *testing.T) {
+	t.Parallel()
 	for n, want := range map[int64]time.Duration{
 		1: 0, 4: 0,
 		5: time.Minute, 6: 2 * time.Minute, 10: 32 * time.Minute,

@@ -11,6 +11,7 @@ import (
 
 // The connect details: who may see them, and what an admin's node settings do.
 func TestServerSFTPInfo(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	ctx := context.Background()
 	admin, _ := e.st.UserByEmail(ctx, "admin@example.com")

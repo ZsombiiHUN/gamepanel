@@ -93,6 +93,7 @@ func (h *hookSink) count(name string) (n int) {
 }
 
 func TestShopSellsAServer(t *testing.T) {
+	t.Parallel()
 	s := newStackWith(t, func(d *api.Deps) { d.WebhookTick = 50 * time.Millisecond }, nil)
 	sink := &hookSink{t: t}
 	rx := httptest.NewServer(sink)
@@ -224,9 +225,19 @@ func TestShopSellsAServer(t *testing.T) {
 		return sink.event("server.deleted", srv.UUID) != nil && sink.event("user.deleted", "") != nil
 	})
 
-	// Every delivery is in the log as delivered.
+	// Every delivery is in the log as delivered. The sink has the last events
+	// before the panel hears back from it and records them, so wait for that.
 	var log []struct{ Event, Status string }
-	json.Unmarshal(s.admin.do("GET", "/api/webhooks/"+itoa(hook.ID)+"/deliveries", nil, 200), &log)
+	waitFor(t, "deliveries recorded", func() bool {
+		log = nil
+		json.Unmarshal(s.admin.do("GET", "/api/webhooks/"+itoa(hook.ID)+"/deliveries", nil, 200), &log)
+		for _, d := range log {
+			if d.Status == "pending" {
+				return false
+			}
+		}
+		return true
+	})
 	if len(log) < 7 {
 		t.Fatalf("delivery log %+v", log)
 	}
@@ -240,6 +251,7 @@ func TestShopSellsAServer(t *testing.T) {
 // An account made without a password gets a link to choose one, which signs
 // in like a reset. Admin accounts cannot be taken over through this API.
 func TestShopAccounts(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var a struct {
 		ID          int64
@@ -287,6 +299,7 @@ func TestShopAccounts(t *testing.T) {
 // With no node named, the panel picks an online node with room, and says so
 // when there is none.
 func TestShopPicksANode(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var off struct{ Node struct{ ID int64 } }
 	json.Unmarshal(s.admin.do("POST", "/api/nodes", map[string]any{"name": "offline", "port_start": 30000, "port_end": 30010}, 201), &off)
@@ -312,6 +325,7 @@ func TestShopPicksANode(t *testing.T) {
 
 // A receiver that fails is tried again later; the log says why it failed.
 func TestWebhookFailuresAreRetried(t *testing.T) {
+	t.Parallel()
 	s := newStackWith(t, func(d *api.Deps) { d.WebhookTick = 50 * time.Millisecond }, nil)
 	sink := &hookSink{t: t, fail: 1}
 	rx := httptest.NewServer(sink)

@@ -68,6 +68,7 @@ func closedWith(t *testing.T, ws *websocket.Conn) websocket.StatusCode {
 }
 
 func TestConsoleClosesWhenAccessEnds(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 
@@ -101,6 +102,7 @@ func TestConsoleClosesWhenAccessEnds(t *testing.T) {
 }
 
 func TestSFTPSessionEndsWhenAccessEnds(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var k struct {
 		Key   struct{ ID int64 }
@@ -147,6 +149,7 @@ func TestSFTPSessionEndsWhenAccessEnds(t *testing.T) {
 
 // A node may only report on its own servers.
 func TestANodeCannotSpeakForAnotherNodesServers(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var n2 struct {
 		Token string             `json:"token"`
@@ -197,6 +200,7 @@ func TestANodeCannotSpeakForAnotherNodesServers(t *testing.T) {
 // A schedule runs with its author's permissions as they are now, not as they
 // were when it was saved.
 func TestScheduleStopsWhenItsAuthorLosesThePermission(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	bob, bobID := s.login("bob@example.com")
@@ -256,6 +260,7 @@ func TestScheduleStopsWhenItsAuthorLosesThePermission(t *testing.T) {
 }
 
 func TestServerActionsAreAudited(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	s.admin.do("POST", srv+"/power", map[string]string{"action": "start"}, 202)

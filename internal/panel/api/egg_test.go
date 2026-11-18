@@ -9,6 +9,7 @@ import (
 )
 
 func TestImportPTDLv2(t *testing.T) {
+	t.Parallel()
 	raw := []byte(`{
 	  "name":"Paper","description":"mc",
 	  "docker_images":{"Java 21":"ghcr.io/pterodactyl/yolks:java_21","Java 17":"ghcr.io/pterodactyl/yolks:java_17"},
@@ -31,6 +32,7 @@ func TestImportPTDLv2(t *testing.T) {
 }
 
 func TestShellStartupHasNoInjection(t *testing.T) {
+	t.Parallel()
 	got := shellStartup("java -jar {{ SERVER_JARFILE }} -m {{SERVER_MEMORY}}")
 	want := "java -jar ${SERVER_JARFILE} -m ${SERVER_MEMORY}"
 	if got != want {
@@ -39,6 +41,7 @@ func TestShellStartupHasNoInjection(t *testing.T) {
 }
 
 func TestBuildEnvIgnoresUnknownOverrides(t *testing.T) {
+	t.Parallel()
 	egg := store.Egg{Variables: []store.EggVar{{Env: "SERVER_JARFILE", Default: "server.jar"}}}
 	env := buildEnv(egg, map[string]string{
 		"SERVER_JARFILE": "paper.jar",
@@ -57,6 +60,7 @@ func TestBuildEnvIgnoresUnknownOverrides(t *testing.T) {
 }
 
 func TestImportKeepsEveryImageAndVariableSettings(t *testing.T) {
+	t.Parallel()
 	raw := []byte(`{
 	  "name":"Paper",
 	  "docker_images":{"Java 21":"ghcr.io/pterodactyl/yolks:java_21","Java 8":"ghcr.io/pterodactyl/yolks:java_8","Java 17":"ghcr.io/pterodactyl/yolks:java_17"},
@@ -91,6 +95,7 @@ func TestImportKeepsEveryImageAndVariableSettings(t *testing.T) {
 }
 
 func TestImportRejectsBadImageNames(t *testing.T) {
+	t.Parallel()
 	for _, img := range []string{"--privileged", "ubuntu latest", "a\nb", ""} {
 		raw, _ := json.Marshal(map[string]any{"name": "x", "startup": "y", "docker_images": map[string]string{"x": img}})
 		if _, err := importPTDL(raw); err == nil {

@@ -21,6 +21,7 @@ import (
 // are re-sent, servers deleted while it was away are removed, and servers
 // the panel does not know are reported, not deleted.
 func TestNodeReconcile(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var node struct {
 		Token string             `json:"token"`

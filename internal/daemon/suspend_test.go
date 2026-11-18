@@ -11,6 +11,7 @@ import (
 
 // A new server can be started as soon as it is installed.
 func TestStartOnCompletion(t *testing.T) {
+	t.Parallel()
 	rt := runtime.NewFake()
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -27,6 +28,7 @@ func TestStartOnCompletion(t *testing.T) {
 // start request, not a crash restart, not the end of an install. The
 // suspension applies even while an install runs.
 func TestASuspendedServerStaysStopped(t *testing.T) {
+	t.Parallel()
 	rt := &slowRuntime{Fake: runtime.NewFake()}
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
