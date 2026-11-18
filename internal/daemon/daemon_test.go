@@ -54,6 +54,10 @@ func addServer(t testing.TB, d *Daemon, uuid string, diskMB int64) {
 	if err := d.create(context.Background(), proto.ServerSpec{UUID: uuid, Image: "img", Startup: "run", Stop: "^C", MemoryMB: 128, DiskMB: diskMB}); err != nil {
 		t.Fatal(err)
 	}
+	// The container is built in the background; wait until it is ready.
+	if !eventually(5*time.Second, func() bool { st, _ := d.installState(uuid); return st == "" }) {
+		t.Fatal("server never finished provisioning")
+	}
 }
 
 func req(typ string, v any) proto.Envelope { return proto.Envelope{Type: typ, Data: proto.Marshal(v)} }
@@ -133,6 +137,9 @@ func TestAPanickingRequestDoesNotKillTheDaemon(t *testing.T) {
 	d := newTestDaemon(t, &hookRuntime{Fake: runtime.NewFake(), stopPanic: true})
 	id := uuidN(1)
 	addServer(t, d, id, 0)
+	if _, err := d.dispatch(context.Background(), req(proto.ReqServerPower, proto.Power{UUID: id, Action: "start"})); err != nil {
+		t.Fatal(err)
+	}
 	_, err := d.safeDispatch(context.Background(), req(proto.ReqServerPower, proto.Power{UUID: id, Action: "stop"}))
 	if err == nil || !strings.Contains(err.Error(), "internal error") {
 		t.Fatalf("expected an internal error reply, got %v", err)

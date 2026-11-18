@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -710,30 +711,74 @@ func (d *Daemon) create(ctx context.Context, s proto.ServerSpec) error {
 	}
 	// Game images typically run as a non-root user; hand over the data dir.
 	_ = os.Chown(dir, 1000, 1000)
+	// The container is built in the background, since pulling its image can
+	// take longer than the panel waits for a reply. Until it exists the server
+	// is stale, so a start, also after a daemon restart, builds it. The marker
+	// goes first: a state file without it would mean a container exists.
 	b, _ := json.Marshal(s)
-	if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
+	if err := os.WriteFile(d.stalePath(s.UUID), nil, 0o600); err != nil {
+		d.discard(s.UUID)
 		return err
 	}
-	abs, _ := filepath.Abs(dir)
-	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: s, DataDir: abs}); err != nil {
+	if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
+		d.discard(s.UUID)
 		return err
 	}
 	_ = os.Remove(d.installedPath(s.UUID))
-	m := &managed{spec: s}
-	if s.Install != nil {
-		m.install = StateInstalling
-	}
 	d.mu.Lock()
-	d.servers[s.UUID] = m
+	d.servers[s.UUID] = &managed{spec: s, stale: true, install: StateInstalling}
 	d.mu.Unlock()
-	if s.Install == nil {
-		d.emitState(ctx, s.UUID, runtime.StateOffline)
-		return nil
-	}
-	// Reply now; the install can take minutes. Progress arrives as console and
-	// state events. It must outlive this request's context.
-	go d.runInstall(context.WithoutCancel(ctx), s.UUID)
+	// Reply now. Progress arrives as console and state events, and the work
+	// must outlive this request's context.
+	go d.provision(context.WithoutCancel(ctx), s.UUID)
 	return nil
+}
+
+// discard removes what a create that failed half way left on disk, so the
+// node does not keep a server the panel has rolled back.
+func (d *Daemon) discard(uuid string) {
+	for _, p := range []string{d.statePath(uuid), d.stalePath(uuid), d.installedPath(uuid)} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			d.log.Warn("could not clean up after a failed create", "server", uuid, "path", p, "err", err)
+		}
+	}
+	if err := os.RemoveAll(d.serverDir(uuid)); err != nil {
+		d.log.Warn("could not clean up after a failed create", "server", uuid, "err", err)
+	}
+}
+
+// provision builds a new server's container, then runs the egg's install
+// script if it has one. The server counts as installing throughout, which
+// keeps every other operation out. A container that cannot be built (the
+// registry is down, say) is not fatal: the server stays stale and its next
+// start tries again, saying why on the console if it still fails.
+func (d *Daemon) provision(ctx context.Context, uuid string) {
+	spec, err := d.spec(uuid)
+	if err != nil {
+		return
+	}
+	d.emitState(ctx, uuid, StateInstalling)
+	d.sendConsole(uuid, "[gamepanel] preparing the server's image "+spec.Image)
+	abs, _ := filepath.Abs(d.serverDir(uuid))
+	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: spec, DataDir: abs}); err != nil {
+		d.log.Warn("could not build a new server's container", "server", uuid, "err", err)
+		d.sendConsole(uuid, "\x1b[33m[gamepanel] could not prepare the server's image: "+err.Error()+". It is tried again when the server starts.\x1b[0m")
+	} else {
+		if err := os.Remove(d.stalePath(uuid)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			d.log.Warn("could not clear the stale marker", "server", uuid, "err", err)
+		}
+		d.mu.Lock()
+		if m := d.servers[uuid]; m != nil {
+			m.stale = false
+		}
+		d.mu.Unlock()
+	}
+	if spec.Install == nil {
+		d.setInstall(uuid, "")
+		d.emitState(ctx, uuid, runtime.StateOffline)
+		return
+	}
+	d.runInstall(ctx, uuid)
 }
 
 // runInstall executes the egg install script and records the outcome.
@@ -822,7 +867,9 @@ func (d *Daemon) reinstall(ctx context.Context, uuid string) error {
 		return err
 	}
 	defer end()
-	if st, _ := d.rt.State(ctx, uuid); st != runtime.StateOffline {
+	// A server whose first container could not be built has none to ask; it
+	// is not running either.
+	if st, err := d.rt.State(ctx, uuid); (err != nil && !d.isStale(uuid)) || (err == nil && st != runtime.StateOffline) {
 		return proto.Conflict("stop the server before reinstalling")
 	}
 	// From here the install state itself keeps every other operation out.
@@ -913,6 +960,11 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 // stop sends the egg's graceful stop command (or SIGTERM for "^C"), then
 // escalates to a hard stop if the server has not exited in time.
 func (d *Daemon) stop(ctx context.Context, spec proto.ServerSpec) error {
+	// Nothing to stop. Saying "stopping" here would leave the server shown as
+	// stopping, since no exit follows.
+	if st, err := d.rt.State(ctx, spec.UUID); (err == nil && st == runtime.StateOffline) || (err != nil && d.isStale(spec.UUID)) {
+		return nil
+	}
 	d.expectStop(spec.UUID)
 	d.emitState(ctx, spec.UUID, runtime.StateStopping)
 	if spec.Stop != "" && spec.Stop != "^C" {
@@ -1022,9 +1074,22 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: s, DataDir: abs}); err != nil {
 		// Put the previous container back so the server is not left without one.
 		if ob, merr := json.Marshal(old); merr == nil {
-			_ = os.WriteFile(d.statePath(s.UUID), ob, 0o600)
+			if werr := os.WriteFile(d.statePath(s.UUID), ob, 0o600); werr != nil {
+				d.log.Error("could not restore the previous settings", "server", s.UUID, "err", werr)
+			}
 		}
-		_ = d.rt.Create(ctx, runtime.Spec{ServerSpec: old, DataDir: abs})
+		if rerr := d.rt.Create(ctx, runtime.Spec{ServerSpec: old, DataDir: abs}); rerr != nil {
+			// Neither container exists now. Marking the server stale makes its
+			// next start build one again instead of failing on a missing one.
+			d.log.Error("could not restore the previous container", "server", s.UUID, "err", rerr)
+			if werr := os.WriteFile(d.stalePath(s.UUID), nil, 0o600); werr == nil {
+				d.mu.Lock()
+				if m := d.servers[s.UUID]; m != nil {
+					m.spec, m.stale = old, true
+				}
+				d.mu.Unlock()
+			}
+		}
 		return proto.UpdateResult{}, err
 	}
 	_ = os.Remove(d.stalePath(s.UUID))
@@ -1042,6 +1107,13 @@ func sameContainer(a, b proto.ServerSpec) bool {
 	ja, _ := json.Marshal(a)
 	jb, _ := json.Marshal(b)
 	return string(ja) == string(jb)
+}
+
+func (d *Daemon) isStale(uuid string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	m := d.servers[uuid]
+	return m != nil && m.stale
 }
 
 // rebuildIfStale recreates the container of a server whose spec changed while

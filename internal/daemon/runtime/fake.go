@@ -245,6 +245,9 @@ func (f *Fake) Install(_ context.Context, r InstallRun, out io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(out, "[fake-install] %s %s\r\n", r.Entrypoint, r.Image)
+	if bytes.Contains(b, []byte("#slow")) {
+		time.Sleep(time.Second)
+	}
 	if bytes.Contains(b, []byte("#fail")) {
 		fmt.Fprint(out, "[fake-install] failing\r\n")
 		return errors.New("installer exited with code 1")

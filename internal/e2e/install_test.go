@@ -96,6 +96,23 @@ func TestInstallScriptLifecycle(t *testing.T) {
 	waitFor(t, "stopped", func() bool { return state(ok) == "offline" })
 	admin.do("POST", "/api/servers/"+ok+"/reinstall", nil, 202)
 	waitFor(t, "reinstalled", func() bool { return state(ok) == "offline" })
+	// Stopping a stopped server changes nothing (it was left "stopping").
+	admin.do("POST", "/api/servers/"+ok+"/power", map[string]string{"action": "stop"}, 202)
+	time.Sleep(300 * time.Millisecond)
+	if s := state(ok); s != "offline" {
+		t.Fatalf("stopping a stopped server left it %s", s)
+	}
+
+	// While it installs, power is refused outright rather than accepted and
+	// dropped by the node.
+	slow := newServer("#slow\necho installing\n")
+	waitFor(t, "installing", func() bool { return state(slow) == "installing" })
+	for _, action := range []string{"start", "stop", "restart", "kill"} {
+		admin.do("POST", "/api/servers/"+slow+"/power", map[string]string{"action": action}, 409)
+	}
+	waitFor(t, "slow install finished", func() bool { return state(slow) == "offline" })
+	admin.do("POST", "/api/servers/"+slow+"/power", map[string]string{"action": "start"}, 202)
+	waitFor(t, "slow server running", func() bool { return state(slow) == "running" })
 
 	// failure: install_failed, and the server refuses to start
 	bad := newServer("#fail\nexit 1\n")

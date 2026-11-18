@@ -9,8 +9,10 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -884,5 +886,69 @@ func TestSFTPAppendStyles(t *testing.T) {
 	f.Close()
 	if got := r.get("new.bin"); got != "xy" {
 		t.Fatalf("append after truncating: %q", got)
+	}
+}
+
+// Pipelined append writes can reach the writer out of order. Where they land
+// must not depend on which one gets there first.
+func TestSFTPAppendOutOfOrder(t *testing.T) {
+	head := []byte("0123456789") // the file before the append
+	open := func(t *testing.T) (*limitedWriter, string) {
+		p := filepath.Join(t.TempDir(), "f")
+		if err := os.WriteFile(p, head, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.OpenFile(p, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { f.Close() })
+		return &limitedWriter{f: f, shape: &sync.RWMutex{}, check: func(int64) error { return nil }, appendAt: int64(len(head))}, p
+	}
+	// Each case writes "AAAA" then "BBBB" as the client numbers them, but
+	// the second reaches the writer first.
+	for _, c := range []struct {
+		name         string
+		first, later int64 // offsets of "AAAA" and "BBBB"
+	}{
+		{"counted from zero", 0, 4},
+		{"counted from zero, overtaking write past the end", 0, 12},
+		{"counted from the end", 10, 14},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w, p := open(t)
+			done := make(chan error, 1)
+			go func() { _, err := w.WriteAt([]byte("BBBB"), c.later); done <- err }()
+			time.Sleep(20 * time.Millisecond) // "BBBB" is waiting
+			if _, err := w.WriteAt([]byte("AAAA"), c.first); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			got, _ := os.ReadFile(p)
+			shift := int64(0)
+			if c.first < int64(len(head)) {
+				shift = int64(len(head))
+			}
+			want := make([]byte, max(int64(len(head)), c.later+shift+4))
+			copy(want, head)
+			copy(want[c.first+shift:], "AAAA")
+			copy(want[c.later+shift:], "BBBB")
+			if !bytes.Equal(got, want) {
+				t.Fatalf("got %q, want %q", got, want)
+			}
+		})
+	}
+	// A lone write at the end, from a client counting from the end, is not
+	// held long.
+	w, p := open(t)
+	start := time.Now()
+	w.WriteAt([]byte("AAAA"), 10)
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("a write at the end waited %v", d)
+	}
+	if got, _ := os.ReadFile(p); string(got) != "0123456789AAAA" {
+		t.Fatalf("got %q", got)
 	}
 }
