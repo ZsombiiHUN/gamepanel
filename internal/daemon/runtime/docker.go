@@ -324,20 +324,43 @@ func (d *Docker) Events(ctx context.Context) (<-chan Event, error) {
 				if uuid == "" {
 					continue
 				}
-				var st string
+				ev := Event{UUID: uuid}
 				switch string(m.Action) {
 				case "start":
-					st = StateRunning
-				case "die", "stop", "kill", "oom":
-					st = StateOffline
+					ev.State = StateRunning
+				case "die":
+					ev.State = StateOffline
+					ev.Exit = d.exitOf(ctx, uuid, m.Actor.Attributes["exitCode"])
+				case "stop", "kill", "oom":
+					ev.State = StateOffline
 				default:
 					continue
 				}
-				out <- Event{UUID: uuid, State: st}
+				select {
+				case out <- ev:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 	}()
 	return out, nil
+}
+
+// exitOf reads how a container's process ended: the code from the event,
+// and from an inspect whether the OOM killer was involved.
+func (d *Docker) exitOf(ctx context.Context, uuid, code string) *Exit {
+	x := &Exit{}
+	x.Code, _ = strconv.Atoi(code)
+	ictx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if res, err := d.cli.ContainerInspect(ictx, name(uuid), client.ContainerInspectOptions{}); err == nil && res.Container.State != nil {
+		x.OOM = res.Container.State.OOMKilled
+		if code == "" {
+			x.Code = res.Container.State.ExitCode
+		}
+	}
+	return x
 }
 
 func (d *Docker) List(ctx context.Context) ([]string, error) {

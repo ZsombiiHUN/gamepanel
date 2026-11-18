@@ -4,7 +4,7 @@ type ServerView = components["schemas"]["ServerView"];
 export type SearchableServer = Pick<ServerView, "name" | "state" | "port"> & { egg_name?: string; node_name?: string };
 
 export const stateLabel: Record<string, string> = {
-  running: "Running", starting: "Starting", stopping: "Stopping", installing: "Installing", install_failed: "Install failed", offline: "Stopped", unknown: "Unknown",
+  running: "Running", starting: "Starting", stopping: "Stopping", installing: "Installing", install_failed: "Install failed", crashed: "Crashed", offline: "Stopped", unknown: "Unknown",
 };
 
 export const GROUPS = ["running", "busy", "problem", "stopped"] as const;
@@ -15,7 +15,7 @@ export const groupLabel: Record<Group, string> = { running: "Running", stopped: 
 export function groupOf(state: string): Group {
   if (state === "running") return "running";
   if (state === "starting" || state === "stopping" || state === "installing") return "busy";
-  if (state === "install_failed" || state === "unknown") return "problem";
+  if (state === "install_failed" || state === "crashed" || state === "unknown") return "problem";
   return "stopped";
 }
 

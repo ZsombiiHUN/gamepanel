@@ -29,6 +29,14 @@ type Spec struct {
 type Event struct {
 	UUID  string
 	State string
+	// Exit is set on the event that reports the server's process ended.
+	Exit *Exit
+}
+
+// Exit describes how a server's process ended.
+type Exit struct {
+	Code int
+	OOM  bool // the kernel's out-of-memory killer ended it
 }
 
 // InstallRun is a one-shot installer job.

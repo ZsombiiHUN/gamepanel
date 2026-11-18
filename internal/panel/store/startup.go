@@ -240,9 +240,10 @@ func VarRulesSummary(rules string) string {
 // StartupChange is a set of changes to a server's startup settings. Nil
 // fields stay as they are.
 type StartupChange struct {
-	Env     map[string]string // merged into the current values
-	Image   *string
-	Startup *string
+	Env          map[string]string // merged into the current values
+	Image        *string
+	Startup      *string
+	CrashRestart *bool
 }
 
 // UpdateStartup applies c to a server and returns it as saved.
@@ -265,8 +266,11 @@ func (s *Store) UpdateStartup(ctx context.Context, uuid string, c StartupChange)
 	if c.Startup != nil {
 		v.Startup = *c.Startup
 	}
+	if c.CrashRestart != nil {
+		v.CrashRestart = *c.CrashRestart
+	}
 	env, _ := json.Marshal(v.Env)
-	if _, err := tx.ExecContext(ctx, `UPDATE servers SET env=?, image=?, startup=? WHERE uuid=?`, string(env), v.Image, v.Startup, uuid); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE servers SET env=?, image=?, startup=?, crash_restart=? WHERE uuid=?`, string(env), v.Image, v.Startup, v.CrashRestart, uuid); err != nil {
 		return v, err
 	}
 	return v, tx.Commit()

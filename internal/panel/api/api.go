@@ -134,6 +134,7 @@ func New(d Deps) http.Handler {
 	api := humago.NewWithPrefix(mux, "/api", apiConfig())
 	d.Hub.OnHello = a.onHello
 	d.Hub.OnStats = a.collect
+	d.Hub.OnCrash = a.onCrash
 	d.Hub.Locate = func(ctx context.Context, uuid string) (int64, error) {
 		s, err := a.Store.GetServer(ctx, uuid)
 		return s.NodeID, err
