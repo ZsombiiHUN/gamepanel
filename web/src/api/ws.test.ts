@@ -70,4 +70,15 @@ describe("useServerSocket", () => {
     act(() => vi.advanceTimersByTime(60_000));
     expect(FakeSocket.all).toHaveLength(1);
   });
+
+  it("passes on single lines and batches in order", () => {
+    const seen: string[] = [];
+    renderHook(() => useServerSocket(uuid, { ...handlers, onConsole: (l) => seen.push(l) }));
+    act(() => sock(0).onopen?.());
+    const send = (data: unknown) => act(() => sock(0).onmessage?.({ data: JSON.stringify({ type: "console", data }) }));
+    send({ uuid, line: "one" });
+    send({ uuid, line: "", lines: ["two", "three"] });
+    send({ uuid, line: "" });
+    expect(seen).toEqual(["one", "two", "three", ""]);
+  });
 });

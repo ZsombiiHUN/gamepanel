@@ -162,6 +162,7 @@ type Daemon struct {
 	sftp *sftpServer // set by StartSFTP; nil when SFTP is off
 
 	walkHook func(uuid string) (int64, error) // tests: replaces the disk walk
+	sendHook func(proto.Envelope)             // tests: receives what would be sent
 }
 
 func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
@@ -316,6 +317,10 @@ func (d *Daemon) session(ctx context.Context) error {
 }
 
 func (d *Daemon) send(ctx context.Context, env proto.Envelope) error {
+	if d.sendHook != nil {
+		d.sendHook(env)
+		return nil
+	}
 	b, _ := json.Marshal(env)
 	d.wmu.Lock()
 	defer d.wmu.Unlock()
@@ -409,7 +414,9 @@ func (d *Daemon) attach(ctx context.Context, uuid string) {
 	m.attached = true
 	d.mu.Unlock()
 
-	r, w, err := d.rt.Attach(ctx, uuid)
+	// The stream must outlive the request or session that started it: it ends
+	// when the container stops, not when the panel connection drops.
+	r, w, err := d.rt.Attach(context.WithoutCancel(ctx), uuid)
 	if err != nil {
 		d.log.Warn("attach failed", "server", uuid, "err", err)
 		d.mu.Lock()
@@ -427,13 +434,12 @@ func (d *Daemon) attach(ctx context.Context, uuid string) {
 			m.attached, m.stdin = false, nil
 			d.mu.Unlock()
 		}()
+		out := d.newConsole(uuid)
+		defer out.Close()
 		sc := bufio.NewScanner(r)
 		sc.Buffer(make([]byte, 64<<10), 1<<20)
 		for sc.Scan() {
-			// Not the session context: this reader outlives a panel reconnect, and
-			// writing with a cancelled context makes websocket close the *current*
-			// connection, which dropped the node on the first line after a reconnect.
-			_ = d.send(context.Background(), proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid, Line: sc.Text()})})
+			out.Line(sc.Text())
 		}
 	}()
 }
@@ -603,9 +609,7 @@ func (d *Daemon) runInstall(ctx context.Context, uuid string) {
 	d.emitState(ctx, uuid, StateInstalling)
 	_ = os.Remove(d.installedPath(uuid))
 
-	say := func(line string) {
-		_ = d.send(ctx, proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid, Line: line})})
-	}
+	say := func(line string) { d.sendConsole(uuid, line) }
 	fail := func(err error) {
 		d.log.Warn("install failed", "server", uuid, "err", err)
 		say("\x1b[31m[install] failed: " + err.Error() + "\x1b[0m")
@@ -631,10 +635,12 @@ func (d *Daemon) runInstall(ctx context.Context, uuid string) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		out := d.newConsole(uuid)
+		defer out.Close() // everything is sent before the outcome is said
 		sc := bufio.NewScanner(pr)
 		sc.Buffer(make([]byte, 64<<10), 1<<20)
 		for sc.Scan() {
-			say(sc.Text())
+			out.Line(sc.Text())
 		}
 	}()
 	err = d.rt.Install(ctx, runtime.InstallRun{
@@ -751,8 +757,7 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 		if err := d.rt.LimitBandwidth(ctx, uuid); err != nil {
 			// Not fatal: the server runs, unlimited, and its owner is told why.
 			d.log.Warn("could not apply the bandwidth limit", "server", uuid, "err", err)
-			_ = d.send(ctx, proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid,
-				Line: "\x1b[33m[gamepanel] the network limit could not be applied on this node (it needs tc and nsenter); the server runs without it\x1b[0m"})})
+			d.sendConsole(uuid, "\x1b[33m[gamepanel] the network limit could not be applied on this node (it needs tc and nsenter); the server runs without it\x1b[0m")
 		}
 	}
 	d.emitState(ctx, uuid, runtime.StateRunning)
