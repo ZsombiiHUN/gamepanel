@@ -5,9 +5,9 @@ go 1.27.3
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/containerd/errdefs v1.0.0
-	github.com/danielgtaylor/huma/v2 v2.40.0
-	github.com/fxamacker/cbor/v2 v2.9.6
-	github.com/go-sql-driver/mysql v1.10.1
+	github.com/danielgtaylor/huma/v2 v2.41.0
+	github.com/fxamacker/cbor/v2 v2.10.0
+	github.com/go-sql-driver/mysql v1.10.2
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/moby/moby/api v1.57.0
 	github.com/moby/moby/client v0.6.3
@@ -31,7 +31,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/go-webauthn/x v0.3.1 // indirect
+	github.com/go-webauthn/x v0.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -56,7 +56,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
-	modernc.org/libc v1.80.2 // indirect
+	modernc.org/libc v1.82.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.12.1 // indirect
+	modernc.org/memory v1.13.0 // indirect
 )

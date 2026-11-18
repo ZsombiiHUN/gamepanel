@@ -40,9 +40,7 @@ jobs:
       - run: pnpm test
   e2e:
     # Real browser against a real panel with a fake daemon: layout, keyboard, search, accessibility.
-    # Pinned: Playwright 1.58 cannot install Chromium on ubuntu-latest (26.04). Move back to
-    # ubuntu-latest after upgrading @playwright/test to a release that supports it.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: web
