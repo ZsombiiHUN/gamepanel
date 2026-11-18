@@ -28,6 +28,7 @@ export const keys = {
   invite: ["invite"] as const,
   identities: ["identities"] as const,
   passkeys: ["passkeys"] as const,
+  sessions: ["sessions"] as const,
   metrics: (uuid: string) => ["metrics", uuid] as const,
   mods: (uuid: string) => ["mods", uuid] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
@@ -154,6 +155,11 @@ export const permissionsQuery = queryOptions({
   queryKey: keys.permissions,
   queryFn: () => call(api.GET("/permissions")),
   staleTime: Infinity,
+});
+
+export const sessionsQuery = queryOptions({
+  queryKey: keys.sessions,
+  queryFn: async () => (await call(api.GET("/auth/sessions"))) ?? [],
 });
 
 export const apiKeysQuery = queryOptions({

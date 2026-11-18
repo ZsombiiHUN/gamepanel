@@ -38,6 +38,31 @@ test.describe("signed out", () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
+  test("the account page lists your sessions and signs out one you pick", async ({ page, browser, panel }) => {
+    const signIn = async (p: typeof page) => {
+      await p.goto("/login");
+      await p.getByLabel("Email").fill(panel.ready.user.email);
+      await p.getByLabel("Password").fill(panel.ready.user.password);
+      await p.getByRole("button", { name: "Sign in", exact: true }).click();
+      await expect(p.getByRole("heading", { name: "Servers" })).toBeVisible();
+    };
+    const other = await browser.newContext({ storageState: ANONYMOUS, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" });
+    const phone = await other.newPage();
+    await signIn(phone);
+    await signIn(page);
+
+    await page.goto("/account");
+    const list = page.getByRole("list", { name: "Signed-in sessions" });
+    await expect(list.getByText("This device")).toBeVisible();
+    await expect(list.getByText("Safari on iPhone").first()).toBeVisible();
+    await list.getByRole("button", { name: /^Sign out Safari on iPhone/ }).first().click();
+    await expect(list.getByText("Safari on iPhone")).toHaveCount(0);
+
+    expect((await phone.request.get("/api/auth/me")).status()).toBe(401);
+    expect((await page.request.get("/api/auth/me")).status()).toBe(200);
+    await other.close();
+  });
+
   test("the sign-in form is usable with the keyboard alone", async ({ page, panel }) => {
     await page.goto("/login");
     await expect(page.getByLabel("Email")).toBeFocused();

@@ -49,6 +49,7 @@ func (a *App) registerAuth(api huma.API) {
 				a.audit(ctx, store.User{Email: email}, "login.fail", email, "")
 				return nil, huma.Error401Unauthorized("invalid email or password")
 			}
+			method := store.MethodPassword
 			if u.TOTPEnabled {
 				if in.Body.TOTPCode == "" {
 					// Password was right; tell the client to ask for the code.
@@ -65,13 +66,15 @@ func (a *App) registerAuth(api huma.API) {
 					a.audit(ctx, u, "login.fail", email, "bad second factor")
 					return nil, huma.Error401Unauthorized("invalid code")
 				}
+				method = store.MethodTOTP
 				if kind == "recovery" {
+					method = store.MethodRecovery
 					a.audit(ctx, u, "login.recovery_code", email, "a recovery code was used")
 				}
 			}
 			a.fails.reset(email)
 			a.audit(ctx, u, "login.ok", email, "")
-			tok, err := a.Store.NewSession(ctx, u.ID)
+			tok, err := a.newSession(ctx, u.ID, method)
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}

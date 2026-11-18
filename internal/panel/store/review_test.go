@@ -12,7 +12,7 @@ func TestSigningInClearsExpiredSessions(t *testing.T) {
 	s, _ := testServer(t)
 	u, _ := s.Login(ctx, "a@example.com", "correct-horse-battery")
 	s.exec(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at) VALUES('stale',?,?)`, u.ID, time.Now().Add(-time.Hour).Unix())
-	if _, err := s.NewSession(ctx, u.ID); err != nil {
+	if _, err := s.NewSession(ctx, u.ID, SessionMeta{}); err != nil {
 		t.Fatal(err)
 	}
 	var n int

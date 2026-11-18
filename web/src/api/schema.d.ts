@@ -366,6 +366,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your signed-in sessions */
+        get: operations["listSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/sessions/revoke-others": {
         parameters: {
             query?: never;
@@ -378,6 +395,23 @@ export interface paths {
         /** Sign out everywhere except this browser */
         post: operations["revokeOtherSessions"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Sign out one of your other sessions */
+        delete: operations["revokeSession"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2313,6 +2347,39 @@ export interface components {
             swap_mb: number;
             uuid: string;
         };
+        Session: {
+            /**
+             * Format: int64
+             * @description sign-in time (unix seconds); 0 for sessions from before this was recorded
+             */
+            created_at: number;
+            /** @description the session this request was made with */
+            current: boolean;
+            /**
+             * Format: int64
+             * @description absolute end, however busy the session is
+             */
+            expires_at: number;
+            /** @description opaque id, for revoking this session */
+            id: string;
+            /**
+             * Format: int64
+             * @description when the session ends if it goes unused
+             */
+            idle_expires_at: number;
+            /** @description address it signed in from */
+            ip: string;
+            /** @description address it was last used from */
+            last_ip: string;
+            /**
+             * Format: int64
+             * @description last use, to within a minute
+             */
+            last_seen_at: number;
+            /** @description how it signed in: password, password+totp, password+recovery, passkey, sso:<provider>, sso+totp:<provider>, register */
+            method: string;
+            user_agent: string;
+        };
         SftpInfoOutBody: {
             host: string;
             /**
@@ -3192,11 +3259,69 @@ export interface operations {
             };
         };
     };
+    listSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     revokeOtherSessions: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    revokeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
