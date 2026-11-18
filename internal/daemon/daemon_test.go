@@ -54,6 +54,10 @@ func addServer(t testing.TB, d *Daemon, uuid string, diskMB int64) {
 	if err := d.create(context.Background(), proto.ServerSpec{UUID: uuid, Image: "img", Startup: "run", Stop: "^C", MemoryMB: 128, DiskMB: diskMB}); err != nil {
 		t.Fatal(err)
 	}
+	// The container is built in the background; wait until it is ready.
+	if !eventually(5*time.Second, func() bool { st, _ := d.installState(uuid); return st == "" }) {
+		t.Fatal("server never finished provisioning")
+	}
 }
 
 func req(typ string, v any) proto.Envelope { return proto.Envelope{Type: typ, Data: proto.Marshal(v)} }
