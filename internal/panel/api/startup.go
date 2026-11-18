@@ -52,6 +52,9 @@ type startupView struct {
 	// Pending: the server was running when the last change was made, so it
 	// takes effect at the next start.
 	Pending bool `json:"pending"`
+	// CrashRestart: the node restarts the server when it crashes.
+	CrashRestart        bool `json:"crash_restart"`
+	CanEditCrashRestart bool `json:"can_edit_crash_restart"`
 }
 
 type startupOut struct{ Body startupView }
@@ -62,6 +65,8 @@ type startupIn struct {
 		Env     map[string]string `json:"env,omitempty" doc:"variables to change; others keep their values"`
 		Image   *string           `json:"image,omitempty" maxLength:"255" doc:"one of the egg's images; admins may use any, \"\" = the egg's default"`
 		Startup *string           `json:"startup,omitempty" maxLength:"4096" doc:"admins only; \"\" = the egg's command"`
+		// Takes effect at once, even while the server runs.
+		CrashRestart *bool `json:"crash_restart,omitempty" doc:"restart the server when it crashes"`
 	}
 }
 
@@ -74,6 +79,7 @@ func startupFor(u store.User, perms []string, s store.Server, egg store.Egg) sta
 		Image:    egg.DockerImage, Images: egg.DockerImages,
 		CanEditCommand: admin,
 		Variables:      []startupVar{},
+		CrashRestart:   s.CrashRestart, CanEditCrashRestart: admin || has(perms, PermStartupUpdate),
 	}
 	if s.Startup != "" {
 		v.Command = s.Startup
@@ -174,6 +180,14 @@ func startupChange(u store.User, perms []string, s store.Server, egg store.Egg, 
 	return c, nil
 }
 
+// crashRestartChange checks that the caller may switch automatic restarts.
+func crashRestartChange(u store.User, perms []string, v *bool) error {
+	if v != nil && !u.IsAdmin && !has(perms, PermStartupUpdate) {
+		return huma.Error403Forbidden("you do not have permission to do that (" + PermStartupUpdate + ")")
+	}
+	return nil
+}
+
 func (a *App) registerStartup(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "getStartup", Method: "GET", Path: "/servers/{uuid}/startup",
 		Summary: "Startup command, Docker image and variables"},
@@ -210,6 +224,10 @@ func (a *App) registerStartup(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
+			if err := crashRestartChange(u, perms, b.CrashRestart); err != nil {
+				return nil, err
+			}
+			c.CrashRestart = b.CrashRestart
 			next := s
 			next.Env = map[string]string{}
 			for k, v := range s.Env {
@@ -223,6 +241,9 @@ func (a *App) registerStartup(api huma.API) {
 			}
 			if c.Startup != nil {
 				next.Startup = *c.Startup
+			}
+			if c.CrashRestart != nil {
+				next.CrashRestart = *c.CrashRestart
 			}
 			pending, err := a.applySpec(ctx, next)
 			if err != nil {
@@ -280,6 +301,13 @@ func startupAuditText(c store.StartupChange, egg store.Egg) string {
 			img = egg.DockerImage + " (egg default)"
 		}
 		parts = append(parts, "image "+img)
+	}
+	if c.CrashRestart != nil {
+		if *c.CrashRestart {
+			parts = append(parts, "automatic restart after a crash on")
+		} else {
+			parts = append(parts, "automatic restart after a crash off")
+		}
 	}
 	if c.Startup != nil {
 		if *c.Startup == "" {
