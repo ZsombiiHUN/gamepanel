@@ -75,8 +75,7 @@ func TestSFTPAuthEndpoint(t *testing.T) {
 	if r, _ := s.sftpAuth(s.token, login("ADMIN@Example.COM."+pre, key)); !r.OK {
 		t.Error("e-mail case mattered")
 	}
-	for name, user := range map[string]string{
-		"upper-case prefix": "admin@example.com." + strings.ToUpper(pre),
+	bad := map[string]string{
 		"short prefix":      "admin@example.com." + pre[:7],
 		"long prefix":       "admin@example.com." + s.server[:9],
 		"no prefix":         "admin@example.com",
@@ -85,7 +84,13 @@ func TestSFTPAuthEndpoint(t *testing.T) {
 		"wildcard prefix":   "admin@example.com.%%%%%%%%",
 		"underscore prefix": "admin@example.com.________",
 		"other e-mail":      "someone@example.com." + pre,
-	} {
+	}
+	// A server id's prefix can be all digits; upper-casing it then changes
+	// nothing and proves nothing.
+	if up := strings.ToUpper(pre); up != pre {
+		bad["upper-case prefix"] = "admin@example.com." + up
+	}
+	for name, user := range bad {
 		if r, _ := s.sftpAuth(s.token, login(user, key)); r.OK {
 			t.Errorf("%s (%q): accepted", name, user)
 		}
