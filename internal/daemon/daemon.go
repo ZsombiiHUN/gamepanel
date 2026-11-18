@@ -287,7 +287,8 @@ func (d *Daemon) session(ctx context.Context) error {
 		}
 	}
 	d.mu.Unlock()
-	if err := d.send(sctx, proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(proto.Hello{Version: Version, Servers: ids, SFTPPort: sftpPort})}); err != nil {
+	hello := proto.Hello{Version: Version, Servers: ids, SFTPPort: sftpPort, Containers: d.untracked(sctx, ids)}
+	if err := d.send(sctx, proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(hello)}); err != nil {
 		return err
 	}
 
@@ -328,6 +329,26 @@ func (d *Daemon) session(ctx context.Context) error {
 		}
 		go d.handle(sctx, env) // requests run concurrently; replies carry the id
 	}
+}
+
+// untracked lists server containers the runtime has that the daemon does not.
+func (d *Daemon) untracked(ctx context.Context, tracked []string) []string {
+	all, err := d.rt.List(ctx)
+	if err != nil {
+		d.log.Warn("could not list containers", "err", err)
+		return nil
+	}
+	known := map[string]bool{}
+	for _, id := range tracked {
+		known[id] = true
+	}
+	var out []string
+	for _, id := range all {
+		if !known[id] && uuidRe.MatchString(id) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func (d *Daemon) send(ctx context.Context, env proto.Envelope) error {

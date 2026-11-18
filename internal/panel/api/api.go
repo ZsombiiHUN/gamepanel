@@ -83,6 +83,8 @@ type App struct {
 	wa           *webauthn.WebAuthn
 	waCeremonies sync.Map
 	metrics      metricsCollector
+	// unknown: node id -> servers it reported that the panel has no record of.
+	unknown sync.Map
 }
 
 type ctxKey struct{}
