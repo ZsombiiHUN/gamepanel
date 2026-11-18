@@ -10,6 +10,7 @@ import (
 // checked: variables against the egg's rules, the owner, and the name. A
 // refused create leaves nothing behind.
 func TestCreateServerChecksItsInput(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var e struct{ ID int64 }
 	json.Unmarshal(s.admin.do("POST", "/api/eggs/import", startupEgg, 201), &e)
@@ -63,6 +64,7 @@ func TestCreateServerChecksItsInput(t *testing.T) {
 
 // A node that cannot take the server (here: offline) rolls the create back.
 func TestCreateOnAnOfflineNodeIsRolledBack(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var n struct{ Node struct{ ID int64 } }
 	json.Unmarshal(s.admin.do("POST", "/api/nodes", map[string]any{"name": "offline", "port_start": 30000, "port_end": 30001}, 201), &n)

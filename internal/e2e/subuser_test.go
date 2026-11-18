@@ -11,6 +11,7 @@ import (
 )
 
 func TestSubuserPermissions(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	bobUser, err := s.st.CreateUser(s.ctx, "bob@example.com", "another-long-password", false)
 	if err != nil {

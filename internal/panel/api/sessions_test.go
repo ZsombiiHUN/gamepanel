@@ -32,6 +32,7 @@ func listSessions(t *testing.T, c *cl, hdr map[string]string) []sessionRow {
 // ASVS v5.0.0-7.5.2: the account owner can see their live sessions and end
 // any one of them.
 func TestSessionListAndRevoke(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "127.0.0.1")
 	laptop, phone := e.client(), e.client()
 	login := func(c *cl, ip, ua string) {
@@ -115,6 +116,7 @@ func TestSessionListAndRevoke(t *testing.T) {
 
 // An API key acts as the user but cannot see or end their sessions.
 func TestSessionListNeedsBrowserSession(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)
@@ -137,6 +139,7 @@ func TestSessionListNeedsBrowserSession(t *testing.T) {
 // Full-length recovery codes go through every endpoint that takes a code,
 // and the account can see how many are left.
 func TestRecoveryCodesThroughTheAPI(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)

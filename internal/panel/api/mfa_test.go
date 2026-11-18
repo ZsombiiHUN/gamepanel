@@ -29,6 +29,7 @@ func totpAt(t *testing.T, b32secret string, offset int64) string {
 }
 
 func TestTOTPEnrolmentAndLogin(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	const email, pw = "bob@example.com", "another-long-password"
 	a := e.client()
@@ -117,6 +118,7 @@ func TestTOTPEnrolmentAndLogin(t *testing.T) {
 }
 
 func TestWrongSecondFactorCountsTowardLockout(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	const email, pw = "bob@example.com", "another-long-password"
 	a := e.client()
@@ -137,6 +139,7 @@ func TestWrongSecondFactorCountsTowardLockout(t *testing.T) {
 }
 
 func TestAPIKeys(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	const pw = "another-long-password"
 	a := e.client()

@@ -7,13 +7,12 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/pressly/goose/v3"
 )
 
 // ASVS v5.0.0-6.5.2 / 6.5.3: recovery codes stored with a plain hash must
 // have at least 112 bits from a CSPRNG.
 func TestRecoveryCodeStrength(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	u, _ := s.CreateUser(ctx, "a@example.com", "correct-horse-battery", false)
@@ -82,16 +81,18 @@ func TestRecoveryCodeStrength(t *testing.T) {
 // marks them so the owner is asked to replace them. Making new codes removes
 // them.
 func TestLegacyRecoveryCodes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "p.db")
 	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	goose.SetBaseFS(migrations)
-	goose.SetDialect("sqlite3")
-	goose.SetLogger(goose.NopLogger())
-	if err := goose.UpTo(db, "migrations", 114); err != nil {
+	m, err := migrator(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.UpTo(ctx, 114); err != nil {
 		t.Fatal(err)
 	}
 	db.Exec(`INSERT INTO users(id,email,password_hash,created_at) VALUES(1,'a@example.com','x',1)`)

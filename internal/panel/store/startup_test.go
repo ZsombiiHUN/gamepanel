@@ -3,6 +3,7 @@ package store
 import "testing"
 
 func TestValidateVar(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		rules, val string
 		ok         bool
@@ -53,6 +54,7 @@ func TestValidateVar(t *testing.T) {
 }
 
 func TestVarRulesSummary(t *testing.T) {
+	t.Parallel()
 	if got := VarRulesSummary("required|integer|between:1,64"); got != "required, whole number, 1 to 64" {
 		t.Fatalf("%q", got)
 	}

@@ -27,6 +27,7 @@ func actions(es []AuditEntry) []string {
 }
 
 func TestListAuditSearch(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	seedAudit(t, s)
@@ -72,6 +73,7 @@ func TestListAuditSearch(t *testing.T) {
 }
 
 func TestListAuditSearchPaginates(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	seedAudit(t, s)
@@ -89,6 +91,7 @@ func TestListAuditSearchPaginates(t *testing.T) {
 }
 
 func TestListAuditSearchIsNotInjectable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	seedAudit(t, s)
@@ -102,6 +105,7 @@ func TestListAuditSearchIsNotInjectable(t *testing.T) {
 }
 
 func TestLabels(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s := open(t)
 	eggs, nodes, err := s.Labels(ctx)

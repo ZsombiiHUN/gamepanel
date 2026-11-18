@@ -44,6 +44,7 @@ func detailOf(t *testing.T, err error) (int, string) {
 // Internal failures (database, file system, node) are logged with a reference
 // and the client sees only a generic message holding that reference.
 func TestInternalErrorsAreHiddenBehindAReference(t *testing.T) {
+	t.Parallel()
 	log := captureLog(t)
 	secret := fmt.Errorf("insert subusers: %w", sql.ErrConnDone)
 
@@ -79,6 +80,7 @@ func TestInternalErrorsAreHiddenBehindAReference(t *testing.T) {
 }
 
 func TestMessagesWrittenForPeoplePassThrough(t *testing.T) {
+	t.Parallel()
 	captureLog(t)
 	cases := []struct {
 		err    error
@@ -111,6 +113,7 @@ func TestMessagesWrittenForPeoplePassThrough(t *testing.T) {
 
 // Failures of background jobs are stored and shown later: same rule.
 func TestStoredFailuresDoNotLeak(t *testing.T) {
+	t.Parallel()
 	log := captureLog(t)
 	if got := failureText(proto.Conflict("stop the server before restoring a backup")); got != "stop the server before restoring a backup" {
 		t.Fatalf("safe message changed: %q", got)
@@ -125,6 +128,7 @@ func TestStoredFailuresDoNotLeak(t *testing.T) {
 }
 
 func TestWriteProblemIsProblemJSON(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	writeProblem(rec, http.StatusForbidden, "blocked")
 	var m huma.ErrorModel
@@ -136,6 +140,7 @@ func TestWriteProblemIsProblemJSON(t *testing.T) {
 // A failed power action is explained in the console. Node errors written for
 // users are shown as they are; anything else stays generic.
 func TestPowerFailureMessage(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		err  error
 		want string

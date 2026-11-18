@@ -14,6 +14,7 @@ import (
 // One tick is one message covering every server, built from the watchers'
 // samples rather than a container inspect and stats call per server.
 func TestStatsAreBatchedFromWatchers(t *testing.T) {
+	t.Parallel()
 	fake := runtime.NewFake()
 	d := newTestDaemon(t, fake)
 	var mu sync.Mutex

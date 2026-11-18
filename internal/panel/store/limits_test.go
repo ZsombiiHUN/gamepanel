@@ -9,6 +9,7 @@ import (
 )
 
 func TestLimitsNormalize(t *testing.T) {
+	t.Parallel()
 	ok := Limits{MemoryMB: 512}
 	if err := ok.Normalize(); err != nil || ok.PidsLimit != 1024 || ok.BackupLimit != 20 {
 		t.Fatalf("defaults not applied: %+v %v", ok, err)
@@ -41,6 +42,7 @@ func TestLimitsNormalize(t *testing.T) {
 }
 
 func TestNodeCapacityAccounting(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := Open(filepath.Join(t.TempDir(), "p.db"))
 	defer s.Close()
@@ -95,6 +97,7 @@ func TestNodeCapacityAccounting(t *testing.T) {
 }
 
 func TestBackupLimitIsPerServer(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	if err := s.UpdateLimits(ctx, srv, Limits{MemoryMB: 128, BackupLimit: 2}); err != nil {

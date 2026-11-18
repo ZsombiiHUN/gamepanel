@@ -33,6 +33,7 @@ func installEgg(script string) string {
 }
 
 func TestInstallScriptLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -126,6 +127,7 @@ func TestInstallScriptLifecycle(t *testing.T) {
 }
 
 func TestEggImportRejectsBadInstallEntrypoint(t *testing.T) {
+	t.Parallel()
 	b := installEgg("echo hi")
 	b = strings.Replace(b, `"ash"`, `"ash; rm -rf /"`, 1)
 	ctx := context.Background()

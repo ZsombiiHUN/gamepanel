@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"testing"
 	"time"
 	"unicode/utf8"
 
@@ -59,6 +60,18 @@ const (
 	argT, argM, argP, argKey = 3, 64 * 1024, 4, 32
 )
 
+// argonParams returns the cost the password hashes use. Test binaries use the
+// smallest cost argon2 allows: the suites create and sign in hundreds of users,
+// and at full cost (slower still under -race) the hashing took a quarter of
+// their CPU time. testing.Testing is false in every binary but a test's, so the
+// panel always hashes at full cost.
+func argonParams() (time, memory uint32, threads uint8) {
+	if testing.Testing() {
+		return 1, 8, 1
+	}
+	return argT, argM, argP
+}
+
 // Password length limits, in characters (not bytes, so non-Latin scripts
 // get the same minimum). The cap stops a huge password being used to burn CPU.
 const (
@@ -101,7 +114,8 @@ func mostly(pw, word string) bool {
 func hashPassword(pw string) string {
 	salt := make([]byte, 16)
 	rand.Read(salt)
-	key := argon2.IDKey([]byte(pw), salt, argT, argM, argP, argKey)
+	t, m, p := argonParams()
+	key := argon2.IDKey([]byte(pw), salt, t, m, p, argKey)
 	return fmt.Sprintf("argon2id$%x$%x", salt, key)
 }
 
@@ -115,7 +129,8 @@ func checkPassword(pw, enc string) bool {
 	if err1 != nil || err2 != nil || len(key) == 0 {
 		return false
 	}
-	got := argon2.IDKey([]byte(pw), salt, argT, argM, argP, uint32(len(key)))
+	t, m, p := argonParams()
+	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(key)))
 	return subtle.ConstantTimeCompare(got, key) == 1
 }
 
