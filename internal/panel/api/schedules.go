@@ -175,6 +175,10 @@ func (a *App) RunScheduler(ctx context.Context, tick time.Duration) {
 // it is marked continue_on_failure. manual runs ignore only_when_online.
 func (a *App) runSchedule(ctx context.Context, s store.Server, v store.Schedule, manual bool) {
 	defer a.running.Delete(v.ID)
+	if s.Suspended {
+		a.Store.SetScheduleStatus(ctx, v.ID, "skipped: the server is suspended")
+		return
+	}
 	if !manual && v.OnlyWhenOnline && a.Hub.State(s.UUID) != "running" {
 		a.Store.SetScheduleStatus(ctx, v.ID, "skipped: server was not running")
 		return

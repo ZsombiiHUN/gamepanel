@@ -36,13 +36,23 @@ const (
 
 // access resolves what the caller may do on a server. Owners and admins hold
 // every permission; subusers only what they were granted. ok is false when
-// the caller has no relationship with the server at all.
+// the caller has no relationship with the server at all. On a suspended
+// server only admins may do anything: everyone else keeps seeing it, with no
+// permissions, which also closes open consoles and SFTP sessions at their
+// next check.
 func (a *App) access(ctx context.Context, u store.User, s store.Server) (perms []string, full, ok bool) {
-	if u.IsAdmin || s.OwnerID == u.ID {
+	if u.IsAdmin {
 		return allPermissions(), true, true
 	}
-	perms, ok = a.Store.SubuserPermissions(ctx, s.UUID, u.ID)
-	return perms, false, ok
+	if s.OwnerID == u.ID {
+		perms, full, ok = allPermissions(), true, true
+	} else {
+		perms, ok = a.Store.SubuserPermissions(ctx, s.UUID, u.ID)
+	}
+	if s.Suspended {
+		perms = []string{}
+	}
+	return perms, full, ok
 }
 
 func allPermissions() []string {
@@ -77,6 +87,9 @@ func (a *App) authorizeP(ctx context.Context, uuid, perm string) (store.User, st
 	perms, _, ok := a.access(ctx, u, s)
 	if !ok {
 		return u, s, huma.Error404NotFound("server not found")
+	}
+	if perm != "" && s.Suspended && !u.IsAdmin {
+		return u, s, huma.Error403Forbidden("this server is suspended; contact your host")
 	}
 	if perm != "" && !has(perms, perm) {
 		return u, s, huma.Error403Forbidden("you do not have permission to do that (" + perm + ")")
