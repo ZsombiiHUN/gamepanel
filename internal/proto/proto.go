@@ -247,9 +247,19 @@ type FileInfo struct {
 	Symlink bool   `json:"symlink,omitempty"`
 }
 
+// Console carries console output: one Line, or a batch in Lines.
 type Console struct {
-	UUID string `json:"uuid"`
-	Line string `json:"line"`
+	UUID  string   `json:"uuid"`
+	Line  string   `json:"line"`
+	Lines []string `json:"lines,omitempty"`
+}
+
+// All returns the console lines c carries, in order.
+func (c Console) All() []string {
+	if len(c.Lines) > 0 {
+		return c.Lines
+	}
+	return []string{c.Line}
 }
 
 type State struct {

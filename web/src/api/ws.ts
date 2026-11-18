@@ -54,7 +54,12 @@ export function useServerSocket(uuid: string, handlers: Handlers) {
         }
         if (!data || typeof data !== "object") return;
         const d = data as Record<string, unknown>;
-        if (frame.type === "console" && typeof d.line === "string") onConsole(d.line);
+        if (frame.type === "console") {
+          // A batch arrives as "lines", a single line as "line".
+          if (Array.isArray(d.lines)) {
+            for (const l of d.lines) if (typeof l === "string") onConsole(l);
+          } else if (typeof d.line === "string") onConsole(d.line);
+        }
         else if (frame.type === "state" && typeof d.state === "string") onLive({ state: d.state });
         else if (frame.type === "stats" && typeof d.cpu_pct === "number" && typeof d.mem_bytes === "number")
           onLive({ stats: { cpu_pct: d.cpu_pct, mem_bytes: d.mem_bytes, disk_bytes: typeof d.disk_bytes === "number" ? d.disk_bytes : 0 } });
