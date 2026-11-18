@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Check, Copy, Loader2, MoreVertical, Play, RotateCw, Skull, Square } from "lucide-react";
 import { api, call, type components } from "../../api/client";
@@ -21,13 +21,28 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
     mutationFn: () => call(api.POST("/servers/{uuid}/reinstall", { params: { path: { uuid } } })),
     meta: invalidates(keys.server(uuid)),
   });
+  // The panel answers before a slow action (a graceful stop) is done, so the
+  // buttons stay held from an accepted action until the state moves on, or
+  // for a while at most. Kill stays open: it is how a hung stop is cut short.
+  const [sentIn, setSentIn] = useState<string | null>(null);
+  if (sentIn !== null && state !== sentIn) setSentIn(null);
+  useEffect(() => {
+    if (sentIn === null) return;
+    const t = setTimeout(() => setSentIn(null), 15_000);
+    return () => clearTimeout(t);
+  }, [sentIn]);
+  const send = (action: PowerAction) => {
+    const from = state;
+    power.mutate(action, { onSuccess: () => action !== "kill" && setSentIn(from) });
+  };
   const notReady = state === "installing" || state === "install_failed" || s.suspended;
+  const killable = state === "running" || state === "starting" || state === "stopping";
   const btn = (action: PowerAction, label: string, icon: ReactNode, extra = "") => (
     <button
       type="button"
       className={`btn !min-h-11 !px-5 ${extra}`}
-      disabled={power.isPending || !s.node_online || !can("power") || (notReady && (action === "start" || action === "restart"))}
-      onClick={() => power.mutate(action)}
+      disabled={power.isPending || sentIn !== null || !s.node_online || !can("power") || (notReady && (action === "start" || action === "restart"))}
+      onClick={() => send(action)}
     >
       {power.isPending && power.variables === action ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : icon}
       {label}
@@ -56,7 +71,7 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
           {running && btn("restart", "Restart", <RotateCw className="h-[17px] w-[17px]" aria-hidden />, "!bg-warn !border-warn !text-warn-ink font-semibold hover:!bg-warn-hover")}
           {running && btn("stop", "Stop", <Square className="h-[17px] w-[17px]" aria-hidden />, "!bg-bad !border-bad !text-bad-ink font-semibold hover:!bg-bad-hover")}
           <MoreMenu>
-            <button type="button" role="menuitem" className="menu-item" disabled={power.isPending || !s.node_online || !can("power")} onClick={() => power.mutate("kill")}><Skull className="h-4 w-4" aria-hidden /> Kill</button>
+            <button type="button" role="menuitem" className="menu-item" disabled={power.isPending || !killable || !s.node_online || !can("power")} onClick={() => send("kill")}><Skull className="h-4 w-4" aria-hidden /> Kill</button>
             <button
               type="button"
               role="menuitem"
