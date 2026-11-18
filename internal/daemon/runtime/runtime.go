@@ -57,7 +57,9 @@ type Runtime interface {
 	// with at most AttachTail earlier lines, and a writer for stdin.
 	Attach(ctx context.Context, uuid string) (io.ReadCloser, io.WriteCloser, error)
 	State(ctx context.Context, uuid string) (string, error)
-	Stats(ctx context.Context, uuid string) (proto.Stats, error)
+	// WatchStats calls fn with each CPU and memory sample of a running
+	// server (about one a second) until the container stops or ctx ends.
+	WatchStats(ctx context.Context, uuid string, fn func(proto.Stats)) error
 	// Events streams state changes until ctx ends.
 	Events(ctx context.Context) (<-chan Event, error)
 	// LimitBandwidth applies the server's network limit (set at Create) to
