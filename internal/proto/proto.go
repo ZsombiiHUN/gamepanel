@@ -142,6 +142,9 @@ type Transfer struct {
 	// SHA512 (hex), when set, must match what was downloaded, or the file
 	// is not kept (mod installs).
 	SHA512 string `json:"sha512,omitempty"`
+	// Max, when set, is the largest file a download may send; a bigger one
+	// is refused before anything is relayed (the editor's limit).
+	Max int64 `json:"max,omitempty"`
 }
 
 // TransferResult is the reply to a transfer once it finished.

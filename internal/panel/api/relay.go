@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
@@ -224,4 +226,78 @@ func (a *App) uploadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	w.Write(raw)
+}
+
+// maxEditBytes is the largest file the editor opens or saves, as on the node.
+const maxEditBytes = 10 << 20
+
+var errEditTooLarge = errors.New("file too large to edit")
+
+// capture is a ResponseWriter that keeps a relayed file in memory, for the
+// editor. It refuses to grow past max.
+type capture struct {
+	h   http.Header
+	buf bytes.Buffer
+	max int
+}
+
+func (c *capture) Header() http.Header { return c.h }
+func (c *capture) WriteHeader(int)     {}
+func (c *capture) Write(p []byte) (int, error) {
+	if c.buf.Len()+len(p) > c.max {
+		return 0, errEditTooLarge
+	}
+	return c.buf.Write(p)
+}
+
+// readSmall fetches a file for the editor through the relay, so its bytes
+// never travel on the node's control connection, where they would hold up
+// every other server's console and stats.
+func (a *App) readSmall(ctx context.Context, node int64, uuid, p string) ([]byte, error) {
+	id, tk := a.newTicket(node)
+	c := &capture{h: http.Header{}, max: maxEditBytes}
+	tk.download = c
+	_, err := a.Hub.Request(ctx, node, proto.ReqFilesDownload, proto.Transfer{UUID: uuid, Path: p, Ticket: id, Max: maxEditBytes})
+	select {
+	case <-tk.attached:
+		// The node replies only after its upload ended, so the copy is done
+		// or about to be.
+		select {
+		case cerr := <-tk.done:
+			if errors.Is(cerr, errEditTooLarge) {
+				return nil, huma.Error422UnprocessableEntity(errEditTooLarge.Error())
+			}
+			if err == nil {
+				err = cerr
+			}
+		case <-ctx.Done():
+			return nil, nodeErr(hub.ErrTimeout)
+		}
+	default:
+		a.relays.Delete(id)
+		if err == nil {
+			err = errors.New("the node did not send the file")
+		}
+	}
+	if err != nil {
+		return nil, nodeErr(err)
+	}
+	return c.buf.Bytes(), nil
+}
+
+// writeSmall saves an editor file through the relay (see readSmall).
+func (a *App) writeSmall(ctx context.Context, node int64, uuid, p string, content []byte) error {
+	id, tk := a.newTicket(node)
+	tk.upload = bytes.NewReader(content)
+	_, err := a.Hub.Request(ctx, node, proto.ReqFilesUpload, proto.Transfer{UUID: uuid, Path: p, Ticket: id, Size: int64(len(content))})
+	select {
+	case <-tk.attached:
+		select {
+		case <-tk.done:
+		case <-ctx.Done():
+		}
+	default:
+		a.relays.Delete(id)
+	}
+	return nodeErr(err)
 }
