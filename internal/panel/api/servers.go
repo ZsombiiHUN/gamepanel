@@ -530,28 +530,51 @@ func (a *App) registerServerDetails(api huma.API) {
 		})
 }
 
-// powerFailure is the console line telling the user why a power action
-// failed. Coded node errors are written for users and shown as they are;
-// anything else could leak internals and gets a generic reason, as in nodeErr.
-// sendPower checks that a power action can be sent now and sends it. The
-// reply does not wait for the node: a graceful stop can outlive the request,
-// and the outcome arrives as state events, or as a console line if it fails.
-// What can be known up front is refused here, so an API caller learns of it.
+// Power actions wait this long for the node's answer. Most refusals (busy,
+// suspended, out of disk) come back at once and are returned to the caller;
+// a graceful stop can take far longer, so after this the reply goes out and
+// the outcome arrives as state events, or as a console line if it fails.
+var powerGrace = 2 * time.Second
+
+// powerTimeout bounds the node's work on one power action. A restart may stop
+// the server gracefully, then rebuild its container and pull an image.
+const powerTimeout = 15 * time.Minute
+
+// sendPower checks that a power action can be sent now, sends it, and returns
+// the node's answer if it comes within powerGrace. What can be known up front
+// is refused here, so an API caller learns of it.
 func (a *App) sendPower(ctx context.Context, u store.User, s store.Server, action string) error {
 	if !a.Hub.Online(s.NodeID) {
 		return huma.Error503ServiceUnavailable("the node is offline")
 	}
-	if a.Hub.State(s.UUID) == "installing" {
+	starts := action == "start" || action == "restart"
+	switch st := a.Hub.State(s.UUID); {
+	case st == "installing":
 		return huma.Error409Conflict("the server is still installing; try again once it is done")
+	case st == "install_failed" && starts:
+		return huma.Error409Conflict("the install failed; reinstall the server before starting it")
 	}
-	if s.Suspended && (action == "start" || action == "restart") {
+	if s.Suspended && starts {
 		return huma.Error409Conflict("this server is suspended; unsuspend it first")
 	}
 	a.audit(ctx, u, "server.power", s.UUID, action)
+	res := make(chan error, 1)
 	go func() {
-		c, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		c, cancel := context.WithTimeout(context.Background(), powerTimeout)
 		defer cancel()
-		if _, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: action}); err != nil {
+		_, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: action})
+		res <- err
+	}()
+	t := time.NewTimer(powerGrace)
+	defer t.Stop()
+	select {
+	case err := <-res:
+		return nodeErr(err)
+	case <-t.C:
+	case <-ctx.Done():
+	}
+	go func() {
+		if err := <-res; err != nil {
 			a.Log.Warn("power failed", "server", s.UUID, "action", action, "err", err)
 			a.Hub.Notice(s.UUID, powerFailure(action, err))
 		}
@@ -559,6 +582,9 @@ func (a *App) sendPower(ctx context.Context, u store.User, s store.Server, actio
 	return nil
 }
 
+// powerFailure is the console line telling the user why a power action
+// failed. Coded node errors are written for users and shown as they are;
+// anything else could leak internals and gets a generic reason, as in nodeErr.
 func powerFailure(action string, err error) string {
 	reason := "the node could not complete the request"
 	switch {

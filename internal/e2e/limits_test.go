@@ -140,13 +140,13 @@ func TestDiskLimitEnforcement(t *testing.T) {
 	s.admin.do("DELETE", srv+"/files?path=three.bin", nil, 204)
 
 	// something that bypasses the panel (a game writing its world) goes over the limit:
-	// usage is reported, and the server will not start
+	// usage is reported, and the server will not start; the caller is told why
 	os.WriteFile(filepath.Join(dir, "world.dat"), []byte(strings.Repeat("w", 3<<20)), 0o644)
 	waitFor(t, "disk usage reported", func() bool {
 		st := s.view().Stats
 		return st != nil && st.DiskBytes >= 3<<20
 	})
-	s.admin.do("POST", srv+"/power", map[string]string{"action": "start"}, 202)
+	s.admin.do("POST", srv+"/power", map[string]string{"action": "start"}, 507)
 	time.Sleep(600 * time.Millisecond)
 	if st := s.state(); st != "offline" {
 		t.Fatalf("a server over its disk limit started (state %s)", st)
