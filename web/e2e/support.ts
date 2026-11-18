@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test as base, request, type APIRequestContext, type Page } from "@playwright/test";
+import { panelURL, SLOT, stateDir } from "./slots";
 
 export interface Ready {
   url: string;
@@ -11,7 +12,8 @@ export interface Ready {
   shared_to: string;
 }
 
-export const STATE = path.join(import.meta.dirname, ".state");
+/** This worker's panel's ready file and saved cookies (see slots.ts). */
+export const STATE = stateDir(SLOT);
 export const readState = (): Ready => JSON.parse(fs.readFileSync(path.join(STATE, "ready.json"), "utf8"));
 export const ANONYMOUS = { cookies: [], origins: [] };
 
@@ -80,6 +82,15 @@ export class Panel {
 }
 
 export const test = base.extend<{ panel: Panel }>({
+  // This worker's panel, signed in as the admin unless a file says otherwise with test.use.
+  // eslint-disable-next-line no-empty-pattern
+  baseURL: async ({}, use) => use(panelURL(SLOT)),
+  // eslint-disable-next-line no-empty-pattern
+  storageState: async ({}, use) => use(path.join(STATE, "admin.json")),
+  page: async ({ page }, use) => {
+    trackNetwork(page);
+    await use(page);
+  },
   panel: async ({ baseURL }, use) => {
     const ready = readState();
     const api = await request.newContext({ baseURL, storageState: path.join(STATE, "admin.json") });
@@ -91,6 +102,14 @@ export const test = base.extend<{ panel: Panel }>({
 });
 export { expect };
 
+/**
+ * Waits for the app's shell (sidebar and keyboard shortcuts) to be on the page. It comes after the router
+ * has loaded who is signed in, which can be after goto returns, so a shortcut pressed straight away can be lost.
+ */
+export async function shellReady(page: Page) {
+  await expect(page.getByRole("complementary", { name: "Navigation" })).toBeAttached();
+}
+
 /** True on phone-sized viewports, where the sidebar is a drawer behind a menu button. */
 export const isDrawer = (page: Page) => (page.viewportSize()?.width ?? 1440) < 1024;
 
@@ -98,6 +117,40 @@ export async function openMenuIfDrawer(page: Page) {
   if (isDrawer(page)) {
     const open = page.getByRole("button", { name: "Open menu" });
     if (await open.isVisible()) await open.click();
+  }
+}
+
+const network = new WeakMap<Page, { inFlight: Set<object>; last: number }>();
+
+/** Follows a page's HTTP requests from the start, for settled(). The page fixture does this for every test. */
+function trackNetwork(page: Page) {
+  const n = { inFlight: new Set<object>(), last: Date.now() };
+  network.set(page, n);
+  page.on("request", (r) => {
+    n.inFlight.add(r);
+    n.last = Date.now();
+  });
+  const done = (r: object) => {
+    n.inFlight.delete(r);
+    n.last = Date.now();
+  };
+  page.on("requestfinished", done);
+  page.on("requestfailed", done);
+}
+
+/**
+ * Waits until the page has had no HTTP request in flight for a short while: the data it shows has loaded.
+ * Like waitForLoadState("networkidle"), which waits for 500ms of quiet every time; a page asks for what it
+ * needs within a few milliseconds of the answer before, so 150ms is plenty. Websockets do not count.
+ */
+export async function settled(page: Page, quietMs = 150, timeoutMs = 10_000) {
+  const n = network.get(page);
+  if (!n) return page.waitForLoadState("networkidle");
+  await page.waitForLoadState("load");
+  const deadline = Date.now() + timeoutMs;
+  while (n.inFlight.size > 0 || Date.now() - n.last < quietMs) {
+    if (Date.now() > deadline) throw new Error(`the page kept loading for ${timeoutMs}ms (${n.inFlight.size} requests in flight)`);
+    await page.waitForTimeout(25);
   }
 }
 

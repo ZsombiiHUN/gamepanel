@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { ANONYMOUS, expect, openMenuIfDrawer, test } from "./support";
+import { ANONYMOUS, expect, openMenuIfDrawer, settled, shellReady, test } from "./support";
 
 // Fails on serious and critical WCAG 2 A/AA problems. Add known, accepted issues to `accepted` with a reason.
 const accepted: Record<string, string> = {};
@@ -33,7 +33,7 @@ test.describe("signed out", () => {
 for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["nodes", "/nodes"], ["eggs", "/eggs"], ["database hosts", "/database-hosts"], ["audit log", "/audit"], ["account", "/account"]] as const) {
   test(`${name} page`, async ({ page }) => {
     await page.goto(path);
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await scan(page, name);
   });
 }
@@ -41,7 +41,7 @@ for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["
 for (const tab of ["console", "files", "mods", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"]) {
   test(`server ${tab} tab`, async ({ page, panel }) => {
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=${tab}`);
-    await page.waitForLoadState("networkidle");
+    await settled(page);
     await scan(page, `server ${tab}`);
   });
 }
@@ -55,6 +55,7 @@ test("servers page with a filter that matches nothing", async ({ page }) => {
 
 test("quick switcher", async ({ page }) => {
   await page.goto("/");
+  await shellReady(page);
   await openMenuIfDrawer(page);
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("combobox", { name: "Search servers and pages" })).toBeFocused();
