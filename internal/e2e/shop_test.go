@@ -200,6 +200,11 @@ func TestShopSellsAServer(t *testing.T) {
 		}
 	}
 	s.admin.do("POST", "/api/servers/"+srv.UUID+"/power", map[string]string{"action": "start"}, 409)
+	// The Pterodactyl-compatible client API says so and refuses the same.
+	s.admin.do("POST", "/api/client/servers/"+srv.UUID+"/power", map[string]string{"signal": "start"}, 409)
+	if got := string(s.admin.do("GET", "/api/client/servers/"+srv.UUID+"/resources", nil, 200)); !strings.Contains(got, `"is_suspended":true`) {
+		t.Fatalf("client API resources while suspended: %s", got)
+	}
 	waitFor(t, "server.suspended webhook", func() bool { return sink.event("server.suspended", srv.UUID) != nil })
 	if n := sink.count("server.suspended"); n != 1 {
 		t.Fatalf("%d suspended events for one suspension", n)
