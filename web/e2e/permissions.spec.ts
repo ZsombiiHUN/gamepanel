@@ -1,5 +1,5 @@
 import path from "node:path";
-import { expect, STATE, test } from "./support";
+import { expect, STATE, shellReady, test } from "./support";
 
 // Signed in as the regular user, who can use exactly one server and only read its console and files.
 test.use({ storageState: path.join(STATE, "user.json") });
@@ -48,6 +48,7 @@ test("admin pages refuse them, and the API agrees", async ({ page, request }) =>
 
 test("the quick switcher does not offer admin pages or other people's servers", async ({ page }) => {
   await page.goto("/");
+  await shellReady(page);
   await page.keyboard.press("Control+k");
   const box = page.getByRole("combobox", { name: "Search servers and pages" });
   await box.fill("audit");

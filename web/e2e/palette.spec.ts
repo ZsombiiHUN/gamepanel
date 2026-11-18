@@ -1,9 +1,10 @@
-import { expect, openMenuIfDrawer, test } from "./support";
+import { expect, openMenuIfDrawer, shellReady, test } from "./support";
 
 const box = (page: import("@playwright/test").Page) => page.getByRole("combobox", { name: "Search servers and pages" });
 
 test("Ctrl+K opens the quick switcher with focus in the box, and Escape closes it", async ({ page }) => {
   await page.goto("/");
+  await shellReady(page);
   await page.keyboard.press("Control+k");
   await expect(box(page)).toBeFocused();
   await page.keyboard.press("Escape");
@@ -12,6 +13,7 @@ test("Ctrl+K opens the quick switcher with focus in the box, and Escape closes i
 
 test("type a game or port, press Enter, and you are on that server", async ({ page, panel }) => {
   await page.goto("/");
+  await shellReady(page);
   await page.keyboard.press("Control+k");
   const s = panel.seeded("Rust Wipe Friday");
   await box(page).fill(String(s.port));
@@ -23,6 +25,7 @@ test("type a game or port, press Enter, and you are on that server", async ({ pa
 
 test("arrow keys move the highlight and clicking works too", async ({ page }) => {
   await page.goto("/");
+  await shellReady(page);
   await page.keyboard.press("Control+k");
   await box(page).fill("lobby");
   const options = page.getByRole("option");
@@ -36,6 +39,7 @@ test("arrow keys move the highlight and clicking works too", async ({ page }) =>
 
 test("reaches admin pages by what they are for", async ({ page }) => {
   await page.goto("/");
+  await shellReady(page);
   await page.keyboard.press("Control+k");
   await box(page).fill("security");
   await page.keyboard.press("Enter");
@@ -44,6 +48,7 @@ test("reaches admin pages by what they are for", async ({ page }) => {
 
 test("says so when nothing matches", async ({ page }) => {
   await page.goto("/");
+  await shellReady(page);
   await page.keyboard.press("Control+k");
   await box(page).fill("qqqq");
   await expect(page.getByText(/Nothing matches/)).toBeVisible();
@@ -53,6 +58,7 @@ test("says so when nothing matches", async ({ page }) => {
 
 test("on a server it offers that server's tabs", async ({ page, panel }) => {
   await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=console`);
+  await shellReady(page);
   await page.keyboard.press("Control+k");
   await box(page).fill("backups");
   await expect(page.getByText("This server (Survival SMP)")).toBeVisible();
