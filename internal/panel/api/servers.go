@@ -356,14 +356,12 @@ func (a *App) registerServers(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			raw, err := a.Hub.Request(ctx, s.NodeID, proto.ReqFilesRead, proto.FileReq{UUID: s.UUID, Path: in.Path})
+			b, err := a.readSmall(ctx, s.NodeID, s.UUID, in.Path)
 			if err != nil {
-				return nil, nodeErr(err)
+				return nil, err
 			}
-			var f proto.FileReq
-			json.Unmarshal(raw, &f)
 			out := &fileContentOut{}
-			out.Body.Path, out.Body.Content = in.Path, string(f.Content)
+			out.Body.Path, out.Body.Content = in.Path, string(b)
 			return out, nil
 		})
 
@@ -373,8 +371,11 @@ func (a *App) registerServers(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			if _, err = a.Hub.Request(ctx, s.NodeID, proto.ReqFilesWrite, proto.FileReq{UUID: s.UUID, Path: in.Body.Path, Content: []byte(in.Body.Content)}); err != nil {
-				return nil, nodeErr(err)
+			if len(in.Body.Content) > maxEditBytes {
+				return nil, huma.Error422UnprocessableEntity("Files saved in the editor can be at most 10 MB; upload larger ones.")
+			}
+			if err := a.writeSmall(ctx, s.NodeID, s.UUID, in.Body.Path, []byte(in.Body.Content)); err != nil {
+				return nil, err
 			}
 			a.audit(ctx, u, "file.write", s.UUID, fmt.Sprintf("%s (%d bytes)", in.Body.Path, len(in.Body.Content)))
 			return nil, nil

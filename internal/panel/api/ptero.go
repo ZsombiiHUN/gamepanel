@@ -252,14 +252,12 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 		if err != nil {
 			return err
 		}
-		raw, err := a.Hub.Request(r.Context(), s.NodeID, proto.ReqFilesRead, proto.FileReq{UUID: s.UUID, Path: r.URL.Query().Get("file")})
+		b, err := a.readSmall(r.Context(), s.NodeID, s.UUID, r.URL.Query().Get("file"))
 		if err != nil {
-			return nodeErr(err)
+			return err
 		}
-		var f proto.FileReq
-		json.Unmarshal(raw, &f)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(f.Content)
+		w.Write(b)
 		return nil
 	})
 
@@ -276,8 +274,8 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 		if p == "" {
 			return huma.Error422UnprocessableEntity("Name the file.")
 		}
-		if _, err := a.Hub.Request(r.Context(), s.NodeID, proto.ReqFilesWrite, proto.FileReq{UUID: s.UUID, Path: p, Content: body}); err != nil {
-			return nodeErr(err)
+		if err := a.writeSmall(r.Context(), s.NodeID, s.UUID, p, body); err != nil {
+			return err
 		}
 		a.audit(r.Context(), u, "file.write", s.UUID, p)
 		w.WriteHeader(http.StatusNoContent)

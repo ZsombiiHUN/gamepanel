@@ -182,6 +182,10 @@ func (d *Daemon) download(ctx context.Context, typ string, t proto.Transfer) (pr
 			return proto.TransferResult{}, err
 		}
 		size, name = fi.Size(), fi.Name()
+		if t.Max > 0 && size > t.Max {
+			f.Close()
+			return proto.TransferResult{}, fsx.ErrTooLarge
+		}
 	}
 	defer f.Close()
 	// The browser is waiting: the panel gives the node a while to connect, then
