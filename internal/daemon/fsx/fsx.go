@@ -135,9 +135,10 @@ func (d *Dir) create(name string, flag int, perm fs.FileMode) (*os.File, error) 
 func (d *Dir) Close() error { return d.root.Close() }
 
 // clean maps an API path ("/", "/a/../b") to a root-relative name.
-// os.Root enforces the actual confinement; this only normalises.
+// os.Root enforces the actual confinement; this only normalises. Spaces are
+// kept: "a " and "a" are different files.
 func clean(p string) string {
-	p = path.Clean("/" + strings.TrimSpace(p))
+	p = path.Clean("/" + p)
 	p = strings.TrimPrefix(p, "/")
 	if p == "" {
 		return "."

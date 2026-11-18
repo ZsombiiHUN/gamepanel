@@ -95,9 +95,17 @@ func (d *Dir) Link(oldp, newp string) error {
 	return d.root.Link(from, to)
 }
 
-// Chmod applies permission bits only (never setuid/setgid/sticky).
+// Chmod applies permission bits only (never setuid/setgid/sticky). The owner
+// (the game) always keeps read and write, and on a directory search too:
+// FTP clients apply one mode to a whole tree, and a 0644 directory would
+// lock the game and the panel out of everything in it.
 func (d *Dir) Chmod(p string, mode fs.FileMode) error {
-	return d.root.Chmod(clean(p), mode.Perm()|0o600)
+	name := clean(p)
+	keep := fs.FileMode(0o600)
+	if fi, err := d.root.Stat(name); err == nil && fi.IsDir() {
+		keep = 0o700
+	}
+	return d.root.Chmod(name, mode.Perm()|keep)
 }
 
 func (d *Dir) Chtimes(p string, atime, mtime time.Time) error {
