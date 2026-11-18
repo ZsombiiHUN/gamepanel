@@ -253,4 +253,6 @@ func (f *Fake) Install(_ context.Context, r InstallRun, out io.Writer) error {
 }
 
 // LimitBandwidth records nothing: the fake has no network.
-func (f *Fake) LimitBandwidth(context.Context, string) error { return nil }
+func (f *Fake) LimitBandwidth(context.Context, string) (IngressMode, error) {
+	return IngressUnlimited, nil
+}
