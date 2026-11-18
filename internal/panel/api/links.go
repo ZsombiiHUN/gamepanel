@@ -193,7 +193,7 @@ func (a *App) registerLinks(api huma.API) {
 				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
 			a.audit(ctx, u, "account.register", u.Email, map[bool]string{true: "invited", false: "open sign-up"}[b.Token != ""])
-			tok, err := a.Store.NewSession(ctx, u.ID)
+			tok, err := a.newSession(ctx, u.ID, store.MethodRegister)
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}

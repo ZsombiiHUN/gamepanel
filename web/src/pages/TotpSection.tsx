@@ -56,7 +56,7 @@ export function TotpSection() {
   });
   const disable = useMutation({
     mutationFn: () => call(api.POST("/auth/totp/disable", { body: { password, code } })),
-    meta: invalidates(keys.me),
+    meta: invalidates(keys.me, keys.sessions),
     onSuccess: () => {
       setPassword("");
       setCode("");

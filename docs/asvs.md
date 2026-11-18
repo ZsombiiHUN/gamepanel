@@ -27,6 +27,7 @@ controls only, and even there some Level 2 requirements are not met yet (see
 | Session tokens: 256 random bits, stored only as a hash, checked on the server | v5.0.0-7.2.1, v5.0.0-7.2.3 | L1 | `store.NewToken` | — |
 | A new session token at each sign-in | v5.0.0-7.2.4 | L1 | `store.NewSession` | — |
 | Signing out ends the session on the server | v5.0.0-7.4.1 | L1 | `logout` | `api.TestCookieAndHeaderHardening` |
+| Users can see their live sessions (device, address it signed in from and was last used from, sign-in time and method, last activity) and sign out any one of them, or all but the current one. Only a browser session can do this, not an API key | v5.0.0-7.5.2 | L2 | `api/sessions.go`, `store/sessions.go` | `api.TestSessionListAndRevoke`, `api.TestSessionListNeedsBrowserSession`, `store.TestSessionListIsPerUserAndSkipsDeadSessions`, `store.TestSessionDetailsMigration` |
 | Sessions end after 30 minutes without use, and 12 hours after sign-in however busy. Sessions from before the 12-hour limit were cut to at most 12 hours from the upgrade | v5.0.0-7.3.1, v5.0.0-7.3.2, v5.0.0-7.1.1 | L2 | `store.UserBySession`, migration 00010 | `api.TestSessionIdleAndAbsoluteTimeout`, `store.TestSessionUpgradeMigration` |
 | Over HTTPS the session cookie is `__Host-gp_session`, `Secure`, `HttpOnly`, `SameSite=Lax`; the old `gp_session` name works over HTTPS only once, for sessions from before the upgrade | v5.0.0-3.3.1, v5.0.0-3.3.2, v5.0.0-3.3.3, v5.0.0-3.3.4 | L1–L2 | `api/cookie.go` | `api.TestCookieAndHeaderHardening`, `api.TestLegacyCookieMigration` |
 | API answers are sent with `Cache-Control: no-store` | v5.0.0-14.3.2 | L2 | `api.middleware` | `api.TestCookieAndHeaderHardening` |
@@ -42,4 +43,3 @@ These Level 2 requirements are not met yet:
 - **v5.0.0-3.4.1 (HSTS)**: `Strict-Transport-Security` is sent over HTTPS with a one-year `max-age`, but without `includeSubDomains`, which Level 2 asks for. Adding it affects every subdomain of the panel's domain, so it is left to the operator's proxy for now.
 - **v5.0.0-6.3.3 (multi-factor required)**: two-factor is optional per account.
 - **v5.0.0-6.5.2 (lookup secrets)**: recovery codes have 80 bits of entropy and are stored as SHA-256 hashes. Below 112 bits, the requirement asks for a salted password hash.
-- **v5.0.0-7.5.2 (view sessions)**: users can sign out every other session, but cannot see a list of them.

@@ -43,17 +43,17 @@ func TestPasswordsAndSessions(t *testing.T) {
 		t.Fatalf("login: %v %+v", err, got)
 	}
 
-	tok, _ := s.NewSession(ctx, got.ID)
+	tok, _ := s.NewSession(ctx, got.ID, SessionMeta{})
 	var rawStored string
 	s.DB.QueryRow(`SELECT token_hash FROM sessions`).Scan(&rawStored)
 	if rawStored == tok {
 		t.Fatal("session token stored in plaintext")
 	}
-	if _, err := s.UserBySession(ctx, tok); err != nil {
+	if _, err := s.UserBySession(ctx, tok, ""); err != nil {
 		t.Fatal(err)
 	}
 	s.DeleteSession(ctx, tok)
-	if _, err := s.UserBySession(ctx, tok); err != ErrNotFound {
+	if _, err := s.UserBySession(ctx, tok, ""); err != ErrNotFound {
 		t.Fatalf("revoked session still valid: %v", err)
 	}
 }
