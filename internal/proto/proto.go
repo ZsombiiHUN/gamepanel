@@ -165,7 +165,9 @@ const (
 	EvtConsole = "console"
 	EvtState   = "state"
 	EvtStats   = "stats"
-	EvtReply   = "reply"
+	// EvtStatsBatch carries every server's Stats for one tick (StatsBatch).
+	EvtStatsBatch = "stats.batch"
+	EvtReply      = "reply"
 )
 
 // Hello is the first frame a daemon sends after connecting.
@@ -274,6 +276,10 @@ type Stats struct {
 	MemBytes  uint64  `json:"mem_bytes"`
 	// Pending: settings changed while the server ran; they apply at its next start.
 	Pending bool `json:"pending,omitempty"`
+}
+
+type StatsBatch struct {
+	Stats []Stats `json:"stats"`
 }
 
 func Marshal(v any) json.RawMessage {

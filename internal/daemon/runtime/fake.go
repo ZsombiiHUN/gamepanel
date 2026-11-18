@@ -195,8 +195,21 @@ func (f *Fake) State(_ context.Context, uuid string) (string, error) {
 	return s.state, nil
 }
 
-func (f *Fake) Stats(_ context.Context, uuid string) (proto.Stats, error) {
-	return proto.Stats{UUID: uuid, CPUPct: 1.5, MemBytes: 256 << 20}, nil
+// WatchStats reports a fixed sample every 100 ms while the server runs.
+func (f *Fake) WatchStats(ctx context.Context, uuid string, fn func(proto.Stats)) error {
+	t := time.NewTicker(100 * time.Millisecond)
+	defer t.Stop()
+	for {
+		if st, err := f.State(ctx, uuid); err != nil || st != StateRunning {
+			return err
+		}
+		fn(proto.Stats{UUID: uuid, CPUPct: 1.5, MemBytes: 256 << 20})
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+		}
+	}
 }
 
 func (f *Fake) Events(ctx context.Context) (<-chan Event, error) {

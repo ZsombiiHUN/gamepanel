@@ -78,6 +78,13 @@ type managed struct {
 	// stale: spec changed while the server was running; the container is
 	// rebuilt from it at the next start (persisted as <uuid>.stale).
 	stale bool
+
+	// running mirrors the runtime's state as last reported (see noteState),
+	// so the stats tick needs no container inspect. usage is the latest
+	// CPU and memory sample, kept by a stats watcher while it runs.
+	running   bool
+	usage     proto.Stats
+	stopWatch context.CancelFunc
 }
 
 // Operations that claim a server (begin).
@@ -333,6 +340,7 @@ func (d *Daemon) send(ctx context.Context, env proto.Envelope) error {
 }
 
 func (d *Daemon) emitState(ctx context.Context, uuid, st string) {
+	d.noteState(uuid, st)
 	_ = d.send(ctx, proto.Envelope{Type: proto.EvtState, Data: proto.Marshal(proto.State{UUID: uuid, State: st})})
 }
 
@@ -348,13 +356,86 @@ func sleep(ctx context.Context, d time.Duration) bool {
 	}
 }
 
+// noteState records a server's state and starts or stops its stats watcher.
+func (d *Daemon) noteState(uuid, st string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	m := d.servers[uuid]
+	if m == nil {
+		return
+	}
+	switch st {
+	case runtime.StateRunning:
+		m.running = true
+		if m.stopWatch == nil {
+			ctx, cancel := context.WithCancel(context.Background())
+			m.stopWatch = cancel
+			go d.watchStats(ctx, uuid, m)
+		}
+	case runtime.StateOffline, StateInstalling, StateInstallFailed:
+		m.stopStats()
+	}
+}
+
+// stopStats marks a server as not running. Caller holds d.mu.
+func (m *managed) stopStats() {
+	m.running, m.usage = false, proto.Stats{}
+	if m.stopWatch != nil {
+		m.stopWatch()
+		m.stopWatch = nil
+	}
+}
+
+// watchStats keeps the latest usage sample of a running server, re-opening
+// the stream if it drops while the server still runs.
+func (d *Daemon) watchStats(ctx context.Context, uuid string, m *managed) {
+	for {
+		err := d.rt.WatchStats(ctx, uuid, func(s proto.Stats) {
+			d.mu.Lock()
+			if ctx.Err() == nil {
+				m.usage = s
+			}
+			d.mu.Unlock()
+		})
+		if err != nil && ctx.Err() == nil {
+			d.log.Debug("stats stream ended", "server", uuid, "err", err)
+		}
+		if !sleep(ctx, 2*time.Second) {
+			return
+		}
+	}
+}
+
+// refreshStates asks the runtime for every server's state, for when runtime
+// events may have been missed (the event stream was re-opened).
+func (d *Daemon) refreshStates(ctx context.Context) {
+	d.mu.Lock()
+	var ids []string
+	for id, m := range d.servers {
+		if m.install == "" {
+			ids = append(ids, id)
+		}
+	}
+	d.mu.Unlock()
+	for _, id := range ids {
+		if st, err := d.rt.State(ctx, id); err == nil {
+			d.emitState(ctx, id, st)
+		}
+	}
+}
+
 func (d *Daemon) watchEvents(ctx context.Context) {
+	first := true
 	for ctx.Err() == nil {
 		ch, err := d.rt.Events(ctx)
 		if err != nil {
 			sleep(ctx, 2*time.Second)
 			continue
 		}
+		if !first {
+			d.refreshStates(ctx)
+		}
+		first = false
 		for ev := range ch {
 			d.emitState(ctx, ev.UUID, ev.State)
 			if ev.State == runtime.StateRunning {
@@ -365,6 +446,10 @@ func (d *Daemon) watchEvents(ctx context.Context) {
 	}
 }
 
+// statsLoop reports every server's usage once per tick, in one message. CPU
+// and memory come from the watchers' latest samples and the state from
+// runtime events, so a tick costs no engine calls; disk usage comes from the
+// disk cache, which measures on its own schedule.
 func (d *Daemon) statsLoop(ctx context.Context) {
 	t := time.NewTicker(d.cfg.statsEvery())
 	defer t.Stop()
@@ -374,31 +459,35 @@ func (d *Daemon) statsLoop(ctx context.Context) {
 			return
 		case <-t.C:
 		}
-		d.mu.Lock()
-		var ids []string
-		for id := range d.servers {
-			ids = append(ids, id)
-		}
-		d.mu.Unlock()
-		for _, id := range ids {
-			st, _ := d.rt.State(ctx, id)
-			running := st == runtime.StateRunning
-			used, _ := d.enforceDisk(ctx, id, running)
-			var stats proto.Stats
-			if running {
-				if s, err := d.rt.Stats(ctx, id); err == nil {
-					stats = s
-				}
-			}
-			stats.UUID, stats.DiskBytes = id, used
-			d.mu.Lock()
-			if m := d.servers[id]; m != nil {
-				stats.Pending = m.stale
-			}
-			d.mu.Unlock()
-			_ = d.send(ctx, proto.Envelope{Type: proto.EvtStats, Data: proto.Marshal(stats)})
-		}
+		d.sendStats(ctx)
 	}
+}
+
+func (d *Daemon) sendStats(ctx context.Context) {
+	type row struct {
+		s       proto.Stats
+		running bool
+	}
+	d.mu.Lock()
+	rows := make([]row, 0, len(d.servers))
+	for id, m := range d.servers {
+		r := row{running: m.running}
+		if m.running {
+			r.s = m.usage
+		}
+		r.s.UUID, r.s.Pending = id, m.stale
+		rows = append(rows, r)
+	}
+	d.mu.Unlock()
+	if len(rows) == 0 {
+		return
+	}
+	batch := proto.StatsBatch{Stats: make([]proto.Stats, 0, len(rows))}
+	for _, r := range rows {
+		r.s.DiskBytes, _ = d.enforceDisk(ctx, r.s.UUID, r.running)
+		batch.Stats = append(batch.Stats, r.s)
+	}
+	_ = d.send(ctx, proto.Envelope{Type: proto.EvtStatsBatch, Data: proto.Marshal(batch)})
 }
 
 // attach streams a server's console to the panel and keeps its stdin handle.
@@ -819,6 +908,9 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 		return fmt.Errorf("could not remove the container, nothing was deleted: %w", err)
 	}
 	d.mu.Lock()
+	if m := d.servers[uuid]; m != nil {
+		m.stopStats()
+	}
 	delete(d.servers, uuid)
 	d.mu.Unlock()
 	d.closeSFTP(uuid)
