@@ -49,6 +49,17 @@ type diskCache struct {
 	// before the release, so its result is only an upper bound: it is used
 	// (safe), and a second walk, started after the release, settles it.
 	freed bool
+	// moved is set when something was renamed while run walks the
+	// directory. A file moved from a folder the walk has not reached into
+	// one it already passed is never seen, so the result may be too low: the
+	// figure keeps the larger of it and the accounted figure, and a second
+	// walk settles it.
+	moved bool
+	// pending is what SFTP has reserved but not written yet. A walk that
+	// starts meanwhile may pass the file before the bytes land, so they
+	// count as grown for it.
+	pending int64
+	renames int // renames in progress (see renaming)
 
 	// shape orders SFTP writes against the operations that shrink files
 	// (truncate, remove, overwrite by rename). Writes hold it shared from the
@@ -117,6 +128,51 @@ func (c *diskCache) credit(n int64) {
 	}
 }
 
+// pend adjusts pending: +n before reserving bytes for a write, -n once it
+// has landed (or was refused).
+func (c *diskCache) pend(n int64) {
+	c.mu.Lock()
+	c.pending += n
+	c.mu.Unlock()
+}
+
+// renaming marks a rename in progress until the returned func is called.
+// Any walk that overlaps it, starting before, during or finishing after,
+// may have missed the moved bytes (a rename done as link-then-unlink can
+// even hide a file from a walk that runs entirely inside it).
+func (c *diskCache) renaming() func() {
+	c.mu.Lock()
+	c.renames++
+	if c.run != nil {
+		c.moved = true
+	}
+	c.mu.Unlock()
+	return func() {
+		c.mu.Lock()
+		c.renames--
+		if c.run != nil {
+			c.moved = true
+		}
+		c.mu.Unlock()
+	}
+}
+
+// unrelease adds back space released for a change that then failed. Space
+// is released before it is actually freed: a walk that runs in between
+// counts the bytes still there (too high, safe), whereas releasing after
+// would subtract them again from a walk that already missed them.
+func (c *diskCache) unrelease(n int64) {
+	if n <= 0 {
+		return
+	}
+	c.mu.Lock()
+	c.bytes += n
+	if c.run != nil {
+		c.grown += n
+	}
+	c.mu.Unlock()
+}
+
 // settling returns the walk a refused writer should wait for before giving
 // up, if one is running because space was freed during the last walk.
 func (c *diskCache) settling() *measurement {
@@ -144,12 +200,15 @@ func (d *Daemon) measure(uuid string, c *diskCache) *measurement {
 		return c.run
 	}
 	m := &measurement{done: make(chan struct{})}
-	c.run, c.grown, c.freed = m, 0, false
+	c.run, c.grown, c.freed, c.moved = m, c.pending, false, c.renames > 0
 	gen := c.gen
 	go func() {
 		n, err := d.walk(uuid)
 		c.mu.Lock()
 		if err == nil {
+			if c.moved { // the walk may have missed what was moved
+				n = max(n+c.grown, c.bytes) - c.grown
+			}
 			c.bytes = n + c.grown
 			c.at = time.Now()
 			if c.gen != gen { // invalidated mid-walk: the walk may predate the change
@@ -158,9 +217,9 @@ func (d *Daemon) measure(uuid string, c *diskCache) *measurement {
 		}
 		m.err = err
 		c.run = nil
-		if err == nil && c.freed {
-			// The result may still count what was freed during the walk; a
-			// walk starting now cannot.
+		if err == nil && (c.freed || c.moved) {
+			// The result may still count what was freed during the walk, or
+			// miss what was moved; a walk starting now cannot.
 			d.measure(uuid, c).settles = true
 		}
 		c.mu.Unlock()
@@ -343,6 +402,21 @@ func (c Config) statsEvery() time.Duration {
 		return c.StatsInterval
 	}
 	return defaultStatsInterval
+}
+
+// Handshake and panel timeouts are fixed in production; tests shorten them.
+func (c Config) sftpHandshake() time.Duration {
+	if c.sftpHandshakeTimeout > 0 {
+		return c.sftpHandshakeTimeout
+	}
+	return 30 * time.Second
+}
+
+func (c Config) sftpPanelTimeout() time.Duration {
+	if c.sftpPanelWait > 0 {
+		return c.sftpPanelWait
+	}
+	return 10 * time.Second
 }
 
 func (c Config) sftpKeepAlive() time.Duration {

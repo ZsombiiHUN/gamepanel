@@ -3,10 +3,12 @@ package daemon
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pkg/sftp"
 )
@@ -274,5 +276,132 @@ func TestSFTPParallelUploadsShareTheRoom(t *testing.T) {
 	}
 	if used, real := usedBytes(r.d, r.id), r.realUsage(); used != real {
 		t.Fatalf("figure %d, disk %d", used, real)
+	}
+}
+
+// The same storm with the figure expiring all the time, so walks of the
+// directory run in the middle of uploads, truncates, removes and renames.
+// The figure may count more than is there while a walk settles, never less,
+// and the disk never passes the limit.
+func TestSFTPStormWithWalksRunning(t *testing.T) {
+	for _, clients := range []int{1, 4} {
+		t.Run(fmt.Sprint(clients, " clients"), func(t *testing.T) {
+			r := newSFTPRig(t, 2, func(c *Config) { c.DiskCacheTTL = time.Millisecond })
+			os.Mkdir(r.path("d"), 0o755)
+			r.measured()
+			var wg sync.WaitGroup
+			var mu sync.Mutex
+			var problems []string
+			for i := range clients {
+				c := r.login(ownerUser, ownerKey, sftp.UseConcurrentWrites(true))
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					rnd := rand.New(rand.NewSource(int64(100 + i)))
+					for range 150 {
+						op := stormOp(c, rnd)
+						if real := r.realUsage(); real > 2<<20 {
+							mu.Lock()
+							problems = append(problems, fmt.Sprintf("%d bytes on disk after %s", real, op))
+							mu.Unlock()
+						}
+					}
+				}()
+			}
+			// a watcher comparing the figure to the disk while it all runs
+			stop := make(chan struct{})
+			watched := make(chan struct{})
+			go func() {
+				defer close(watched)
+				for {
+					select {
+					case <-stop:
+						return
+					default:
+					}
+					c := r.d.cacheFor(r.id)
+					c.shape.Lock() // no shrink or write in flight: figure and disk comparable
+					c.mu.Lock()
+					used, walking := c.bytes, c.run != nil
+					state := fmt.Sprintf("at=%v gen=%d pending=%d", c.at.Format("15:04:05.000000"), c.gen, c.pending)
+					c.mu.Unlock()
+					real := r.realUsage()
+					c.shape.Unlock()
+					if !walking && used < real {
+						mu.Lock()
+						problems = append(problems, fmt.Sprintf("figure %d below disk %d (%s, now %s)", used, real, state, time.Now().Format("15:04:05.000000")))
+						mu.Unlock()
+					}
+					time.Sleep(2 * time.Millisecond)
+				}
+			}()
+			wg.Wait()
+			close(stop)
+			<-watched
+			for _, p := range problems {
+				t.Error(p)
+			}
+			// once everything is quiet, a fresh measurement agrees exactly
+			if got, err := r.d.diskUsage(r.id, 0); err != nil || got != r.realUsage() {
+				t.Fatalf("settled figure %d, disk %d (%v)", got, r.realUsage(), err)
+			}
+		})
+	}
+}
+
+// ---- throughput ----
+
+func benchTransfer(b *testing.B, download bool) {
+	r := newSFTPRig(b, 0, nil)
+	c := r.login(ownerUser, ownerKey, sftp.UseConcurrentWrites(true), sftp.UseConcurrentReads(true), sftp.MaxConcurrentRequestsPerFile(64))
+	data := make([]byte, 16<<20)
+	if download {
+		r.put("bench.bin", string(data))
+	}
+	b.SetBytes(int64(len(data)))
+	b.ResetTimer()
+	for range b.N {
+		if download {
+			f, err := c.Open("/bench.bin")
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err := f.WriteTo(io.Discard); err != nil {
+				b.Fatal(err)
+			}
+			f.Close()
+		} else {
+			f, err := c.Create("/bench.bin")
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err := f.ReadFrom(bytes.NewReader(data)); err != nil {
+				b.Fatal(err)
+			}
+			f.Close()
+		}
+	}
+}
+
+func BenchmarkSFTPUpload(b *testing.B)   { benchTransfer(b, false) }
+func BenchmarkSFTPDownload(b *testing.B) { benchTransfer(b, true) }
+
+// Uploads against a disk limit pay for the size check on every write.
+func BenchmarkSFTPUploadWithLimit(b *testing.B) {
+	r := newSFTPRig(b, 1<<20, nil) // 1 TB: never refused
+	c := r.login(ownerUser, ownerKey, sftp.UseConcurrentWrites(true), sftp.MaxConcurrentRequestsPerFile(64))
+	data := make([]byte, 16<<20)
+	b.SetBytes(int64(len(data)))
+	b.ResetTimer()
+	for range b.N {
+		c.Remove("/bench.bin")
+		f, err := c.Create("/bench.bin")
+		if err != nil {
+			b.Fatal(err)
+		}
+		if _, err := f.ReadFrom(bytes.NewReader(data)); err != nil {
+			b.Fatal(err)
+		}
+		f.Close()
 	}
 }
