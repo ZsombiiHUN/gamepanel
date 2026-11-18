@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { eggsQuery, invalidates, keys, meQuery, nodesQuery } from "../api/queries";
-import { ConfirmDialog, CopyButton, ErrorBox, Field, FormDialog, InfoList, Section } from "../components/ui";
+import { ConfirmDialog, ErrorBox, Field, FormDialog, InfoList, Section } from "../components/ui";
+import { SftpConnect } from "./server/SftpConnect";
 import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
 
 type ServerView = components["schemas"]["ServerView"];
@@ -43,7 +44,6 @@ export function SettingsTab({ server }: { server: ServerView }) {
     mutationFn: () => call(api.PUT("/servers/{uuid}/limits", { params: { path: { uuid: server.uuid } }, body: formToLimits(limits) })),
     meta: invalidates(keys.server(server.uuid)),
   });
-  const sftpUser = `${me.data?.email ?? ""}.${server.uuid.slice(0, 8)}`;
 
   return (
     <div className="space-y-5">
@@ -101,19 +101,8 @@ export function SettingsTab({ server }: { server: ServerView }) {
       )}
 
       {(server.permissions.includes("files.read") || server.permissions.includes("files.write")) && (
-        <Section
-          title="SFTP"
-          desc="Upload and download files with any SFTP client."
-          footer={<><span>Your account password does not work for SFTP. Use an API key from your Account page.</span><CopyButton text={sftpUser} label="Copy username" /></>}
-        >
-          <InfoList
-            rows={[
-              { label: "Host", value: "your node's address", plain: true },
-              { label: "Port", value: "2022 (default)" },
-              { label: "Username", value: sftpUser },
-              { label: "Password", value: "An API key", plain: true },
-            ]}
-          />
+        <Section title="SFTP" desc="Move big uploads, whole folders and world saves with a desktop client.">
+          <SftpConnect uuid={server.uuid} serverName={server.name} />
         </Section>
       )}
 

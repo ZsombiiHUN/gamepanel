@@ -219,3 +219,38 @@ func TestNoticeReachesTheConsole(t *testing.T) {
 		t.Fatalf("backlog %q", bl)
 	}
 }
+
+// The SFTP port comes from the daemon's hello and goes with the connection.
+func TestSFTPPortFollowsTheConnection(t *testing.T) {
+	h := New(quiet())
+	if _, ok := h.SFTPPort(1); ok {
+		t.Fatal("an offline node has a port")
+	}
+	n := connect(t, h, 1)
+	if p, ok := h.SFTPPort(1); !ok || p != 0 {
+		t.Fatalf("before hello: %d %v", p, ok)
+	}
+	n.send(proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(proto.Hello{SFTPPort: 2022})})
+	waitFor(t, func() bool { p, _ := h.SFTPPort(1); return p == 2022 })
+	n.send(proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(proto.Hello{SFTPPort: 99999})})
+	waitFor(t, func() bool { p, _ := h.SFTPPort(1); return p == 65535 })
+	n.ws.Close(websocket.StatusNormalClosure, "")
+	waitFor(t, func() bool { _, ok := h.SFTPPort(1); return !ok })
+	h.mu.RLock()
+	_, kept := h.sftp[1]
+	h.mu.RUnlock()
+	if kept {
+		t.Fatal("the port outlived the connection")
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
