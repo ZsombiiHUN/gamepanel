@@ -48,4 +48,15 @@ describe("Settings tab: delete", () => {
     await userEvent.click(confirm);
     await waitFor(() => expect(api.callsTo(`DELETE /api/servers/${UUID}`)).toHaveLength(1));
   });
+  it("forces the delete when the node is offline, and says what happens", async () => {
+    const srv = { ...server({ name: "Survival" }), uuid: UUID, owner: true, node_online: false };
+    const api = new FakeApi({ "GET /api/auth/me": admin, "GET /api/servers": [srv], [`GET /api/servers/${UUID}`]: srv, [`DELETE /api/servers/${UUID}`]: null });
+    renderApp(api, `/servers/${UUID}?tab=settings`);
+    await userEvent.click(await screen.findByRole("button", { name: "Delete server" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/node is offline/)).toBeTruthy();
+    await userEvent.type(within(dialog).getByRole("textbox"), "Survival");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete server" }));
+    await waitFor(() => expect(api.callsTo(`DELETE /api/servers/${UUID}`)[0]?.query.get("force")).toBe("true"));
+  });
 });

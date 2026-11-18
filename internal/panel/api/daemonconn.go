@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/coder/websocket"
@@ -32,7 +34,13 @@ func (a *App) daemonConnect(w http.ResponseWriter, r *http.Request) {
 	a.Hub.Serve(r.Context(), ws, node.ID)
 }
 
-// onHello makes the daemon match the database: servers it lacks are created.
+// onHello brings a node in line with the database when it connects:
+//   - servers it lacks are created;
+//   - every server it has gets its current spec (server.update), which is a
+//     no-op unless the node's copy drifted;
+//   - servers deleted while it was offline are removed from it;
+//   - servers it has that the panel does not know are reported to admins
+//     (Nodes page), never deleted on their own.
 func (a *App) onHello(ctx context.Context, nodeID int64, h proto.Hello) {
 	have := map[string]bool{}
 	for _, id := range h.Servers {
@@ -42,14 +50,58 @@ func (a *App) onHello(ctx context.Context, nodeID int64, h proto.Hello) {
 	if err != nil {
 		return
 	}
+	known := map[string]bool{}
 	for _, s := range servers {
-		if have[s.UUID] {
+		known[s.UUID] = true
+		if !have[s.UUID] {
+			if err := a.pushServer(ctx, s); err != nil {
+				a.Log.Warn("resync create failed", "server", s.UUID, "err", err)
+			}
 			continue
 		}
-		if err := a.pushServer(ctx, s); err != nil {
-			a.Log.Warn("resync create failed", "server", s.UUID, "err", err)
+		if _, err := a.applySpec(ctx, s); err != nil {
+			a.Log.Warn("resync update failed", "server", s.UUID, "err", err)
 		}
 	}
+
+	removed := map[string]bool{}
+	if pending, err := a.Store.NodeCleanup(ctx, nodeID); err == nil {
+		for _, id := range pending {
+			if known[id] { // never remove a server the panel still has
+				_ = a.Store.NodeCleanupDone(ctx, nodeID, id)
+				continue
+			}
+			if _, err := a.Hub.Request(ctx, nodeID, proto.ReqServerDelete, proto.UUIDOnly{UUID: id}); err != nil {
+				a.Log.Warn("cleanup of a force-deleted server failed", "node", nodeID, "server", id, "err", err)
+				continue
+			}
+			removed[id] = true
+			_ = a.Store.NodeCleanupDone(ctx, nodeID, id)
+			a.Log.Info("removed a server deleted while its node was offline", "node", nodeID, "server", id)
+		}
+	}
+
+	unknown := []string{}
+	seen := map[string]bool{}
+	for _, id := range append(append([]string(nil), h.Servers...), h.Containers...) {
+		if !known[id] && !removed[id] && !seen[id] {
+			seen[id] = true
+			unknown = append(unknown, id)
+		}
+	}
+	sort.Strings(unknown)
+	a.unknown.Store(nodeID, unknown)
+	if len(unknown) > 0 {
+		a.Log.Warn("node has servers the panel does not know", "node", nodeID, "servers", unknown)
+	}
+}
+
+// unknownOn lists servers a node reported that the panel has no record of.
+func (a *App) unknownOn(nodeID int64) []string {
+	if v, ok := a.unknown.Load(nodeID); ok {
+		return v.([]string)
+	}
+	return []string{}
 }
 
 // onCrash records a crash in the server's activity. Nobody did it, so the
@@ -138,4 +190,9 @@ func nodeErr(err error) error {
 		return huma.Error404NotFound(msg)
 	}
 	return hidden(http.StatusBadGateway, "The node could not complete the request.", "node request failed", err)
+}
+
+// forgetUnknown drops one server from a node's unknown list once removed.
+func (a *App) forgetUnknown(nodeID int64, uuid string) {
+	a.unknown.Store(nodeID, slices.DeleteFunc(slices.Clone(a.unknownOn(nodeID)), func(id string) bool { return id == uuid }))
 }

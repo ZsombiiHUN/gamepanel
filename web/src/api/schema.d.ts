@@ -641,6 +641,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/nodes/{id}/unknown/{uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a server the panel does not know from a node
+         * @description Deletes the container and files of a server the node reported but the panel has no record of.
+         */
+        delete: operations["removeUnknownServer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/permissions": {
         parameters: {
             query?: never;
@@ -687,7 +707,10 @@ export interface paths {
         get: operations["getServer"];
         put?: never;
         post?: never;
-        /** Delete a server and its data */
+        /**
+         * Delete a server and its data
+         * @description The node deletes the container and files first. With `force`, a server whose node is offline is deleted from the panel at once, and the node removes the rest when it next connects.
+         */
         delete: operations["deleteServer"];
         options?: never;
         head?: never;
@@ -1986,6 +2009,7 @@ export interface components {
             sftp_host: string;
             /** Format: int64 */
             sftp_port: number;
+            unknown_servers: string[];
         };
         OptionsOutBody: {
             passkeys: boolean;
@@ -3763,6 +3787,36 @@ export interface operations {
             };
         };
     };
+    removeUnknownServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listPermissions: {
         parameters: {
             query?: never;
@@ -3887,7 +3941,10 @@ export interface operations {
     };
     deleteServer: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description delete even though the server's node is offline */
+                force?: boolean;
+            };
             header?: never;
             path: {
                 uuid: string;

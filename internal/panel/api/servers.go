@@ -71,6 +71,10 @@ func (a *App) view(s store.Server) serverView {
 type uuidIn struct {
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 }
+type deleteServerIn struct {
+	UUID  string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+	Force bool   `query:"force" doc:"delete even though the server's node is offline"`
+}
 type serverOut struct{ Body serverView }
 type serverListOut struct{ Body []serverView }
 type serverCreateIn struct {
@@ -217,8 +221,10 @@ func (a *App) registerServers(api huma.API) {
 			return &serverOut{Body: v}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "deleteServer", Method: "DELETE", Path: "/servers/{uuid}", Summary: "Delete a server and its data", DefaultStatus: 204},
-		func(ctx context.Context, in *uuidIn) (*struct{}, error) {
+	huma.Register(api, huma.Operation{OperationID: "deleteServer", Method: "DELETE", Path: "/servers/{uuid}", Summary: "Delete a server and its data", DefaultStatus: 204,
+		Description: "The node deletes the container and files first. With `force`, a server whose node is offline is deleted from the panel at once, " +
+			"and the node removes the rest when it next connects."},
+		func(ctx context.Context, in *deleteServerIn) (*struct{}, error) {
 			if _, err := requireAdmin(ctx); err != nil {
 				return nil, err
 			}
@@ -226,17 +232,29 @@ func (a *App) registerServers(api huma.API) {
 			if err != nil {
 				return nil, huma.Error404NotFound("server not found")
 			}
-			// Node first: if it is unreachable we keep the row so data is never orphaned.
+			// Node first: if it is unreachable we keep the row so data is never
+			// orphaned, unless an admin forces it, which queues the cleanup.
+			forced := false
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerDelete, proto.UUIDOnly{UUID: s.UUID}); err != nil {
-				return nil, nodeErr(err)
+				if !in.Force || !errors.Is(err, hub.ErrNodeOffline) {
+					return nil, nodeErr(err)
+				}
+				forced = true
 			}
 			a.removeRemoteBackups(ctx, s.UUID) // before the rows that list them go
 			a.dropServerDatabases(ctx, s.UUID)
-			if err := a.Store.DeleteServer(ctx, s.UUID); err != nil {
-				return nil, huma.Error500InternalServerError("the node deleted the server but the panel could not", err)
+			detail := s.Name
+			if forced {
+				err = a.Store.ForceDeleteServer(ctx, s)
+				detail += " (node offline: it removes the files when it reconnects)"
+			} else {
+				err = a.Store.DeleteServer(ctx, s.UUID)
+			}
+			if err != nil {
+				return nil, huma.Error500InternalServerError("the panel could not delete the server", err)
 			}
 			a.Hub.Forget(s.UUID)
-			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, s.Name)
+			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, detail)
 			return nil, nil
 		})
 

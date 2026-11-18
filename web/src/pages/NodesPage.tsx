@@ -42,6 +42,10 @@ export function NodesPage() {
       call(api.PUT("/nodes/{id}/sftp", { params: { path: { id: v.id } }, body: { host: v.host.trim(), port: Number(v.port) || 0 } })),
     meta: invalidates(keys.nodes),
   });
+  const removeUnknown = useMutation({
+    mutationFn: (v: { id: number; uuid: string }) => call(api.DELETE("/nodes/{id}/unknown/{uuid}", { params: { path: v } })),
+    meta: invalidates(keys.nodes),
+  });
   const del = useMutation({
     mutationFn: (id: number) => call(api.DELETE("/nodes/{id}", { params: { path: { id } } })),
     meta: invalidates(keys.nodes),
@@ -148,6 +152,29 @@ export function NodesPage() {
                   <Meter label="Memory allocated" text={n.memory_mb ? `${fmt(n.allocated_memory_mb)} / ${fmt(n.memory_mb)}` : `${fmt(n.allocated_memory_mb)} (no cap)`} pct={pct(n.allocated_memory_mb, n.memory_mb)} />
                   <Meter label="Disk allocated" text={n.disk_mb ? `${fmt(n.allocated_disk_mb)} / ${fmt(n.disk_mb)}` : `${fmt(n.allocated_disk_mb)} (no cap)`} pct={pct(n.allocated_disk_mb, n.disk_mb)} />
                 </div>
+                {n.unknown_servers.length > 0 && (
+                  <div role="status" className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                    <p className="font-medium">This node has {n.unknown_servers.length === 1 ? "a server" : `${n.unknown_servers.length} servers`} the panel does not know</p>
+                    <p className="mt-1 text-amber-200/80">Left behind by a delete that did not finish, or from a panel database restored from an older backup. Nothing is deleted unless you remove it here.</p>
+                    <ul className="mt-3 space-y-2">
+                      {n.unknown_servers.map((uuid) => (
+                        <li key={uuid} className="flex items-center justify-between gap-3">
+                          <span className="truncate font-mono text-xs">{uuid}</span>
+                          <button
+                            type="button"
+                            className="btn btn-danger !py-1 text-xs"
+                            disabled={removeUnknown.isPending || !n.online}
+                            title={n.online ? "Delete its container and files from the node" : "The node is offline"}
+                            onClick={() => window.confirm(`Delete the container and files of ${uuid} from ${n.name}? This cannot be undone.`) && removeUnknown.mutate({ id: n.id, uuid })}
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {removeUnknown.error && <div className="mt-3"><ErrorBox error={removeUnknown.error} /></div>}
+                  </div>
+                )}
                 {open && editing && (
                   <form onSubmit={(e) => { e.preventDefault(); saveCap.mutate(editing); }} className="mt-5 space-y-3 border-t border-zinc-800 pt-4">
                     <div className="grid gap-3 sm:grid-cols-3">
