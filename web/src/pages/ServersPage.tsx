@@ -13,7 +13,7 @@ type ServerView = components["schemas"]["ServerView"];
 
 function ServerCard({ s }: { s: ServerView }) {
   const running = s.state === "running" || s.state === "starting";
-  const busy = s.state === "installing" || s.state === "stopping";
+  const busy = s.state === "installing" || s.state === "stopping" || s.state === "install_failed";
   const power = useMutation({
     mutationFn: () => call(api.POST("/servers/{uuid}/power", { params: { path: { uuid: s.uuid } }, body: { action: running ? "stop" : "start" } })),
     meta: invalidates(keys.servers),
@@ -38,7 +38,7 @@ function ServerCard({ s }: { s: ServerView }) {
         {live && <Meter label="CPU" text={`${live.cpu_pct.toFixed(0)}%`} pct={cpuPct} />}
         {live && <Meter label="Memory" text={`${formatBytes(live.mem_bytes)} / ${formatBytes(s.memory_mb * 1024 * 1024)}`} pct={memPct} />}
         {s.stats && <Meter label="Disk" text={`${formatBytes(s.stats.disk_bytes)} / ${s.disk_mb ? formatBytes(s.disk_mb * 1024 * 1024) : "no limit"}`} pct={diskPct} />}
-        {!s.stats && <p className="py-1 text-[13px] text-zinc-500">{s.state === "installing" ? "Setting up files. This takes a few minutes the first time." : s.state === "suspended" ? "Suspended. Contact your host to have it restored." : "Not running. Start it to see live usage."}</p>}
+        {!s.stats && <p className="py-1 text-[13px] text-zinc-500">{s.state === "installing" ? "Setting up files. This takes a few minutes the first time." : s.state === "suspended" ? "Suspended. Contact your host to have it restored." : s.state === "install_failed" ? "The install failed. Open the server to see why and reinstall it." : "Not running. Start it to see live usage."}</p>}
       </div>
       <div className="mt-auto flex gap-2 border-t border-line pt-4">
         <Link to="/servers/$uuid" params={{ uuid: s.uuid }} search={{ tab: "console" }} className="btn flex-1">
@@ -51,7 +51,7 @@ function ServerCard({ s }: { s: ServerView }) {
           onClick={() => power.mutate()}
         >
           {power.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-          {s.state === "installing" ? "Installing…" : running ? "Stop" : "Start"}
+          {s.state === "installing" ? "Installing…" : s.state === "install_failed" ? "Install failed" : running ? "Stop" : "Start"}
         </button>
       </div>
       {power.error && <ErrorBox error={power.error} />}

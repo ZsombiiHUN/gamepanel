@@ -37,6 +37,13 @@ describe("Servers page", () => {
     expect(within(card).getByText(/Valheim · Port 25568/)).toBeInTheDocument();
   });
 
+  it("offers no start for a server whose install failed", async () => {
+    await open();
+    const card = screen.getByText("Server 10", { selector: "a" }).closest("article")!;
+    expect(within(card).getByRole("button", { name: "Install failed" })).toBeDisabled();
+    expect(within(card).getByText(/install failed\. Open the server/)).toBeInTheDocument();
+  });
+
   it("summarizes how many servers are in each state", async () => {
     await open();
     expect(screen.getByText("1 running, 1 starting or installing, 1 need attention, 4 stopped")).toBeInTheDocument();
