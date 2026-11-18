@@ -71,8 +71,9 @@ type Runtime interface {
 	// Events streams state changes until ctx ends.
 	Events(ctx context.Context) (<-chan Event, error)
 	// LimitBandwidth applies the server's network limit (set at Create) to
-	// its running container; a no-op without one.
-	LimitBandwidth(ctx context.Context, uuid string) error
+	// its running container, and reports how incoming traffic ended up
+	// limited; a no-op without one.
+	LimitBandwidth(ctx context.Context, uuid string) (IngressMode, error)
 	// List returns the UUIDs of servers this runtime already manages.
 	List(ctx context.Context) ([]string, error)
 }
