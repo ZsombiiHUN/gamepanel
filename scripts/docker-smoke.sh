@@ -24,6 +24,8 @@ state(){ c $B/servers/$U | python3 -c 'import sys,json;print(json.load(sys.stdin
 power(){ c -d "{\"action\":\"$1\"}" $B/servers/$U/power >/dev/null; }
 wait_state(){ for _ in $(seq 40); do [ "$(state)" = "$1" ] && return 0; sleep 0.5; done; return 1; }
 
+# The container is built after create replies; a start before that is refused.
+check "ready -> offline" 'wait_state offline'
 power start
 check "reaches running" 'wait_state running'
 sleep 1
@@ -60,6 +62,7 @@ c -X DELETE $B/servers/$U >/dev/null
 
 # --- resource limits reach the container engine, and can be edited while stopped
 U=$(c -d '{"name":"lim","node_id":1,"egg_id":1,"memory_mb":128,"swap_mb":64,"cpu_pct":50,"cpuset":"0","pids_limit":200,"disk_mb":50}' $B/servers | python3 -c 'import sys,json;print(json.load(sys.stdin)["uuid"])')
+check "ready -> offline (limited)" 'wait_state offline'
 power start
 check "limited server runs" 'wait_state running'
 insp(){ docker inspect gp-$U --format "$1"; }
