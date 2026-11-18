@@ -1,4 +1,6 @@
 /bin/
+# test panel binary, when built with `go build ./internal/e2e/testpanel` from the root
+/testpanel
 *.db
 *.db-*
 daemon-data/
