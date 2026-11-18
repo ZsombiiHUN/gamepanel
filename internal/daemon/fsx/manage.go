@@ -148,8 +148,14 @@ func (d *Dir) WriteStreamCheck(p string, r io.Reader, limit int64, check func() 
 	if name == "." {
 		return 0, fs.ErrInvalid
 	}
-	if fi, err := d.root.Lstat(name); err == nil && fi.IsDir() {
-		return 0, &fs.PathError{Op: "write", Path: p, Err: syscall.EISDIR}
+	var keepMode fs.FileMode
+	if fi, err := d.root.Lstat(name); err == nil {
+		if fi.IsDir() {
+			return 0, &fs.PathError{Op: "write", Path: p, Err: syscall.EISDIR}
+		}
+		if fi.Mode().IsRegular() {
+			keepMode = fi.Mode().Perm() // a replaced script stays executable
+		}
 	}
 	if err := d.mkdirAll(path.Dir(name)); err != nil {
 		return 0, err
@@ -169,6 +175,9 @@ func (d *Dir) WriteStreamCheck(p string, r io.Reader, limit int64, check func() 
 	}
 	if err == nil && check != nil {
 		err = check()
+	}
+	if err == nil && keepMode != 0 && keepMode != 0o644 {
+		err = d.root.Chmod(tmp, keepMode)
 	}
 	if err == nil {
 		err = d.root.Rename(tmp, name)

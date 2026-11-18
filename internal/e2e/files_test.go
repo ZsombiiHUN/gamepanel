@@ -155,3 +155,43 @@ func TestUploadRespectsDiskLimit(t *testing.T) {
 		t.Fatal("the refused upload left a file")
 	}
 }
+
+// The editor goes through the relay, not the control connection: it still
+// refuses files over 10 MB, and saving keeps a script's permissions.
+func TestEditorThroughRelay(t *testing.T) {
+	s := newStack(t)
+	srv := "/api/servers/" + s.server
+	q := url.QueryEscape
+
+	big := make([]byte, 10<<20+1)
+	if code, b, _ := s.admin.raw("PUT", srv+"/files/upload?path="+q("/big.log"), big); code != 201 {
+		t.Fatalf("upload: %d %s", code, b)
+	}
+	if code, b, _ := s.admin.raw("GET", srv+"/files/content?path="+q("/big.log"), nil); code != 422 || !strings.Contains(string(b), "too large") {
+		t.Fatalf("opening a big file: %d %s", code, b)
+	}
+	if code, _, _ := s.admin.raw("GET", srv+"/files/content?path="+q("/mods"), nil); code != 404 && code != 422 {
+		t.Fatalf("opening a folder: %d", code)
+	}
+
+	s.write("/start.sh", "#!/bin/sh\necho one")
+	s.admin.do("POST", srv+"/files/chmod", map[string]any{"paths": []string{"/start.sh"}, "mode": "755"}, 204)
+	s.write("/start.sh", "#!/bin/sh\necho two")
+	if c, _ := s.read("/start.sh"); c != "#!/bin/sh\necho two" {
+		t.Fatalf("saved %q", c)
+	}
+	var list []struct {
+		Name string
+		Mode uint32
+	}
+	json.Unmarshal(s.admin.do("GET", srv+"/files?path=/", nil, 200), &list)
+	for _, f := range list {
+		if f.Name == "start.sh" && f.Mode != 0o755 {
+			t.Fatalf("mode after save %o", f.Mode)
+		}
+	}
+	s.write("/empty.txt", "")
+	if c, _ := s.read("/empty.txt"); c != "" {
+		t.Fatalf("empty file read %q", c)
+	}
+}
