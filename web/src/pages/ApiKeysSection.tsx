@@ -98,7 +98,7 @@ export function ApiKeysSection() {
           </Field>
           {mfa && (
             <Field label="Authenticator or recovery code">
-              {(id) => <input id={id} className="input w-48 font-mono" autoComplete="one-time-code" required maxLength={20} value={code} onChange={(e) => setCode(e.target.value)} />}
+              {(id) => <input id={id} className="input w-48 font-mono" autoComplete="one-time-code" required maxLength={64} value={code} onChange={(e) => setCode(e.target.value)} />}
             </Field>
           )}
           <button type="submit" className="btn btn-primary" disabled={create.isPending}>

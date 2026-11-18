@@ -75,7 +75,7 @@ export function LoginPage() {
         <form className="space-y-6" aria-labelledby="auth-title" onSubmit={(e: FormEvent) => { e.preventDefault(); verify.mutate(); }}>
           <ErrorBox error={verify.error} />
           <Field label="Authentication code" hint="From your authenticator app, or a recovery code.">
-            {(id) => <input id={id} className="input font-mono tracking-widest" autoComplete="one-time-code" required autoFocus maxLength={20} value={code} onChange={(e) => setCode(e.target.value)} />}
+            {(id) => <input id={id} className="input font-mono tracking-widest" autoComplete="one-time-code" required autoFocus maxLength={64} value={code} onChange={(e) => setCode(e.target.value)} />}
           </Field>
           <button type="submit" className="btn btn-primary w-full" disabled={verify.isPending}>
             {verify.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Verify and sign in
@@ -108,7 +108,7 @@ export function LoginPage() {
           </Field>
           {totpStep && (
             <Field label="Authentication code" hint="From your authenticator app, or a recovery code.">
-              {(id) => <input id={id} className="input font-mono tracking-widest" inputMode="text" autoComplete="one-time-code" required autoFocus maxLength={20} value={code} onChange={(e) => setCode(e.target.value)} />}
+              {(id) => <input id={id} className="input font-mono tracking-widest" inputMode="text" autoComplete="one-time-code" required autoFocus maxLength={64} value={code} onChange={(e) => setCode(e.target.value)} />}
             </Field>
           )}
         </div>
