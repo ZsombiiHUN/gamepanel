@@ -199,6 +199,7 @@ func (a *App) register(api huma.API) {
 	a.registerSubusers(api)
 	a.registerStartup(api)
 	a.registerFiles(api)
+	a.registerSFTP(api)
 	a.registerNetwork(api)
 	a.registerDatabases(api)
 	a.registerServerDetails(api)

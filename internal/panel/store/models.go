@@ -249,15 +249,19 @@ type Node struct {
 	OverallocatePct int64 `json:"overallocate_pct"`
 	AllocatedMemory int64 `json:"allocated_memory_mb"`
 	AllocatedDisk   int64 `json:"allocated_disk_mb"`
+	// Where SFTP clients reach this node. An empty host means the panel's own
+	// host name; port 0 means the port the daemon reports.
+	SFTPHost string `json:"sftp_host"`
+	SFTPPort int    `json:"sftp_port"`
 }
 
-const nodeCols = `id,name,port_start,port_end,memory_mb,disk_mb,overallocate_pct,
+const nodeCols = `id,name,port_start,port_end,memory_mb,disk_mb,overallocate_pct,sftp_host,sftp_port,
 	(SELECT COALESCE(SUM(memory_mb),0) FROM servers WHERE node_id=nodes.id),
 	(SELECT COALESCE(SUM(disk_mb),0) FROM servers WHERE node_id=nodes.id)`
 
 func scanNode(sc interface{ Scan(...any) error }) (Node, error) {
 	var n Node
-	err := sc.Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd, &n.MemoryMB, &n.DiskMB, &n.OverallocatePct, &n.AllocatedMemory, &n.AllocatedDisk)
+	err := sc.Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd, &n.MemoryMB, &n.DiskMB, &n.OverallocatePct, &n.SFTPHost, &n.SFTPPort, &n.AllocatedMemory, &n.AllocatedDisk)
 	return n, err
 }
 

@@ -169,6 +169,8 @@ const (
 type Hello struct {
 	Version string   `json:"version"`
 	Servers []string `json:"servers"` // UUIDs the daemon already manages
+	// SFTPPort is the port the daemon's SFTP server listens on; 0 = SFTP off.
+	SFTPPort int `json:"sftp_port,omitempty"`
 }
 
 type ServerSpec struct {

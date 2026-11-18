@@ -3,7 +3,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ArchiveRestore, ArrowLeft, ChevronRight, Copy, Download, File as FileIcon, FileArchive, FilePlus, Folder, FolderInput, FolderPlus,
-  Home, KeyRound, Link2, Pencil, Trash2, Upload, X,
+  Home, KeyRound, Link2, Pencil, Plug, Trash2, Upload, X,
 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { dirQuery, invalidatesAlways, keys, serverQuery } from "../api/queries";
@@ -19,6 +19,7 @@ import { FileEditor } from "./FileEditor";
 import { FileDialogs, type FileAction, type FileItem } from "./files/FileDialogs";
 import { RowMenu, type MenuItem } from "./files/RowMenu";
 import { UploadPanel } from "./files/UploadPanel";
+import { SftpDialog } from "./server/SftpConnect";
 
 type FileInfo = components["schemas"]["FileInfo"];
 type Row = FileInfo & { path: string; parent: string };
@@ -42,6 +43,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
   const [action, setAction] = useState<FileAction | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dragging, setDragging] = useState(false);
+  const [sftpOpen, setSftpOpen] = useState(false);
   const uploads = useUploads(uuid);
   const fileInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
@@ -112,8 +114,8 @@ export function FilesTab({ uuid }: { uuid: string }) {
 
   return (
     <div className="space-y-3">
-      {canWrite && (
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {canWrite && (<>
           <button type="button" className="btn" onClick={() => fileInput.current?.click()}><Upload className="h-4 w-4" aria-hidden /> Upload files</button>
           {/* Secondary actions keep their names for screen readers but show only icons on phones. */}
           <button type="button" className="btn btn-ghost !px-3 sm:!px-4" aria-label="Upload folder" title="Upload folder" onClick={() => folderInput.current?.click()}><FolderInput className="h-4 w-4" aria-hidden /><span className="hidden sm:inline">Upload folder</span></button>
@@ -123,8 +125,10 @@ export function FilesTab({ uuid }: { uuid: string }) {
           <input ref={fileInput} type="file" multiple hidden onChange={(e) => { if (e.target.files) uploads.add(dir, pickedFiles(e.target.files)); e.target.value = ""; }} />
           {/* webkitdirectory is not in React's types; every current browser supports it. */}
           <input ref={folderInput} type="file" multiple hidden {...{ webkitdirectory: "" }} onChange={(e) => { if (e.target.files) uploads.add(dir, pickedFiles(e.target.files)); e.target.value = ""; }} />
-        </div>
-      )}
+        </>)}
+        <button type="button" className="btn btn-ghost !px-3 sm:ml-auto sm:!px-4" aria-label="Connect with SFTP" title="Open these files in an SFTP client" onClick={() => setSftpOpen(true)}><Plug className="h-4 w-4" aria-hidden /><span className="hidden sm:inline">SFTP</span></button>
+      </div>
+      <SftpDialog open={sftpOpen} uuid={uuid} serverName={server.data?.name ?? ""} onClose={() => setSftpOpen(false)} />
 
       <UploadPanel items={uploads.items} onCancel={uploads.cancel} onClear={uploads.clear} />
 

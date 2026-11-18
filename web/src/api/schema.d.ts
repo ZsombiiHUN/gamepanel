@@ -624,6 +624,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/nodes/{id}/sftp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the address SFTP clients use to reach a node */
+        put: operations["setNodeSFTP"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/permissions": {
         parameters: {
             query?: never;
@@ -1319,6 +1336,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/sftp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How to connect to this server with an SFTP client */
+        get: operations["getServerSFTP"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/startup": {
         parameters: {
             query?: never;
@@ -1879,6 +1913,9 @@ export interface components {
             port_end: number;
             /** Format: int64 */
             port_start: number;
+            sftp_host: string;
+            /** Format: int64 */
+            sftp_port: number;
         };
         NodeCapacityInBody: {
             /** Format: int64 */
@@ -1918,6 +1955,15 @@ export interface components {
             /** @description Shown once. Set as GAMEPANEL_NODE_TOKEN on the daemon. */
             token: string;
         };
+        NodeSFTPInBody: {
+            /** @description host name or IP address SFTP clients connect to; empty = the panel's host */
+            host: string;
+            /**
+             * Format: int64
+             * @description 0 = the port the daemon listens on
+             */
+            port: number;
+        };
         NodeView: {
             /** Format: int64 */
             allocated_disk_mb: number;
@@ -1937,6 +1983,9 @@ export interface components {
             port_end: number;
             /** Format: int64 */
             port_start: number;
+            sftp_host: string;
+            /** Format: int64 */
+            sftp_port: number;
         };
         OptionsOutBody: {
             passkeys: boolean;
@@ -2238,6 +2287,19 @@ export interface components {
              */
             swap_mb: number;
             uuid: string;
+        };
+        SftpInfoOutBody: {
+            host: string;
+            /**
+             * Format: int64
+             * @description 0 while the node is offline and no port is set
+             */
+            port: number;
+            read: boolean;
+            /** @enum {string} */
+            status: "ready" | "off" | "offline";
+            username: string;
+            write: boolean;
         };
         SsoProvider: {
             id: string;
@@ -3642,6 +3704,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["NodeCapacityInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setNodeSFTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeSFTPInBody"];
             };
         };
         responses: {
@@ -5294,6 +5389,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getServerSFTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SftpInfoOutBody"];
+                };
             };
             /** @description Error */
             default: {
