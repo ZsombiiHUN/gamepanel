@@ -1,9 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
@@ -89,4 +95,80 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 
 func storeAudit(email, action, target, ip string) store.AuditEntry {
 	return store.AuditEntry{ActorEmail: email, Action: action, Target: target, IP: ip}
+}
+
+type sftpInfoOut struct {
+	Body struct {
+		// Host is empty when the node has no SFTP address set: the panel's own
+		// host name is then the best guess, which only the browser knows.
+		Host     string `json:"host"`
+		Port     int    `json:"port" doc:"0 while the node is offline and no port is set"`
+		Username string `json:"username"`
+		// Status: ready, off (the daemon runs without SFTP) or offline.
+		Status string `json:"status" enum:"ready,off,offline"`
+		Read   bool   `json:"read"`
+		Write  bool   `json:"write"`
+	}
+}
+
+type nodeSFTPIn struct {
+	ID   int64 `path:"id"`
+	Body struct {
+		Host string `json:"host" maxLength:"253" doc:"host name or IP address SFTP clients connect to; empty = the panel's host"`
+		Port int    `json:"port" minimum:"0" maximum:"65535" doc:"0 = the port the daemon listens on"`
+	}
+}
+
+func (a *App) registerSFTP(api huma.API) {
+	huma.Register(api, huma.Operation{OperationID: "getServerSFTP", Method: "GET", Path: "/servers/{uuid}/sftp",
+		Summary: "How to connect to this server with an SFTP client"},
+		func(ctx context.Context, in *uuidIn) (*sftpInfoOut, error) {
+			u, s, err := a.authorize(ctx, in.UUID)
+			if err != nil {
+				return nil, err
+			}
+			perms, _, _ := a.access(ctx, u, s)
+			read, write := has(perms, PermFilesRead), has(perms, PermFilesWrite)
+			if !read && !write {
+				return nil, huma.Error403Forbidden("you do not have permission to do that (" + PermFilesRead + ")")
+			}
+			n, err := a.Store.GetNode(ctx, s.NodeID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error")
+			}
+			out := &sftpInfoOut{}
+			b := &out.Body
+			b.Host, b.Read, b.Write = n.SFTPHost, read, write
+			b.Username = u.Email + "." + s.UUID[:8]
+			reported, online := a.Hub.SFTPPort(n.ID)
+			switch {
+			case !online:
+				b.Status = "offline"
+			case reported == 0:
+				b.Status = "off"
+			default:
+				b.Status = "ready"
+			}
+			if b.Port = n.SFTPPort; b.Port == 0 {
+				b.Port = reported
+			}
+			return out, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "setNodeSFTP", Method: "PUT", Path: "/nodes/{id}/sftp",
+		Summary: "Set the address SFTP clients use to reach a node", DefaultStatus: 204},
+		func(ctx context.Context, in *nodeSFTPIn) (*struct{}, error) {
+			u, err := requireAdmin(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if err := a.Store.SetNodeSFTP(ctx, in.ID, in.Body.Host, in.Body.Port); err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					return nil, huma.Error404NotFound("node not found")
+				}
+				return nil, userErr(http.StatusUnprocessableEntity, err)
+			}
+			a.audit(ctx, u, "node.sftp", strconv.FormatInt(in.ID, 10), fmt.Sprintf("host=%q port=%d", strings.TrimSpace(in.Body.Host), in.Body.Port))
+			return nil, nil
+		})
 }

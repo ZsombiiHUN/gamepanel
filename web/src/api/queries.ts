@@ -31,6 +31,7 @@ export const keys = {
   metrics: (uuid: string) => ["metrics", uuid] as const,
   mods: (uuid: string) => ["mods", uuid] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
+  sftp: (uuid: string) => ["sftp", uuid] as const,
 };
 
 /** What a mutation refreshes on success. The query client applies it, so mutations do not repeat the plumbing. */
@@ -159,6 +160,14 @@ export const apiKeysQuery = queryOptions({
   queryKey: keys.apiKeys,
   queryFn: () => call(api.GET("/auth/keys")),
 });
+
+/** How to reach a server over SFTP. The node's status changes, so look again now and then. */
+export const sftpQuery = (uuid: string) =>
+  queryOptions({
+    queryKey: keys.sftp(uuid),
+    queryFn: () => call(api.GET("/servers/{uuid}/sftp", { params: { path: { uuid } } })),
+    refetchInterval: 15_000,
+  });
 
 export const subusersQuery = (uuid: string) =>
   queryOptions({

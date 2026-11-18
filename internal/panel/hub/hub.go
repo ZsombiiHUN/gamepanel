@@ -66,6 +66,7 @@ type Hub struct {
 
 	mu      sync.RWMutex
 	nodes   map[int64]*nodeConn
+	sftp    map[int64]int    // node -> the SFTP port its daemon reported (0 = off)
 	srvNode map[string]int64 // server uuid -> node, cached results of Locate
 	states  map[string]string
 	stats   map[string]proto.Stats
@@ -75,7 +76,7 @@ type Hub struct {
 
 func New(log *slog.Logger) *Hub {
 	return &Hub{
-		log: log, nodes: map[int64]*nodeConn{}, srvNode: map[string]int64{}, RequestTimeout: DefaultRequestTimeout,
+		log: log, nodes: map[int64]*nodeConn{}, sftp: map[int64]int{}, srvNode: map[string]int64{}, RequestTimeout: DefaultRequestTimeout,
 		states: map[string]string{}, stats: map[string]proto.Stats{},
 		backlog: map[string][]string{}, subs: map[string]map[*Sub]struct{}{},
 	}
@@ -86,6 +87,17 @@ func (h *Hub) Online(nodeID int64) bool {
 	defer h.mu.RUnlock()
 	_, ok := h.nodes[nodeID]
 	return ok
+}
+
+// SFTPPort is the port a connected node's daemon serves SFTP on. ok is false
+// while the node is offline; a port of 0 means its SFTP server is off.
+func (h *Hub) SFTPPort(nodeID int64) (port int, ok bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if _, online := h.nodes[nodeID]; !online {
+		return 0, false
+	}
+	return h.sftp[nodeID], true
 }
 
 func (h *Hub) State(uuid string) string {
@@ -167,6 +179,7 @@ func (h *Hub) Serve(ctx context.Context, ws *websocket.Conn, nodeID int64) {
 		h.mu.Lock()
 		if h.nodes[nodeID] == nc {
 			delete(h.nodes, nodeID)
+			delete(h.sftp, nodeID)
 		}
 		h.mu.Unlock()
 		nc.pmu.Lock()
@@ -208,6 +221,11 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 	case proto.EvtHello:
 		var hello proto.Hello
 		json.Unmarshal(env.Data, &hello)
+		h.mu.Lock()
+		if h.nodes[nc.id] == nc {
+			h.sftp[nc.id] = max(0, min(hello.SFTPPort, 65535))
+		}
+		h.mu.Unlock()
 		if h.OnHello != nil {
 			go h.OnHello(ctx, nc.id, hello)
 		}

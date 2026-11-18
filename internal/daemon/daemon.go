@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -264,8 +265,14 @@ func (d *Daemon) session(ctx context.Context) error {
 	for id := range d.servers {
 		ids = append(ids, id)
 	}
+	sftpPort := 0
+	if d.sftp != nil {
+		if a, ok := d.sftp.ln.Addr().(*net.TCPAddr); ok {
+			sftpPort = a.Port
+		}
+	}
 	d.mu.Unlock()
-	if err := d.send(sctx, proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(proto.Hello{Version: Version, Servers: ids})}); err != nil {
+	if err := d.send(sctx, proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(proto.Hello{Version: Version, Servers: ids, SFTPPort: sftpPort})}); err != nil {
 		return err
 	}
 
