@@ -500,9 +500,16 @@ func (f heldFile) Close() error { f.free(); return f.File.Close() }
 // reput, WinSCP, curl) send real offsets starting at the end, some (Go's
 // pkg/sftp) count from zero and leave the placing to the server. Writes are
 // served concurrently, so "always at the current end" would scramble a
-// pipelined upload; instead the first write decides. An offset below the
-// size at open can only be counted from zero, and then every write of the
+// pipelined upload; instead the handle's first write decides. An offset below
+// the size at open can only be counted from zero, and then every write of the
 // handle is moved past that size.
+//
+// The first write to reach the server is not always the first to get here:
+// requests go to the workers in order, but a later one can overtake. So a
+// write whose offset does not decide (at or past the size at open) waits for
+// one that does. The client's first write is already with a worker by then,
+// so the wait is short; if nothing smaller comes, the client counts from the
+// end.
 type limitedWriter struct {
 	f        *os.File
 	shape    *sync.RWMutex
@@ -515,9 +522,56 @@ type limitedWriter struct {
 	disk     *diskCache // for pending growth (nil in tests that do not need it)
 	log      *slog.Logger
 
-	appendAt int64 // size at open for an append handle, -1 otherwise
-	decided  bool  // the first append write has fixed shift
-	shift    int64 // added to every offset of an append handle
+	appendAt int64         // size at open for an append handle, -1 otherwise
+	decided  bool          // the first append write has fixed shift
+	decide   chan struct{} // closed once decided, for writes waiting on it
+	shift    int64         // added to every offset of an append handle
+}
+
+// How long an append write waits for the handle's first write to decide
+// where the data goes: briefly when its offset is the end of the file (as a
+// client counting from the end sends first), longer past it.
+var appendWaitAtEnd, appendWaitPast = 200 * time.Millisecond, 2 * time.Second
+
+// placeAppend returns where an append handle's write at off goes. It is
+// called with w.mu held, which it may release while waiting.
+func (w *limitedWriter) placeAppend(off int64) int64 {
+	if w.appendAt == 0 {
+		return off // empty at open: both ways put it in the same place
+	}
+	if !w.decided && off < w.appendAt {
+		w.shift = w.appendAt
+		w.decideNow()
+	}
+	if !w.decided {
+		wait := appendWaitPast
+		if off == w.appendAt {
+			wait = appendWaitAtEnd
+		}
+		if w.decide == nil {
+			w.decide = make(chan struct{})
+		}
+		ch := w.decide
+		w.mu.Unlock()
+		t := time.NewTimer(wait)
+		select {
+		case <-ch:
+		case <-t.C:
+		}
+		t.Stop()
+		w.mu.Lock()
+		if !w.decided {
+			w.decideNow() // nothing smaller came: real offsets
+		}
+	}
+	return off + w.shift
+}
+
+func (w *limitedWriter) decideNow() {
+	w.decided = true
+	if w.decide != nil {
+		close(w.decide)
+	}
 }
 
 func (w *limitedWriter) ReadAt(p []byte, off int64) (n int, err error) {
@@ -534,13 +588,7 @@ func (w *limitedWriter) WriteAt(p []byte, off int64) (n int, err error) {
 	defer w.shape.RUnlock()
 	w.mu.Lock()
 	if w.appendAt >= 0 {
-		if !w.decided {
-			w.decided = true
-			if off < w.appendAt {
-				w.shift = w.appendAt
-			}
-		}
-		off += w.shift
+		off = w.placeAppend(off)
 	}
 	end := off + int64(len(p))
 	if off < 0 || end < off { // offsets past 2^63 (or wrapping past it) never reach the size check
