@@ -158,6 +158,22 @@ func main() {
 		log.Error("GAMEPANEL_SIGNUP must be invite or open", "value", signup)
 		os.Exit(1)
 	}
+	requireMFA := os.Getenv("GAMEPANEL_REQUIRE_MFA")
+	if !api.ValidMFAPolicy(requireMFA) {
+		log.Error("GAMEPANEL_REQUIRE_MFA must be off, admins or all", "value", requireMFA)
+		os.Exit(1)
+	}
+	var hsts string
+	switch v := os.Getenv("GAMEPANEL_HSTS"); v {
+	case "", "host":
+	case "subdomains":
+		hsts = "max-age=31536000; includeSubDomains"
+	case "preload":
+		hsts = "max-age=63072000; includeSubDomains; preload"
+	default:
+		log.Error("GAMEPANEL_HSTS must be host, subdomains or preload", "value", v)
+		os.Exit(1)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	h := hub.New(log)
@@ -165,7 +181,7 @@ func main() {
 		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
 		TrustedProxies: proxies, S3: backups,
 		PublicURL: publicURL, Signup: signup, SSO: sso,
-		CookieSecure: cookieSecure,
+		CookieSecure: cookieSecure, RequireMFA: requireMFA, HSTS: hsts,
 	}
 	if mailer != nil { // never a typed nil in the interface
 		deps.Mail = mailer

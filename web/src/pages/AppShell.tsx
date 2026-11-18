@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useNavigate, useParams, useRouteContext, useRouterState, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, History, Database as DatabaseIcon, ClipboardList, Clock, FolderOpen, LayoutGrid, LogOut, Menu, Network, Package, Plus, Rocket, Search, Settings, SquareTerminal, Users, X, Egg, HardDrive } from "lucide-react";
+import { Archive, ChevronDown, History, Database as DatabaseIcon, ClipboardList, Clock, FolderOpen, LayoutGrid, LogOut, Menu, Network, Package, Plus, Rocket, Search, Settings, ShieldCheck, SquareTerminal, Users, X, Egg, HardDrive } from "lucide-react";
 import { api, call } from "../api/client";
-import { serverQuery, serversQuery } from "../api/queries";
+import { meQuery, serverQuery, serversQuery } from "../api/queries";
 import { CommandPalette } from "../components/CommandPalette";
 import { ThemeSwitch } from "../components/ThemeSwitch";
-import { StateMark } from "../components/ui";
+import { Empty, StateMark } from "../components/ui";
 import { isTypingTarget } from "../lib/palette";
 import { sortServers } from "../lib/servers";
 import { canSee, TAB_INFO, type Tab } from "../lib/tabs";
@@ -102,8 +102,40 @@ function Sidebar({ isAdmin, email, onSignOut, signingOut, onSearch }: { isAdmin:
   );
 }
 
+/**
+ * The sidebar while the panel holds this session to setting up two-factor:
+ * no server list or search (they would be refused), just a way out.
+ */
+function RestrictedSidebar({ email, onSignOut, signingOut }: { email: string; onSignOut: () => void; signingOut: boolean }) {
+  return (
+    <div className="flex h-full flex-col gap-3 px-2.5 pb-2.5 pt-3">
+      <span className="flex shrink-0 items-center gap-2.5 px-2 py-1 font-display text-lg font-bold tracking-tight">
+        <span className="h-5 w-5 rounded-md bg-indigo-500" aria-hidden /> GamePanel
+      </span>
+      <p className="flex-1 px-2 text-[13px] text-zinc-500">Set up two-factor authentication to use the rest of the panel.</p>
+      <div className="truncate px-2 text-[13px] text-zinc-400">{email}</div>
+      <button type="button" className={item} onClick={onSignOut} disabled={signingOut}>
+        <LogOut className="h-4 w-4" aria-hidden /> Sign out
+      </button>
+    </div>
+  );
+}
+
+/** Shown instead of any page when the account has a second factor this sign-in did not use. */
+function SignInAgain() {
+  return (
+    <div className="mx-auto max-w-lg">
+      <Empty icon={<ShieldCheck className="h-5 w-5" aria-hidden />} title="Sign in with your second factor">
+        This panel requires two-factor authentication. Your account has a passkey or authenticator app, but this sign-in did not use it. Sign out, then sign in again with your passkey, or with your password and authenticator code.
+      </Empty>
+    </div>
+  );
+}
+
 export function AppShell() {
-  const user = useRouteContext({ from: "/app", select: (c) => c.me });
+  const routeUser = useRouteContext({ from: "/app", select: (c) => c.me });
+  // Follow the live answer, so setting up a second factor lifts the restriction at once.
+  const user = useQuery(meQuery).data ?? routeUser;
   const qc = useQueryClient();
   const navigate = useNavigate();
   // The drawer remembers where it was opened, so any navigation closes it without an effect.
@@ -139,6 +171,11 @@ export function AppShell() {
   });
 
 
+  // While restricted the layout keeps its shape (only the sidebar's contents
+  // change), so the page does not remount when the restriction lifts: the
+  // account page must keep showing the recovery codes it was just given.
+  const restricted = user.mfa_required;
+
   return (
     <div className="min-h-screen lg:flex">
       <header className="flex items-center gap-2 border-b border-line bg-side px-3 py-2 lg:hidden">
@@ -151,12 +188,16 @@ export function AppShell() {
         className={`fixed left-0 top-0 z-40 h-dvh w-64 overflow-hidden border-r border-line bg-side transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[248px] lg:shrink-0 lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <button type="button" className="btn btn-ghost absolute right-2 top-2 !px-2 lg:hidden" aria-label="Close menu" onClick={() => setOpen(false)}><X className="h-5 w-5" aria-hidden /></button>
-        <Sidebar isAdmin={user.is_admin} email={user.email} onSignOut={() => logout.mutate()} signingOut={logout.isPending} onSearch={() => { setOpen(false); setPalette(true); }} />
+        {restricted ? (
+          <RestrictedSidebar email={user.email} onSignOut={() => logout.mutate()} signingOut={logout.isPending} />
+        ) : (
+          <Sidebar isAdmin={user.is_admin} email={user.email} onSignOut={() => logout.mutate()} signingOut={logout.isPending} onSearch={() => { setOpen(false); setPalette(true); }} />
+        )}
       </aside>
       <main className="min-w-0 flex-1 px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-        <Outlet />
+        {user.mfa_sign_in_again ? <SignInAgain /> : <Outlet />}
       </main>
-      <CommandPalette open={palette} onClose={() => setPalette(false)} currentServer={currentServer} />
+      {!restricted && <CommandPalette open={palette} onClose={() => setPalette(false)} currentServer={currentServer} />}
     </div>
   );
 }

@@ -2528,6 +2528,8 @@ export interface components {
             /** Format: int64 */
             id: number;
             is_admin: boolean;
+            mfa_required: boolean;
+            mfa_sign_in_again: boolean;
             totp_enabled: boolean;
         };
         Version: {

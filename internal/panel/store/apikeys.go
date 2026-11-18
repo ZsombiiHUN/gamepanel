@@ -75,10 +75,10 @@ func (s *Store) UserByAPIKey(ctx context.Context, token string) (User, error) {
 	var u User
 	var keyID, last int64
 	h := HashToken(token)
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,k.id,k.last_used_at
+	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=u.id),k.id,k.last_used_at
 		FROM api_keys k JOIN users u ON u.id=k.user_id
 		WHERE k.token_hash=? AND (k.expires_at=0 OR k.expires_at>?)`, h, now()).
-		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &keyID, &last)
+		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.HasPasskey, &keyID, &last)
 	if err != nil {
 		return User{}, nf(err)
 	}

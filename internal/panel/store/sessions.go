@@ -19,6 +19,25 @@ const (
 	MethodRegister = "register"
 )
 
+// IsMFAMethod reports whether a sign-in method used two factors. A passkey
+// counts: sign-in requires user verification, so it is something you have
+// plus a PIN or biometric. Single sign-on alone does not, since the panel
+// cannot see how the provider checked the person.
+func IsMFAMethod(m string) bool {
+	switch {
+	case m == MethodTOTP, m == MethodRecovery, m == MethodPasskey, strings.HasPrefix(m, MethodSSOTOTP):
+		return true
+	}
+	return false
+}
+
+// MarkSessionMFA records that a session has now proved a second factor (it
+// just set one up).
+func (s *Store) MarkSessionMFA(ctx context.Context, token string) error {
+	_, err := s.exec(ctx, `UPDATE sessions SET mfa=1 WHERE token_hash=?`, HashToken(token))
+	return err
+}
+
 // Caps on what a client may make the panel store about its session.
 const (
 	maxUALen = 512

@@ -150,6 +150,7 @@ func (a *App) registerMFA(api huma.API) {
 				a.fails.add(u.Email)
 				return nil, userErr(http.StatusUnprocessableEntity, err)
 			}
+			a.secondFactorProved(ctx)
 			a.audit(ctx, u, "totp.enable", u.Email, "")
 			out := &recoveryOut{}
 			out.Body.Codes = codes
@@ -165,6 +166,9 @@ func (a *App) registerMFA(api huma.API) {
 			}
 			if !u.TOTPEnabled {
 				return nil, huma.Error409Conflict("two-factor authentication is not enabled")
+			}
+			if err := a.keepsSecondFactor(u, false, u.HasPasskey); err != nil {
+				return nil, err
 			}
 			if err := a.confirm(ctx, u, in.Body.Password); err != nil {
 				return nil, err
