@@ -68,8 +68,8 @@ func (a *App) consoleWS(w http.ResponseWriter, r *http.Request) {
 		return ws.Write(wctx, websocket.MessageText, b)
 	}
 	write(hub.Event{Type: "state", Data: proto.Marshal(proto.State{UUID: uuid, State: a.Hub.State(uuid)})})
-	for _, l := range backlog {
-		write(hub.Event{Type: "console", Data: proto.Marshal(proto.Console{UUID: uuid, Line: l})})
+	if len(backlog) > 0 {
+		write(hub.Event{Type: "console", Data: proto.Marshal(proto.Console{UUID: uuid, Lines: backlog})})
 	}
 	recheck := time.NewTicker(a.AuthRecheck)
 	defer recheck.Stop()

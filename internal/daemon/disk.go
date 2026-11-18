@@ -365,7 +365,7 @@ func (d *Daemon) enforceDisk(ctx context.Context, uuid string, running bool) (in
 		d.mu.Unlock()
 		if !already {
 			msg := fmt.Sprintf("\x1b[31m[gamepanel] %s - stopping the server. Free space or raise the limit, then start it again.\x1b[0m", ErrDiskFull{used, limit})
-			_ = d.send(ctx, proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(proto.Console{UUID: uuid, Line: msg})})
+			d.sendConsole(uuid, msg)
 			spec, err := d.spec(uuid)
 			if err == nil {
 				go func() {

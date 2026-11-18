@@ -301,15 +301,26 @@ func (h *Hub) Notice(uuid, line string) {
 	h.console(proto.Console{UUID: uuid, Line: line})
 }
 
+// console records a line or a batch of lines and passes it on as one event.
 func (h *Hub) console(c proto.Console) {
+	lines := c.All()
+	if len(lines) > backlogLines {
+		lines = lines[len(lines)-backlogLines:]
+	}
 	h.mu.Lock()
-	bl := append(h.backlog[c.UUID], c.Line)
+	bl := append(h.backlog[c.UUID], lines...)
 	if len(bl) > backlogLines {
-		bl = bl[len(bl)-backlogLines:]
+		bl = append([]string(nil), bl[len(bl)-backlogLines:]...)
 	}
 	h.backlog[c.UUID] = bl
 	h.mu.Unlock()
-	h.publish(c.UUID, Event{Type: "console", Data: proto.Marshal(c)})
+	out := proto.Console{UUID: c.UUID}
+	if len(lines) == 1 {
+		out.Line = lines[0]
+	} else {
+		out.Lines = lines
+	}
+	h.publish(c.UUID, Event{Type: "console", Data: proto.Marshal(out)})
 }
 
 func (h *Hub) publish(uuid string, ev Event) {

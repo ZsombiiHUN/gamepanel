@@ -207,15 +207,40 @@ func (h hijacked) Read(p []byte) (int, error)  { return h.r.Read(p) }
 func (h hijacked) Write(p []byte) (int, error) { return h.w.Write(p) }
 func (h hijacked) Close() error                { h.c(); return nil }
 
+// Attach returns the console of the server's current run, starting with
+// at most AttachTail lines of what it already printed, and its stdin.
+//
+// Attaching with Logs would replay everything since the container was
+// created, every earlier run included, which flooded the console after a
+// daemon restart. The output therefore comes from the log stream instead,
+// which can start at this run and be cut to a tail.
 func (d *Docker) Attach(ctx context.Context, uuid string) (io.ReadCloser, io.WriteCloser, error) {
-	res, err := d.cli.ContainerAttach(ctx, name(uuid), client.ContainerAttachOptions{
-		Stream: true, Stdin: true, Stdout: true, Stderr: true, Logs: true,
-	})
+	in, err := d.cli.ContainerInspect(ctx, name(uuid), client.ContainerInspectOptions{})
 	if err != nil {
 		return nil, nil, err
 	}
-	h := hijacked{r: res.Reader, w: res.Conn, c: res.Close}
-	return h, h, nil // Tty=true, so the stream is raw (not multiplexed)
+	logs, lerr := d.cli.ContainerLogs(ctx, name(uuid), client.ContainerLogsOptions{
+		ShowStdout: true, ShowStderr: true, Follow: true,
+		Since: in.Container.State.StartedAt, Tail: strconv.Itoa(AttachTail),
+	})
+	res, err := d.cli.ContainerAttach(ctx, name(uuid), client.ContainerAttachOptions{
+		// Without a readable log (a log driver such as "none"), live output
+		// comes from the attach stream instead.
+		Stream: true, Stdin: true, Stdout: lerr != nil, Stderr: lerr != nil,
+	})
+	if err != nil {
+		if lerr == nil {
+			logs.Close()
+		}
+		return nil, nil, err
+	}
+	var r io.Reader = res.Reader // Tty=true, so the stream is raw (not multiplexed)
+	closeAll := res.Close
+	if lerr == nil {
+		r = logs
+		closeAll = func() { logs.Close(); res.Close() }
+	}
+	return hijacked{r: r, w: res.Conn, c: closeAll}, hijacked{r: res.Reader, w: res.Conn, c: closeAll}, nil
 }
 
 func (d *Docker) State(ctx context.Context, uuid string) (string, error) {

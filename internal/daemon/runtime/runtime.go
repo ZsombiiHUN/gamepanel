@@ -16,6 +16,10 @@ const (
 	StateStopping = "stopping"
 )
 
+// AttachTail is how much earlier output a console attach replays, matching
+// the panel's backlog.
+const AttachTail = 500
+
 type Spec struct {
 	proto.ServerSpec
 	DataDir string // absolute host path mounted at /home/container
@@ -49,7 +53,8 @@ type Runtime interface {
 	Stop(ctx context.Context, uuid string, timeoutSec int) error
 	Kill(ctx context.Context, uuid string) error
 	Remove(ctx context.Context, uuid string) error
-	// Attach returns the combined console stream and a writer for stdin.
+	// Attach returns the combined console stream of the current run, starting
+	// with at most AttachTail earlier lines, and a writer for stdin.
 	Attach(ctx context.Context, uuid string) (io.ReadCloser, io.WriteCloser, error)
 	State(ctx context.Context, uuid string) (string, error)
 	Stats(ctx context.Context, uuid string) (proto.Stats, error)
