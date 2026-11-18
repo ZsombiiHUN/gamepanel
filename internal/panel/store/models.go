@@ -628,3 +628,44 @@ func (s *Store) SetOwner(ctx context.Context, uuid, email string) (User, error) 
 	}
 	return u, tx.Commit()
 }
+
+// ForceDeleteServer removes a server whose node is offline and queues its
+// container and files for removal when the node next connects.
+func (s *Store) ForceDeleteServer(ctx context.Context, v Server) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO node_cleanup(node_id,server_uuid,created_at) VALUES(?,?,?)`, v.NodeID, v.UUID, now()); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM servers WHERE uuid=?`, v.UUID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// NodeCleanup lists the servers a node still has to remove.
+func (s *Store) NodeCleanup(ctx context.Context, nodeID int64) ([]string, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT server_uuid FROM node_cleanup WHERE node_id=? ORDER BY created_at`, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// NodeCleanupDone drops a finished removal.
+func (s *Store) NodeCleanupDone(ctx context.Context, nodeID int64, uuid string) error {
+	_, err := s.exec(ctx, `DELETE FROM node_cleanup WHERE node_id=? AND server_uuid=?`, nodeID, uuid)
+	return err
+}

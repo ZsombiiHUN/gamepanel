@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
 // ---- admin: nodes & eggs ----
@@ -42,6 +44,13 @@ type nodeCreateOut struct {
 type nodeView struct {
 	store.Node
 	Online bool `json:"online"`
+	// UnknownServers are on the node but not in the panel, as the node last
+	// reported when it connected.
+	UnknownServers []string `json:"unknown_servers" nullable:"false"`
+}
+type nodeServerIn struct {
+	ID   int64  `path:"id"`
+	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 }
 type nodeListOut struct{ Body []nodeView }
 type idIn struct {
@@ -108,7 +117,7 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			out := &nodeListOut{Body: []nodeView{}}
 			for _, n := range ns {
-				out.Body = append(out.Body, nodeView{Node: n, Online: a.Hub.Online(n.ID)})
+				out.Body = append(out.Body, nodeView{Node: n, Online: a.Hub.Online(n.ID), UnknownServers: a.unknownOn(n.ID)})
 			}
 			return out, nil
 		})
@@ -128,7 +137,30 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			// Its token is gone; do not keep talking to it.
 			a.Hub.Disconnect(in.ID)
+			a.unknown.Delete(in.ID)
 			a.audit(ctx, mustUser(ctx), "node.delete", strconv.FormatInt(in.ID, 10), "")
+			return nil, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "removeUnknownServer", Method: "DELETE", Path: "/nodes/{id}/unknown/{uuid}",
+		Summary:     "Remove a server the panel does not know from a node",
+		Description: "Deletes the container and files of a server the node reported but the panel has no record of.", DefaultStatus: 204},
+		func(ctx context.Context, in *nodeServerIn) (*struct{}, error) {
+			u, err := requireAdmin(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if !slices.Contains(a.unknownOn(in.ID), in.UUID) {
+				return nil, huma.Error404NotFound("the node did not report that server")
+			}
+			if _, err := a.Store.GetServer(ctx, in.UUID); err == nil {
+				return nil, huma.Error409Conflict("the panel knows this server; delete it from the server page")
+			}
+			if _, err := a.Hub.Request(ctx, in.ID, proto.ReqServerDelete, proto.UUIDOnly{UUID: in.UUID}); err != nil {
+				return nil, nodeErr(err)
+			}
+			a.forgetUnknown(in.ID, in.UUID)
+			a.audit(ctx, u, "node.unknown.remove", strconv.FormatInt(in.ID, 10), in.UUID)
 			return nil, nil
 		})
 
