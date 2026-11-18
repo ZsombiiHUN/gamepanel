@@ -152,32 +152,41 @@ func (s *Store) idleCutoff() int64 {
 }
 
 // NewSession starts a session. Signing in is also when expired and idle
-// sessions are cleared out, so the table does not grow forever.
-func (s *Store) NewSession(ctx context.Context, userID int64) (string, error) {
+// sessions are cleared out, so the table does not grow forever. m describes
+// where the sign-in came from, for the account's session list.
+func (s *Store) NewSession(ctx context.Context, userID int64, m SessionMeta) (string, error) {
 	if _, err := s.exec(ctx, `DELETE FROM sessions WHERE expires_at<=? OR last_seen_at<=?`, now(), s.idleCutoff()); err != nil {
 		return "", err
 	}
+	m = m.clean()
 	tok, h := NewToken()
-	_, err := s.exec(ctx, `INSERT INTO sessions(token_hash,user_id,expires_at,last_seen_at) VALUES(?,?,?,?)`,
-		h, userID, time.Now().Add(s.SessionMax).Unix(), now())
+	_, err := s.exec(ctx, `INSERT INTO sessions(token_hash,public_id,user_id,expires_at,last_seen_at,created_at,ip,last_ip,user_agent,method)
+		VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		h, newPublicID(), userID, time.Now().Add(s.SessionMax).Unix(), now(), now(), m.IP, m.IP, m.UserAgent, m.Method)
 	return tok, err
 }
 
 // UserBySession resolves a session cookie. A session ends at its absolute
 // expiry, or earlier once it has gone unused for SessionIdle; each use pushes
-// the idle deadline back (at most once a minute).
-func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {
+// the idle deadline back and records the address it came from (at most once
+// a minute, or at once when the address changes).
+func (s *Store) UserBySession(ctx context.Context, token, ip string) (User, error) {
 	var u User
 	var seen int64
+	var lastIP string
 	h := HashToken(token)
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,s.last_seen_at FROM sessions s JOIN users u ON u.id=s.user_id
+	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,s.last_seen_at,s.last_ip FROM sessions s JOIN users u ON u.id=s.user_id
 		WHERE s.token_hash=? AND s.expires_at>? AND s.last_seen_at>?`, h, now(), s.idleCutoff()).
-		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &seen)
+		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &seen, &lastIP)
 	if err != nil {
 		return User{}, nf(err)
 	}
-	if now()-seen >= touchEvery {
-		s.exec(ctx, `UPDATE sessions SET last_seen_at=? WHERE token_hash=?`, now(), h)
+	ip = clip(ip, maxIPLen)
+	if now()-seen >= touchEvery || (ip != "" && ip != lastIP) {
+		if ip == "" {
+			ip = lastIP
+		}
+		s.exec(ctx, `UPDATE sessions SET last_seen_at=?, last_ip=? WHERE token_hash=?`, now(), ip, h)
 	}
 	return u, nil
 }

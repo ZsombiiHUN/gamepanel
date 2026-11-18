@@ -147,20 +147,20 @@ func TestSessionUpgradeMigration(t *testing.T) {
 	if e, _ := exp(short); e != n+3600 {
 		t.Fatalf("session ending sooner was changed: %d, want %d", e, n+3600)
 	}
-	if _, err := s.UserBySession(ctx, gone); err == nil {
+	if _, err := s.UserBySession(ctx, gone, ""); err == nil {
 		t.Fatal("expired session accepted after the migration")
 	}
-	if _, err := s.UserBySession(ctx, long); err != nil {
+	if _, err := s.UserBySession(ctx, long, ""); err != nil {
 		t.Fatalf("capped session rejected inside its grace period: %v", err)
 	}
 	// Past the grace period it is over.
 	s.DB.Exec(`UPDATE sessions SET expires_at=expires_at-12*3600 WHERE token_hash=?`, HashToken(long))
-	if _, err := s.UserBySession(ctx, long); err == nil {
+	if _, err := s.UserBySession(ctx, long, ""); err == nil {
 		t.Fatal("pre-upgrade session outlived the 12-hour cap")
 	}
 
 	// New sessions get the configured lifetimes and never the legacy mark.
-	tok, err := s.NewSession(ctx, 1)
+	tok, err := s.NewSession(ctx, 1, SessionMeta{})
 	if err != nil {
 		t.Fatal(err)
 	}

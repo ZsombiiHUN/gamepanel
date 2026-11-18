@@ -195,6 +195,7 @@ func (a *App) register(api huma.API) {
 	a.registerAuth(api)
 	a.registerAccount(api)
 	a.registerMFA(api)
+	a.registerSessions(api)
 	a.registerAdmin(api)
 	a.registerServers(api)
 	a.registerBackups(api)
@@ -244,6 +245,7 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		ip := a.clientIP(r)
 		ctx := context.WithValue(r.Context(), ipKey{}, ip)
 		ctx = context.WithValue(ctx, secureKey{}, secure)
+		ctx = context.WithValue(ctx, uaKey{}, r.UserAgent())
 		r = r.WithContext(ctx)
 		if !sameOrigin(r) {
 			writeProblem(w, http.StatusForbidden, "This request came from another site and was blocked. Open the panel directly and try again.")
@@ -272,7 +274,7 @@ func (a *App) middleware(next http.Handler) http.Handler {
 			}
 		}
 		if hasCookie {
-			resolve = func(ctx context.Context) (store.User, error) { return a.Store.UserBySession(ctx, tok) }
+			resolve = func(ctx context.Context) (store.User, error) { return a.Store.UserBySession(ctx, tok, ip) }
 			r = r.WithContext(context.WithValue(r.Context(), sessionKey{}, tok))
 		} else if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && strings.HasPrefix(tok, store.KeyPrefix) {
 			// API keys: no cookie, so no CSRF exposure; flagged so sensitive
