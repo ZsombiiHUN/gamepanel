@@ -64,7 +64,8 @@ export function SettingsTab({ server }: { server: ServerView }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const del = useMutation({
-    mutationFn: () => call(api.DELETE("/servers/{uuid}", { params: { path: { uuid: server.uuid } } })),
+    // With the node offline the panel deletes its record now; the node cleans up when it reconnects.
+    mutationFn: () => call(api.DELETE("/servers/{uuid}", { params: { path: { uuid: server.uuid }, query: server.node_online ? undefined : { force: true } } })),
     meta: invalidates(keys.servers),
     onSuccess: () => {
       // Drop the deleted server before leaving, or the page behind us refetches a 404.
@@ -168,6 +169,7 @@ export function SettingsTab({ server }: { server: ServerView }) {
       <DeleteDialog
         open={confirm}
         name={server.name}
+        offline={!server.node_online}
         pending={del.isPending}
         error={del.error}
         onConfirm={() => del.mutate()}
@@ -178,12 +180,17 @@ export function SettingsTab({ server }: { server: ServerView }) {
 }
 
 /** Deleting asks for the server's name, so it cannot happen by a stray click. */
-function DeleteDialog({ open, name, pending, error, onConfirm, onCancel }: { open: boolean; name: string; pending: boolean; error: unknown; onConfirm: () => void; onCancel: () => void }) {
+function DeleteDialog({ open, name, offline, pending, error, onConfirm, onCancel }: { open: boolean; name: string; offline: boolean; pending: boolean; error: unknown; onConfirm: () => void; onCancel: () => void }) {
   const [typed, setTyped] = useState("");
   const close = () => { setTyped(""); onCancel(); };
   return (
     <FormDialog open={open} danger title={`Delete ${name}?`} submitLabel="Delete server" pending={pending} error={error} disabled={typed.trim() !== name.trim()} onSubmit={onConfirm} onClose={close}>
       <p>This permanently deletes the server, its files and its backups. It cannot be undone.</p>
+      {offline && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          Its node is offline. The server is removed from the panel now, and the node deletes its container and files when it connects again.
+        </p>
+      )}
       <Field label={`Type ${name} to confirm`}>
         {(id) => <input id={id} className="input" autoComplete="off" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus />}
       </Field>

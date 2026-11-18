@@ -176,6 +176,9 @@ const (
 type Hello struct {
 	Version string   `json:"version"`
 	Servers []string `json:"servers"` // UUIDs the daemon already manages
+	// Containers are server containers on the node that the daemon has no
+	// record of (e.g. left behind by a delete that failed half-way).
+	Containers []string `json:"containers,omitempty"`
 	// SFTPPort is the port the daemon's SFTP server listens on; 0 = SFTP off.
 	SFTPPort int `json:"sftp_port,omitempty"`
 }
