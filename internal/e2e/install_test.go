@@ -114,10 +114,11 @@ func TestInstallScriptLifecycle(t *testing.T) {
 	admin.do("POST", "/api/servers/"+slow+"/power", map[string]string{"action": "start"}, 202)
 	waitFor(t, "slow server running", func() bool { return state(slow) == "running" })
 
-	// failure: install_failed, and the server refuses to start
+	// failure: install_failed, and the server refuses to start, saying so
 	bad := newServer("#fail\nexit 1\n")
 	waitFor(t, "install failed", func() bool { return state(bad) == "install_failed" })
-	admin.do("POST", "/api/servers/"+bad+"/power", map[string]string{"action": "start"}, 202)
+	admin.do("POST", "/api/servers/"+bad+"/power", map[string]string{"action": "start"}, 409)
+	admin.do("POST", "/api/servers/"+bad+"/power", map[string]string{"action": "restart"}, 409)
 	time.Sleep(300 * time.Millisecond)
 	if s := state(bad); s != "install_failed" {
 		t.Fatalf("failed install must not start, state=%s", s)
