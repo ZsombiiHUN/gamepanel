@@ -17,6 +17,7 @@ type listedServer struct {
 }
 
 func TestServerViewsCarryEggAndNodeNames(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 
 	var list []listedServer
@@ -32,6 +33,7 @@ func TestServerViewsCarryEggAndNodeNames(t *testing.T) {
 }
 
 func TestAuditSearchEndpoint(t *testing.T) {
+	t.Parallel()
 	s := newStack(t) // logs in (login.ok) and creates a node, egg and server
 
 	get := func(q string) []struct {
@@ -61,6 +63,7 @@ func TestAuditSearchEndpoint(t *testing.T) {
 }
 
 func TestAuditSearchIsAdminOnly(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	s.st.CreateUser(s.ctx, "bob@example.com", "another-long-password", false)
 	jar, _ := cookiejar.New(nil)

@@ -75,6 +75,7 @@ func helloFrom(t *testing.T, sftp bool) proto.Hello {
 
 // The panel builds sftp:// links from the port the daemon reports.
 func TestHelloReportsTheSFTPPort(t *testing.T) {
+	t.Parallel()
 	helloFrom(t, true)
 	helloFrom(t, false)
 }

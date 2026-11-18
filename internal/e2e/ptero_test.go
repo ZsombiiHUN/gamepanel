@@ -43,6 +43,7 @@ func (p ptero) do(method, path string, body any, want int) []byte {
 }
 
 func TestPterodactylClientAPI(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	p := ptero{t, s.admin.base, s.apiKey(s.admin, "correct-horse-battery")}
 	short := s.server[:8]

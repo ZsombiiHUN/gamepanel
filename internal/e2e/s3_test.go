@@ -30,6 +30,7 @@ import (
 //
 //	docker run -d --name gp-minio -p 9000:9000 minio/minio server /data
 func TestS3Backups(t *testing.T) {
+	t.Parallel()
 	ep := os.Getenv("GAMEPANEL_TEST_S3_ENDPOINT")
 	if ep == "" {
 		t.Skip("GAMEPANEL_TEST_S3_ENDPOINT not set")

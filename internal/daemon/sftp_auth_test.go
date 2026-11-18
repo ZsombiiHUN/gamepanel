@@ -24,6 +24,7 @@ import (
 // ---- sign-in ----
 
 func TestSFTPLoginAsksThePanel(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	if _, err := c.Stat("/"); err != nil {
@@ -43,6 +44,7 @@ func TestSFTPLoginAsksThePanel(t *testing.T) {
 }
 
 func TestSFTPAuthURL(t *testing.T) {
+	t.Parallel()
 	for panel, want := range map[string]string{
 		"ws://panel.local:8080/daemon/connect":            "http://panel.local:8080/daemon/sftp-auth",
 		"wss://panel.example.com/daemon/connect?x=1":      "https://panel.example.com/daemon/sftp-auth",
@@ -64,6 +66,7 @@ func TestSFTPAuthURL(t *testing.T) {
 }
 
 func TestSFTPRefusedLogins(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	other := uuidN(2) // a server the panel knows but this node does not run
 	r.p.grant("ghost", "gp_ghost", proto.SFTPAuthResp{OK: true, ServerUUID: other, Read: true, Write: true})
@@ -91,6 +94,7 @@ func TestSFTPRefusedLogins(t *testing.T) {
 
 // The panel misbehaving must never let anyone in.
 func TestSFTPPanelFailuresDenyLogin(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	for _, mode := range []string{"hangup", "garbage", "500", "502", "401", "404"} {
 		r.p.setMode(mode)
@@ -104,6 +108,7 @@ func TestSFTPPanelFailuresDenyLogin(t *testing.T) {
 
 // Only passwords (API keys) are accepted: no public keys, no "none".
 func TestSFTPOnlyPasswordAuth(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	signer, _ := ssh.NewSignerFromKey(priv)
@@ -121,6 +126,7 @@ func TestSFTPOnlyPasswordAuth(t *testing.T) {
 }
 
 func TestSFTPServerIdentity(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	var key1 ssh.PublicKey
 	cfg := r.sshConfig(ownerUser, ownerKey)
@@ -175,6 +181,7 @@ func TestSFTPServerIdentity(t *testing.T) {
 // ---- guessing and connection limits ----
 
 func TestSFTPFailedLoginsLockOutTheAddress(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	// The panel being down is not a guess: it never locks anyone out.
 	r.p.setMode("hangup")
@@ -202,6 +209,7 @@ func TestSFTPFailedLoginsLockOutTheAddress(t *testing.T) {
 // Absurd credentials are refused without bothering the panel, and count as
 // a guess.
 func TestSFTPOversizedCredentials(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	long := "gp_" + strings.Repeat("a", 64<<10)
 	if _, _, err := r.dial(ownerUser, long); err == nil {
@@ -224,6 +232,7 @@ func TestSFTPOversizedCredentials(t *testing.T) {
 }
 
 func TestSFTPConnectionsPerAddressAreCapped(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	var raw []net.Conn
 	for range sftpMaxPerIP {
@@ -264,6 +273,7 @@ func TestSFTPConnectionsPerAddressAreCapped(t *testing.T) {
 // ---- what a session may do besides SFTP: nothing ----
 
 func TestSFTPNothingButSFTP(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	conn, err := r.sshDial(r.sshConfig(ownerUser, ownerKey))
 	if err != nil {
@@ -324,6 +334,7 @@ func TestSFTPNothingButSFTP(t *testing.T) {
 // ---- session lifetime ----
 
 func TestSFTPRecheckEndsSessions(t *testing.T) {
+	t.Parallel()
 	cases := map[string]func(r *sftpRig){
 		"key revoked": func(r *sftpRig) { r.p.revoke(ownerUser, ownerKey) },
 		"write taken away": func(r *sftpRig) {
@@ -356,6 +367,7 @@ func TestSFTPRecheckEndsSessions(t *testing.T) {
 }
 
 func TestSFTPRecheckIsNotASignIn(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, func(c *Config) { c.SFTPRecheck = 30 * time.Millisecond })
 	r.owner()
 	if !eventually(3*time.Second, func() bool { return len(r.p.requests()) >= 4 }) {
@@ -371,6 +383,7 @@ func TestSFTPRecheckIsNotASignIn(t *testing.T) {
 // A panel restart (connection refused, or a proxy's 502 while it is down)
 // must not cut every open transfer.
 func TestSFTPPanelOutageKeepsSessions(t *testing.T) {
+	t.Parallel()
 	for _, mode := range []string{"hangup", "502", "503", "504"} {
 		t.Run(mode, func(t *testing.T) {
 			r := newSFTPRig(t, 0, func(c *Config) { c.SFTPRecheck = 30 * time.Millisecond })
@@ -393,6 +406,7 @@ func TestSFTPPanelOutageKeepsSessions(t *testing.T) {
 }
 
 func TestSFTPDeletingAServerEndsOnlyItsSessions(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	other := uuidN(2)
 	addServer(t, r.d, other, 0)
@@ -413,6 +427,7 @@ func TestSFTPDeletingAServerEndsOnlyItsSessions(t *testing.T) {
 }
 
 func TestSFTPShutdownClosesEverything(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	r.cancel()
@@ -431,6 +446,7 @@ func TestSFTPShutdownClosesEverything(t *testing.T) {
 }
 
 func TestSFTPKeepAliveSparesLiveClients(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, func(c *Config) { c.SFTPKeepAlive = 20 * time.Millisecond })
 	c := r.owner()
 	for range 10 {
@@ -449,6 +465,7 @@ func TestSFTPKeepAliveSparesLiveClients(t *testing.T) {
 // Error messages go to the client: they must not reveal where the files are
 // on the host.
 func TestSFTPErrorsDoNotLeakHostPaths(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	r.put("file.txt", "x")

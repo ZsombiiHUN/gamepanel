@@ -132,6 +132,7 @@ type options struct {
 }
 
 func TestPasskeys(t *testing.T) {
+	t.Parallel()
 	base, admin := passkeyPanel(t)
 	auth := newAuthenticator(base)
 
@@ -198,6 +199,7 @@ func TestPasskeys(t *testing.T) {
 }
 
 func TestPasskeysNeedThePublicAddress(t *testing.T) {
+	t.Parallel()
 	_, _, base := linkPanel(t, api.Deps{})
 	anon(t, base).do("POST", "/api/auth/passkeys/login/begin", nil, 404)
 	var opts struct{ Passkeys bool }

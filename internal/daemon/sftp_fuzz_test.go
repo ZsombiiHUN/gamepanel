@@ -277,6 +277,7 @@ func randomPacket(rnd *rand.Rand, handles []string) []byte {
 }
 
 func TestSFTPRandomPackets(t *testing.T) {
+	t.Parallel()
 	for seed := range int64(20) {
 		f := newFuzzRoot(t)
 		rnd := rand.New(rand.NewSource(seed))
@@ -293,6 +294,7 @@ func TestSFTPRandomPackets(t *testing.T) {
 
 // Hostile framing: lengths that lie, huge lengths, empty packets.
 func TestSFTPMalformedFraming(t *testing.T) {
+	t.Parallel()
 	f := newFuzzRoot(t)
 	for name, in := range map[string][]byte{
 		"length past the end":    {0, 0, 0, 50, pStat, 0, 0, 0, 1},
@@ -339,6 +341,7 @@ func FuzzSFTPPackets(f *testing.F) {
 // A setstat whose attributes are cut short used to dereference nil and crash
 // the whole daemon (every server on the node) from one packet.
 func TestSFTPShortSetstatDoesNotCrash(t *testing.T) {
+	t.Parallel()
 	f := newFuzzRoot(t)
 	for flags := uint32(1); flags < 16; flags++ {
 		for _, cut := range []int{0, 3, 7} {
@@ -359,6 +362,7 @@ func TestSFTPShortSetstatDoesNotCrash(t *testing.T) {
 
 // Whatever goes wrong inside a handler fails that request, not the daemon.
 func TestSFTPHandlerPanicFailsTheRequestOnly(t *testing.T) {
+	t.Parallel()
 	// reach a handler through a hook that panics
 	d := newTestDaemon(t, runtime.NewFake())
 	addServer(t, d, uuidN(1), 0)

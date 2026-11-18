@@ -13,6 +13,7 @@ import (
 )
 
 func TestCollectorBucketsReadingsByMinute(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := store.Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {

@@ -154,6 +154,7 @@ func me(b *http.Client, base string) (string, int) {
 }
 
 func TestSSOLinkAndSignIn(t *testing.T) {
+	t.Parallel()
 	e := newSSOEnv(t, "invite")
 	alice := idpUser{Sub: "alice-123", Email: "admin@example.com", Verified: true}
 
@@ -204,6 +205,7 @@ func TestSSOLinkAndSignIn(t *testing.T) {
 }
 
 func TestSSOStateIsBoundToTheBrowser(t *testing.T) {
+	t.Parallel()
 	e := newSSOEnv(t, "open")
 	attacker, victim := browser(t), browser(t)
 	resp, _ := attacker.Get(e.base + "/api/auth/sso/oidc/start")
@@ -223,6 +225,7 @@ func TestSSOStateIsBoundToTheBrowser(t *testing.T) {
 }
 
 func TestSSOSignUp(t *testing.T) {
+	t.Parallel()
 	e := newSSOEnv(t, "open")
 	if got := e.signIn(browser(t), idpUser{Sub: "u1", Email: "new@example.com", Verified: false}, ""); got != "/login?sso_error=unverified" {
 		t.Fatalf("unverified: %s", got)
@@ -247,6 +250,7 @@ func TestSSOSignUp(t *testing.T) {
 }
 
 func TestSSOInvitation(t *testing.T) {
+	t.Parallel()
 	e := newSSOEnv(t, "invite")
 	var res struct{ Link string }
 	json.Unmarshal(e.admin.do("POST", "/api/invites", map[string]any{"email": "carol@example.com"}, 201), &res)
@@ -277,6 +281,7 @@ func totp(secret string) string {
 }
 
 func TestSSOStillAsksForTwoFactor(t *testing.T) {
+	t.Parallel()
 	e := newSSOEnv(t, "invite")
 	alice := idpUser{Sub: "alice", Email: "admin@example.com", Verified: true}
 	b := browser(t)

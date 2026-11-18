@@ -16,6 +16,7 @@ import (
 )
 
 func TestPublicIP(t *testing.T) {
+	t.Parallel()
 	for addr, want := range map[string]bool{
 		"8.8.8.8": true, "1.1.1.1": true, "2606:4700:4700::1111": true,
 		"127.0.0.1": false, "10.1.2.3": false, "172.16.0.1": false, "192.168.1.1": false,
@@ -30,6 +31,7 @@ func TestPublicIP(t *testing.T) {
 }
 
 func TestPullName(t *testing.T) {
+	t.Parallel()
 	u, _ := url.Parse("https://cdn.example.com/files/Paper-1.21.jar?token=x")
 	for disp, want := range map[string]string{
 		"":                                "Paper-1.21.jar",
@@ -52,6 +54,7 @@ func TestPullName(t *testing.T) {
 }
 
 func TestPullFetchesIntoTheServer(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	d.cfg.PullAllowPrivate = true // the test server is on loopback
 	uuid := uuidN(1)
@@ -82,6 +85,7 @@ func TestPullFetchesIntoTheServer(t *testing.T) {
 }
 
 func TestPullChecksTheChecksum(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	d.cfg.PullAllowPrivate = true
 	uuid := uuidN(2)

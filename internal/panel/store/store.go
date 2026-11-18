@@ -10,7 +10,13 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
 	"time"
 
 	"github.com/pressly/goose/v3"
@@ -41,20 +47,88 @@ func Open(path string) (*Store, error) {
 	// WAL + busy timeout + FK enforcement; one writer connection avoids
 	// SQLITE_BUSY surprises at MVP scale.
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
+	if testing.Testing() {
+		if err := seedFromTemplate(path); err != nil {
+			return nil, err
+		}
+	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	goose.SetBaseFS(migrations)
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	if err := migrate(db); err != nil {
+		db.Close()
 		return nil, err
 	}
-	goose.SetLogger(goose.NopLogger())
-	if err := goose.Up(db, "migrations"); err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
-	}
 	return &Store{DB: db, SessionMax: DefaultSessionMax, SessionIdle: DefaultSessionIdle}, nil
+}
+
+// migrator applies the embedded migrations to db. It keeps no package state
+// (unlike goose's global functions), so stores can be opened concurrently.
+func migrator(db *sql.DB) (*goose.Provider, error) {
+	sub, err := fs.Sub(migrations, "migrations")
+	if err != nil {
+		return nil, err
+	}
+	return goose.NewProvider(goose.DialectSQLite3, db, sub)
+}
+
+func migrate(db *sql.DB) error {
+	p, err := migrator(db)
+	if err == nil {
+		_, err = p.Up(context.Background())
+	}
+	if err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	return nil
+}
+
+// template is an empty, fully migrated database, made once per test binary.
+var template struct {
+	once sync.Once
+	data []byte
+	err  error
+}
+
+// seedFromTemplate writes the migrated template to path when no database is
+// there yet. The race detector makes the SQLite engine (C compiled to Go)
+// slow, and running every migration took about 0.4s per store, which nearly
+// every test opens. Databases that already exist, such as the ones the upgrade
+// tests build at an old version, are left to migrate as usual.
+func seedFromTemplate(path string) error {
+	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	template.once.Do(func() {
+		dir, err := os.MkdirTemp("", "gamepanel-store-template-")
+		if err != nil {
+			template.err = err
+			return
+		}
+		defer os.RemoveAll(dir)
+		db, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "t.db")+"?_pragma=foreign_keys(1)")
+		if err != nil {
+			template.err = err
+			return
+		}
+		defer db.Close()
+		out := filepath.Join(dir, "template.db")
+		if err := migrate(db); err != nil {
+			template.err = err
+			return
+		}
+		if _, err := db.Exec(`VACUUM INTO ?`, out); err != nil {
+			template.err = err
+			return
+		}
+		template.data, template.err = os.ReadFile(out)
+	})
+	if template.err != nil {
+		return fmt.Errorf("store template: %w", template.err)
+	}
+	return os.WriteFile(path, template.data, 0o644)
 }
 
 func (s *Store) Close() error { return s.DB.Close() }

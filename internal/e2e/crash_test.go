@@ -7,6 +7,7 @@ import (
 )
 
 func TestCrashedServersRestart(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	power := func(a string) { s.admin.do("POST", srv+"/power", map[string]string{"action": a}, 202) }

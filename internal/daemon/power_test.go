@@ -42,6 +42,7 @@ func stateIs(rt runtime.Runtime, id, want string) func() bool {
 // A stop or a kill that lands while a start is under way is turned away, not
 // run and then undone by the start reporting the server as running.
 func TestStopAndKillAreRefusedDuringAStart(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -58,6 +59,7 @@ func TestStopAndKillAreRefusedDuringAStart(t *testing.T) {
 // restart, a start or a stop in between is refused. A kill goes through, and
 // ends the restart instead of being undone by its start.
 func TestRestartHoldsTheServerAndAKillEndsIt(t *testing.T) {
+	t.Parallel()
 	rt := &gatedStopRuntime{Fake: runtime.NewFake(), gate: make(chan struct{})}
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -98,6 +100,7 @@ func TestRestartHoldsTheServerAndAKillEndsIt(t *testing.T) {
 
 // Without a kill, a restart stops the server and starts it again.
 func TestRestartStartsTheServerAgain(t *testing.T) {
+	t.Parallel()
 	rt := runtime.NewFake()
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -115,6 +118,7 @@ func TestRestartStartsTheServerAgain(t *testing.T) {
 
 // A kill on a server that is not running has nothing to do and is no error.
 func TestKillingAStoppedServerIsANoOp(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 0)
@@ -128,6 +132,7 @@ func TestKillingAStoppedServerIsANoOp(t *testing.T) {
 
 // A kill cuts a hung stop short.
 func TestKillCutsAStopShort(t *testing.T) {
+	t.Parallel()
 	rt := &gatedStopRuntime{Fake: runtime.NewFake(), gate: make(chan struct{})}
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -155,6 +160,7 @@ func TestKillCutsAStopShort(t *testing.T) {
 // A suspension that lands while a start holds the server still stops it,
 // once the start is done.
 func TestASuspensionStopWaitsForAStart(t *testing.T) {
+	t.Parallel()
 	rt := runtime.NewFake()
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
@@ -190,6 +196,7 @@ func TestASuspensionStopWaitsForAStart(t *testing.T) {
 // A start sent just as a stop finishes waits for it instead of being turned
 // away; one sent while a stop is still under way is refused.
 func TestAStartWaitsForAStopThatIsEnding(t *testing.T) {
+	t.Parallel()
 	rt := runtime.NewFake()
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)

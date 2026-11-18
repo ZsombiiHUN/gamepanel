@@ -8,6 +8,7 @@ import (
 )
 
 func TestMetricsSaveRollupAndRead(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)

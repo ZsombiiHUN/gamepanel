@@ -21,6 +21,7 @@ import (
 //
 //	docker run -d --name gp-mariadb -p 3306:3306 -e MARIADB_ROOT_PASSWORD=pw mariadb:11
 func TestServerDatabases(t *testing.T) {
+	t.Parallel()
 	addr := os.Getenv("GAMEPANEL_TEST_MYSQL")
 	if addr == "" {
 		t.Skip("GAMEPANEL_TEST_MYSQL not set")

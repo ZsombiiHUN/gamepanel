@@ -44,6 +44,7 @@ func (s *stack) dial(user, pass string) (*sftp.Client, *ssh.Client, error) {
 }
 
 func TestSFTP(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	pre := s.server[:8]
 	adminUser := "admin@example.com." + pre
@@ -134,6 +135,7 @@ func TestSFTP(t *testing.T) {
 }
 
 func TestSFTPAuthRules(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	pre := s.server[:8]
 	bobUser, _ := s.st.CreateUser(s.ctx, "bob@example.com", "another-long-password", false)
@@ -197,6 +199,7 @@ func TestSFTPAuthRules(t *testing.T) {
 }
 
 func TestSFTPRespectsDiskLimit(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	s.setLimits(map[string]any{"disk_mb": 1}, 204)
 	c, _, err := s.dial("admin@example.com."+s.server[:8], s.apiKey(s.admin, "correct-horse-battery"))
@@ -244,6 +247,7 @@ func waitClosed(t *testing.T, c *sftp.Client, within time.Duration, why string) 
 // Deleting a server ends its SFTP sessions at once; they used to keep writing
 // into the removed folder, with no disk limit, until the next access check.
 func TestSFTPSessionsEndWhenServerDeleted(t *testing.T) {
+	t.Parallel()
 	s := newStackWith(t, nil, func(c *daemon.Config) { c.SFTPRecheck = time.Hour })
 	c, _, err := s.dial("admin@example.com."+s.server[:8], s.apiKey(s.admin, "correct-horse-battery"))
 	if err != nil {
@@ -258,6 +262,7 @@ func TestSFTPSessionsEndWhenServerDeleted(t *testing.T) {
 
 // A client that stops answering is disconnected, freeing its slot.
 func TestSFTPKeepAliveDropsDeadClients(t *testing.T) {
+	t.Parallel()
 	s := newStackWith(t, nil, func(c *daemon.Config) {
 		c.SFTPRecheck = time.Hour
 		c.SFTPKeepAlive = 100 * time.Millisecond

@@ -152,6 +152,7 @@ func (s *stack) restore(id string, truncate bool) store.Backup {
 }
 
 func TestBackupRestoreLifecycle(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	base := "/api/servers/" + s.server + "/backups/"
 	s.write("world/level.dat", "v1")
@@ -198,6 +199,7 @@ func TestBackupRestoreLifecycle(t *testing.T) {
 }
 
 func TestScheduleRunsCommandAndRespectsOnlyWhenOnline(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	base := "/api/servers/" + s.server + "/schedules"
 	// validation
