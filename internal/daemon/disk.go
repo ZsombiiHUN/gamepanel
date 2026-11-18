@@ -366,10 +366,9 @@ func (d *Daemon) enforceDisk(ctx context.Context, uuid string, running bool) (in
 		if !already {
 			msg := fmt.Sprintf("\x1b[31m[gamepanel] %s - stopping the server. Free space or raise the limit, then start it again.\x1b[0m", ErrDiskFull{used, limit})
 			d.sendConsole(uuid, msg)
-			spec, err := d.spec(uuid)
-			if err == nil {
+			if _, err := d.spec(uuid); err == nil {
 				go func() {
-					_ = d.stop(ctx, spec)
+					_ = d.stopWhenFree(ctx, uuid)
 					d.mu.Lock()
 					if m := d.servers[uuid]; m != nil {
 						m.diskStopping = false

@@ -93,11 +93,18 @@ type managed struct {
 	stopping  bool
 	crashed   bool
 	lastCrash time.Time
+
+	// killed: a kill landed while a restart was stopping the server, so the
+	// restart ends there instead of starting it again.
+	killed bool
 }
 
 // Operations that claim a server (begin).
 const (
 	opStart   = "start"
+	opStop    = "stop"
+	opRestart = "restart"
+	opKill    = "kill"
 	opUpdate  = "update"
 	opInstall = "install"
 	opRestore = "restore"
@@ -110,7 +117,9 @@ var errUnknownServer = proto.NotFound("this server is not on the node")
 // opBusy describes a running operation for the person who has to wait for it.
 func opBusy(op string) error {
 	what := map[string]string{
-		opStart: "the server is starting", opUpdate: "its limits are being changed",
+		opStart: "the server is starting", opStop: "the server is stopping",
+		opRestart: "the server is restarting", opKill: "the server is being killed",
+		opUpdate:  "its limits are being changed",
 		opInstall: "an install is running", opRestore: "a backup is being restored",
 		opDelete: "the server is being deleted", opBackup: "a backup is being made",
 	}[op]
@@ -911,34 +920,62 @@ func (d *Daemon) power(ctx context.Context, p proto.Power) error {
 	case "start":
 		return d.start(ctx, spec)
 	case "stop":
-		return d.stop(ctx, spec)
+		return d.stop(ctx, spec.UUID)
 	case "restart":
-		if err := d.stop(ctx, spec); err != nil {
-			return err
-		}
-		return d.start(ctx, spec)
+		return d.restart(ctx, spec.UUID)
 	case "kill":
-		d.expectStop(p.UUID)
-		return d.rt.Kill(ctx, p.UUID)
+		return d.kill(ctx, spec.UUID)
 	}
 	return proto.Invalid("unknown power action")
 }
 
 // start boots an installed server that is within its disk limit. It claims
-// the server, so it cannot interleave with a restore, an update or a delete.
+// the server, so it cannot interleave with a stop, a restore, an update or a
+// delete.
 func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
-	uuid := spec.UUID
-	if inst, _ := d.installState(uuid); inst == StateInstallFailed {
-		return proto.Conflict("server is not installed (" + inst + ")")
-	}
-	end, err := d.begin(uuid, opStart)
+	end, err := d.beginAfterStop(ctx, spec.UUID, opStart)
 	if err != nil {
 		return err
 	}
 	defer end()
+	return d.startClaimed(ctx, spec.UUID)
+}
+
+// beginAfterStop is begin that waits a moment for a stop or a kill to let go
+// of the server. Their claim outlives the exit by a poll interval, so a start
+// sent just after the server went offline would otherwise be turned away.
+func (d *Daemon) beginAfterStop(ctx context.Context, uuid, op string) (func(), error) {
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		end, err := d.begin(uuid, op)
+		if err == nil || time.Now().After(deadline) {
+			return end, err
+		}
+		d.mu.Lock()
+		m := d.servers[uuid]
+		stopping := m != nil && (m.op == opStop || m.op == opKill)
+		d.mu.Unlock()
+		if !stopping {
+			return end, err
+		}
+		if !sleep(ctx, 25*time.Millisecond) {
+			return nil, ctx.Err()
+		}
+	}
+}
+
+// startClaimed is start for a caller that already holds the server's claim.
+func (d *Daemon) startClaimed(ctx context.Context, uuid string) error {
+	if inst, _ := d.installState(uuid); inst == StateInstallFailed {
+		return proto.Conflict("the install failed; reinstall the server before starting it")
+	}
 	// Read the spec again under the claim: a suspension that landed after the
 	// caller read it still counts.
-	if cur, err := d.spec(uuid); err == nil && cur.Suspended {
+	spec, err := d.spec(uuid)
+	if err != nil {
+		return err
+	}
+	if spec.Suspended {
 		return proto.Conflict("this server is suspended")
 	}
 	if spec.DiskMB > 0 {
@@ -976,21 +1013,122 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 	return nil
 }
 
-// stop sends the egg's graceful stop command (or SIGTERM for "^C"), then
-// escalates to a hard stop if the server has not exited in time.
-func (d *Daemon) stop(ctx context.Context, spec proto.ServerSpec) error {
-	// Nothing to stop. Saying "stopping" here would leave the server shown as
-	// stopping, since no exit follows.
-	if st, err := d.rt.State(ctx, spec.UUID); (err == nil && st == runtime.StateOffline) || (err != nil && d.isStale(spec.UUID)) {
+// stop stops the server gracefully. It claims the server, so a stop cannot
+// land in the middle of a start and be undone by it.
+func (d *Daemon) stop(ctx context.Context, uuid string) error {
+	end, err := d.begin(uuid, opStop)
+	if err != nil {
+		return err
+	}
+	defer end()
+	return d.stopClaimed(ctx, uuid)
+}
+
+// stopWhenFree is stop for the node's own reasons (a suspension, the disk
+// limit): it cannot be turned away, so it waits for whatever holds the server
+// to finish, then stops it.
+func (d *Daemon) stopWhenFree(ctx context.Context, uuid string) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	defer cancel()
+	for {
+		end, err := d.begin(uuid, opStop)
+		if err == nil {
+			defer end()
+			return d.stopClaimed(ctx, uuid)
+		}
+		if proto.CodeOf(err) != proto.CodeConflict {
+			return err
+		}
+		if !sleep(ctx, 250*time.Millisecond) {
+			return ctx.Err()
+		}
+	}
+}
+
+// restart stops the server and starts it again under one claim, so nothing
+// else can slip in between. A kill during the stop ends the restart there.
+func (d *Daemon) restart(ctx context.Context, uuid string) error {
+	end, err := d.begin(uuid, opRestart)
+	if err != nil {
+		return err
+	}
+	defer end()
+	d.mu.Lock()
+	m := d.servers[uuid]
+	m.killed = false
+	d.mu.Unlock()
+	if err := d.stopClaimed(ctx, uuid); err != nil {
+		return err
+	}
+	// From here the restart is a start: a kill is turned away like one,
+	// since the start would undo it.
+	d.mu.Lock()
+	killed := m.killed
+	m.op = opStart
+	d.mu.Unlock()
+	if killed {
 		return nil
 	}
-	d.expectStop(spec.UUID)
-	d.emitState(ctx, spec.UUID, runtime.StateStopping)
+	return d.startClaimed(ctx, uuid)
+}
+
+// kill ends the server's process at once. It goes through while a stop or a
+// restart holds the server, since cutting a hung stop short is what it is
+// for, and ends a restart instead of letting it start the server again. Any
+// other operation turns it away: a kill during a start would be undone by it.
+// A server that is not running has nothing to kill.
+func (d *Daemon) kill(ctx context.Context, uuid string) error {
+	d.mu.Lock()
+	m := d.servers[uuid]
+	if m == nil {
+		d.mu.Unlock()
+		return errUnknownServer
+	}
+	release := func() {}
+	switch {
+	case m.install == StateInstalling:
+		d.mu.Unlock()
+		return opBusy(opInstall)
+	case m.op == opStop:
+	case m.op == opRestart:
+		m.killed = true
+	case m.op != "":
+		op := m.op
+		d.mu.Unlock()
+		return opBusy(op)
+	default:
+		m.op = opKill
+		release = func() { d.mu.Lock(); m.op = ""; d.mu.Unlock() }
+	}
+	d.mu.Unlock()
+	defer release()
+	if st, err := d.rt.State(ctx, uuid); (err == nil && st == runtime.StateOffline) || (err != nil && d.isStale(uuid)) {
+		return nil
+	}
+	d.expectStop(uuid)
+	return d.rt.Kill(ctx, uuid)
+}
+
+// stopClaimed sends the egg's graceful stop command (or SIGTERM for "^C"),
+// then escalates to a hard stop if the server has not exited in time. The
+// caller holds the server's claim.
+func (d *Daemon) stopClaimed(ctx context.Context, uuid string) error {
+	spec, err := d.spec(uuid)
+	if err != nil {
+		return err
+	}
+	// Nothing to stop. Saying "stopping" here would leave the server shown as
+	// stopping, since no exit follows.
+	if st, err := d.rt.State(ctx, uuid); (err == nil && st == runtime.StateOffline) || (err != nil && d.isStale(uuid)) {
+		return nil
+	}
+	d.expectStop(uuid)
+	d.emitState(ctx, uuid, runtime.StateStopping)
 	if spec.Stop != "" && spec.Stop != "^C" {
-		if err := d.input(spec.UUID, spec.Stop); err == nil {
-			deadline := time.Now().Add(30 * time.Second)
+		if err := d.input(uuid, spec.Stop); err == nil {
+			deadline := time.Now().Add(gracefulStop)
 			for time.Now().Before(deadline) {
-				if st, _ := d.rt.State(ctx, spec.UUID); st == runtime.StateOffline {
+				if st, _ := d.rt.State(ctx, uuid); st == runtime.StateOffline {
 					return nil
 				}
 				if !sleep(ctx, 250*time.Millisecond) {
@@ -999,8 +1137,12 @@ func (d *Daemon) stop(ctx context.Context, spec proto.ServerSpec) error {
 			}
 		}
 	}
-	return d.rt.Stop(ctx, spec.UUID, 10)
+	return d.rt.Stop(ctx, uuid, 10)
 }
+
+// gracefulStop is how long a stop waits for the server to exit on its own
+// stop command before it is stopped by signal.
+var gracefulStop = 30 * time.Second
 
 func (d *Daemon) input(uuid, line string) error {
 	d.mu.Lock()
@@ -1139,7 +1281,7 @@ func (d *Daemon) stopSuspended(ctx context.Context, spec proto.ServerSpec) {
 		return
 	}
 	d.sendConsole(spec.UUID, "\x1b[33m[gamepanel] this server was suspended; stopping it\x1b[0m")
-	if err := d.stop(ctx, spec); err != nil {
+	if err := d.stopWhenFree(ctx, spec.UUID); err != nil {
 		d.log.Warn("could not stop a suspended server", "server", spec.UUID, "err", err)
 	}
 }
