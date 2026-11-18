@@ -5,7 +5,13 @@ export type SearchableServer = Pick<ServerView, "name" | "state" | "port"> & { e
 
 export const stateLabel: Record<string, string> = {
   running: "Running", starting: "Starting", stopping: "Stopping", installing: "Installing", install_failed: "Install failed", crashed: "Crashed", offline: "Stopped", unknown: "Unknown",
+  suspended: "Suspended",
 };
+
+/** The state to show: a suspension outranks whatever the node reports. */
+export function shownState(s: { state: string; suspended?: boolean }, live?: string | null): string {
+  return s.suspended ? "suspended" : (live ?? s.state);
+}
 
 export const GROUPS = ["running", "busy", "problem", "stopped"] as const;
 export type Group = (typeof GROUPS)[number];
@@ -15,7 +21,7 @@ export const groupLabel: Record<Group, string> = { running: "Running", stopped: 
 export function groupOf(state: string): Group {
   if (state === "running") return "running";
   if (state === "starting" || state === "stopping" || state === "installing") return "busy";
-  if (state === "install_failed" || state === "crashed" || state === "unknown") return "problem";
+  if (state === "install_failed" || state === "crashed" || state === "unknown" || state === "suspended") return "problem";
   return "stopped";
 }
 

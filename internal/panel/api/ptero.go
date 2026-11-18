@@ -95,7 +95,7 @@ func (a *App) pteroServerAttrs(ctx context.Context, u store.User, s store.Server
 		"name": s.Name, "node": nodeName, "description": s.Description,
 		"limits":         map[string]any{"memory": s.MemoryMB, "swap": s.SwapMB, "disk": s.DiskMB, "io": s.IOWeight, "cpu": s.CPUPct, "threads": nullable(s.CPUSet)},
 		"feature_limits": map[string]any{"databases": s.DatabaseLimit, "allocations": s.PortLimit + 1, "backups": s.BackupLimit},
-		"is_suspended":   false, "is_installing": a.Hub.State(s.UUID) == "installing",
+		"is_suspended":   s.Suspended, "is_installing": a.Hub.State(s.UUID) == "installing",
 		"relationships": map[string]any{"allocations": map[string]any{"object": "list", "data": allocs}},
 	}
 }
@@ -169,7 +169,7 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return err
 		}
 		st, _ := a.Hub.Stats(s.UUID)
-		pteroJSON(w, 200, pteroObj{"stats", map[string]any{"current_state": pteroState(a.Hub.State(s.UUID)), "is_suspended": false,
+		pteroJSON(w, 200, pteroObj{"stats", map[string]any{"current_state": pteroState(a.Hub.State(s.UUID)), "is_suspended": s.Suspended,
 			"resources": map[string]any{"memory_bytes": st.MemBytes, "cpu_absolute": st.CPUPct, "disk_bytes": st.DiskBytes, "network_rx_bytes": 0, "network_tx_bytes": 0, "uptime": 0}}})
 		return nil
 	})

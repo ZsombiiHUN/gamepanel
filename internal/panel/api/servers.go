@@ -47,6 +47,7 @@ func (a *App) viewWith(s store.Server, perms []string, owner, admin bool) server
 	v.Permissions, v.Owner = perms, owner
 	if !admin {
 		v.Env = map[string]string{}
+		v.ExternalID = "" // the shop's business
 	}
 	return v
 }
@@ -78,15 +79,28 @@ type deleteServerIn struct {
 	Force bool   `query:"force" doc:"delete even though the server's node is offline"`
 }
 type serverOut struct{ Body serverView }
+type serverCreateOut struct {
+	Status int
+	Body   serverView
+}
+type listServersIn struct {
+	ExternalID string `query:"external_id" maxLength:"191" doc:"only the server with this external id (admin)"`
+}
 type serverListOut struct{ Body []serverView }
 type serverCreateIn struct {
 	Body struct {
-		Name     string `json:"name" minLength:"1" maxLength:"64"`
-		OwnerID  int64  `json:"owner_id,omitempty" doc:"Defaults to you."`
-		NodeID   int64  `json:"node_id"`
-		EggID    int64  `json:"egg_id"`
-		MemoryMB int64  `json:"memory_mb" minimum:"64" maximum:"1048576"`
-		CPUPct   int64  `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
+		Name    string  `json:"name" minLength:"1" maxLength:"64"`
+		OwnerID int64   `json:"owner_id,omitempty" doc:"Defaults to you."`
+		NodeID  int64   `json:"node_id,omitempty" doc:"0 = the panel picks an online node with room, from node_ids if given"`
+		NodeIDs []int64 `json:"node_ids,omitempty" maxItems:"100" doc:"nodes the panel may pick from when node_id is 0 (default: all)"`
+		// ExternalID is the shop's id for this server. A create whose
+		// external_id is already used returns that server (200) instead of
+		// making another, so a shop can safely retry.
+		ExternalID        string `json:"external_id,omitempty" maxLength:"191" doc:"your own id for the server, unique; a retried create with the same one returns the existing server with 200"`
+		StartOnCompletion bool   `json:"start_on_completion,omitempty" doc:"start the server once it is installed"`
+		EggID             int64  `json:"egg_id"`
+		MemoryMB          int64  `json:"memory_mb" minimum:"64" maximum:"1048576"`
+		CPUPct            int64  `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
 		// More limits, all optional. See PUT /servers/{uuid}/limits.
 		SwapMB        int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
 		CPUSet        string            `json:"cpuset,omitempty" maxLength:"64"`
@@ -138,10 +152,26 @@ type fileWriteIn struct {
 
 func (a *App) registerServers(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "listServers", Method: "GET", Path: "/servers", Summary: "List servers you can access"},
-		func(ctx context.Context, _ *struct{}) (*serverListOut, error) {
+		func(ctx context.Context, in *listServersIn) (*serverListOut, error) {
 			u, err := requireUser(ctx)
 			if err != nil {
 				return nil, err
+			}
+			if in.ExternalID != "" {
+				if !u.IsAdmin {
+					return nil, huma.Error403Forbidden("admin only")
+				}
+				out := &serverListOut{Body: []serverView{}}
+				s, err := a.Store.ServerByExternalID(ctx, in.ExternalID)
+				if errors.Is(err, store.ErrNotFound) {
+					return out, nil
+				} else if err != nil {
+					return nil, huma.Error500InternalServerError("db error", err)
+				}
+				v := a.viewWith(s, allPermissions(), true, true)
+				a.label(ctx, &v)
+				out.Body = append(out.Body, v)
+				return out, nil
 			}
 			ss, err := a.Store.ListServers(ctx, u)
 			if err != nil {
@@ -154,9 +184,14 @@ func (a *App) registerServers(api huma.API) {
 			}
 			out := &serverListOut{Body: []serverView{}}
 			for _, s := range ss {
-				if u.IsAdmin || s.OwnerID == u.ID {
-					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true, u.IsAdmin))
-				} else {
+				switch {
+				case u.IsAdmin:
+					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true, true))
+				case s.Suspended: // only admins may use it
+					out.Body = append(out.Body, a.viewWith(s, []string{}, s.OwnerID == u.ID, false))
+				case s.OwnerID == u.ID:
+					out.Body = append(out.Body, a.viewWith(s, allPermissions(), true, false))
+				default:
 					out.Body = append(out.Body, a.viewWith(s, shared[s.UUID], false, false))
 				}
 			}
@@ -169,12 +204,17 @@ func (a *App) registerServers(api huma.API) {
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "createServer", Method: "POST", Path: "/servers", Summary: "Create a server", DefaultStatus: 201},
-		func(ctx context.Context, in *serverCreateIn) (*serverOut, error) {
+		func(ctx context.Context, in *serverCreateIn) (*serverCreateOut, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
 				return nil, err
 			}
 			b := in.Body
+			b.ExternalID = strings.TrimSpace(b.ExternalID)
+			// A retry of a create that went through: hand back the first one.
+			if out, err := a.existingCreate(ctx, u, b.ExternalID); out != nil || err != nil {
+				return out, err
+			}
 			name, err := serverName(b.Name)
 			if err != nil {
 				return nil, err
@@ -194,20 +234,27 @@ func (a *App) registerServers(api huma.API) {
 			if err := checkCreateEnv(egg, b.Env); err != nil {
 				return nil, err
 			}
-			s, err := a.Store.CreateServer(ctx, store.Server{
+			s, err := a.placeServer(ctx, store.Server{
 				UUID: newUUID(), Name: name, OwnerID: b.OwnerID, NodeID: b.NodeID, EggID: b.EggID,
-				Port: b.Port, Env: b.Env,
+				Port: b.Port, Env: b.Env, ExternalID: b.ExternalID,
 				Limits: store.Limits{
 					MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
 					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit, DatabaseLimit: b.DatabaseLimit, BandwidthMbit: b.BandwidthMbit,
 				},
-			})
+			}, b.NodeIDs)
+			if errors.Is(err, store.ErrExternalIDTaken) {
+				// The same create, sent twice at once: the other one won.
+				if out, err := a.existingCreate(ctx, u, b.ExternalID); out != nil || err != nil {
+					return out, err
+				}
+				return nil, userErr(http.StatusConflict, err)
+			}
 			if err != nil {
-				return nil, userErr(http.StatusUnprocessableEntity, err)
+				return nil, err
 			}
 			// Provision on the node. If that fails the DB row is rolled back so the
 			// panel never lists a server that does not exist anywhere.
-			if err := a.pushServer(ctx, s); err != nil {
+			if err := a.pushServer(ctx, s, b.StartOnCompletion); err != nil {
 				if derr := a.Store.DeleteServer(ctx, s.UUID); derr != nil {
 					a.Log.Error("could not roll back a server the node refused", "server", s.UUID, "err", derr)
 				}
@@ -215,9 +262,10 @@ func (a *App) registerServers(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			a.audit(ctx, u, "server.create", s.UUID, s.Name)
+			a.emit(ctx, EvServerCreated, serverData(s))
 			v := a.viewFor(ctx, u, s)
 			a.label(ctx, &v)
-			return &serverOut{Body: v}, nil
+			return &serverCreateOut{Status: http.StatusCreated, Body: v}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "getServer", Method: "GET", Path: "/servers/{uuid}", Summary: "Get a server"},
@@ -270,6 +318,7 @@ func (a *App) registerServers(api huma.API) {
 			}
 			a.Hub.Forget(s.UUID)
 			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, detail)
+			a.emit(ctx, EvServerDeleted, serverData(s))
 			return nil, nil
 		})
 
@@ -494,6 +543,9 @@ func (a *App) sendPower(ctx context.Context, u store.User, s store.Server, actio
 	}
 	if a.Hub.State(s.UUID) == "installing" {
 		return huma.Error409Conflict("the server is still installing; try again once it is done")
+	}
+	if s.Suspended && (action == "start" || action == "restart") {
+		return huma.Error409Conflict("this server is suspended; unsuspend it first")
 	}
 	a.audit(ctx, u, "server.power", s.UUID, action)
 	go func() {

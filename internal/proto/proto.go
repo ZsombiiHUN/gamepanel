@@ -203,6 +203,11 @@ type ServerSpec struct {
 	Install *InstallSpec `json:"install,omitempty"`
 	// NoCrashRestart turns off restarting the server when it crashes.
 	NoCrashRestart bool `json:"no_crash_restart,omitempty"`
+	// Suspended: the server must not start (it is stopped when suspended).
+	Suspended bool `json:"suspended,omitempty"`
+	// StartOnCompletion starts a new server once it is installed. Only a
+	// create reads it.
+	StartOnCompletion bool `json:"start_on_completion,omitempty"`
 }
 
 // InstallSpec describes a one-shot installer container. The script is

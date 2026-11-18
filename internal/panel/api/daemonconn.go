@@ -54,7 +54,7 @@ func (a *App) onHello(ctx context.Context, nodeID int64, h proto.Hello) {
 	for _, s := range servers {
 		known[s.UUID] = true
 		if !have[s.UUID] {
-			if err := a.pushServer(ctx, s); err != nil {
+			if err := a.pushServer(ctx, s, false); err != nil {
 				a.Log.Warn("resync create failed", "server", s.UUID, "err", err)
 			}
 			continue
@@ -152,15 +152,18 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 		UUID:    s.UUID, Image: image, Startup: shellStartup(startup), Stop: egg.Stop,
 		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
 		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB, BandwidthMbit: s.BandwidthMbit,
-		Ports: maps, NoCrashRestart: !s.CrashRestart,
+		Ports: maps, NoCrashRestart: !s.CrashRestart, Suspended: s.Suspended,
 	}, nil
 }
 
-func (a *App) pushServer(ctx context.Context, s store.Server) error {
+// pushServer creates the server on its node; start makes the node start it
+// once it is installed.
+func (a *App) pushServer(ctx context.Context, s store.Server, start bool) error {
 	spec, err := a.specFor(ctx, s)
 	if err != nil {
 		return err
 	}
+	spec.StartOnCompletion = start
 	_, err = a.Hub.Request(ctx, s.NodeID, proto.ReqServerCreate, spec)
 	return err
 }

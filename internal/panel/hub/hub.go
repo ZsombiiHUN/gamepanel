@@ -59,6 +59,9 @@ type Hub struct {
 	// OnCrash, when set, runs (in its own goroutine) when a node reports that
 	// a server crashed.
 	OnCrash func(c proto.Crash)
+	// OnState, when set, sees every state a node reports for a server it
+	// hosts, in the order they arrive. It must not block for long.
+	OnState func(uuid, state string)
 	// Locate returns the node a server lives on. When set, events a node sends
 	// about a server on another node are dropped, so one compromised node
 	// cannot write into the consoles or state of servers it does not host.
@@ -247,6 +250,9 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		h.states[s.UUID] = s.State
 		h.mu.Unlock()
 		h.publish(s.UUID, Event{Type: "state", Data: proto.Marshal(s)})
+		if h.OnState != nil {
+			h.OnState(s.UUID, s.State)
+		}
 	case proto.EvtCrash:
 		var c proto.Crash
 		if json.Unmarshal(env.Data, &c) != nil || !h.hosts(ctx, nc.id, c.UUID) {

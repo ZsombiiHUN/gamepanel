@@ -20,6 +20,10 @@ var ErrBadLink = userErr("this link is invalid or has expired; ask for a new one
 // NewResetToken makes a password reset link token for an account, replacing
 // any earlier one.
 func (s *Store) NewResetToken(ctx context.Context, userID int64) (string, error) {
+	return s.newResetToken(ctx, userID, ResetTTL)
+}
+
+func (s *Store) newResetToken(ctx context.Context, userID int64, ttl time.Duration) (string, error) {
 	tok, h := NewToken()
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -30,7 +34,7 @@ func (s *Store) NewResetToken(ctx context.Context, userID int64) (string, error)
 		return "", err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO user_tokens(token_hash,kind,user_id,expires_at,created_at) VALUES(?,?,?,?,?)`,
-		h, "reset", userID, time.Now().Add(ResetTTL).Unix(), now()); err != nil {
+		h, "reset", userID, time.Now().Add(ttl).Unix(), now()); err != nil {
 		return "", err
 	}
 	return tok, tx.Commit()

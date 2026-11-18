@@ -68,6 +68,10 @@ type Deps struct {
 	// session or API key is still valid and still grants console access
 	// (default 10 s).
 	AuthRecheck time.Duration
+	// WebhookClient sends webhook deliveries (tests); WebhookTick is how often
+	// due retries are looked for (default 5 s). Webhooks run with SchedulerCtx.
+	WebhookClient *http.Client
+	WebhookTick   time.Duration
 }
 
 type App struct {
@@ -91,6 +95,10 @@ type App struct {
 	metrics      metricsCollector
 	// unknown: node id -> servers it reported that the panel has no record of.
 	unknown sync.Map
+	// hookWake nudges the webhook sender; states carries node states, in
+	// order, to the goroutine that keeps install statuses (see webhooks.go).
+	hookWake chan struct{}
+	states   chan [2]string
 }
 
 type ctxKey struct{}
@@ -133,7 +141,8 @@ func requireAdmin(ctx context.Context) (store.User, error) {
 
 // New builds the full HTTP handler.
 func New(d Deps) http.Handler {
-	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute), mailLimit: newLimiter(10, 15*time.Minute)}
+	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute), mailLimit: newLimiter(10, 15*time.Minute),
+		hookWake: make(chan struct{}, 1), states: make(chan [2]string, 4096)}
 	errLog.Store(d.Log)
 	if a.AuthRecheck <= 0 {
 		a.AuthRecheck = 10 * time.Second
@@ -143,6 +152,7 @@ func New(d Deps) http.Handler {
 	d.Hub.OnHello = a.onHello
 	d.Hub.OnStats = a.collect
 	d.Hub.OnCrash = a.onCrash
+	d.Hub.OnState = a.onState
 	d.Hub.Locate = func(ctx context.Context, uuid string) (int64, error) {
 		s, err := a.Store.GetServer(ctx, uuid)
 		return s.NodeID, err
@@ -161,7 +171,14 @@ func New(d Deps) http.Handler {
 			every = 15 * time.Second
 		}
 		go a.runMetrics(d.SchedulerCtx, every)
+		hookTick := d.WebhookTick
+		if hookTick <= 0 {
+			hookTick = 5 * time.Second
+		}
+		go a.runWebhooks(d.SchedulerCtx, hookTick)
 	}
+	// Install statuses are kept whether or not the background jobs run.
+	go a.runStates(cmp.Or(d.SchedulerCtx, context.Background()))
 	a.register(api)
 
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
@@ -219,6 +236,9 @@ func (a *App) register(api huma.API) {
 	a.registerPasskeys(api)
 	a.registerMetrics(api)
 	a.registerMods(api)
+	a.registerWebhooks(api)
+	a.registerAccounts(api)
+	a.registerShop(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running
