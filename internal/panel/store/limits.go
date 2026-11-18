@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"regexp"
+	"strings"
 )
 
 // Limits are the per-server resource limits. They are enforced by the node:
@@ -146,4 +148,49 @@ func (s *Store) SetNodeCapacity(ctx context.Context, id, memMB, diskMB, overPct 
 		return ErrNotFound
 	}
 	return nil
+}
+
+// SetNodeSFTP sets where SFTP clients reach a node: a host name or IP address
+// ("" = the panel's host) and a port (0 = what the daemon reports).
+func (s *Store) SetNodeSFTP(ctx context.Context, id int64, host string, port int) error {
+	host = strings.TrimSpace(host)
+	if !validSFTPHost(host) {
+		return userErr("the SFTP host must be a host name or IP address, without a scheme or port")
+	}
+	if port < 0 || port > 65535 {
+		return userErr("the SFTP port must be between 1 and 65535, or 0 for the daemon's own")
+	}
+	res, err := s.exec(ctx, `UPDATE nodes SET sftp_host=?,sftp_port=? WHERE id=?`, host, port, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// validSFTPHost accepts "", a DNS name, an IPv4 address or an IPv6 address
+// (bare or in brackets). It ends up in sftp:// links, so nothing else.
+func validSFTPHost(h string) bool {
+	if h == "" {
+		return true
+	}
+	if len(h) > 253 {
+		return false
+	}
+	if ip := net.ParseIP(strings.TrimSuffix(strings.TrimPrefix(h, "["), "]")); ip != nil {
+		return true
+	}
+	for _, label := range strings.Split(h, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, c := range label {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }

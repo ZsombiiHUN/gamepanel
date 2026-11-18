@@ -15,7 +15,7 @@ export function NodesPage() {
   const [capMem, setCapMem] = useState("0");
   const [capDisk, setCapDisk] = useState("0");
   const [capOver, setCapOver] = useState("0");
-  const [editing, setEditing] = useState<{ id: number; mem: string; disk: string; over: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; mem: string; disk: string; over: string; host: string; port: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [created, setCreated] = useState<{ name: string; token: string } | null>(null);
   const [toDelete, setToDelete] = useState<NodeView | null>(null);
@@ -36,6 +36,11 @@ export function NodesPage() {
     onSuccess: () => {
       setEditing(null);
     },
+  });
+  const saveSftp = useMutation({
+    mutationFn: (v: { id: number; host: string; port: string }) =>
+      call(api.PUT("/nodes/{id}/sftp", { params: { path: { id: v.id } }, body: { host: v.host.trim(), port: Number(v.port) || 0 } })),
+    meta: invalidates(keys.nodes),
   });
   const del = useMutation({
     mutationFn: (id: number) => call(api.DELETE("/nodes/{id}", { params: { path: { id } } })),
@@ -129,9 +134,10 @@ export function NodesPage() {
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[13px] text-zinc-400">
                       <OnlineDot online={n.online} label="Daemon" />
                       <span className="font-mono">ports {n.port_start}-{n.port_end}</span>
+                      <span title="Where SFTP clients connect">SFTP: <span className="font-mono">{n.sftp_host || "panel's host"}{n.sftp_port ? `:${n.sftp_port}` : ""}</span></span>
                     </div>
                   </div>
-                  <button type="button" className="btn btn-ghost !px-2.5" aria-expanded={open} aria-label={`Capacity of ${n.name}`} onClick={() => setEditing(open ? null : { id: n.id, mem: String(n.memory_mb), disk: String(n.disk_mb), over: String(n.overallocate_pct) })}>
+                  <button type="button" className="btn btn-ghost !px-2.5" aria-expanded={open} aria-label={`Settings of ${n.name}`} title="Capacity and SFTP address" onClick={() => { saveCap.reset(); saveSftp.reset(); setEditing(open ? null : { id: n.id, mem: String(n.memory_mb), disk: String(n.disk_mb), over: String(n.overallocate_pct), host: n.sftp_host, port: n.sftp_port ? String(n.sftp_port) : "" }); }}>
                     <Settings2 className="h-4 w-4" aria-hidden />
                   </button>
                   <button type="button" className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300" onClick={() => setToDelete(n)} aria-label={`Delete node ${n.name}`}>
@@ -152,6 +158,25 @@ export function NodesPage() {
                     <p className="text-xs text-zinc-500">Existing servers are not changed. Only new servers and limit edits are checked.</p>
                     <ErrorBox error={saveCap.error} />
                     <button type="submit" className="btn btn-primary" disabled={saveCap.isPending}>Save capacity</button>
+                  </form>
+                )}
+                {open && editing && (
+                  <form onSubmit={(e) => { e.preventDefault(); saveSftp.mutate(editing); }} className="mt-5 space-y-3 border-t border-zinc-800 pt-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="sm:col-span-2">
+                        <Field label="SFTP host" hint="Host name or IP address players' clients reach this node on. Empty = this panel's host.">
+                          {(id) => <input id={id} className="input font-mono" placeholder="node1.example.com" maxLength={253} value={editing.host} onChange={(e) => setEditing({ ...editing, host: e.target.value })} />}
+                        </Field>
+                      </div>
+                      <Field label="SFTP port" hint="Empty = what the daemon listens on.">
+                        {(id) => <input id={id} className="input" type="number" min={0} max={65535} placeholder="2022" value={editing.port} onChange={(e) => setEditing({ ...editing, port: e.target.value })} />}
+                      </Field>
+                    </div>
+                    <ErrorBox error={saveSftp.error} />
+                    <div className="flex items-center gap-3">
+                      <button type="submit" className="btn btn-primary" disabled={saveSftp.isPending}>Save SFTP address</button>
+                      {saveSftp.isSuccess && <span role="status" className="text-sm text-good-text">Saved.</span>}
+                    </div>
                   </form>
                 )}
               </li>
