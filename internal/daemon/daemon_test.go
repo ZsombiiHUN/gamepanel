@@ -137,6 +137,9 @@ func TestAPanickingRequestDoesNotKillTheDaemon(t *testing.T) {
 	d := newTestDaemon(t, &hookRuntime{Fake: runtime.NewFake(), stopPanic: true})
 	id := uuidN(1)
 	addServer(t, d, id, 0)
+	if _, err := d.dispatch(context.Background(), req(proto.ReqServerPower, proto.Power{UUID: id, Action: "start"})); err != nil {
+		t.Fatal(err)
+	}
 	_, err := d.safeDispatch(context.Background(), req(proto.ReqServerPower, proto.Power{UUID: id, Action: "stop"}))
 	if err == nil || !strings.Contains(err.Error(), "internal error") {
 		t.Fatalf("expected an internal error reply, got %v", err)

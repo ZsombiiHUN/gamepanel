@@ -186,15 +186,9 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 		default:
 			return huma.Error422UnprocessableEntity("The signal must be start, stop, restart or kill.")
 		}
-		if !a.Hub.Online(s.NodeID) {
-			return huma.Error503ServiceUnavailable("the node is offline")
+		if err := a.sendPower(r.Context(), u, s, in.Signal); err != nil {
+			return err
 		}
-		a.audit(r.Context(), u, "server.power", s.UUID, in.Signal)
-		go func() {
-			c, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
-			a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: in.Signal})
-		}()
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	})

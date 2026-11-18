@@ -331,22 +331,7 @@ func (a *App) registerServers(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			if !a.Hub.Online(s.NodeID) {
-				return nil, huma.Error503ServiceUnavailable("the node is offline")
-			}
-			action := in.Body.Action
-			a.audit(ctx, u, "server.power", s.UUID, action)
-			// Detached from the HTTP request: a graceful stop can outlive it, and the
-			// browser follows progress through state events on the console socket.
-			go func() {
-				c, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-				defer cancel()
-				if _, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: action}); err != nil {
-					a.Log.Warn("power failed", "server", s.UUID, "action", action, "err", err)
-					a.Hub.Notice(s.UUID, powerFailure(action, err))
-				}
-			}()
-			return nil, nil
+			return nil, a.sendPower(ctx, u, s, in.Body.Action)
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "sendCommand", Method: "POST", Path: "/servers/{uuid}/command", Summary: "Send a console command", DefaultStatus: 204},
@@ -499,6 +484,29 @@ func (a *App) registerServerDetails(api huma.API) {
 // powerFailure is the console line telling the user why a power action
 // failed. Coded node errors are written for users and shown as they are;
 // anything else could leak internals and gets a generic reason, as in nodeErr.
+// sendPower checks that a power action can be sent now and sends it. The
+// reply does not wait for the node: a graceful stop can outlive the request,
+// and the outcome arrives as state events, or as a console line if it fails.
+// What can be known up front is refused here, so an API caller learns of it.
+func (a *App) sendPower(ctx context.Context, u store.User, s store.Server, action string) error {
+	if !a.Hub.Online(s.NodeID) {
+		return huma.Error503ServiceUnavailable("the node is offline")
+	}
+	if a.Hub.State(s.UUID) == "installing" {
+		return huma.Error409Conflict("the server is still installing; try again once it is done")
+	}
+	a.audit(ctx, u, "server.power", s.UUID, action)
+	go func() {
+		c, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if _, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: action}); err != nil {
+			a.Log.Warn("power failed", "server", s.UUID, "action", action, "err", err)
+			a.Hub.Notice(s.UUID, powerFailure(action, err))
+		}
+	}()
+	return nil
+}
+
 func powerFailure(action string, err error) string {
 	reason := "the node could not complete the request"
 	switch {

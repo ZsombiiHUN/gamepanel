@@ -960,6 +960,11 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 // stop sends the egg's graceful stop command (or SIGTERM for "^C"), then
 // escalates to a hard stop if the server has not exited in time.
 func (d *Daemon) stop(ctx context.Context, spec proto.ServerSpec) error {
+	// Nothing to stop. Saying "stopping" here would leave the server shown as
+	// stopping, since no exit follows.
+	if st, err := d.rt.State(ctx, spec.UUID); (err == nil && st == runtime.StateOffline) || (err != nil && d.isStale(spec.UUID)) {
+		return nil
+	}
 	d.expectStop(spec.UUID)
 	d.emitState(ctx, spec.UUID, runtime.StateStopping)
 	if spec.Stop != "" && spec.Stop != "^C" {
