@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -173,14 +175,27 @@ func (a *App) registerServers(api huma.API) {
 				return nil, err
 			}
 			b := in.Body
+			name, err := serverName(b.Name)
+			if err != nil {
+				return nil, err
+			}
 			if b.OwnerID == 0 {
 				b.OwnerID = u.ID
 			}
-			if _, err := a.Store.GetEgg(ctx, b.EggID); err != nil {
+			if _, err := a.Store.GetUser(ctx, b.OwnerID); errors.Is(err, store.ErrNotFound) {
+				return nil, huma.Error422UnprocessableEntity("there is no account with that owner id")
+			} else if err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
+			egg, err := a.Store.GetEgg(ctx, b.EggID)
+			if err != nil {
 				return nil, huma.Error422UnprocessableEntity("unknown egg")
 			}
+			if err := checkCreateEnv(egg, b.Env); err != nil {
+				return nil, err
+			}
 			s, err := a.Store.CreateServer(ctx, store.Server{
-				UUID: newUUID(), Name: b.Name, OwnerID: b.OwnerID, NodeID: b.NodeID, EggID: b.EggID,
+				UUID: newUUID(), Name: name, OwnerID: b.OwnerID, NodeID: b.NodeID, EggID: b.EggID,
 				Port: b.Port, Env: b.Env,
 				Limits: store.Limits{
 					MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
@@ -442,9 +457,9 @@ func (a *App) registerServerDetails(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			name := strings.TrimSpace(in.Body.Name)
-			if name == "" || strings.ContainsAny(name, "\r\n\t") {
-				return nil, huma.Error422UnprocessableEntity("give the server a name on one line")
+			name, err := serverName(in.Body.Name)
+			if err != nil {
+				return nil, err
 			}
 			if err := a.Store.RenameServer(ctx, s.UUID, name, strings.TrimSpace(in.Body.Description)); err != nil {
 				return nil, huma.Error500InternalServerError("db error", err)
@@ -495,4 +510,57 @@ func powerFailure(action string, err error) string {
 		reason = err.Error()
 	}
 	return fmt.Sprintf("\x1b[31m[gamepanel] %s failed: %s\x1b[0m", action, reason)
+}
+
+// serverName trims a server name and refuses one that is empty, spans lines,
+// or holds control or text-direction characters. Those last can make one
+// server's name read like another's in lists and in the activity log.
+func serverName(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if name == "" || strings.ContainsAny(name, "\r\n\t") {
+		return "", huma.Error422UnprocessableEntity("give the server a name on one line")
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) || isBidiControl(r) {
+			return "", huma.Error422UnprocessableEntity("the name has a control or text-direction character; use plain text")
+		}
+	}
+	return name, nil
+}
+
+// isBidiControl reports the invisible characters that change text direction.
+func isBidiControl(r rune) bool {
+	return r == '\u061c' || r == '\u200e' || r == '\u200f' || (r >= '\u202a' && r <= '\u202e') || (r >= '\u2066' && r <= '\u2069')
+}
+
+// checkCreateEnv checks the variables given for a new server the way the
+// Startup tab checks a change: each must be one of the egg's variables, and
+// every variable's value, the one given or else the egg's default, must pass
+// the egg's rules. Without this an empty required variable would only show up
+// as a failed install.
+func checkCreateEnv(egg store.Egg, given map[string]string) error {
+	byEnv := map[string]bool{}
+	for _, v := range egg.Variables {
+		byEnv[v.Env] = true
+	}
+	keys := make([]string, 0, len(given))
+	for k := range given {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // errors come out in a stable order
+	for _, k := range keys {
+		if !byEnv[k] {
+			return huma.Error422UnprocessableEntity("this egg has no variable " + truncate(k, 64))
+		}
+	}
+	for _, v := range egg.Variables {
+		val, ok := given[v.Env]
+		if !ok {
+			val = v.Default
+		}
+		if err := store.ValidateVar(v, val); err != nil {
+			return userErr(http.StatusUnprocessableEntity, err)
+		}
+	}
+	return nil
 }
