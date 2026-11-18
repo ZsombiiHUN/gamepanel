@@ -197,7 +197,7 @@ func (a *App) registerLinks(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}
-			return &loginOut{Body: u, SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
+			return &loginOut{Body: a.loginUser(u, store.MethodRegister), SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})
 
 	// ---- admin: account invitations ----

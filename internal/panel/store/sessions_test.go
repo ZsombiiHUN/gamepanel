@@ -119,3 +119,59 @@ func TestSessionDetailsMigration(t *testing.T) {
 		t.Fatal("revoking one pre-upgrade session ended the other")
 	}
 }
+
+// Migration 00116 counts sessions as two-factor from their recorded method,
+// or when the account has an authenticator; new sessions from their method.
+func TestSessionMFAMigration(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "p.db")
+	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	goose.SetBaseFS(migrations)
+	goose.SetDialect("sqlite3")
+	goose.SetLogger(goose.NopLogger())
+	if err := goose.UpTo(db, "migrations", 115); err != nil {
+		t.Fatal(err)
+	}
+	n := now()
+	db.Exec(`INSERT INTO users(id,email,password_hash,created_at,totp_enabled) VALUES(1,'a@example.com','x',?,0),(2,'b@example.com','x',?,1)`, n, n)
+	for tok, row := range map[string]struct {
+		user   int
+		method string
+	}{
+		"pw": {1, MethodPassword}, "pk": {1, MethodPasskey}, "sso": {1, "sso:GitHub"},
+		"ssototp": {1, "sso+totp:GitHub"}, "old": {1, ""}, "totpuser": {2, ""},
+	} {
+		if _, err := db.Exec(`INSERT INTO sessions(token_hash,public_id,user_id,expires_at,last_seen_at,method) VALUES(?,?,?,?,?,?)`,
+			HashToken(tok), tok, row.user, n+3600, n, row.method); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	want := map[string]bool{"pw": false, "pk": true, "sso": false, "ssototp": true, "old": false, "totpuser": true}
+	for tok, w := range want {
+		u, err := s.UserBySession(ctx, tok, "")
+		if err != nil || u.SessionMFA != w {
+			t.Errorf("%s: mfa %v want %v (%v)", tok, u.SessionMFA, w, err)
+		}
+	}
+	tok, _ := s.NewSession(ctx, 1, SessionMeta{Method: MethodTOTP})
+	if u, _ := s.UserBySession(ctx, tok, ""); !u.SessionMFA {
+		t.Fatal("password+totp session not marked")
+	}
+	tok, _ = s.NewSession(ctx, 1, SessionMeta{Method: MethodPassword})
+	if u, _ := s.UserBySession(ctx, tok, ""); u.SessionMFA {
+		t.Fatal("password session marked")
+	}
+	s.MarkSessionMFA(ctx, tok)
+	if u, _ := s.UserBySession(ctx, tok, ""); !u.SessionMFA {
+		t.Fatal("MarkSessionMFA did not stick")
+	}
+}

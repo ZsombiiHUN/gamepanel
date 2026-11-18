@@ -8,6 +8,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -54,6 +55,11 @@ type Deps struct {
 	Signup string
 	// Modrinth overrides the mod manager's client (tests).
 	Modrinth *modrinth.Client
+	// RequireMFA is the two-factor policy: MFAOptional (or ""), MFAAdmins or MFAAll.
+	RequireMFA string
+	// HSTS is the Strict-Transport-Security value sent over HTTPS; "" means
+	// "max-age=31536000" (this host only).
+	HSTS string
 	// SSO lists single sign-on providers (they need PublicURL).
 	SSO []*SSOProvider
 	// S3, when set, is where new backups are stored instead of on the node.
@@ -235,7 +241,7 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		if secure {
 			// Browsers that have seen the panel over HTTPS never try plain HTTP
 			// again, so the session cookie cannot be stripped in transit.
-			h.Set("Strict-Transport-Security", "max-age=31536000")
+			h.Set("Strict-Transport-Security", cmp.Or(a.HSTS, "max-age=31536000"))
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/daemon/") {
 			// API answers carry account data and one-time secrets (new API
@@ -284,6 +290,10 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		}
 		if resolve != nil {
 			if u, err := resolve(r.Context()); err == nil {
+				var ok bool
+				if u, ok = a.gateMFA(w, r, u, viaKey); !ok {
+					return
+				}
 				ctx := context.WithValue(r.Context(), ctxKey{}, u)
 				ctx = context.WithValue(ctx, credKey{}, resolve)
 				if viaKey {

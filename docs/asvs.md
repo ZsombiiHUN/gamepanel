@@ -19,6 +19,8 @@ controls only, and even there some Level 2 requirements are not met yet (see
 | Changing the password needs the current one | v5.0.0-6.2.3 | L1 | `POST /auth/password` | `api.TestChangePasswordRevokesOtherSessions` |
 | Changing the password, two-factor settings or creating an API key needs the password again, plus a code when two-factor is on | v5.0.0-7.5.1 | L2 | `api/auth.go`, `api/mfa.go` | `api.TestPasswordChangeNeedsSecondFactor`, `api.TestAPIKeyNeedsSecondFactor` |
 | Other sessions are signed out after a password change or turning two-factor off | v5.0.0-7.4.3 | L2 | `store.ChangePassword`, `totpDisable` | `api.TestChangePasswordRevokesOtherSessions`, `api.TestPasswordChangeNeedsSecondFactor` |
+| Two factors can be required for administrators or everyone (`GAMEPANEL_REQUIRE_MFA`). A session that signed in with one factor can only set up a second; one whose account already has a second factor can only sign out; API keys of accounts without a second factor stop working; the last second factor cannot be removed | v5.0.0-6.3.3 | L2 | `api/mfapolicy.go` | `api.TestRequireMFAHoldsSessionsToEnrolment`, `api.TestRequireMFAForAdminsOnly`, `api.TestRequireMFABlocksKeysWithoutSecondFactor`, `api.TestRequireMFAEnrolledAccountMustUseItsFactor`, `store.TestSessionMFAMigration` |
+| `Strict-Transport-Security` with `includeSubDomains` (and optionally `preload`) when `GAMEPANEL_HSTS` is `subdomains` or `preload` | v5.0.0-3.4.1 | L2 | `api.middleware` | `api.TestHSTSSetting` |
 | Login rate-limited per IP and per account; wrong authenticator codes add a doubling delay (up to 24 h) that is kept in the database and checked atomically | v5.0.0-6.3.1 | L1 | `api/limiter.go`, `store.verifyTOTPAttempt` | `api.TestSecondFactorLockoutSurvivesRestart`, `store.TestTOTPLockoutHoldsUnderConcurrency`, `store.TestMFALockSchedule` |
 | Authenticator codes and recovery codes work once | v5.0.0-6.5.1 | L2 | `store.verifyTOTPAttempt`, `store.VerifySecondFactor` | `store.TestVerifyTOTPWindowAndReplay`, `store.TestTOTPLockoutHoldsUnderConcurrency`, `store.TestRecoveryCodesAreSingleUse` |
 | TOTP secrets and recovery codes come from a CSPRNG | v5.0.0-6.5.3 | L2 | `store.BeginTOTP`, `store.NewRecoveryCodes` | `store.TestRecoveryCodeStrength` |
@@ -39,8 +41,8 @@ limits: 12 hours absolute, 30 minutes of inactivity. Both can be changed with
 
 ## Known gaps
 
-These Level 2 requirements are not met yet:
+These Level 2 requirements are not met yet, or not by default:
 
-- **v5.0.0-3.4.1 (HSTS)**: `Strict-Transport-Security` is sent over HTTPS with a one-year `max-age`, but without `includeSubDomains`, which Level 2 asks for. Adding it affects every subdomain of the panel's domain, so it is left to the operator's proxy for now.
-- **v5.0.0-6.3.3 (multi-factor required)**: two-factor is optional per account.
+- **v5.0.0-3.4.1 (HSTS), by default**: without `GAMEPANEL_HSTS=subdomains`, `Strict-Transport-Security` covers only the panel's own host, because `includeSubDomains` affects every subdomain of its domain.
+- **v5.0.0-6.3.3 (multi-factor required), by default**: two factors are only required with `GAMEPANEL_REQUIRE_MFA`. Single sign-on counts as one factor unless the account's authenticator code is also given, since the panel cannot see how the provider checked the person. An account with no second factor yet can set one up with its password alone, the usual bootstrapping gap of required enrolment.
 - **v5.0.0-6.5.2 (lookup secrets), for old codes**: recovery codes made before the upgrade to 120 bits have 80 bits and keep working until they are used or replaced. Their owners see a request to replace them on the account page.

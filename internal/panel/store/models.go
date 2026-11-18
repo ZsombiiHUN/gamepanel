@@ -39,7 +39,19 @@ type User struct {
 	IsAdmin bool   `json:"is_admin"`
 	// TOTPEnabled reports whether a second factor is required at sign-in.
 	TOTPEnabled bool `json:"totp_enabled"`
-	hash        string
+	// MFARequired: the panel requires two factors of this account and the
+	// current session did not use them, so only account security settings
+	// can be used until a second factor is set up (see api.RequireMFA).
+	MFARequired bool `json:"mfa_required"`
+	// MFASignInAgain: as MFARequired, but the account already has a second
+	// factor that this session did not use, so the only way on is to sign out
+	// and sign in again with it.
+	MFASignInAgain bool `json:"mfa_sign_in_again"`
+	// SessionMFA: the session this request came with signed in with two
+	// factors. HasPasskey: the account has at least one passkey.
+	SessionMFA bool `json:"-"`
+	HasPasskey bool `json:"-"`
+	hash       string
 }
 
 // argon2id with RFC 9106 parameters: t=3, m=64MiB, p=4.
@@ -130,8 +142,8 @@ var dummyHash = hashPassword("dummy-password-for-timing")
 
 func (s *Store) Login(ctx context.Context, email, password string) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled,password_hash FROM users WHERE email=?`, email).
-		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.hash)
+	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=users.id),password_hash FROM users WHERE email=?`, email).
+		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.HasPasskey, &u.hash)
 	if err != nil {
 		checkPassword(password, dummyHash)
 		return User{}, userErr("invalid email or password")
@@ -160,9 +172,9 @@ func (s *Store) NewSession(ctx context.Context, userID int64, m SessionMeta) (st
 	}
 	m = m.clean()
 	tok, h := NewToken()
-	_, err := s.exec(ctx, `INSERT INTO sessions(token_hash,public_id,user_id,expires_at,last_seen_at,created_at,ip,last_ip,user_agent,method)
-		VALUES(?,?,?,?,?,?,?,?,?,?)`,
-		h, newPublicID(), userID, time.Now().Add(s.SessionMax).Unix(), now(), now(), m.IP, m.IP, m.UserAgent, m.Method)
+	_, err := s.exec(ctx, `INSERT INTO sessions(token_hash,public_id,user_id,expires_at,last_seen_at,created_at,ip,last_ip,user_agent,method,mfa)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+		h, newPublicID(), userID, time.Now().Add(s.SessionMax).Unix(), now(), now(), m.IP, m.IP, m.UserAgent, m.Method, IsMFAMethod(m.Method))
 	return tok, err
 }
 
@@ -175,9 +187,10 @@ func (s *Store) UserBySession(ctx context.Context, token, ip string) (User, erro
 	var seen int64
 	var lastIP string
 	h := HashToken(token)
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,s.last_seen_at,s.last_ip FROM sessions s JOIN users u ON u.id=s.user_id
+	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,s.mfa,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=u.id),
+		s.last_seen_at,s.last_ip FROM sessions s JOIN users u ON u.id=s.user_id
 		WHERE s.token_hash=? AND s.expires_at>? AND s.last_seen_at>?`, h, now(), s.idleCutoff()).
-		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &seen, &lastIP)
+		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.SessionMFA, &u.HasPasskey, &seen, &lastIP)
 	if err != nil {
 		return User{}, nf(err)
 	}
