@@ -2,10 +2,11 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
-import { identitiesQuery, meQuery } from "../api/queries";
+import { identitiesQuery, invalidates, keys, meQuery } from "../api/queries";
 import { Avatar, ErrorBox, Field, PageHeader, Pill, Section } from "../components/ui";
 import { ApiKeysSection } from "./ApiKeysSection";
 import { PasskeysSection } from "./PasskeysSection";
+import { SessionsSection } from "./SessionsSection";
 import { FirstPassword, SignInMethods } from "./SignInMethods";
 import { TotpSection } from "./TotpSection";
 
@@ -22,15 +23,13 @@ export function AccountPage() {
 
   const change = useMutation({
     mutationFn: () => call(api.POST("/auth/password", { body: { current_password: current, new_password: next, ...(mfa ? { code } : {}) } })),
+    meta: invalidates(keys.sessions),
     onSuccess: () => {
       setCurrent("");
       setNext("");
       setAgain("");
       setCode("");
     },
-  });
-  const revoke = useMutation({
-    mutationFn: () => call(api.POST("/auth/sessions/revoke-others")),
   });
 
   const submit = (e: FormEvent) => {
@@ -93,20 +92,7 @@ export function AccountPage() {
         <TotpSection />
         <ApiKeysSection />
 
-        <Section
-          title="Sessions"
-          desc="Sign out every other browser or device that is logged in to your account."
-          footer={
-            <>
-              <span className={revoke.isSuccess ? "text-emerald-400" : ""} role={revoke.isSuccess ? "status" : undefined}>{revoke.isSuccess ? "Other sessions signed out." : ""}</span>
-              <button type="button" className="btn" onClick={() => revoke.mutate()} disabled={revoke.isPending}>
-                {revoke.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Sign out other sessions
-              </button>
-            </>
-          }
-        >
-          {revoke.error && <ErrorBox error={revoke.error} />}
-        </Section>
+        <SessionsSection />
       </div>
     </div>
   );

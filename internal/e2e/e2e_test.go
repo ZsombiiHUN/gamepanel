@@ -183,7 +183,7 @@ func TestCrossOriginConsoleBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tok, _ := st.NewSession(ctx, u.ID)
+	tok, _ := st.NewSession(ctx, u.ID, store.SessionMeta{})
 	ts := httptest.NewServer(api.New(api.Deps{Store: st, Hub: hub.New(log), Log: log}))
 	defer ts.Close()
 

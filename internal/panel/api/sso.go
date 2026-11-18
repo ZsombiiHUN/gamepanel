@@ -188,6 +188,14 @@ func (p *SSOProvider) exchange(ctx context.Context, code, verifier, redirect str
 	return u, nil
 }
 
+// ssoName is a provider's display name ("GitHub"), or its id if it has gone.
+func (a *App) ssoName(id string) string {
+	if p := a.ssoProvider(id); p != nil && p.Name != "" {
+		return p.Name
+	}
+	return id
+}
+
 func (a *App) ssoProvider(id string) *SSOProvider {
 	for _, p := range a.SSO {
 		if p.ID == id {
@@ -398,7 +406,7 @@ type ssoPending struct {
 }
 
 func (a *App) ssoSignIn(w http.ResponseWriter, r *http.Request, u store.User, provider string) {
-	tok, err := a.Store.NewSession(r.Context(), u.ID)
+	tok, err := a.newSession(r.Context(), u.ID, store.MethodSSO+":"+a.ssoName(provider))
 	if err != nil {
 		writeProblem(w, http.StatusInternalServerError, "could not create a session")
 		return
@@ -452,7 +460,7 @@ func (a *App) registerSSO(api huma.API) {
 				return nil, err
 			}
 			a.ssoMFA.Delete(in.Pending)
-			tok, err := a.Store.NewSession(ctx, u.ID)
+			tok, err := a.newSession(ctx, u.ID, store.MethodSSOTOTP+":"+a.ssoName(p.provider))
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}

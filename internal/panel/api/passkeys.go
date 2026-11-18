@@ -262,7 +262,7 @@ func (a *App) registerPasskeys(api huma.API) {
 			if err := a.Store.UsePasskey(ctx, who.u.ID, cred.ID, data); err != nil {
 				return nil, huma.Error401Unauthorized("the passkey could not be verified")
 			}
-			tok, err := a.Store.NewSession(ctx, who.u.ID)
+			tok, err := a.newSession(ctx, who.u.ID, store.MethodPasskey)
 			if err != nil {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}
