@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -51,6 +52,21 @@ func (a *App) onHello(ctx context.Context, nodeID int64, h proto.Hello) {
 	}
 }
 
+// onCrash records a crash in the server's activity. Nobody did it, so the
+// entry has no actor.
+func (a *App) onCrash(c proto.Crash) {
+	detail := fmt.Sprintf("exit code %d", c.ExitCode)
+	if c.OOM {
+		detail += ", out of memory"
+	}
+	if c.Restarting {
+		detail += "; restarted"
+	} else if c.Reason != "" {
+		detail += "; not restarted: " + c.Reason
+	}
+	a.Store.Audit(context.Background(), store.AuditEntry{Action: "server.crash", Target: c.UUID, Detail: detail})
+}
+
 func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, error) {
 	egg, err := a.Store.GetEgg(ctx, s.EggID)
 	if err != nil {
@@ -84,7 +100,7 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 		UUID:    s.UUID, Image: image, Startup: shellStartup(startup), Stop: egg.Stop,
 		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
 		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB, BandwidthMbit: s.BandwidthMbit,
-		Ports: maps,
+		Ports: maps, NoCrashRestart: !s.CrashRestart,
 	}, nil
 }
 

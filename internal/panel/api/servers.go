@@ -18,7 +18,7 @@ import (
 
 type serverView struct {
 	store.Server
-	State      string       `json:"state" doc:"offline|starting|running|stopping|installing|install_failed|unknown"`
+	State      string       `json:"state" doc:"offline|starting|running|stopping|installing|install_failed|crashed|unknown"`
 	NodeOnline bool         `json:"node_online"`
 	EggName    string       `json:"egg_name"`
 	NodeName   string       `json:"node_name"`

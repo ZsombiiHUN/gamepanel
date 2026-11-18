@@ -43,10 +43,12 @@ func (f *Fake) get(uuid string) (*fakeServer, error) {
 	return s, nil
 }
 
-func (f *Fake) emit(uuid, state string) {
+func (f *Fake) emit(uuid, state string) { f.emitEvent(Event{UUID: uuid, State: state}) }
+
+func (f *Fake) emitEvent(ev Event) {
 	for _, c := range f.subs {
 		select {
-		case c <- Event{UUID: uuid, State: state}:
+		case c <- ev:
 		default:
 		}
 	}
@@ -100,12 +102,17 @@ func (f *Fake) Start(ctx context.Context, uuid string) error {
 		for {
 			select {
 			case <-gctx.Done():
-				f.exit(uuid)
+				f.exit(uuid, Exit{Code: 137})
 				return
 			case l, ok := <-lines:
 				if !ok || l == "stop" {
 					fmt.Fprint(outW, "[fake] stopping\r\n")
-					f.exit(uuid)
+					f.exit(uuid, Exit{})
+					return
+				}
+				if l == "crash" {
+					fmt.Fprint(outW, "[fake] crashing\r\n")
+					f.exit(uuid, Exit{Code: 1})
 					return
 				}
 				fmt.Fprintf(outW, "[fake] > %s\r\n", l)
@@ -115,14 +122,14 @@ func (f *Fake) Start(ctx context.Context, uuid string) error {
 	return nil
 }
 
-func (f *Fake) exit(uuid string) {
+func (f *Fake) exit(uuid string, x Exit) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if s, ok := f.servers[uuid]; ok && s.state != StateOffline {
 		s.state = StateOffline
 		s.out.Close()
 		s.cancel()
-		f.emit(uuid, StateOffline)
+		f.emitEvent(Event{UUID: uuid, State: StateOffline, Exit: &x})
 	}
 }
 

@@ -8,7 +8,7 @@ import { fillCommand, inputKind } from "../lib/startup";
 
 type StartupView = components["schemas"]["StartupView"];
 type StartupVar = components["schemas"]["StartupVar"];
-type Change = { env?: Record<string, string>; image?: string; startup?: string };
+type Change = { env?: Record<string, string>; image?: string; startup?: string; crash_restart?: boolean };
 
 export function StartupTab({ uuid }: { uuid: string }) {
   const startup = useQuery(startupQuery(uuid));
@@ -37,7 +37,34 @@ function StartupForms({ uuid, s }: { uuid: string; s: StartupView }) {
       <CommandSection uuid={uuid} s={s} />
       <ImageSection uuid={uuid} s={s} />
       <VariablesSection uuid={uuid} s={s} />
+      <CrashSection uuid={uuid} s={s} />
     </div>
+  );
+}
+
+function CrashSection({ uuid, s }: { uuid: string; s: StartupView }) {
+  const save = useSave(uuid);
+  return (
+    <Section
+      title="Crashes"
+      desc="What happens when the server stops without anyone asking. A server that exits normally, for example after a stop command typed in the game, counts as stopped, not crashed."
+      footer={<span role={save.isSuccess ? "status" : undefined}>{save.isPending ? "Saving..." : save.isSuccess ? "Saved. This applies right away." : "If it crashes again within a minute of a restart, it is left stopped."}</span>}
+    >
+      <label className="flex items-start gap-3 text-sm text-zinc-200">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 accent-indigo-500"
+          checked={s.crash_restart}
+          disabled={!s.can_edit_crash_restart || save.isPending}
+          onChange={(e) => save.mutate({ crash_restart: e.target.checked })}
+        />
+        <span>
+          Restart the server automatically when it crashes
+          {!s.can_edit_crash_restart && <span className="block text-xs text-zinc-500">You do not have permission to change this.</span>}
+        </span>
+      </label>
+      {save.error && <ErrorBox error={save.error} />}
+    </Section>
   );
 }
 

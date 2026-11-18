@@ -85,6 +85,13 @@ type managed struct {
 	running   bool
 	usage     proto.Stats
 	stopWatch context.CancelFunc
+
+	// stopping: a stop was asked for this run, so its exit is no crash.
+	// crashed: it crashed and was left stopped; it reports "crashed" until
+	// it starts again. lastCrash guards against restart loops.
+	stopping  bool
+	crashed   bool
+	lastCrash time.Time
 }
 
 // Operations that claim a server (begin).
@@ -340,6 +347,13 @@ func (d *Daemon) send(ctx context.Context, env proto.Envelope) error {
 }
 
 func (d *Daemon) emitState(ctx context.Context, uuid, st string) {
+	if st == runtime.StateOffline {
+		d.mu.Lock()
+		if m := d.servers[uuid]; m != nil && m.crashed {
+			st = proto.StateCrashed
+		}
+		d.mu.Unlock()
+	}
 	d.noteState(uuid, st)
 	_ = d.send(ctx, proto.Envelope{Type: proto.EvtState, Data: proto.Marshal(proto.State{UUID: uuid, State: st})})
 }
@@ -372,7 +386,7 @@ func (d *Daemon) noteState(uuid, st string) {
 			m.stopWatch = cancel
 			go d.watchStats(ctx, uuid, m)
 		}
-	case runtime.StateOffline, StateInstalling, StateInstallFailed:
+	case runtime.StateOffline, proto.StateCrashed, StateInstalling, StateInstallFailed:
 		m.stopStats()
 	}
 }
@@ -437,6 +451,18 @@ func (d *Daemon) watchEvents(ctx context.Context) {
 		}
 		first = false
 		for ev := range ch {
+			if ev.Exit != nil && d.exited(ctx, ev.UUID, *ev.Exit) {
+				continue
+			}
+			if ev.State == runtime.StateRunning {
+				// A new run began. The engine reports the previous run's exit
+				// before this, so a stop asked for that run is used up.
+				d.mu.Lock()
+				if m := d.servers[ev.UUID]; m != nil {
+					m.stopping = false
+				}
+				d.mu.Unlock()
+			}
 			d.emitState(ctx, ev.UUID, ev.State)
 			if ev.State == runtime.StateRunning {
 				d.attach(ctx, ev.UUID)
@@ -810,6 +836,7 @@ func (d *Daemon) power(ctx context.Context, p proto.Power) error {
 		}
 		return d.start(ctx, spec)
 	case "kill":
+		d.expectStop(p.UUID)
 		return d.rt.Kill(ctx, p.UUID)
 	}
 	return proto.Invalid("unknown power action")
@@ -832,6 +859,11 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 			return ErrDiskFull{used, spec.DiskMB << 20}
 		}
 	}
+	d.mu.Lock()
+	if m := d.servers[uuid]; m != nil {
+		m.crashed = false
+	}
+	d.mu.Unlock()
 	d.emitState(ctx, uuid, runtime.StateStarting)
 	if err := d.rebuildIfStale(ctx, uuid); err != nil {
 		d.emitState(ctx, uuid, runtime.StateOffline)
@@ -856,6 +888,7 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 // stop sends the egg's graceful stop command (or SIGTERM for "^C"), then
 // escalates to a hard stop if the server has not exited in time.
 func (d *Daemon) stop(ctx context.Context, spec proto.ServerSpec) error {
+	d.expectStop(spec.UUID)
 	d.emitState(ctx, spec.UUID, runtime.StateStopping)
 	if spec.Stop != "" && spec.Stop != "^C" {
 		if err := d.input(spec.UUID, spec.Stop); err == nil {
@@ -939,6 +972,16 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 	if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
 		return proto.UpdateResult{}, err
 	}
+	if sameContainer(old, s) {
+		// Nothing the container is built from changed (e.g. only the crash
+		// restart setting), so it applies at once and needs no rebuild.
+		d.mu.Lock()
+		if m := d.servers[s.UUID]; m != nil {
+			m.spec = s
+		}
+		d.mu.Unlock()
+		return proto.UpdateResult{}, nil
+	}
 	if st, _ := d.rt.State(ctx, s.UUID); st != runtime.StateOffline {
 		if err := os.WriteFile(d.stalePath(s.UUID), nil, 0o600); err != nil {
 			return proto.UpdateResult{}, err
@@ -966,6 +1009,14 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 	}
 	d.mu.Unlock()
 	return proto.UpdateResult{}, nil
+}
+
+// sameContainer reports whether two specs build the same container.
+func sameContainer(a, b proto.ServerSpec) bool {
+	a.NoCrashRestart, b.NoCrashRestart = false, false
+	ja, _ := json.Marshal(a)
+	jb, _ := json.Marshal(b)
+	return string(ja) == string(jb)
 }
 
 // rebuildIfStale recreates the container of a server whose spec changed while

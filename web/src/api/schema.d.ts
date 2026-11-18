@@ -2227,6 +2227,7 @@ export interface components {
             cpu_pct: number;
             /** @description pin to cores, e.g. 0-3 or 0,2; empty = any */
             cpuset: string;
+            crash_restart: boolean;
             /**
              * Format: int64
              * @description databases the owner may create (default 0)
@@ -2278,7 +2279,7 @@ export interface components {
              */
             port_limit?: number;
             startup: string;
-            /** @description offline|starting|running|stopping|installing|install_failed|unknown */
+            /** @description offline|starting|running|stopping|installing|install_failed|crashed|unknown */
             state: string;
             stats?: components["schemas"]["Stats"];
             /**
@@ -2309,6 +2310,8 @@ export interface components {
             code: string;
         };
         StartupInBody: {
+            /** @description restart the server when it crashes */
+            crash_restart?: boolean;
             /** @description variables to change; others keep their values */
             env?: {
                 [key: string]: string;
@@ -2335,8 +2338,10 @@ export interface components {
             };
             can_change_image: boolean;
             can_edit_command: boolean;
+            can_edit_crash_restart: boolean;
             can_edit_variables: boolean;
             command: string;
+            crash_restart: boolean;
             custom_command: boolean;
             /** @description an admin set an image the egg does not list */
             custom_image: boolean;

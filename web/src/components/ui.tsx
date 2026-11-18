@@ -25,7 +25,7 @@ export function ErrorBox({ error }: { error: unknown }) {
 
 type Tone = "ok" | "warn" | "off" | "bad";
 const stateTone: Record<string, Tone> = {
-  running: "ok", starting: "warn", stopping: "warn", installing: "warn", install_failed: "bad", offline: "off", unknown: "off",
+  running: "ok", starting: "warn", stopping: "warn", installing: "warn", install_failed: "bad", crashed: "bad", offline: "off", unknown: "off",
 };
 const toneCls: Record<Tone, string> = {
   ok: "bg-good-bg text-good-text",

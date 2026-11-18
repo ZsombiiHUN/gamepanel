@@ -23,7 +23,7 @@ const ICONS: Record<ActivityKind, ReactNode> = {
 
 /** Removals and kills read red, power and access changes stand out; the rest stays quiet. */
 function tone(e: Entry) {
-  if (/\.(delete|remove)$/.test(e.action) || (e.action === "server.power" && e.detail === "kill")) return "bg-bad-bg text-bad-text";
+  if (/\.(delete|remove)$/.test(e.action) || e.action === "server.crash" || (e.action === "server.power" && e.detail === "kill")) return "bg-bad-bg text-bad-text";
   const k = activityKind(e.action);
   if (k === "power") return "bg-warn-bg text-warn-text";
   if (k === "access") return "bg-indigo-500/15 text-indigo-300";
@@ -116,7 +116,7 @@ export function ActivityTab({ uuid }: { uuid: string }) {
                           {e.actor_email}
                         </button>
                       ) : (
-                        <span className="font-medium text-zinc-100">Someone</span>
+                        <span className="font-medium text-zinc-100">{e.action === "server.crash" ? "The server" : "Someone"}</span>
                       )}{" "}
                       {describeAction(e.action, e.detail)}
                     </p>
