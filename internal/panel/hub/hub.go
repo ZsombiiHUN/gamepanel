@@ -56,6 +56,9 @@ type Hub struct {
 	// OnStats, when set, sees every stats sample after it was checked (the
 	// panel keeps a history from them). It must not block.
 	OnStats func(s proto.Stats)
+	// OnCrash, when set, runs (in its own goroutine) when a node reports that
+	// a server crashed.
+	OnCrash func(c proto.Crash)
 	// Locate returns the node a server lives on. When set, events a node sends
 	// about a server on another node are dropped, so one compromised node
 	// cannot write into the consoles or state of servers it does not host.
@@ -244,6 +247,14 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		h.states[s.UUID] = s.State
 		h.mu.Unlock()
 		h.publish(s.UUID, Event{Type: "state", Data: proto.Marshal(s)})
+	case proto.EvtCrash:
+		var c proto.Crash
+		if json.Unmarshal(env.Data, &c) != nil || !h.hosts(ctx, nc.id, c.UUID) {
+			return
+		}
+		if h.OnCrash != nil {
+			go h.OnCrash(c)
+		}
 	case proto.EvtStats:
 		var s proto.Stats
 		if json.Unmarshal(env.Data, &s) == nil {

@@ -5,6 +5,7 @@ const WORDS: Record<string, string> = {
   "server.power": "sent a power action",
   "server.command": "ran a console command",
   "server.reinstall": "reinstalled the server",
+  "server.crash": "crashed",
   "server.limits": "changed the resource limits",
   "server.startup": "changed startup settings",
   "server.rename": "renamed the server",

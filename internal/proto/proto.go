@@ -165,6 +165,8 @@ const (
 	EvtConsole = "console"
 	EvtState   = "state"
 	EvtStats   = "stats"
+	// EvtCrash reports that a server's process ended without being asked to (Crash).
+	EvtCrash = "crash"
 	// EvtStatsBatch carries every server's Stats for one tick (StatsBatch).
 	EvtStatsBatch = "stats.batch"
 	EvtReply      = "reply"
@@ -196,6 +198,8 @@ type ServerSpec struct {
 	Ports         []PortMap `json:"ports"`
 	// Install, when set, must succeed once before the server can start.
 	Install *InstallSpec `json:"install,omitempty"`
+	// NoCrashRestart turns off restarting the server when it crashes.
+	NoCrashRestart bool `json:"no_crash_restart,omitempty"`
 }
 
 // InstallSpec describes a one-shot installer container. The script is
@@ -266,7 +270,21 @@ func (c Console) All() []string {
 
 type State struct {
 	UUID  string `json:"uuid"`
-	State string `json:"state"` // offline | starting | running | stopping
+	State string `json:"state"` // offline | starting | running | stopping | crashed
+}
+
+// StateCrashed: the server crashed and was not restarted (restarts are off,
+// or it crashed again too soon). It is stopped.
+const StateCrashed = "crashed"
+
+// Crash reports a server whose process ended without anyone asking.
+type Crash struct {
+	UUID     string `json:"uuid"`
+	ExitCode int    `json:"exit_code"`
+	OOM      bool   `json:"oom,omitempty"`
+	// Restarting: the node is starting it again. Otherwise Reason says why not.
+	Restarting bool   `json:"restarting"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 type Stats struct {
