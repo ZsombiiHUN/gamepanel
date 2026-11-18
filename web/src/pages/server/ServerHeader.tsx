@@ -5,6 +5,7 @@ import { api, call, type components } from "../../api/client";
 import { invalidates, keys } from "../../api/queries";
 import type { WsStatus } from "../../api/ws";
 import { ErrorBox, OnlineDot, ServerIcon, StateBadge } from "../../components/ui";
+import { shownState } from "../../lib/servers";
 
 type ServerView = components["schemas"]["ServerView"];
 type PowerAction = "start" | "stop" | "restart" | "kill";
@@ -20,7 +21,7 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
     mutationFn: () => call(api.POST("/servers/{uuid}/reinstall", { params: { path: { uuid } } })),
     meta: invalidates(keys.server(uuid)),
   });
-  const notReady = state === "installing" || state === "install_failed";
+  const notReady = state === "installing" || state === "install_failed" || s.suspended;
   const btn = (action: PowerAction, label: string, icon: ReactNode, extra = "") => (
     <button
       type="button"
@@ -41,7 +42,7 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
         <div className="min-w-0 flex-1 basis-72">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="h-display text-[30px] font-bold leading-tight">{s.name}</h1>
-            <StateBadge state={state} />
+            <StateBadge state={shownState(s, state)} />
           </div>
           {s.description && <p className="mt-1 text-sm text-zinc-400">{s.description}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-zinc-400">
@@ -70,6 +71,13 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
           </MoreMenu>
         </div>
       </header>
+      {s.suspended && (
+        <p role="status" className="rounded-xl border border-bad/40 bg-bad-bg px-4 py-3 text-sm text-bad-text">
+          {can("owner") && s.permissions.length > 0
+            ? "This server is suspended: it is stopped, cannot be started, and its owner and subusers cannot use it. Lift the suspension in Settings."
+            : "This server is suspended, so it is stopped and its console, files and settings are closed. Contact your host to have it restored."}
+        </p>
+      )}
       <ErrorBox error={power.error ?? reinstall.error} />
     </>
   );

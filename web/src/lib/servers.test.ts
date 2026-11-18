@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countGroups, groupOf, matchesServer, sortServers, summarize } from "./servers";
+import { countGroups, groupOf, matchesServer, shownState, sortServers, summarize } from "./servers";
 
 const s = (over: Partial<Parameters<typeof matchesServer>[0]> = {}) => ({ name: "Survival SMP", state: "offline", port: 25565, egg_name: "Paper Minecraft", node_name: "eu-west-1", ...over });
 
@@ -74,5 +74,15 @@ describe("groups", () => {
     expect(countGroups(list)).toEqual({ running: 1, stopped: 2, busy: 0, problem: 1 });
     expect(summarize(list)).toBe("1 running, 1 need attention, 2 stopped");
     expect(summarize([])).toBe("");
+  });
+});
+
+describe("suspended servers", () => {
+  it("show as suspended whatever the node reports, and need attention", () => {
+    expect(shownState({ state: "running", suspended: true }, "running")).toBe("suspended");
+    expect(shownState({ state: "offline", suspended: false }, "running")).toBe("running");
+    expect(shownState({ state: "offline" })).toBe("offline");
+    expect(groupOf("suspended")).toBe("problem");
+    expect(matchesServer({ name: "a", state: "suspended", port: 1 }, "suspended")).toBe(true);
   });
 });

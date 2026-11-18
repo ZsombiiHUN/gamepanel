@@ -950,6 +950,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/external-id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear a server's external id (admin) */
+        put: operations["setServerExternalID"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/files": {
         parameters: {
             query?: never;
@@ -1432,6 +1449,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend a server (admin)
+         * @description Stops the server and keeps it stopped: it cannot be started, and its owner and subusers can see it but do nothing with it (console, files, SFTP, backups, schedules) until it is unsuspended. Nothing is deleted. Suspending a suspended server changes nothing.
+         */
+        post: operations["suspendServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lift a suspension (admin)
+         * @description The server can be used and started again; it is not started by this.
+         */
+        post: operations["unsuspendServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/users": {
         parameters: {
             query?: never;
@@ -1468,6 +1525,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List or find accounts (admin) */
+        get: operations["listAccounts"];
+        put?: never;
+        /** Create an account for someone (admin) */
+        post: operations["createAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an account (admin) */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an account that owns no servers (admin)
+         * @description Its access to other people's servers goes with it, and schedules it saved there are turned off.
+         */
+        delete: operations["deleteAccount"];
+        options?: never;
+        head?: never;
+        /**
+         * Change an account's email, external id or password (admin)
+         * @description Fields left out stay as they are. The email and password of admin accounts can only be changed from their own account settings.
+         */
+        patch: operations["updateAccount"];
+        trace?: never;
+    };
+    "/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List webhooks (admin) */
+        get: operations["listWebhooks"];
+        put?: never;
+        /**
+         * Send events to an address (admin)
+         * @description Each event is POSTed as JSON with an `X-GamePanel-Signature: t=<unix time>,v1=<hex>` header, where v1 is HMAC-SHA256 of `<t>.<body>` keyed with the secret returned here (shown once). Answer 2xx; anything else, or no answer within 10 s, is retried with growing gaps (30 s up to 6 h) for about a day.
+         */
+        post: operations["createWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a webhook (admin) */
+        put: operations["updateWebhook"];
+        post?: never;
+        /** Delete a webhook and its delivery log (admin) */
+        delete: operations["deleteWebhook"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/{id}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A webhook's latest 100 deliveries, newest first (admin) */
+        get: operations["listWebhookDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/{id}/deliveries/{delivery}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a delivered or given-up delivery again now (admin) */
+        post: operations["retryWebhookDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/{id}/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test event (admin)
+         * @description Queues a `ping` event to this webhook, also when it is turned off. Its result shows in the delivery log.
+         */
+        post: operations["pingWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1490,6 +1683,61 @@ export interface components {
             name: string;
             /** @description first characters of the key, to recognise it */
             prefix: string;
+        };
+        Account: {
+            /** Format: int64 */
+            created_at: number;
+            email: string;
+            external_id: string;
+            /** @description false until the person sets one (or signs in with single sign-on only) */
+            has_password: boolean;
+            /** Format: int64 */
+            id: number;
+            is_admin: boolean;
+            /**
+             * Format: int64
+             * @description servers this account owns
+             */
+            servers: number;
+            totp_enabled: boolean;
+        };
+        AccountCreateInBody: {
+            admin?: boolean;
+            /** Format: email */
+            email: string;
+            /** @description your own id for the customer, unique; a retried create with the same one returns the existing account with 200 */
+            external_id?: string;
+            /** @description leave out to send the person a link to choose one */
+            password?: string;
+            /** @description email the password link (default true; needs email set up) */
+            send_email?: boolean;
+        };
+        AccountCreated: {
+            /** Format: int64 */
+            created_at: number;
+            email: string;
+            emailed: boolean;
+            external_id: string;
+            /** @description false until the person sets one (or signs in with single sign-on only) */
+            has_password: boolean;
+            /** Format: int64 */
+            id: number;
+            is_admin: boolean;
+            /**
+             * Format: int64
+             * @description servers this account owns
+             */
+            servers: number;
+            setup_link?: string;
+            totp_enabled: boolean;
+        };
+        AccountUpdateInBody: {
+            /** Format: email */
+            email?: string;
+            /** @description "" clears it */
+            external_id?: string;
+            /** @description signs the account out everywhere */
+            password?: string;
         };
         AuditEntry: {
             action: string;
@@ -1603,6 +1851,33 @@ export interface components {
             /** Format: int64 */
             limit: number;
         };
+        Delivery: {
+            /** Format: int64 */
+            attempts: number;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            delivered_at: number;
+            event: string;
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int64
+             * @description HTTP status of the last try, 0 = no answer
+             */
+            last_code: number;
+            last_error: string;
+            /**
+             * Format: int64
+             * @description when a pending delivery is tried next
+             */
+            next_at: number;
+            payload: string;
+            /** @enum {string} */
+            status: "pending" | "delivered" | "failed";
+            /** Format: int64 */
+            webhook_id: number;
+        };
         Egg: {
             description: string;
             /** @description the default image (the first of docker_images) */
@@ -1671,6 +1946,10 @@ export interface components {
              * @example https://example.com/errors/example
              */
             type: string;
+        };
+        ExternalIDInBody: {
+            /** @description "" clears it */
+            external_id: string;
         };
         File: {
             filename: string;
@@ -2099,6 +2378,9 @@ export interface components {
             description: string;
             id: string;
         };
+        PingOutBody: {
+            queued: boolean;
+        };
         PortAddInBody: {
             notes?: string;
             /**
@@ -2213,6 +2495,8 @@ export interface components {
             env?: {
                 [key: string]: string;
             };
+            /** @description your own id for the server, unique; a retried create with the same one returns the existing server with 200 */
+            external_id?: string;
             /**
              * Format: int64
              * @description 0 = default, else 10-1000
@@ -2221,8 +2505,13 @@ export interface components {
             /** Format: int64 */
             memory_mb: number;
             name: string;
-            /** Format: int64 */
-            node_id: number;
+            /**
+             * Format: int64
+             * @description 0 = the panel picks an online node with room, from node_ids if given
+             */
+            node_id?: number;
+            /** @description nodes the panel may pick from when node_id is 0 (default: all) */
+            node_ids?: number[] | null;
             /**
              * Format: int64
              * @description Defaults to you.
@@ -2243,6 +2532,8 @@ export interface components {
              * @description ports the owner may add beyond the primary one
              */
             port_limit?: number;
+            /** @description start the server once it is installed */
+            start_on_completion?: boolean;
             /**
              * Format: int64
              * @description 0 = none, -1 = unlimited
@@ -2312,7 +2603,10 @@ export interface components {
             env: {
                 [key: string]: string;
             };
+            external_id: string;
             image: string;
+            /** @enum {string} */
+            install_status: "installing" | "installed" | "failed";
             /**
              * Format: int64
              * @description relative disk IO priority 10-1000, 0 = default
@@ -2349,6 +2643,7 @@ export interface components {
             /** @description offline|starting|running|stopping|installing|install_failed|crashed|unknown */
             state: string;
             stats?: components["schemas"]["Stats"];
+            suspended: boolean;
             /**
              * Format: int64
              * @description extra swap on top of memory: 0 = none, -1 = unlimited
@@ -2543,6 +2838,42 @@ export interface components {
             version_number: string;
             /** @description release, beta or alpha */
             version_type: string;
+        };
+        Webhook: {
+            /** Format: int64 */
+            created_at: number;
+            description: string;
+            enabled: boolean;
+            /** @description event names, or ["*"] for all */
+            events: string[];
+            /** Format: int64 */
+            id: number;
+            url: string;
+        };
+        WebhookBody: {
+            description?: string;
+            /** @description default true */
+            enabled?: boolean;
+            /** @description server.created, server.installed, server.install_failed, server.suspended, server.unsuspended, server.deleted, user.created, user.deleted, or * for all */
+            events: string[] | null;
+            /** @description http(s) address the panel POSTs events to */
+            url: string;
+        };
+        WebhookUpdateInBody: {
+            /** @description make a new signing secret (the old one stops working at once) */
+            rotate_secret?: boolean;
+        };
+        WebhookWithSecret: {
+            /** Format: int64 */
+            created_at: number;
+            description: string;
+            enabled: boolean;
+            /** @description event names, or ["*"] for all */
+            events: string[];
+            /** Format: int64 */
+            id: number;
+            secret?: string;
+            url: string;
         };
     };
     responses: never;
@@ -4013,7 +4344,10 @@ export interface operations {
     };
     listServers: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description only the server with this external id (admin) */
+                external_id?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4541,6 +4875,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RenameInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setServerExternalID: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalIDInBody"];
             };
         };
         responses: {
@@ -5725,6 +6094,68 @@ export interface operations {
             };
         };
     };
+    suspendServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    unsuspendServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listSubusers: {
         parameters: {
             query?: never;
@@ -5843,6 +6274,388 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listAccounts: {
+        parameters: {
+            query?: {
+                /** @description only the account with this email */
+                email?: string;
+                /** @description only the account with this external id */
+                external_id?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountCreateInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountCreated"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updateAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountUpdateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listWebhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Webhook"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookWithSecret"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updateWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookUpdateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookWithSecret"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    listWebhookDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Delivery"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    retryWebhookDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                delivery: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    pingWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PingOutBody"];
+                };
             };
             /** @description Error */
             default: {

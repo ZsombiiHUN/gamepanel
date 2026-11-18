@@ -7,7 +7,7 @@ import { SearchInput } from "../components/SearchInput";
 import { useSearchText } from "../hooks/useSearchText";
 import { Empty, ErrorBox, Meter, ServerIcon, Spinner, StateBadge } from "../components/ui";
 import { formatBytes } from "../lib/format";
-import { countGroups, GROUPS, groupLabel, groupOf, matchesServer, sortServers, summarize, type Group } from "../lib/servers";
+import { countGroups, GROUPS, groupLabel, groupOf, matchesServer, shownState, sortServers, summarize, type Group } from "../lib/servers";
 
 type ServerView = components["schemas"]["ServerView"];
 
@@ -38,7 +38,7 @@ function ServerCard({ s }: { s: ServerView }) {
         {live && <Meter label="CPU" text={`${live.cpu_pct.toFixed(0)}%`} pct={cpuPct} />}
         {live && <Meter label="Memory" text={`${formatBytes(live.mem_bytes)} / ${formatBytes(s.memory_mb * 1024 * 1024)}`} pct={memPct} />}
         {s.stats && <Meter label="Disk" text={`${formatBytes(s.stats.disk_bytes)} / ${s.disk_mb ? formatBytes(s.disk_mb * 1024 * 1024) : "no limit"}`} pct={diskPct} />}
-        {!s.stats && <p className="py-1 text-[13px] text-zinc-500">{s.state === "installing" ? "Setting up files. This takes a few minutes the first time." : "Not running. Start it to see live usage."}</p>}
+        {!s.stats && <p className="py-1 text-[13px] text-zinc-500">{s.state === "installing" ? "Setting up files. This takes a few minutes the first time." : s.state === "suspended" ? "Suspended. Contact your host to have it restored." : "Not running. Start it to see live usage."}</p>}
       </div>
       <div className="mt-auto flex gap-2 border-t border-line pt-4">
         <Link to="/servers/$uuid" params={{ uuid: s.uuid }} search={{ tab: "console" }} className="btn flex-1">
@@ -47,7 +47,7 @@ function ServerCard({ s }: { s: ServerView }) {
         <button
           type="button"
           className={`btn flex-1 ${running ? "" : "btn-primary"}`}
-          disabled={power.isPending || busy || !s.node_online || !s.permissions.includes("power")}
+          disabled={power.isPending || busy || s.state === "suspended" || !s.node_online || !s.permissions.includes("power")}
           onClick={() => power.mutate()}
         >
           {power.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
@@ -68,7 +68,8 @@ export function ServersPage() {
   const navigate = useNavigate({ from: "/" });
   const setGroup = (g: Group | "all") => void navigate({ search: (prev) => ({ ...prev, status: g === "all" ? undefined : g }), replace: true });
   const [q, setQ] = useSearchText(urlQuery, (text) => void navigate({ search: (prev) => ({ ...prev, q: text || undefined }), replace: true }), 400);
-  const all = servers.data ?? [];
+  // A suspended server shows (and filters and counts) as suspended, whatever its node says.
+  const all = (servers.data ?? []).map((s) => ({ ...s, state: shownState(s) }));
   const groups = countGroups(all);
   const filtering = q.trim() !== "" || group !== "all";
   const list = sortServers(all).filter((s) => (group === "all" || groupOf(s.state) === group) && matchesServer(s, q));

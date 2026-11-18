@@ -460,17 +460,44 @@ type Server struct {
 	Startup string `json:"startup"`
 	// CrashRestart: the node restarts the server when it crashes.
 	CrashRestart bool `json:"crash_restart"`
+	// ExternalID is a shop's own id for the server (an order number), unique.
+	ExternalID string `json:"external_id"`
+	// Suspended: stopped, and only admins can use it, until unsuspended.
+	Suspended bool `json:"suspended"`
+	// InstallStatus is installing, installed or failed, from what the node
+	// last reported.
+	InstallStatus string `json:"install_status" enum:"installing,installed,failed"`
 	Limits
 }
 
-const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup,port_limit,database_limit,description,bandwidth_mbit,crash_restart`
+// Install statuses (servers.install_status).
+const (
+	InstallInstalling = "installing"
+	InstallInstalled  = "installed"
+	InstallFailed     = "failed"
+)
+
+// ErrExternalIDTaken: another server or account already has that external id.
+var ErrExternalIDTaken = userErr("that external_id is already used")
+
+// nullable stores "" as NULL, so unique indexes ignore unset ids.
+func nullable(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup,port_limit,database_limit,description,bandwidth_mbit,crash_restart,external_id,suspended,install_status`
 
 func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 	var v Server
 	var env string
-	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup, &v.PortLimit, &v.DatabaseLimit, &v.Description, &v.BandwidthMbit, &v.CrashRestart); err != nil {
+	var ext sql.NullString
+	if err := sc.Scan(&v.UUID, &v.Name, &v.OwnerID, &v.NodeID, &v.EggID, &v.MemoryMB, &v.CPUPct, &v.Port, &env, &v.SwapMB, &v.CPUSet, &v.PidsLimit, &v.IOWeight, &v.DiskMB, &v.BackupLimit, &v.Image, &v.Startup, &v.PortLimit, &v.DatabaseLimit, &v.Description, &v.BandwidthMbit, &v.CrashRestart, &ext, &v.Suspended, &v.InstallStatus); err != nil {
 		return v, nf(err)
 	}
+	v.ExternalID = ext.String
 	json.Unmarshal([]byte(env), &v.Env)
 	if v.Env == nil {
 		v.Env = map[string]string{}
@@ -523,13 +550,18 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 	}
 	v.Port = port
 	v.CrashRestart = true // on for every new server; owners can turn it off
+	v.InstallStatus = InstallInstalling
 	if v.Env == nil {
 		v.Env = map[string]string{}
 	}
 	env, _ := json.Marshal(v.Env)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),
-		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, v.PortLimit, v.DatabaseLimit, v.Description, v.BandwidthMbit, v.CrashRestart, now()); err != nil {
+		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, v.PortLimit, v.DatabaseLimit, v.Description, v.BandwidthMbit, v.CrashRestart,
+		nullable(v.ExternalID), v.Suspended, v.InstallStatus, now()); err != nil {
+		if strings.Contains(err.Error(), "servers.external_id") {
+			return v, ErrExternalIDTaken
+		}
 		return v, err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO server_ports(node_id,port,server_uuid,created_at) VALUES(?,?,?,?)`, v.NodeID, v.Port, v.UUID, now()); err != nil {

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Box, Check, Copy, Cpu, Crown, Fingerprint, HardDrive, Layers, MemoryStick, Network, Server, Trash2 } from "lucide-react";
+import { Archive, Ban, Box, Check, Copy, Cpu, Crown, Fingerprint, HardDrive, Layers, MemoryStick, Network, Server, Tag, Trash2 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { invalidates, keys, meQuery } from "../api/queries";
 import { ErrorBox, Field, FormDialog, Section } from "../components/ui";
@@ -107,6 +107,9 @@ export function SettingsTab({ server }: { server: ServerView }) {
           <div className="sm:col-span-2">
             <Tile icon={ico(Fingerprint)} label="Server ID" mono action={<CopyIcon text={server.uuid} label="Copy server ID" />}>{server.uuid}</Tile>
           </div>
+          {isAdmin && server.external_id && (
+            <Tile icon={ico(Tag)} label="External ID (shop)" mono action={<CopyIcon text={server.external_id} label="Copy external ID" />}>{server.external_id}</Tile>
+          )}
         </div>
       </Section>
       {ownerOpen && <OwnerDialog server={server} onClose={() => setOwnerOpen(false)} />}
@@ -150,6 +153,8 @@ export function SettingsTab({ server }: { server: ServerView }) {
         </Section>
       )}
 
+      {isAdmin && <SuspendSection server={server} />}
+
       {isAdmin && (
         <Section
           danger
@@ -176,6 +181,41 @@ export function SettingsTab({ server }: { server: ServerView }) {
         onCancel={() => { setConfirm(false); del.reset(); }}
       />
     </div>
+  );
+}
+
+/** Suspending stops the server and locks its owner out until it is lifted; nothing is deleted. */
+function SuspendSection({ server }: { server: ServerView }) {
+  const [confirm, setConfirm] = useState(false);
+  const change = useMutation({
+    mutationFn: () => call(server.suspended
+      ? api.POST("/servers/{uuid}/unsuspend", { params: { path: { uuid: server.uuid } } })
+      : api.POST("/servers/{uuid}/suspend", { params: { path: { uuid: server.uuid } } })),
+    meta: invalidates(keys.server(server.uuid), keys.servers),
+    onSuccess: () => setConfirm(false),
+  });
+  return (
+    <>
+      <Section
+        title="Suspension"
+        desc={server.suspended
+          ? "This server is suspended. Lifting it lets its owner and subusers use it again; it is not started by this."
+          : "Stops the server and keeps it stopped. Its owner and subusers still see it but cannot use it until the suspension is lifted. Nothing is deleted."}
+        footer={
+          <>
+            <span>{server.suspended ? "Suspended." : "Billing systems do this through the API when an invoice goes unpaid."}</span>
+            <button type="button" className={server.suspended ? "btn btn-primary" : "btn"} disabled={change.isPending} onClick={() => (server.suspended ? change.mutate() : setConfirm(true))}>
+              <Ban className="h-4 w-4" aria-hidden /> {server.suspended ? "Lift suspension" : "Suspend server"}
+            </button>
+          </>
+        }
+      >
+        {server.suspended && change.error ? <ErrorBox error={change.error} /> : null}
+      </Section>
+      <FormDialog open={confirm} title={`Suspend ${server.name}?`} submitLabel="Suspend server" pending={change.isPending} error={change.error} onSubmit={() => change.mutate()} onClose={() => { setConfirm(false); change.reset(); }}>
+        <p>The server is stopped now if it is running, and cannot be started until you lift the suspension. Its owner and subusers lose access to the console, files, backups and settings in the meantime.</p>
+      </FormDialog>
+    </>
   );
 }
 
