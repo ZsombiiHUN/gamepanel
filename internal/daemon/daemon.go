@@ -896,10 +896,14 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 	}
 	d.attach(ctx, uuid)
 	if spec.BandwidthMbit > 0 {
-		if err := d.rt.LimitBandwidth(ctx, uuid); err != nil {
+		mode, err := d.rt.LimitBandwidth(ctx, uuid)
+		switch {
+		case err != nil:
 			// Not fatal: the server runs, unlimited, and its owner is told why.
 			d.log.Warn("could not apply the bandwidth limit", "server", uuid, "err", err)
-			d.sendConsole(uuid, "\x1b[33m[gamepanel] the network limit could not be applied on this node (it needs tc and nsenter); the server runs without it\x1b[0m")
+			d.sendConsole(uuid, "\x1b[33m[gamepanel] the network limit could not be applied on this node (it needs tc, ip and nsenter); the server runs without it\x1b[0m")
+		case mode == runtime.IngressPoliced:
+			d.log.Info("incoming traffic is policed, not shaped: this kernel has no ifb device", "server", uuid)
 		}
 	}
 	d.emitState(ctx, uuid, runtime.StateRunning)

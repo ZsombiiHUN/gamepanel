@@ -150,7 +150,7 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 **S3 backups** are verified against a real S3-compatible store (RustFS) by `TestS3Backups` when `GAMEPANEL_TEST_S3_ENDPOINT` is set, and request signing against AWS's published example.
 
-**Network limits** are applied with `tc` inside the container's network namespace (needs root, `tc` and `nsenter` on the node; if they are missing the server starts unlimited and its console says so). The commands are checked against a real kernel in a network namespace, where shaping measured 10 Mbit/s up and policing under 10 Mbit/s down; they have not yet been run against a real Docker host.
+**Network limits** are applied inside the container's network namespace: a token bucket on what the server sends, and the same on what it receives by redirecting it through an ifb device (needs root, `tc`, `ip` and `nsenter` on the node; if they are missing the server starts unlimited and its console says so; a kernel without ifb gets a policer on incoming traffic instead). [`scripts/bandwidth-smoke.sh`](scripts/bandwidth-smoke.sh) checks them against a real Docker engine with iperf3: at 10 and 100 Mbit/s both directions hold at about 96% of the limit, including after a restart, a crash restart and a daemon restart. A daemon that runs in a container needs the host's PID namespace (`--pid=host`) and `CAP_SYS_ADMIN` and `CAP_NET_ADMIN` to reach the servers' namespaces.
 
 **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
 
