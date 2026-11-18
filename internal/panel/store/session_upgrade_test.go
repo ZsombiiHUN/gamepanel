@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/pressly/goose/v3"
 )
 
 // enrolTOTP turns two-factor on for a fresh user and returns its id, secret
@@ -36,6 +34,7 @@ func enrolTOTP(t *testing.T, s *Store) (int64, []byte, []string) {
 // A burst of parallel wrong codes gets exactly the free guesses and no more:
 // the requests cannot all pass the delay check before one records a failure.
 func TestTOTPLockoutHoldsUnderConcurrency(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, err := Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
@@ -106,16 +105,18 @@ func TestTOTPLockoutHoldsUnderConcurrency(t *testing.T) {
 // Migration 00010 caps sessions from before the 12-hour limit and marks them
 // as allowed to move off the old cookie name once.
 func TestSessionUpgradeMigration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "p.db")
 	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	goose.SetBaseFS(migrations)
-	goose.SetDialect("sqlite3")
-	goose.SetLogger(goose.NopLogger())
-	if err := goose.UpTo(db, "migrations", 9); err != nil {
+	m, err := migrator(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.UpTo(ctx, 9); err != nil {
 		t.Fatal(err)
 	}
 	n := now()

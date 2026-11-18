@@ -30,6 +30,7 @@ type startupResp struct {
 }
 
 func TestStartupSettings(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var e struct{ ID int64 }
 	json.Unmarshal(s.admin.do("POST", "/api/eggs/import", startupEgg, 201), &e)

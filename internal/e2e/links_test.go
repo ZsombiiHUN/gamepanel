@@ -79,6 +79,7 @@ func anon(t *testing.T, base string) *client {
 }
 
 func TestPasswordReset(t *testing.T) {
+	t.Parallel()
 	box := &outbox{}
 	admin, st, base := linkPanel(t, api.Deps{Mail: box, PublicURL: "https://panel.example.com"})
 	st.CreateUser(context.Background(), "bob@example.com", "another-long-password", false)
@@ -118,6 +119,7 @@ func TestPasswordReset(t *testing.T) {
 }
 
 func TestPasswordResetNeedsMail(t *testing.T) {
+	t.Parallel()
 	_, _, base := linkPanel(t, api.Deps{}) // no SMTP
 	anon(t, base).do("POST", "/api/auth/forgot", map[string]string{"email": "admin@example.com"}, 404)
 	_, _, base = linkPanel(t, api.Deps{Mail: &outbox{}}) // SMTP but no public address: no links in mail
@@ -125,6 +127,7 @@ func TestPasswordResetNeedsMail(t *testing.T) {
 }
 
 func TestInvitations(t *testing.T) {
+	t.Parallel()
 	box := &outbox{}
 	admin, st, base := linkPanel(t, api.Deps{Mail: box, PublicURL: "https://panel.example.com"})
 	ctx := context.Background()
@@ -208,6 +211,7 @@ func TestInvitations(t *testing.T) {
 }
 
 func TestOpenSignup(t *testing.T) {
+	t.Parallel()
 	_, _, base := linkPanel(t, api.Deps{Signup: api.SignupOpen})
 	c := anon(t, base)
 	c.do("POST", "/api/auth/register", map[string]string{"email": "new@example.com", "password": "short"}, 422)

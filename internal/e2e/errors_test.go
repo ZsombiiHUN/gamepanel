@@ -12,6 +12,7 @@ import (
 )
 
 func TestAPIDescriptionNeedsASignIn(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	anon := &client{t, s.admin.base, &http.Client{}}
 	for _, p := range []string{"/api/openapi.json", "/api/openapi.yaml", "/api/docs", "/api/schemas/ErrorModel.json"} {
@@ -23,6 +24,7 @@ func TestAPIDescriptionNeedsASignIn(t *testing.T) {
 }
 
 func TestErrorRepliesRevealNoInternals(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 
 	// A missing file: a plain not-found, not "openat ...: no such file or directory".

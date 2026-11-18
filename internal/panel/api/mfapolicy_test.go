@@ -39,6 +39,7 @@ func mfaRequiredFlag(t *testing.T, c *cl) bool {
 // ASVS v5.0.0-6.3.3: with GAMEPANEL_REQUIRE_MFA=all, an account without a
 // second factor can only set one up; nothing else works until it has.
 func TestRequireMFAHoldsSessionsToEnrolment(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "").withDeps(func(d *api.Deps) { d.RequireMFA = api.MFAAll })
 	c := e.client()
 	code, body := c.do("POST", "/api/auth/login", map[string]string{"email": bobEmail, "password": bobPW}, nil)
@@ -81,6 +82,7 @@ func TestRequireMFAHoldsSessionsToEnrolment(t *testing.T) {
 }
 
 func TestRequireMFAForAdminsOnly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "").withDeps(func(d *api.Deps) { d.RequireMFA = api.MFAAdmins })
 	bob, admin := e.client(), e.client()
 	bob.login(bobEmail, bobPW)
@@ -96,6 +98,7 @@ func TestRequireMFAForAdminsOnly(t *testing.T) {
 // API keys made before the policy stop working until their owner has a
 // second factor, so a key cannot be used to skip it.
 func TestRequireMFABlocksKeysWithoutSecondFactor(t *testing.T) {
+	t.Parallel()
 	base := newEnv(t, "")
 	ctx := context.Background()
 	u, _ := base.st.UserByEmail(ctx, bobEmail)
@@ -120,6 +123,7 @@ func TestRequireMFABlocksKeysWithoutSecondFactor(t *testing.T) {
 // add a new factor to get past the policy: it may only sign out and sign in
 // again with the passkey.
 func TestRequireMFAEnrolledAccountMustUseItsFactor(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "").withDeps(func(d *api.Deps) { d.RequireMFA = api.MFAAll })
 	u, _ := e.st.UserByEmail(context.Background(), bobEmail)
 	if _, err := e.st.DB.Exec(`INSERT INTO passkeys(id,user_id,name,data,created_at) VALUES('pk1',?,'key','{}',1)`, u.ID); err != nil {
@@ -153,6 +157,7 @@ func TestRequireMFAEnrolledAccountMustUseItsFactor(t *testing.T) {
 
 // Without the setting nothing changes.
 func TestNoMFAPolicyByDefault(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	c := e.client()
 	c.login("admin@example.com", "correct-horse-battery")
@@ -162,6 +167,7 @@ func TestNoMFAPolicyByDefault(t *testing.T) {
 }
 
 func TestHSTSSetting(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "").withDeps(func(d *api.Deps) {
 		d.CookieSecure = true
 		d.HSTS = "max-age=31536000; includeSubDomains"

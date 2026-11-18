@@ -16,6 +16,7 @@ import (
 )
 
 func TestModManager(t *testing.T) {
+	t.Parallel()
 	jar := []byte("PK fake LuckPerms jar")
 	sum := sha512.Sum512(jar)
 	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(jar) }))

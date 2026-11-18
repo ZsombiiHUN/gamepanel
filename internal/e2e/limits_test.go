@@ -46,6 +46,7 @@ func (s *stack) view() (v serverLimitsView) {
 }
 
 func TestEditLimitsAndNodeCapacity(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 
@@ -115,6 +116,7 @@ func TestEditLimitsAndNodeCapacity(t *testing.T) {
 }
 
 func TestDiskLimitEnforcement(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	dir := filepath.Join(s.dataDir, "servers", s.server)
@@ -187,6 +189,7 @@ func mustReq(method, url, body string) *http.Request {
 
 // The web form always sends every limit, with 0 meaning "default/unlimited".
 func TestCreateServerWithExplicitDefaultLimits(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	var out struct{ UUID string }
 	json.Unmarshal(s.admin.do("POST", "/api/servers", map[string]any{

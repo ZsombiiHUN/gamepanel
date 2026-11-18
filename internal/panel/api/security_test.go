@@ -81,6 +81,7 @@ func (c *cl) login(email, pw string) int {
 }
 
 func TestChangePasswordRevokesOtherSessions(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	a, b := e.client(), e.client() // two browsers, same user
 	if a.login("bob@example.com", "another-long-password") != 200 || b.login("bob@example.com", "another-long-password") != 200 {
@@ -117,6 +118,7 @@ func TestChangePasswordRevokesOtherSessions(t *testing.T) {
 }
 
 func TestPerAccountLockoutSurvivesIPRotation(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "127.0.0.1")
 	// The attacker rotates source IPs via a trusted proxy, so the per-IP limit never trips.
 	for i := 0; i < 20; i++ {
@@ -138,6 +140,7 @@ func TestPerAccountLockoutSurvivesIPRotation(t *testing.T) {
 }
 
 func TestIPRateLimitUsesRealClientBehindProxy(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "127.0.0.1")
 	// 10 failures from one real client trip the per-IP limit...
 	for i := 0; i < 10; i++ {
@@ -158,6 +161,7 @@ func TestIPRateLimitUsesRealClientBehindProxy(t *testing.T) {
 }
 
 func TestForwardedForIgnoredFromUntrustedPeer(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "") // no trusted proxies: header must be ignored
 	for i := 0; i < 10; i++ {
 		e.client().do("POST", "/api/auth/login", map[string]string{"email": "n@x.io", "password": "whatever-long-1"},
@@ -171,6 +175,7 @@ func TestForwardedForIgnoredFromUntrustedPeer(t *testing.T) {
 }
 
 func TestCrossOriginWritesBlocked(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	c := e.client()
 	if c.login("bob@example.com", "another-long-password") != 200 {
@@ -189,6 +194,7 @@ func TestCrossOriginWritesBlocked(t *testing.T) {
 }
 
 func TestAuditLog(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, "")
 	bob, admin := e.client(), e.client()
 	bob.login("bob@example.com", "wrong-password-xx")

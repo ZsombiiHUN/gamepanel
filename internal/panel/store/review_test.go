@@ -8,6 +8,7 @@ import (
 )
 
 func TestSigningInClearsExpiredSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := testServer(t)
 	u, _ := s.Login(ctx, "a@example.com", "correct-horse-battery")
@@ -23,6 +24,7 @@ func TestSigningInClearsExpiredSessions(t *testing.T) {
 }
 
 func TestOneRestoreAtATimeAndStaleRestoresFail(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	for _, id := range []string{"b1", "b2"} {
@@ -58,6 +60,7 @@ func TestOneRestoreAtATimeAndStaleRestoresFail(t *testing.T) {
 }
 
 func TestDeleteNodeSaysWhy(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := testServer(t)
 	nodes, _ := s.ListNodes(ctx)
@@ -74,6 +77,7 @@ func TestDeleteNodeSaysWhy(t *testing.T) {
 }
 
 func TestChangePasswordReportsAWrongCurrentPassword(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, _ := testServer(t)
 	u, _ := s.Login(ctx, "a@example.com", "correct-horse-battery")
@@ -83,6 +87,7 @@ func TestChangePasswordReportsAWrongCurrentPassword(t *testing.T) {
 }
 
 func TestSchedulesRememberTheirAuthor(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	u, _ := s.Login(ctx, "a@example.com", "correct-horse-battery")
@@ -98,6 +103,7 @@ func TestSchedulesRememberTheirAuthor(t *testing.T) {
 }
 
 func TestSubuserServersInOneQuery(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	b, _ := s.CreateUser(ctx, "b@example.com", "correct-horse-battery", false)

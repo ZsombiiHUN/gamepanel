@@ -39,6 +39,7 @@ func (s *consoleSink) lines() (all []string, msgs int) {
 }
 
 func TestConsoleIsBatchedInOrder(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	var sink consoleSink
 	d.sendHook = sink.hook
@@ -76,6 +77,7 @@ func TestConsoleIsBatchedInOrder(t *testing.T) {
 }
 
 func TestConsoleIsThrottled(t *testing.T) {
+	t.Parallel()
 	d := newTestDaemon(t, runtime.NewFake())
 	var sink consoleSink
 	d.sendHook = sink.hook

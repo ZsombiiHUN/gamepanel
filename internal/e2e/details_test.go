@@ -9,6 +9,7 @@ import (
 )
 
 func TestRenameAndOwner(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	login := func(email string) *client {
@@ -63,6 +64,7 @@ func TestRenameAndOwner(t *testing.T) {
 }
 
 func TestServerActivity(t *testing.T) {
+	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
 	s.write("/a.txt", "x")

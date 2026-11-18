@@ -68,6 +68,7 @@ func allOps() []sftpOp {
 }
 
 func TestSFTPPermissionMatrix(t *testing.T) {
+	t.Parallel()
 	for _, who := range []struct {
 		name, user, key string
 		read, write     bool
@@ -107,6 +108,7 @@ func TestSFTPPermissionMatrix(t *testing.T) {
 // Clients stat a target before uploading, so stat works with write access
 // alone; listing a directory still needs read.
 func TestSFTPStatNeedsEitherPermission(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	r.put("a.txt", "abc")
 	for _, who := range [][2]string{{readerUser, readerKey}, {writerUser, writerKey}} {
@@ -136,6 +138,7 @@ func TestSFTPStatNeedsEitherPermission(t *testing.T) {
 // ---- transfers ----
 
 func TestSFTPRoundTrips(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	plain := r.owner()
 	fast := r.login(ownerUser, ownerKey, sftp.UseConcurrentWrites(true), sftp.UseConcurrentReads(true), sftp.MaxConcurrentRequestsPerFile(64))
@@ -173,6 +176,7 @@ func TestSFTPRoundTrips(t *testing.T) {
 }
 
 func TestSFTPRandomAccessWrites(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	r.put("f.bin", "0123456789")
@@ -199,6 +203,7 @@ func TestSFTPRandomAccessWrites(t *testing.T) {
 }
 
 func TestSFTPOpenFlags(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	r.put("e.txt", "keep me")
@@ -251,6 +256,7 @@ func TestSFTPOpenFlags(t *testing.T) {
 // sshfs and some editors open files read-write and read back through the
 // same handle.
 func TestSFTPReadWriteHandle(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	r.put("rw.txt", "abcdef")
 	c := r.owner()
@@ -300,6 +306,7 @@ func TestSFTPReadWriteHandle(t *testing.T) {
 // ---- attributes ----
 
 func TestSFTPAttributes(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	r.put("a.txt", "12345")
@@ -368,6 +375,7 @@ func TestSFTPAttributes(t *testing.T) {
 
 // setstat of a size (path or open handle) truncates or extends the file.
 func TestSFTPTruncate(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	r.put("t.txt", "0123456789")
@@ -406,6 +414,7 @@ func TestSFTPTruncate(t *testing.T) {
 // ---- directories ----
 
 func TestSFTPDirectories(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	if err := c.Mkdir("/a"); err != nil {
@@ -458,6 +467,7 @@ func TestSFTPDirectories(t *testing.T) {
 }
 
 func TestSFTPListing(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	const n = 1234 // several ReadDir batches
@@ -502,6 +512,7 @@ func TestSFTPListing(t *testing.T) {
 // ---- rename ----
 
 func TestSFTPRenameMatrix(t *testing.T) {
+	t.Parallel()
 	type tc struct {
 		name     string
 		posix    bool
@@ -587,6 +598,7 @@ func TestSFTPRenameMatrix(t *testing.T) {
 // ---- names and paths ----
 
 func TestSFTPNames(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	for _, name := range []string{
@@ -625,6 +637,7 @@ func TestSFTPNames(t *testing.T) {
 
 // Every way of climbing out stays inside the server's folder.
 func TestSFTPPathsStayInside(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	parent := r.d.cfg.DataDir
@@ -676,6 +689,7 @@ func fsWalk(dir string, f func(string)) error {
 // ---- links planted by the game (or anyone with a shell in the container) ----
 
 func TestSFTPPlantedSymlinks(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	outside := t.TempDir()
@@ -778,6 +792,7 @@ func closeIf(f *sftp.File) {
 // Named pipes, sockets and directories are not files: opening one must fail
 // promptly instead of blocking the session.
 func TestSFTPSpecialFiles(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	syscall.Mkfifo(r.path("fifo"), 0o644)
@@ -813,6 +828,7 @@ func TestSFTPSpecialFiles(t *testing.T) {
 }
 
 func TestSFTPUnsupportedRequests(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	c := r.owner()
 	r.put("a", "a")
@@ -835,6 +851,7 @@ var _ = path.Join
 // flag with offsets counted from zero. Both must end up appended, also when
 // the client pipelines its writes.
 func TestSFTPAppendStyles(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	head := bytes.Repeat([]byte("h"), 100<<10)
 	tail := make([]byte, 2<<20)
@@ -892,6 +909,7 @@ func TestSFTPAppendStyles(t *testing.T) {
 // Pipelined append writes can reach the writer out of order. Where they land
 // must not depend on which one gets there first.
 func TestSFTPAppendOutOfOrder(t *testing.T) {
+	t.Parallel()
 	head := []byte("0123456789") // the file before the append
 	open := func(t *testing.T) (*limitedWriter, string) {
 		p := filepath.Join(t.TempDir(), "f")

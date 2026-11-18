@@ -27,6 +27,7 @@ func testServer(t *testing.T) (*Store, string) {
 }
 
 func TestBackupCapRotationAndLocks(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	mk := func(i int, rotate bool) ([]string, error) {
@@ -70,6 +71,7 @@ func TestBackupCapRotationAndLocks(t *testing.T) {
 }
 
 func TestOnlyOneRunningBackup(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	if _, err := s.BeginBackup(ctx, Backup{UUID: "00000000-0000-4000-8000-000000000001", ServerUUID: srv, Name: "a"}, false); err != nil {
@@ -85,6 +87,7 @@ func TestOnlyOneRunningBackup(t *testing.T) {
 }
 
 func TestNextRunAndClaimDue(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	at := time.Date(2026, 11, 15, 10, 7, 30, 0, time.UTC)
 	n, err := NextRun("*/15 * * * *", at)
@@ -129,6 +132,7 @@ func TestNextRunAndClaimDue(t *testing.T) {
 }
 
 func TestDeletingServerCascades(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	s, srv := testServer(t)
 	s.BeginBackup(ctx, Backup{UUID: "00000000-0000-4000-8000-000000000001", ServerUUID: srv, Name: "a"}, false)

@@ -43,6 +43,7 @@ func runOpenSSH(t *testing.T, r *sftpRig, user, key, local string, script string
 }
 
 func TestSFTPOpenSSHClient(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	local := t.TempDir()
 	data := make([]byte, 3<<20+123)
@@ -110,6 +111,7 @@ func TestSFTPOpenSSHClient(t *testing.T) {
 // A read-only user through the real client: downloads work, every change is
 // refused, and the session survives the refusals.
 func TestSFTPOpenSSHClientReadOnly(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	local := t.TempDir()
 	r.put("a.txt", "server copy")

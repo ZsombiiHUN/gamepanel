@@ -31,6 +31,7 @@ func (r *sftpRig) measured() {
 }
 
 func TestSFTPUploadStopsAtTheLimit(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 1, nil) // 1 MB
 	r.measured()
 	c := r.login(ownerUser, ownerKey, sftp.UseConcurrentWrites(true))
@@ -59,6 +60,7 @@ func TestSFTPUploadStopsAtTheLimit(t *testing.T) {
 // Over the limit (the game grew past it), a user can still clean up, but
 // nothing grows.
 func TestSFTPOverTheLimit(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 1, nil)
 	r.put("a.bin", string(make([]byte, 700<<10)))
 	r.put("b.bin", string(make([]byte, 700<<10)))
@@ -172,6 +174,7 @@ func stormOp(c *sftp.Client, rnd *rand.Rand) string {
 // One client, many operations: after each one the figure matches the disk
 // exactly, so nothing is ever double-counted or forgotten.
 func TestSFTPFigureMatchesDisk(t *testing.T) {
+	t.Parallel()
 	for seed := range int64(4) {
 		t.Run(fmt.Sprint("seed ", seed), func(t *testing.T) {
 			r := newSFTPRig(t, 2, nil) // 2 MB: some writes will not fit
@@ -197,6 +200,7 @@ func TestSFTPFigureMatchesDisk(t *testing.T) {
 // never counts less than is there (counting more is safe; the next walk
 // corrects it).
 func TestSFTPConcurrentClientsRespectTheLimit(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 2, nil)
 	os.Mkdir(r.path("d"), 0o755)
 	r.measured()
@@ -231,6 +235,7 @@ func TestSFTPConcurrentClientsRespectTheLimit(t *testing.T) {
 // Many uploads in parallel, each with its own client: every file arrives
 // intact.
 func TestSFTPParallelUploads(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	var wg sync.WaitGroup
 	errs := make(chan error, 16)
@@ -259,6 +264,7 @@ func TestSFTPParallelUploads(t *testing.T) {
 
 // Uploads racing for the last of the room never pass the limit together.
 func TestSFTPParallelUploadsShareTheRoom(t *testing.T) {
+	t.Parallel()
 	r := newSFTPRig(t, 1, nil)
 	r.measured()
 	var wg sync.WaitGroup
@@ -284,6 +290,7 @@ func TestSFTPParallelUploadsShareTheRoom(t *testing.T) {
 // The figure may count more than is there while a walk settles, never less,
 // and the disk never passes the limit.
 func TestSFTPStormWithWalksRunning(t *testing.T) {
+	t.Parallel()
 	for _, clients := range []int{1, 4} {
 		t.Run(fmt.Sprint(clients, " clients"), func(t *testing.T) {
 			r := newSFTPRig(t, 2, func(c *Config) { c.DiskCacheTTL = time.Millisecond })
