@@ -40,10 +40,11 @@ type fakePanel struct {
 	// mode makes the panel misbehave: "" answers normally, "hangup" drops the
 	// connection, "garbage" sends a body that is not JSON, and a number
 	// ("502") answers with that status.
-	mode string
+	mode  string
+	delay time.Duration // wait this long before answering
 }
 
-func newFakePanel(t *testing.T) *fakePanel {
+func newFakePanel(t testing.TB) *fakePanel {
 	p := &fakePanel{logins: map[string]proto.SFTPAuthResp{}}
 	p.srv = httptest.NewServer(http.HandlerFunc(p.serve))
 	t.Cleanup(p.srv.Close)
@@ -61,8 +62,15 @@ func (p *fakePanel) serve(w http.ResponseWriter, r *http.Request) {
 	if got := r.Header.Get("Authorization"); got != "Bearer "+rigToken {
 		p.bad = append(p.bad, "authorization "+got)
 	}
-	resp, mode := p.logins[req.Username+"\x00"+req.Password], p.mode
+	resp, mode, delay := p.logins[req.Username+"\x00"+req.Password], p.mode, p.delay
 	p.mu.Unlock()
+	if delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-r.Context().Done():
+			return
+		}
+	}
 	switch mode {
 	case "":
 		w.Header().Set("Content-Type", "application/json")
@@ -100,6 +108,12 @@ func (p *fakePanel) setMode(m string) {
 	p.mu.Unlock()
 }
 
+func (p *fakePanel) setDelay(d time.Duration) {
+	p.mu.Lock()
+	p.delay = d
+	p.mu.Unlock()
+}
+
 func (p *fakePanel) requests() []proto.SFTPAuthReq {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -107,7 +121,7 @@ func (p *fakePanel) requests() []proto.SFTPAuthReq {
 }
 
 type sftpRig struct {
-	t      *testing.T
+	t      testing.TB
 	d      *Daemon
 	p      *fakePanel
 	addr   string
@@ -122,17 +136,35 @@ const (
 	writerUser, writerKey = "writer@example.com.00000000", "gp_writer"
 )
 
+// rigOpts are the less common rig settings.
+type rigOpts struct {
+	cfg    func(*Config)
+	log    io.Writer // daemon log (default: discarded)
+	listen string    // default 127.0.0.1:0
+}
+
 // newSFTPRig starts a daemon with SFTP on a random port and one server
 // (diskMB 0 = unlimited). Rechecks and keepalives are off unless cfg sets them.
-func newSFTPRig(t *testing.T, diskMB int64, cfg func(*Config)) *sftpRig {
+func newSFTPRig(t testing.TB, diskMB int64, cfg func(*Config)) *sftpRig {
+	t.Helper()
+	return newSFTPRigWith(t, diskMB, rigOpts{cfg: cfg})
+}
+
+func newSFTPRigWith(t testing.TB, diskMB int64, o rigOpts) *sftpRig {
 	t.Helper()
 	p := newFakePanel(t)
 	c := Config{PanelURL: "ws" + strings.TrimPrefix(p.srv.URL, "http") + "/daemon/connect", Token: rigToken,
 		DataDir: t.TempDir(), DiskCacheTTL: time.Hour, SFTPRecheck: time.Hour, SFTPKeepAlive: time.Hour}
-	if cfg != nil {
-		cfg(&c)
+	if o.cfg != nil {
+		o.cfg(&c)
 	}
-	d, err := New(c, runtime.NewFake(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if o.log == nil {
+		o.log = io.Discard
+	}
+	if o.listen == "" {
+		o.listen = "127.0.0.1:0"
+	}
+	d, err := New(c, runtime.NewFake(), slog.New(slog.NewTextHandler(o.log, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +173,7 @@ func newSFTPRig(t *testing.T, diskMB int64, cfg func(*Config)) *sftpRig {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	r.cancel = cancel
-	if r.addr, err = d.StartSFTP(ctx, "127.0.0.1:0"); err != nil {
+	if r.addr, err = d.StartSFTP(ctx, o.listen); err != nil {
 		t.Fatal(err)
 	}
 	p.grant(ownerUser, ownerKey, proto.SFTPAuthResp{OK: true, ServerUUID: r.id, Read: true, Write: true})
