@@ -776,9 +776,23 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 	if spec.Install == nil {
 		d.setInstall(uuid, "")
 		d.emitState(ctx, uuid, runtime.StateOffline)
+	} else {
+		d.runInstall(ctx, uuid)
+	}
+	if !spec.StartOnCompletion {
 		return
 	}
-	d.runInstall(ctx, uuid)
+	if st, _ := d.installState(uuid); st != "" {
+		return // the install failed and said so
+	}
+	cur, err := d.spec(uuid)
+	if err != nil {
+		return // deleted meanwhile
+	}
+	if err := d.start(ctx, cur); err != nil {
+		d.log.Warn("could not start a new server", "server", uuid, "err", err)
+		d.sendConsole(uuid, "\x1b[31m[gamepanel] could not start the server: "+forPeople(err).Error()+"\x1b[0m")
+	}
 }
 
 // runInstall executes the egg install script and records the outcome.
@@ -922,6 +936,11 @@ func (d *Daemon) start(ctx context.Context, spec proto.ServerSpec) error {
 		return err
 	}
 	defer end()
+	// Read the spec again under the claim: a suspension that landed after the
+	// caller read it still counts.
+	if cur, err := d.spec(uuid); err == nil && cur.Suspended {
+		return proto.Conflict("this server is suspended")
+	}
 	if spec.DiskMB > 0 {
 		if used, err := d.diskUsage(uuid, 0); err == nil && used > spec.DiskMB<<20 {
 			return ErrDiskFull{used, spec.DiskMB << 20}
@@ -1040,24 +1059,36 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 	if err != nil {
 		return proto.UpdateResult{}, err
 	}
+	b, _ := json.Marshal(s)
+	if sameContainer(old, s) {
+		// Nothing the container is built from changed (the crash restart
+		// setting, a suspension), so it applies at once and needs no rebuild.
+		// It must also apply while an install or another operation runs: a
+		// suspension cannot wait for those to end.
+		d.mu.Lock()
+		m := d.servers[s.UUID]
+		if m == nil || m.op == opDelete {
+			d.mu.Unlock()
+			return proto.UpdateResult{}, errUnknownServer
+		}
+		if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
+			d.mu.Unlock()
+			return proto.UpdateResult{}, err
+		}
+		m.spec = s
+		d.mu.Unlock()
+		if s.Suspended && !old.Suspended {
+			go d.stopSuspended(context.WithoutCancel(ctx), s)
+		}
+		return proto.UpdateResult{}, nil
+	}
 	end, err := d.begin(s.UUID, opUpdate)
 	if err != nil {
 		return proto.UpdateResult{}, err
 	}
 	defer end()
-	b, _ := json.Marshal(s)
 	if err := os.WriteFile(d.statePath(s.UUID), b, 0o600); err != nil {
 		return proto.UpdateResult{}, err
-	}
-	if sameContainer(old, s) {
-		// Nothing the container is built from changed (e.g. only the crash
-		// restart setting), so it applies at once and needs no rebuild.
-		d.mu.Lock()
-		if m := d.servers[s.UUID]; m != nil {
-			m.spec = s
-		}
-		d.mu.Unlock()
-		return proto.UpdateResult{}, nil
 	}
 	if st, _ := d.rt.State(ctx, s.UUID); st != runtime.StateOffline {
 		if err := os.WriteFile(d.stalePath(s.UUID), nil, 0o600); err != nil {
@@ -1101,9 +1132,23 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 	return proto.UpdateResult{}, nil
 }
 
+// stopSuspended stops a server that was just suspended, if it runs.
+func (d *Daemon) stopSuspended(ctx context.Context, spec proto.ServerSpec) {
+	st, err := d.rt.State(ctx, spec.UUID)
+	if err != nil || st == runtime.StateOffline {
+		return
+	}
+	d.sendConsole(spec.UUID, "\x1b[33m[gamepanel] this server was suspended; stopping it\x1b[0m")
+	if err := d.stop(ctx, spec); err != nil {
+		d.log.Warn("could not stop a suspended server", "server", spec.UUID, "err", err)
+	}
+}
+
 // sameContainer reports whether two specs build the same container.
 func sameContainer(a, b proto.ServerSpec) bool {
 	a.NoCrashRestart, b.NoCrashRestart = false, false
+	a.Suspended, b.Suspended = false, false
+	a.StartOnCompletion, b.StartOnCompletion = false, false
 	ja, _ := json.Marshal(a)
 	jb, _ := json.Marshal(b)
 	return string(ja) == string(jb)
