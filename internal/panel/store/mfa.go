@@ -165,8 +165,43 @@ func (s *Store) EnableTOTP(ctx context.Context, userID int64, code string) ([]st
 	return s.NewRecoveryCodes(ctx, userID)
 }
 
-// NewRecoveryCodes replaces the user's recovery codes. 80 bits each, so a
-// stolen hash cannot be brute-forced.
+// Recovery codes: RecoveryCodeCount of them, each recoveryBytes random bytes
+// (120 bits), shown as six groups of four base32 characters. From 112 bits a
+// fast hash is enough to store a lookup secret (ASVS v5.0.0-6.5.2): finding
+// one from its SHA-256 means searching 2^120 codes, far beyond any attacker,
+// so a slow salted hash (which would also force checking every stored code on
+// each try) adds nothing.
+const (
+	RecoveryCodeCount = 10
+	recoveryBytes     = 15
+	recoveryChars     = recoveryBytes * 8 / 5 // 24
+	legacyChars       = 16                    // 80-bit codes from before migration 00115
+)
+
+// normalizeCode lowercases a typed code and drops the spaces and dashes people
+// copy along with it, so "ABCD-efgh ijkl" and "abcdefghijkl" are the same.
+func normalizeCode(code string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '-' || r == ' ' || r == '\t':
+			return -1
+		case r >= 'A' && r <= 'Z':
+			return r + 'a' - 'A'
+		}
+		return r
+	}, strings.TrimSpace(code))
+}
+
+// recoveryHash is how a normalized code is stored. Legacy codes were stored
+// as typed at the time, with dashes after every four characters.
+func recoveryHash(norm string) (hash string, legacy bool) {
+	if len(norm) == legacyChars {
+		return HashToken(norm[0:4] + "-" + norm[4:8] + "-" + norm[8:12] + "-" + norm[12:16]), true
+	}
+	return HashToken(norm), false
+}
+
+// NewRecoveryCodes replaces the user's recovery codes, old ones included.
 func (s *Store) NewRecoveryCodes(ctx context.Context, userID int64) ([]string, error) {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -176,17 +211,39 @@ func (s *Store) NewRecoveryCodes(ctx context.Context, userID int64) ([]string, e
 	if _, err := tx.ExecContext(ctx, `DELETE FROM recovery_codes WHERE user_id=?`, userID); err != nil {
 		return nil, err
 	}
-	codes := make([]string, 10)
+	codes := make([]string, RecoveryCodeCount)
 	for i := range codes {
-		raw := make([]byte, 10)
-		rand.Read(raw)
-		c := strings.ToLower(b32.EncodeToString(raw)) // 16 chars
-		codes[i] = c[0:4] + "-" + c[4:8] + "-" + c[8:12] + "-" + c[12:16]
-		if _, err := tx.ExecContext(ctx, `INSERT INTO recovery_codes(user_id,code_hash) VALUES(?,?)`, userID, HashToken(codes[i])); err != nil {
+		raw := make([]byte, recoveryBytes)
+		rand.Read(raw) // never fails (crypto/rand panics instead)
+		c := strings.ToLower(b32.EncodeToString(raw))
+		h, _ := recoveryHash(c)
+		var groups []string
+		for j := 0; j < len(c); j += 4 {
+			groups = append(groups, c[j:j+4])
+		}
+		codes[i] = strings.Join(groups, "-")
+		if _, err := tx.ExecContext(ctx, `INSERT INTO recovery_codes(user_id,code_hash,legacy) VALUES(?,?,0)`, userID, h); err != nil {
 			return nil, err
 		}
 	}
 	return codes, tx.Commit()
+}
+
+// RecoveryStatus is what the account owner may know about their recovery codes.
+type RecoveryStatus struct {
+	Remaining int `json:"remaining" doc:"unused recovery codes"`
+	// Outdated: the codes were made before they had 120 bits. They still
+	// work, but should be replaced.
+	Outdated bool `json:"outdated"`
+}
+
+// RecoveryCodeStatus counts the user's unused recovery codes.
+func (s *Store) RecoveryCodeStatus(ctx context.Context, userID int64) (RecoveryStatus, error) {
+	var st RecoveryStatus
+	var legacy int
+	err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(legacy),0) FROM recovery_codes WHERE user_id=?`, userID).Scan(&st.Remaining, &legacy)
+	st.Outdated = legacy > 0
+	return st, err
 }
 
 // ErrSecondFactorLocked: too many wrong authenticator codes in a row; the
@@ -219,15 +276,19 @@ func mfaLockFor(n int64) time.Duration {
 // VerifySecondFactor checks a TOTP code or a recovery code (single use).
 // kind is "totp" or "recovery". Authenticator codes are refused with
 // ErrSecondFactorLocked while the account is serving a guessing delay;
-// recovery codes (80 bits, not guessable) still work then, and a good one
-// clears the delay.
+// recovery codes (120 bits, or 80 for codes from before migration 00115; not
+// guessable either way) still work then, and a good one clears the delay.
 func (s *Store) VerifySecondFactor(ctx context.Context, userID int64, code string) (kind string, err error) {
-	code = strings.ToLower(strings.TrimSpace(code))
+	code = normalizeCode(code)
 	if len(code) == 6 {
 		return s.verifyTOTPAttempt(ctx, userID, code)
 	}
 	bad := userErr("invalid code")
-	res, err := s.exec(ctx, `DELETE FROM recovery_codes WHERE user_id=? AND code_hash=?`, userID, HashToken(code))
+	if len(code) != recoveryChars && len(code) != legacyChars {
+		return "", bad
+	}
+	h, legacy := recoveryHash(code)
+	res, err := s.exec(ctx, `DELETE FROM recovery_codes WHERE user_id=? AND code_hash=? AND legacy=?`, userID, h, legacy)
 	if err != nil {
 		return "", err
 	}

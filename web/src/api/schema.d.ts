@@ -475,7 +475,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** How many recovery codes you have left, and whether they should be replaced */
+        get: operations["recoveryCodeStatus"];
         put?: never;
         /** Replace recovery codes (password and a code required) */
         post: operations["regenerateRecoveryCodes"];
@@ -2119,6 +2120,14 @@ export interface components {
             /** @description single-use recovery codes, shown once */
             codes: string[] | null;
         };
+        RecoveryStatus: {
+            outdated: boolean;
+            /**
+             * Format: int64
+             * @description unused recovery codes
+             */
+            remaining: number;
+        };
         RegenInBody: {
             code: string;
             password: string;
@@ -2376,7 +2385,7 @@ export interface components {
              * @description last use, to within a minute
              */
             last_seen_at: number;
-            /** @description how it signed in: password, password+totp, password+recovery, passkey, sso:<provider>, sso+totp:<provider>, register */
+            /** @description how it signed in: password, password+totp, password+recovery, passkey, sso:<provider name>, sso+totp:<provider name>, register; empty for sessions from before this was recorded */
             method: string;
             user_agent: string;
         };
@@ -3431,6 +3440,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecoveryOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    recoveryCodeStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryStatus"];
                 };
             };
             /** @description Error */

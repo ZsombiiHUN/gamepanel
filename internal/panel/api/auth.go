@@ -19,7 +19,7 @@ type loginIn struct {
 		Password string `json:"password" minLength:"1" maxLength:"256"`
 		// TOTPCode is an authenticator or recovery code, required when the
 		// account has two-factor enabled.
-		TOTPCode string `json:"totp_code,omitempty" maxLength:"20"`
+		TOTPCode string `json:"totp_code,omitempty" maxLength:"64"`
 	}
 }
 type userOut struct{ Body store.User }
@@ -111,7 +111,7 @@ type passwordIn struct {
 	Body struct {
 		Current string `json:"current_password" minLength:"1" maxLength:"256"`
 		New     string `json:"new_password" minLength:"12" maxLength:"256"`
-		Code    string `json:"code,omitempty" maxLength:"20" doc:"authenticator or recovery code; required when two-factor is on"`
+		Code    string `json:"code,omitempty" maxLength:"64" doc:"authenticator or recovery code; required when two-factor is on"`
 	}
 }
 type auditIn struct {
