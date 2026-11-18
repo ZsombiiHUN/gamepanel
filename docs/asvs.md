@@ -21,7 +21,8 @@ controls only, and even there some Level 2 requirements are not met yet (see
 | Other sessions are signed out after a password change or turning two-factor off | v5.0.0-7.4.3 | L2 | `store.ChangePassword`, `totpDisable` | `api.TestChangePasswordRevokesOtherSessions`, `api.TestPasswordChangeNeedsSecondFactor` |
 | Login rate-limited per IP and per account; wrong authenticator codes add a doubling delay (up to 24 h) that is kept in the database and checked atomically | v5.0.0-6.3.1 | L1 | `api/limiter.go`, `store.verifyTOTPAttempt` | `api.TestSecondFactorLockoutSurvivesRestart`, `store.TestTOTPLockoutHoldsUnderConcurrency`, `store.TestMFALockSchedule` |
 | Authenticator codes and recovery codes work once | v5.0.0-6.5.1 | L2 | `store.verifyTOTPAttempt`, `store.VerifySecondFactor` | `store.TestVerifyTOTPWindowAndReplay`, `store.TestTOTPLockoutHoldsUnderConcurrency`, `store.TestRecoveryCodesAreSingleUse` |
-| TOTP secrets and recovery codes come from a CSPRNG | v5.0.0-6.5.3 | L2 | `store.BeginTOTP`, `store.NewRecoveryCodes` | — |
+| TOTP secrets and recovery codes come from a CSPRNG | v5.0.0-6.5.3 | L2 | `store.BeginTOTP`, `store.NewRecoveryCodes` | `store.TestRecoveryCodeStrength` |
+| Recovery codes have 120 bits, so a SHA-256 hash is enough to store them. Codes from before 120 bits still work once each, and the account page asks their owner to replace them | v5.0.0-6.5.2 | L2 | `store.NewRecoveryCodes`, migration 00115 | `store.TestRecoveryCodeStrength`, `store.TestLegacyRecoveryCodes`, `api.TestRecoveryCodesThroughTheAPI` |
 | TOTP uses 30-second steps | v5.0.0-6.5.5 | L2 | `store.verifyTOTP` | `store.TestTOTPRFC6238Vectors`, `store.TestVerifyTOTPWindowAndReplay` |
 | Passwords stored with Argon2id (t=3, m=64 MiB, p=4) | v5.0.0-11.4.2 | L2 | `store/models.go` | — |
 | Session tokens: 256 random bits, stored only as a hash, checked on the server | v5.0.0-7.2.1, v5.0.0-7.2.3 | L1 | `store.NewToken` | — |
@@ -42,4 +43,4 @@ These Level 2 requirements are not met yet:
 
 - **v5.0.0-3.4.1 (HSTS)**: `Strict-Transport-Security` is sent over HTTPS with a one-year `max-age`, but without `includeSubDomains`, which Level 2 asks for. Adding it affects every subdomain of the panel's domain, so it is left to the operator's proxy for now.
 - **v5.0.0-6.3.3 (multi-factor required)**: two-factor is optional per account.
-- **v5.0.0-6.5.2 (lookup secrets)**: recovery codes have 80 bits of entropy and are stored as SHA-256 hashes. Below 112 bits, the requirement asks for a salted password hash.
+- **v5.0.0-6.5.2 (lookup secrets), for old codes**: recovery codes made before the upgrade to 120 bits have 80 bits and keep working until they are used or replaced. Their owners see a request to replace them on the account page.

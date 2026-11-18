@@ -420,7 +420,7 @@ func (a *App) ssoSignIn(w http.ResponseWriter, r *http.Request, u store.User, pr
 type ssoVerifyIn struct {
 	Pending string `cookie:"gp_sso_mfa"`
 	Body    struct {
-		Code string `json:"code" minLength:"6" maxLength:"20"`
+		Code string `json:"code" minLength:"6" maxLength:"64"`
 	}
 }
 type identitiesOut struct {

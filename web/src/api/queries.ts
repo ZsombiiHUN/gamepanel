@@ -29,6 +29,7 @@ export const keys = {
   identities: ["identities"] as const,
   passkeys: ["passkeys"] as const,
   sessions: ["sessions"] as const,
+  recoveryStatus: ["recovery-status"] as const,
   metrics: (uuid: string) => ["metrics", uuid] as const,
   mods: (uuid: string) => ["mods", uuid] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
@@ -160,6 +161,11 @@ export const permissionsQuery = queryOptions({
 export const sessionsQuery = queryOptions({
   queryKey: keys.sessions,
   queryFn: async () => (await call(api.GET("/auth/sessions"))) ?? [],
+});
+
+export const recoveryStatusQuery = queryOptions({
+  queryKey: keys.recoveryStatus,
+  queryFn: () => call(api.GET("/auth/totp/recovery-codes")),
 });
 
 export const apiKeysQuery = queryOptions({
