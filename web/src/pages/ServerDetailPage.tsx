@@ -75,7 +75,7 @@ export function ServerDetailPage() {
       {tab === "network" && can("network.read") && <NetworkTab uuid={uuid} />}
       {tab === "databases" && can("databases.read") && <DatabasesTab uuid={uuid} />}
       {tab === "activity" && can("activity.read") && <ActivityTab uuid={uuid} />}
-      {tab === "users" && s.owner && <UsersTab uuid={uuid} />}
+      {tab === "users" && s.owner && <UsersTab uuid={uuid} ownerEmail={s.owner_email} />}
       {tab === "settings" && <SettingsTab server={s} />}
     </div>
   );

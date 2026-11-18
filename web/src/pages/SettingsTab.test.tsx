@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { bob, server } from "../test/fixtures";
+import { admin, bob, server } from "../test/fixtures";
 import { FakeApi, renderApp } from "../test/harness";
 
 vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: null, stats: null }) }));
@@ -32,5 +32,20 @@ describe("Settings tab: name", () => {
     await screen.findByText("Details");
     expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Change owner" })).toBeNull();
+  });
+});
+
+describe("Settings tab: delete", () => {
+  it("asks for the server's name before deleting", async () => {
+    const srv = { ...server({ name: "Survival" }), uuid: UUID, owner: true };
+    const api = new FakeApi({ "GET /api/auth/me": admin, "GET /api/servers": [srv], [`GET /api/servers/${UUID}`]: srv, [`DELETE /api/servers/${UUID}`]: null });
+    renderApp(api, `/servers/${UUID}?tab=settings`);
+    await userEvent.click(await screen.findByRole("button", { name: "Delete server" }));
+    const dialog = screen.getByRole("dialog");
+    const confirm = within(dialog).getByRole("button", { name: "Delete server" });
+    expect(confirm).toBeDisabled();
+    await userEvent.type(within(dialog).getByRole("textbox"), "Survival");
+    await userEvent.click(confirm);
+    await waitFor(() => expect(api.callsTo(`DELETE /api/servers/${UUID}`)).toHaveLength(1));
   });
 });
