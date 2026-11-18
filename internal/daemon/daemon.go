@@ -52,6 +52,11 @@ type Config struct {
 	// PullAllowPrivate lets "pull from URL" fetch from private and loopback
 	// addresses (off by default: see pull).
 	PullAllowPrivate bool
+
+	// Test-only: the SSH handshake deadline (30 s) and how long a login
+	// waits for the panel (10 s).
+	sftpHandshakeTimeout time.Duration
+	sftpPanelWait        time.Duration
 }
 
 type managed struct {

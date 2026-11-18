@@ -38,7 +38,7 @@ func (h *hookRuntime) Stop(ctx context.Context, uuid string, timeout int) error 
 	return h.Fake.Stop(ctx, uuid, timeout)
 }
 
-func newTestDaemon(t *testing.T, rt runtime.Runtime) *Daemon {
+func newTestDaemon(t testing.TB, rt runtime.Runtime) *Daemon {
 	t.Helper()
 	d, err := New(Config{DataDir: t.TempDir(), DiskCacheTTL: time.Minute}, rt, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
@@ -49,7 +49,7 @@ func newTestDaemon(t *testing.T, rt runtime.Runtime) *Daemon {
 
 func uuidN(n int) string { return fmt.Sprintf("00000000-0000-4000-8000-%012d", n) }
 
-func addServer(t *testing.T, d *Daemon, uuid string, diskMB int64) {
+func addServer(t testing.TB, d *Daemon, uuid string, diskMB int64) {
 	t.Helper()
 	if err := d.create(context.Background(), proto.ServerSpec{UUID: uuid, Image: "img", Startup: "run", Stop: "^C", MemoryMB: 128, DiskMB: diskMB}); err != nil {
 		t.Fatal(err)
