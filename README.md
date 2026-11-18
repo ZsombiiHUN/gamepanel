@@ -95,6 +95,8 @@ All settings are environment variables.
 | `GAMEPANEL_ADDR` | `127.0.0.1:8080` | Listen address |
 | `GAMEPANEL_DB` | `./panel.db` | SQLite path |
 | `GAMEPANEL_COOKIE_SECURE` | unset | Set to `1` to always treat browsers as on HTTPS. Not needed when HTTPS reaches the panel directly or through a trusted proxy that sends `X-Forwarded-Proto: https`; then the session cookie is `__Host-gp_session`, marked `Secure`, and HSTS is sent |
+| `GAMEPANEL_REQUIRE_MFA` | `off` | `admins` or `all`: those accounts must use two factors (authenticator code or passkey). Until they set one up they can only use their account page, and their API keys stop working. An account that has a second factor but signed in without it (password alone with only a passkey, or single sign-on) must sign in again with it |
+| `GAMEPANEL_HSTS` | `host` | `subdomains` adds `includeSubDomains` to `Strict-Transport-Security`; `preload` also adds `preload` with a two-year `max-age`. Both affect every subdomain of the panel's domain, so only use them when all of those serve HTTPS |
 | `GAMEPANEL_SESSION_IDLE` | `30m` | Sign out a session after this long without use |
 | `GAMEPANEL_SESSION_MAX` | `12h` | Sign out a session this long after sign-in, however busy |
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |

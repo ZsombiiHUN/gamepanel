@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
 import { api, call } from "../api/client";
 import { identitiesQuery, invalidates, keys, meQuery } from "../api/queries";
 import { Avatar, ErrorBox, Field, PageHeader, Pill, Section } from "../components/ui";
@@ -49,6 +49,14 @@ export function AccountPage() {
         }
       />
       <div className="space-y-5">
+        {me.data?.mfa_required && (
+          <div role="alert" className="flex gap-3 rounded-2xl border border-amber-500/40 bg-amber-950/20 p-4 text-sm text-amber-200">
+            <ShieldAlert className="h-5 w-5 shrink-0" aria-hidden />
+            <p>
+              This panel requires two-factor authentication. Set up an authenticator app or add a passkey below to continue. Until then, only this page works.
+            </p>
+          </div>
+        )}
         {ids.data && !ids.data.has_password ? <FirstPassword /> : (
         <form onSubmit={submit}>
           <Section
@@ -90,7 +98,8 @@ export function AccountPage() {
         <PasskeysSection />
         <SignInMethods />
         <TotpSection />
-        <ApiKeysSection />
+        {/* Keys would outlive the two-factor restriction, so they wait until it is lifted. */}
+        {!me.data?.mfa_required && <ApiKeysSection />}
 
         <SessionsSection />
       </div>
