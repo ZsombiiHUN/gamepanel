@@ -79,16 +79,18 @@ type recoveryOut struct {
 		Codes []string `json:"codes" doc:"single-use recovery codes, shown once"`
 	}
 }
+type recoveryStatusOut struct{ Body store.RecoveryStatus }
+
 type totpOffIn struct {
 	Body struct {
 		Password string `json:"password" minLength:"1" maxLength:"256"`
-		Code     string `json:"code" minLength:"6" maxLength:"20" doc:"authenticator or recovery code"`
+		Code     string `json:"code" minLength:"6" maxLength:"64" doc:"authenticator or recovery code"`
 	}
 }
 type regenIn struct {
 	Body struct {
 		Password string `json:"password" minLength:"1" maxLength:"256"`
-		Code     string `json:"code" minLength:"6" maxLength:"20"`
+		Code     string `json:"code" minLength:"6" maxLength:"64"`
 	}
 }
 
@@ -99,7 +101,7 @@ type keyCreateIn struct {
 		// A key outlives the session that made it (sign-out and password
 		// changes do not revoke it), so making one asks who you are again.
 		Password string `json:"password" minLength:"1" maxLength:"256" doc:"your current password"`
-		Code     string `json:"code,omitempty" maxLength:"20" doc:"authenticator or recovery code; required when two-factor is on"`
+		Code     string `json:"code,omitempty" maxLength:"64" doc:"authenticator or recovery code; required when two-factor is on"`
 	}
 }
 type keyCreateOut struct {
@@ -176,6 +178,20 @@ func (a *App) registerMFA(api huma.API) {
 			a.Store.DeleteOtherSessions(ctx, u.ID, sessionToken(ctx))
 			a.audit(ctx, u, "totp.disable", u.Email, "other sessions revoked")
 			return nil, nil
+		})
+
+	huma.Register(api, huma.Operation{OperationID: "recoveryCodeStatus", Method: "GET", Path: "/auth/totp/recovery-codes",
+		Summary: "How many recovery codes you have left, and whether they should be replaced"},
+		func(ctx context.Context, _ *struct{}) (*recoveryStatusOut, error) {
+			u, err := requireSession(ctx)
+			if err != nil {
+				return nil, err
+			}
+			st, err := a.Store.RecoveryCodeStatus(ctx, u.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
+			return &recoveryStatusOut{Body: st}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "regenerateRecoveryCodes", Method: "POST", Path: "/auth/totp/recovery-codes",

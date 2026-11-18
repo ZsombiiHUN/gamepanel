@@ -133,3 +133,45 @@ func TestSessionListNeedsBrowserSession(t *testing.T) {
 		t.Fatalf("revoke with API key: got %d want 403", code)
 	}
 }
+
+// Full-length recovery codes go through every endpoint that takes a code,
+// and the account can see how many are left.
+func TestRecoveryCodesThroughTheAPI(t *testing.T) {
+	e := newEnv(t, "")
+	a := e.client()
+	a.login(bobEmail, bobPW)
+	_, codes := enrolTOTP(t, a, bobPW)
+	if len(codes) != 10 || len(codes[0]) != 29 {
+		t.Fatalf("codes %q", codes)
+	}
+	status := func() (st struct {
+		Remaining int
+		Outdated  bool
+	}) {
+		code, body := a.do("GET", "/api/auth/totp/recovery-codes", nil, nil)
+		if code != 200 {
+			t.Fatalf("status: %d %s", code, body)
+		}
+		json.Unmarshal(body, &st)
+		return
+	}
+	if st := status(); st.Remaining != 10 || st.Outdated {
+		t.Fatalf("status %+v", st)
+	}
+	c := e.client()
+	if code, body := c.do("POST", "/api/auth/login", map[string]string{"email": bobEmail, "password": bobPW, "totp_code": strings.ToUpper(codes[0])}, nil); code != 200 {
+		t.Fatalf("login with recovery code: %d %s", code, body)
+	}
+	if l := listSessions(t, c, nil); l[0].Method != "password+recovery" {
+		t.Fatalf("method %q", l[0].Method)
+	}
+	if code, body := a.do("POST", "/api/auth/password", map[string]string{"current_password": bobPW, "new_password": "a-whole-new-password", "code": codes[1]}, nil); code != 204 {
+		t.Fatalf("password change with recovery code: %d %s", code, body)
+	}
+	if st := status(); st.Remaining != 8 {
+		t.Fatalf("after two uses: %+v", st)
+	}
+	if code, _ := e.client().do("GET", "/api/auth/totp/recovery-codes", nil, nil); code != 401 {
+		t.Fatalf("status signed out: %d", code)
+	}
+}
