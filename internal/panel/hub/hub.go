@@ -246,16 +246,30 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		h.publish(s.UUID, Event{Type: "state", Data: proto.Marshal(s)})
 	case proto.EvtStats:
 		var s proto.Stats
-		if json.Unmarshal(env.Data, &s) != nil || !h.hosts(ctx, nc.id, s.UUID) {
-			return
+		if json.Unmarshal(env.Data, &s) == nil {
+			h.stat(ctx, nc, s)
 		}
-		h.mu.Lock()
-		h.stats[s.UUID] = s
-		h.mu.Unlock()
-		h.publish(s.UUID, Event{Type: "stats", Data: proto.Marshal(s)})
-		if h.OnStats != nil {
-			h.OnStats(s)
+	case proto.EvtStatsBatch:
+		var b proto.StatsBatch
+		if json.Unmarshal(env.Data, &b) == nil {
+			for _, s := range b.Stats {
+				h.stat(ctx, nc, s)
+			}
 		}
+	}
+}
+
+// stat records one server's sample and passes it on.
+func (h *Hub) stat(ctx context.Context, nc *nodeConn, s proto.Stats) {
+	if !h.hosts(ctx, nc.id, s.UUID) {
+		return
+	}
+	h.mu.Lock()
+	h.stats[s.UUID] = s
+	h.mu.Unlock()
+	h.publish(s.UUID, Event{Type: "stats", Data: proto.Marshal(s)})
+	if h.OnStats != nil {
+		h.OnStats(s)
 	}
 }
 

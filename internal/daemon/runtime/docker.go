@@ -262,23 +262,41 @@ func mapStatus(s string) string {
 	}
 }
 
-func (d *Docker) Stats(ctx context.Context, uuid string) (proto.Stats, error) {
-	res, err := d.cli.ContainerStats(ctx, name(uuid), client.ContainerStatsOptions{IncludePreviousSample: true})
+// WatchStats keeps one streaming stats connection open. A one-shot sample
+// makes Docker wait a second for a second sample, which made a pass over N
+// servers take N seconds.
+func (d *Docker) WatchStats(ctx context.Context, uuid string, fn func(proto.Stats)) error {
+	res, err := d.cli.ContainerStats(ctx, name(uuid), client.ContainerStatsOptions{Stream: true})
 	if err != nil {
-		return proto.Stats{}, err
+		return err
 	}
 	defer res.Body.Close()
-	var s container.StatsResponse
-	if err := json.NewDecoder(res.Body).Decode(&s); err != nil {
-		return proto.Stats{}, err
+	dec := json.NewDecoder(res.Body)
+	for {
+		var s container.StatsResponse
+		if err := dec.Decode(&s); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		// Docker keeps the stream open after the container stops and sends
+		// empty samples (no read time); that is the end of this run.
+		if s.Read.IsZero() {
+			return nil
+		}
+		fn(statsFrom(uuid, s))
 	}
+}
+
+func statsFrom(uuid string, s container.StatsResponse) proto.Stats {
 	out := proto.Stats{UUID: uuid, MemBytes: s.MemoryStats.Usage}
 	cpuDelta := float64(s.CPUStats.CPUUsage.TotalUsage) - float64(s.PreCPUStats.CPUUsage.TotalUsage)
 	sysDelta := float64(s.CPUStats.SystemUsage) - float64(s.PreCPUStats.SystemUsage)
 	if sysDelta > 0 && cpuDelta > 0 {
 		out.CPUPct = cpuDelta / sysDelta * float64(s.CPUStats.OnlineCPUs) * 100
 	}
-	return out, nil
+	return out
 }
 
 // Events maps Docker container events onto server state changes. The caller
