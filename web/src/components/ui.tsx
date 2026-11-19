@@ -17,7 +17,7 @@ export function ErrorBox({ error }: { error: unknown }) {
   if (!error) return null;
   const msg = errorText(error);
   return (
-    <div role="alert" className="flex items-start gap-2 rounded-md border border-red-800 bg-red-950/60 p-3 text-sm text-red-200">
+    <div role="alert" className="flex items-start gap-2 rounded-lg border border-bad/30 bg-bad-bg px-3 py-2.5 text-[13px] text-bad-text">
       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
       <span className="break-words">{msg}</span>
     </div>
@@ -37,28 +37,33 @@ const stateTone: Record<string, Tone> = {
   suspended: "bad",
 };
 const toneCls: Record<Tone, string> = {
-  ok: "bg-good-bg text-good-text",
-  warn: "bg-warn-bg text-warn-text",
-  off: "bg-line text-zinc-400",
-  bad: "bg-bad-bg text-bad-text",
+  ok: "border-good/25 bg-good-bg text-good-text",
+  warn: "border-warn/25 bg-warn-bg text-warn-text",
+  off: "border-line-strong bg-zinc-900 text-zinc-400",
+  bad: "border-bad/30 bg-bad-bg text-bad-text",
 };
 
 /** Status mark. Shape carries the meaning as well as colour: filled dot, square, ring, triangle. */
 export function StateMark({ state }: { state: string }) {
   const tone = stateTone[state] ?? "off";
-  if (tone === "ok") return <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-good" aria-hidden />;
-  if (tone === "warn") return <span className="inline-block h-2 w-2 shrink-0 rounded-[2px] bg-warn" aria-hidden />;
+  if (tone === "ok")
+    return (
+      <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-good shadow-[0_0_0_3px_rgb(92_201_138/0.18)]" aria-hidden />
+    );
+  if (tone === "warn") return <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-[2px] bg-warn" aria-hidden />;
   if (tone === "bad")
     return (
       <span className="inline-block h-0 w-0 shrink-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-bad-text" aria-hidden />
     );
-  return <span className="inline-block h-2 w-2 shrink-0 rounded-full border-[1.5px] border-zinc-500" aria-hidden />;
+  return <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-full border-[1.5px] border-zinc-500" aria-hidden />;
 }
 
 export function StateBadge({ state }: { state: string }) {
   const tone = stateTone[state] ?? "off";
   return (
-    <span className={`inline-flex min-h-[26px] items-center gap-1.5 rounded-full px-2.5 text-[12.5px] font-medium ${toneCls[tone]}`}>
+    <span
+      className={`inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-xs font-medium ${toneCls[tone]}`}
+    >
       <StateMark state={state} />
       {stateLabel[state] ?? state.replace("_", " ")}
     </span>
@@ -78,8 +83,8 @@ export function ServerIcon({ name, size = 44 }: { name: string; size?: number })
         padding: size * 0.14,
         borderRadius: size * 0.24,
         boxSizing: "border-box",
-        background: `hsl(${hue} 38% 15%)`,
-        boxShadow: `inset 0 0 0 1px hsl(${hue} 50% 60% / .22)`,
+        background: `hsl(${hue} 22% 13%)`,
+        boxShadow: `inset 0 0 0 1px hsl(${hue} 40% 70% / .14)`,
       }}
     >
       <svg viewBox="0 0 38 38" width="100%" height="100%">
@@ -170,7 +175,7 @@ export function ConfirmDialog({
       ref={ref}
       onClose={onCancel}
       aria-labelledby="confirm-title"
-      className="m-auto w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/70"
+      className="m-auto w-full max-w-md rounded-xl border border-line-strong bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-[2px]"
     >
       <h2 id="confirm-title" className="text-lg font-semibold">
         {title}
@@ -234,7 +239,7 @@ export function FormDialog({
       ref={ref}
       onClose={onClose}
       aria-labelledby={titleId}
-      className="m-auto w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/70"
+      className="m-auto w-full max-w-lg rounded-xl border border-line-strong bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-[2px]"
     >
       {open && (
         <form
@@ -273,12 +278,15 @@ export function Meter({ label, text, pct, warnAt = 85 }: { label: string; text: 
   const w = pct === null ? 0 : Math.max(0, Math.min(100, pct));
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex justify-between text-[12.5px]">
+      <div className="flex justify-between gap-2 text-[12.5px]">
         <span className="text-zinc-500">{label}</span>
-        <span className={`font-mono ${warn ? "text-warn-text" : "text-zinc-200"}`}>{text}</span>
+        <span className={`truncate font-mono text-xs ${warn ? "text-warn-text" : "text-zinc-200"}`}>{text}</span>
       </div>
-      <div className="h-1 rounded-full bg-line-strong" role="presentation">
-        <div className={`h-full rounded-full ${warn ? "bg-warn" : "bg-indigo-400"}`} style={{ width: `${w}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-[3px] bg-line" role="presentation">
+        <div
+          className={`h-full rounded-[3px] bg-gradient-to-r ${warn ? "from-[#c98a30] to-warn" : "from-zinc-300 to-zinc-100"}`}
+          style={{ width: `${w}%` }}
+        />
       </div>
     </div>
   );
@@ -289,8 +297,8 @@ export function PageHeader({ title, sub, actions }: { title: string; sub?: React
   return (
     <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="h-display text-[28px] leading-tight text-zinc-100">{title}</h1>
-        {sub && <p className="mt-1 max-w-2xl text-sm text-zinc-400">{sub}</p>}
+        <h1 className="h-display text-[22px] leading-tight text-zinc-100">{title}</h1>
+        {sub && <p className="mt-1 max-w-2xl text-[13.5px] text-zinc-400">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
@@ -318,19 +326,16 @@ export function Section({
 }) {
   const hid = id ?? `s-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
-    <section
-      aria-labelledby={hid}
-      className={`overflow-hidden rounded-2xl border bg-zinc-900 ${danger ? "border-red-900/70" : "border-zinc-800"}`}
-    >
+    <section aria-labelledby={hid} className={`overflow-hidden rounded-xl border bg-zinc-900 ${danger ? "border-bad/30" : "border-line"}`}>
       <div className="p-5">
-        <h2 id={hid} className={`text-[15px] font-semibold ${danger ? "text-red-300" : "text-zinc-100"}`}>
+        <h2 id={hid} className={`text-[14.5px] font-semibold tracking-tight ${danger ? "text-bad-text" : "text-zinc-100"}`}>
           {title}
         </h2>
-        {desc && <p className="mt-1 max-w-2xl text-sm text-zinc-400">{desc}</p>}
+        {desc && <p className="mt-1 max-w-2xl text-[13px] text-zinc-400">{desc}</p>}
         {children && <div className="mt-4">{children}</div>}
       </div>
       {footer && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-thead px-5 py-3 text-sm text-zinc-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-thead px-5 py-2.5 text-[13px] text-zinc-500">
           {footer}
         </div>
       )}
@@ -341,7 +346,7 @@ export function Section({
 /** Label / value list with hairline dividers. Values are monospace unless `plain`. */
 export function InfoList({ rows }: { rows: { label: string; value: ReactNode; plain?: boolean }[] }) {
   return (
-    <dl className="divide-y divide-zinc-800 text-sm">
+    <dl className="divide-y divide-line text-[13px]">
       {rows.map((r) => (
         <div key={r.label} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-0.5 py-2.5 first:pt-0 last:pb-0">
           <dt className="text-zinc-500">{r.label}</dt>
@@ -355,19 +360,21 @@ export function InfoList({ rows }: { rows: { label: string; value: ReactNode; pl
 /** Small rounded tag for roles, counts and states that have no dot. */
 export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" | "bad" }) {
   const c = {
-    neutral: "bg-zinc-800 text-zinc-300",
-    good: "bg-emerald-500/10 text-emerald-300",
-    warn: "bg-amber-500/10 text-amber-300",
-    bad: "bg-red-500/10 text-red-300",
+    neutral: "border-line-strong bg-zinc-900 text-zinc-300",
+    good: "border-good/25 bg-good-bg text-good-text",
+    warn: "border-warn/25 bg-warn-bg text-warn-text",
+    bad: "border-bad/30 bg-bad-bg text-bad-text",
   }[tone];
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${c}`}>{children}</span>;
+  return <span className={`inline-flex h-[22px] items-center rounded-full border px-2 text-xs font-medium ${c}`}>{children}</span>;
 }
 
 /** Empty state for lists. */
 export function Empty({ icon, title, children }: { icon: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-dashed border-zinc-800 px-6 py-12 text-center">
-      <div className="mb-3 grid h-11 w-11 place-content-center rounded-xl bg-zinc-800 text-zinc-400">{icon}</div>
+    <div className="flex flex-col items-center rounded-xl border border-dashed border-line-strong px-6 py-12 text-center">
+      <div className="mb-3 grid h-10 w-10 place-content-center rounded-[10px] border border-line-strong bg-zinc-900 text-zinc-400 shadow-btn">
+        {icon}
+      </div>
       <p className="font-medium text-zinc-200">{title}</p>
       {children && <p className="mt-1 max-w-sm text-sm text-zinc-500">{children}</p>}
     </div>
@@ -378,7 +385,7 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <span
       aria-hidden
-      className="grid shrink-0 place-content-center rounded-full bg-zinc-800 text-xs font-semibold uppercase text-zinc-300"
+      className="grid shrink-0 place-content-center rounded-[7px] bg-gradient-to-br from-zinc-600 to-zinc-800 text-xs font-semibold uppercase text-zinc-100"
       style={{ width: size, height: size }}
     >
       {name.slice(0, 1)}

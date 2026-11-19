@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Plus, Search, Server, SquareTerminal, X } from "lucide-react";
+import { Loader2, Play, Plus, Search, Server, Square, SquareTerminal, X } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { invalidates, keys, meQuery, serversQuery } from "../api/queries";
 import { SearchInput } from "../components/SearchInput";
@@ -24,37 +24,39 @@ function ServerCard({ s }: { s: ServerView }) {
   const diskPct = s.stats && s.disk_mb ? (s.stats.disk_bytes / (s.disk_mb * 1024 * 1024)) * 100 : null;
   const cpuPct = live ? (s.cpu_pct ? (live.cpu_pct / s.cpu_pct) * 100 : live.cpu_pct) : null;
   return (
-    <article className="card flex flex-col gap-4 !rounded-[14px]">
-      <div className="flex items-start gap-3.5">
-        <ServerIcon name={s.name} size={44} />
+    <article className="relative flex flex-col gap-3.5 rounded-xl border border-line bg-zinc-900 p-4 transition-colors hover:border-line-strong">
+      <div className="flex items-center gap-3">
+        <ServerIcon name={s.name} size={36} />
         <div className="min-w-0 flex-1">
           <Link
             to="/servers/$uuid"
             params={{ uuid: s.uuid }}
             search={{ tab: "console" }}
-            className="h-display block truncate text-xl font-bold focus-visible:outline-2 focus-visible:outline-indigo-500"
+            className="block truncate text-[14.5px] font-semibold tracking-tight after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-indigo-500"
           >
             {s.name}
           </Link>
-          <div className="mt-0.5 truncate text-[13px] text-zinc-500">
+          <div className="truncate text-[12.5px] text-zinc-500">
             {s.egg_name ? `${s.egg_name} · ` : ""}Port {s.port}
             {s.node_online ? "" : " · node offline"}
           </div>
         </div>
         <StateBadge state={s.state} />
       </div>
-      <div className="flex flex-col gap-3.5">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         {live && <Meter label="CPU" text={`${live.cpu_pct.toFixed(0)}%`} pct={cpuPct} />}
         {live && <Meter label="Memory" text={`${formatBytes(live.mem_bytes)} / ${formatBytes(s.memory_mb * 1024 * 1024)}`} pct={memPct} />}
         {s.stats && (
-          <Meter
-            label="Disk"
-            text={`${formatBytes(s.stats.disk_bytes)} / ${s.disk_mb ? formatBytes(s.disk_mb * 1024 * 1024) : "no limit"}`}
-            pct={diskPct}
-          />
+          <div className={live ? "" : "col-span-2"}>
+            <Meter
+              label="Disk"
+              text={`${formatBytes(s.stats.disk_bytes)} / ${s.disk_mb ? formatBytes(s.disk_mb * 1024 * 1024) : "no limit"}`}
+              pct={diskPct}
+            />
+          </div>
         )}
         {!s.stats && (
-          <p className="py-1 text-[13px] text-zinc-500">
+          <p className="col-span-2 py-0.5 text-[12.5px] text-zinc-500">
             {s.state === "installing"
               ? "Setting up files. This takes a few minutes the first time."
               : s.state === "suspended"
@@ -65,17 +67,23 @@ function ServerCard({ s }: { s: ServerView }) {
           </p>
         )}
       </div>
-      <div className="mt-auto flex gap-2 border-t border-line pt-4">
-        <Link to="/servers/$uuid" params={{ uuid: s.uuid }} search={{ tab: "console" }} className="btn flex-1">
+      <div className="relative mt-auto flex gap-2 border-t border-line pt-3.5">
+        <Link to="/servers/$uuid" params={{ uuid: s.uuid }} search={{ tab: "console" }} className="btn !min-h-8 flex-1">
           <SquareTerminal className="h-4 w-4" aria-hidden /> Console
         </Link>
         <button
           type="button"
-          className={`btn flex-1 ${running ? "" : "btn-primary"}`}
+          className="btn !min-h-8 flex-1"
           disabled={power.isPending || busy || s.state === "suspended" || !s.node_online || !s.permissions.includes("power")}
           onClick={() => power.mutate()}
         >
-          {power.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+          {power.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : running ? (
+            <Square className="h-3.5 w-3.5 !text-bad" aria-hidden />
+          ) : !busy && s.state !== "suspended" ? (
+            <Play className="h-3.5 w-3.5 !text-good" aria-hidden />
+          ) : null}
           {s.state === "installing" ? "Installing…" : s.state === "install_failed" ? "Install failed" : running ? "Stop" : "Start"}
         </button>
       </div>
@@ -114,8 +122,8 @@ export function ServersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="h-display text-4xl font-bold leading-none">Servers</h1>
-          {summary && <p className="mt-2 text-zinc-400">{summary}</p>}
+          <h1 className="h-display text-[22px] leading-tight">Servers</h1>
+          {summary && <p className="mt-1 text-[13.5px] text-zinc-400">{summary}</p>}
         </div>
         <div className="flex gap-2">
           <SearchInput
@@ -124,27 +132,31 @@ export function ServersPage() {
             value={q}
             onChange={setQ}
             hint={
-              <kbd className="hidden rounded border border-zinc-700 px-1.5 font-mono text-[11px] text-zinc-500 sm:inline" aria-hidden>
+              <kbd className="kbd hidden sm:inline-flex" aria-hidden>
                 /
               </kbd>
             }
           />
           {me.data?.is_admin && (
             <Link to="/servers/new" className="btn btn-primary">
-              New server
+              <Plus className="h-4 w-4" aria-hidden /> New server
             </Link>
           )}
         </div>
       </div>
       {chips.length > 2 && (
-        <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-2">
+        <div
+          role="group"
+          aria-label="Filter by status"
+          className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] border border-line bg-well p-1"
+        >
           {chips.map((g) => (
             <button
               key={g}
               type="button"
               aria-pressed={group === g}
               onClick={() => setGroup(g)}
-              className={`inline-flex min-h-8 items-center gap-2 rounded-full border px-3 text-[13px] focus-visible:outline-2 focus-visible:outline-indigo-500 ${group === g ? "border-indigo-400 bg-indigo-500/15 text-zinc-100" : "border-zinc-700 text-zinc-400 hover:text-zinc-100"}`}
+              className={`inline-flex h-7 items-center gap-2 rounded-[7px] px-2.5 text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-indigo-500 ${group === g ? "bg-zinc-900 text-zinc-100 shadow-[inset_0_0_0_1px_var(--color-line-strong),0_1px_2px_rgb(0_0_0/0.3)]" : "text-zinc-500 hover:text-zinc-100"}`}
             >
               {g === "all" ? "All" : groupLabel[g]}
               <span className="font-mono text-xs text-zinc-500">{g === "all" ? all.length : groups[g]}</span>
@@ -167,7 +179,7 @@ export function ServersPage() {
           </button>
         </Empty>
       )}
-      <ul className="grid gap-[18px] [grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr))]">
+      <ul className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr))]">
         {list.map((s) => (
           <li key={s.uuid} className="flex min-w-0">
             <div className="min-w-0 flex-1 [&>article]:h-full">
@@ -179,11 +191,9 @@ export function ServersPage() {
           <li>
             <Link
               to="/servers/new"
-              className="flex min-h-48 h-full flex-col items-center justify-center gap-2.5 rounded-[14px] border border-dashed border-zinc-700 text-zinc-400 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-indigo-500"
+              className="flex h-full min-h-40 items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong text-[13px] text-zinc-500 hover:bg-row-hover hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-indigo-500"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-zinc-700 text-zinc-200">
-                <Plus className="h-[18px] w-[18px]" aria-hidden />
-              </span>
+              <Plus className="h-4 w-4" aria-hidden />
               New server
             </Link>
           </li>

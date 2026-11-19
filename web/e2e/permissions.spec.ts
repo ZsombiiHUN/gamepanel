@@ -22,7 +22,7 @@ test("on their server they get the tabs they are allowed, and no command box", a
   const s = panel.seeded(panel.ready.shared_to);
   await page.goto(`/servers/${s.uuid}?tab=console`);
   await expect(page.getByRole("heading", { name: s.name })).toBeVisible();
-  const nav = page.getByRole("navigation", { name: "Servers" });
+  const nav = page.getByRole("navigation", { name: "Server sections" });
   await expect(nav.getByRole("link", { name: "Console" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Files" })).toBeVisible();
   for (const hidden of ["Backups", "Schedules", "Access"]) await expect(nav.getByRole("link", { name: hidden })).toHaveCount(0);

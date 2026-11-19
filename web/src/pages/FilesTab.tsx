@@ -268,7 +268,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
         onDrop={(e) => void onDrop(e)}
       >
         {dragging && (
-          <div className="pointer-events-none absolute inset-0 z-20 grid place-content-center bg-indigo-500/10 text-sm font-medium text-indigo-200">
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-content-center bg-indigo-500/10 text-sm font-medium text-zinc-100">
             Drop files or folders to upload them to {dir}
           </div>
         )}

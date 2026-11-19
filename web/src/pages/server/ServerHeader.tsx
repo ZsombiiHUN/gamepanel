@@ -51,7 +51,7 @@ export function ServerHeader({
   const btn = (action: PowerAction, label: string, icon: ReactNode, extra = "") => (
     <button
       type="button"
-      className={`btn !min-h-11 !px-5 ${extra}`}
+      className={`btn ${extra}`}
       disabled={
         power.isPending || sentIn !== null || !s.node_online || !can("power") || (notReady && (action === "start" || action === "restart"))
       }
@@ -66,14 +66,14 @@ export function ServerHeader({
   return (
     <>
       <header className="flex flex-wrap items-center gap-x-5 gap-y-4">
-        <ServerIcon name={s.name} size={76} />
+        <ServerIcon name={s.name} size={48} />
         <div className="min-w-0 flex-1 basis-72">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="h-display text-[30px] font-bold leading-tight">{s.name}</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="h-display text-[22px] leading-tight">{s.name}</h1>
             <StateBadge state={shownState(s, state)} />
           </div>
-          {s.description && <p className="mt-1 text-sm text-zinc-400">{s.description}</p>}
-          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-zinc-400">
+          {s.description && <p className="mt-0.5 text-[13px] text-zinc-400">{s.description}</p>}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-zinc-400">
             <CopyChip text={String(s.port)} label={`Port ${s.port}`} />
             <OnlineDot online={s.node_online} label="Node" />
             <span aria-live="polite" className="text-xs text-zinc-500">
@@ -82,27 +82,9 @@ export function ServerHeader({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!running &&
-            btn(
-              "start",
-              "Start",
-              <Play className="h-[17px] w-[17px]" aria-hidden />,
-              "!bg-good !border-good !text-good-ink font-semibold hover:!bg-good-hover",
-            )}
-          {running &&
-            btn(
-              "restart",
-              "Restart",
-              <RotateCw className="h-[17px] w-[17px]" aria-hidden />,
-              "!bg-warn !border-warn !text-warn-ink font-semibold hover:!bg-warn-hover",
-            )}
-          {running &&
-            btn(
-              "stop",
-              "Stop",
-              <Square className="h-[17px] w-[17px]" aria-hidden />,
-              "!bg-bad !border-bad !text-bad-ink font-semibold hover:!bg-bad-hover",
-            )}
+          {!running && btn("start", "Start", <Play className="h-4 w-4" aria-hidden />, "btn-primary")}
+          {running && btn("restart", "Restart", <RotateCw className="h-4 w-4 !text-warn" aria-hidden />)}
+          {running && btn("stop", "Stop", <Square className="h-4 w-4 !text-bad" aria-hidden />)}
           <MoreMenu>
             <button
               type="button"
@@ -135,7 +117,7 @@ export function ServerHeader({
         </div>
       </header>
       {s.suspended && (
-        <p role="status" className="rounded-xl border border-bad/40 bg-bad-bg px-4 py-3 text-sm text-bad-text">
+        <p role="status" className="mt-4 rounded-xl border border-bad/40 bg-bad-bg px-4 py-3 text-sm text-bad-text">
           {can("owner") && s.permissions.length > 0
             ? "This server is suspended: it is stopped, cannot be started, and its owner and subusers cannot use it. Lift the suspension in Settings."
             : "This server is suspended, so it is stopped and its console, files and settings are closed. Contact your host to have it restored."}
@@ -152,7 +134,7 @@ function CopyChip({ text, label }: { text: string; label: string }) {
     <button
       type="button"
       title="Copy"
-      className="inline-flex min-h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-thead px-2.5 font-mono text-[13px] text-zinc-200 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500"
+      className="inline-flex min-h-7 items-center gap-2 rounded-md border border-line bg-thead px-2 font-mono text-[12.5px] text-zinc-200 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-indigo-500"
       onClick={() => {
         void copyText(text)
           .then(() => {
@@ -174,12 +156,12 @@ function CopyChip({ text, label }: { text: string; label: string }) {
 function MoreMenu({ children }: { children: React.ReactNode }) {
   return (
     <details className="relative">
-      <summary className="btn !min-h-11 !w-11 cursor-pointer list-none !px-0 [&::-webkit-details-marker]:hidden" aria-label="More actions">
+      <summary className="btn !w-9 cursor-pointer list-none !px-0 [&::-webkit-details-marker]:hidden" aria-label="More actions">
         <MoreVertical className="h-4 w-4" aria-hidden />
       </summary>
       <div
         role="menu"
-        className="absolute right-0 z-20 mt-1 flex min-w-40 flex-col rounded-xl border border-zinc-700 bg-zinc-900 p-1 shadow-xl"
+        className="absolute right-0 z-30 mt-1 flex min-w-44 flex-col rounded-[10px] border border-line-strong bg-zinc-900 p-1 shadow-xl"
       >
         {children}
       </div>
