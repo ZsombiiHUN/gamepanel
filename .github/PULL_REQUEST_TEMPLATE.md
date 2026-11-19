@@ -1,6 +1,7 @@
 ## What and why
 
 ## Checklist
-- [ ] `go vet ./...` and `go test -race ./...` pass
-- [ ] Web changes: `pnpm build && pnpm test` pass
+- [ ] `make check` passes (Go lint, govulncheck, tests with the coverage floor, web lint/format/types/tests)
+- [ ] UI changes: `make e2e` passes
+- [ ] New `//nolint` or `eslint-disable` comments name the rule and give a reason
 - [ ] Security-sensitive change (files, auth, containers)? Explain the threat model

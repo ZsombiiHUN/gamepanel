@@ -6,6 +6,8 @@ React 19 + Vite 8 + TypeScript SPA (TanStack Router/Query, Tailwind v4, xterm.js
 pnpm install
 pnpm gen:api     # regenerate src/api/schema.d.ts from openapi.json
 pnpm dev         # http://localhost:5173, proxies /api (incl. websockets) to 127.0.0.1:8080
+pnpm check       # lint, format check, typecheck and unit tests: what CI runs
+pnpm format      # Prettier
 pnpm typecheck   # tsc --noEmit
 pnpm test        # vitest: unit and component tests (jsdom, fake API), about 10 s
 pnpm e2e         # builds, then Playwright against a real panel with a fake daemon
@@ -16,7 +18,7 @@ TypeScript is pinned to 6.0.x because openapi-typescript 7 does not work with Ty
 
 ## Checks
 
-`pnpm lint` runs ESLint with the React hooks rules (they catch effects that copy state, refs read while rendering, impure render code) plus project rules: query keys and cache invalidation are only written in `api/queries.ts` and `queryClient.ts`. `pnpm typecheck` covers the app and the e2e specs.
+`pnpm lint` runs ESLint with typescript-eslint's strict type-checked rules (floating promises, async handlers passed where React expects void, unsafe `any`, needless conditions), jsx-a11y, and the React hooks rules (they catch effects that copy state, refs read while rendering, impure render code) plus project rules: query keys and cache invalidation are only written in `api/queries.ts` and `queryClient.ts`. `pnpm typecheck` covers the app and the e2e specs.
 
 ## Tests
 
