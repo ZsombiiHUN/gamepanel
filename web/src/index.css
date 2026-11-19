@@ -1,64 +1,70 @@
 @import "tailwindcss";
 @import "@xterm/xterm/css/xterm.css";
-@import "@fontsource-variable/onest";
-@import "@fontsource-variable/bricolage-grotesque";
-@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @theme {
-  --font-sans: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Bricolage Grotesque Variable", "Onest Variable", ui-sans-serif, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  /* Headings use the same family, set tighter; there is no second display face. */
+  --font-display: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Tinted dark neutrals: the whole app uses zinc, so re-pointing it re-themes every page. */
-  --color-zinc-50: #f4f5f6;
-  --color-zinc-100: #e8eaed;
-  --color-zinc-200: #c9ced4;
-  --color-zinc-300: #b3b9c0;
-  /* 400 and 500 are the muted text colours. 500 is the faintest that still reaches 4.5:1 on the card and sidebar backgrounds. */
-  --color-zinc-400: #9aa1a9;
-  --color-zinc-500: #858c94;
-  --color-zinc-600: #3a4148;
-  --color-zinc-700: #2b3138;
-  --color-zinc-800: #1f242a;
-  --color-zinc-900: #14171b;
-  --color-zinc-950: #0e1013;
+  /* Warm graphite neutrals: the whole app uses zinc, so re-pointing it re-themes every page. */
+  --color-zinc-50: #faf9f6;
+  --color-zinc-100: #f2f1ed;
+  --color-zinc-200: #dddbd4;
+  --color-zinc-300: #c4c2bb;
+  /* 400 and 500 are the muted text colours. 500 is the faintest that still reaches 4.5:1 on every surface. */
+  --color-zinc-400: #aaa8a1;
+  --color-zinc-500: #8e8c86;
+  --color-zinc-600: #3d3d39;
+  --color-zinc-700: #2f2f2c;
+  --color-zinc-800: #242422;
+  --color-zinc-900: #171716;
+  --color-zinc-950: #0b0b0a;
 
-  --color-indigo-300: #a9bbff;
-  --color-indigo-400: #8fa6ff;
-  --color-indigo-500: #7c97ff;
-  --color-indigo-600: #6c85f0;
+  /* The accent is the text colour itself: colour is kept for state. */
+  --color-indigo-300: #f2f1ed;
+  --color-indigo-400: #e4e2dc;
+  --color-indigo-500: #c4c2bb;
+  --color-indigo-600: #aaa8a1;
 
-  --color-side: #0b0d0f;
-  --color-well: #090b0d;
+  --color-side: #0b0b0a;
+  --color-panel: #121211;
+  --color-well: #0d0d0c;
 
   /* Surfaces and status colours by role, so the light theme can redefine them. */
-  --color-line: #1b2025;
-  --color-line-strong: #23282e;
-  --color-row-hover: #161a1f;
-  --color-row-active: #181c21;
-  --color-thead: #101317;
-  --color-chip: #1d2229;
-  --color-good: #4cc27a;
-  --color-good-hover: #5fd28b;
+  --color-line: #242422;
+  --color-line-strong: #2f2f2c;
+  --color-row-hover: #1f1f1d;
+  --color-row-active: #1c1c1a;
+  --color-thead: #1c1c1a;
+  --color-chip: #1c1c1a;
+  --color-btn: #1c1c1a;
+  --color-good: #5cc98a;
+  --color-good-hover: #6fd69b;
   --color-good-ink: #04150b;
   --color-good-text: #7bdb9c;
   --color-good-dim: #2f7d4f;
-  --color-good-bg: #12261a;
-  --color-warn: #e8a33d;
-  --color-warn-hover: #f5b455;
+  --color-good-bg: rgb(92 201 138 / 0.12);
+  --color-warn: #e5a64a;
+  --color-warn-hover: #f0b65f;
   --color-warn-ink: #1a1203;
   --color-warn-text: #f0b35a;
-  --color-warn-bg: #2a2010;
-  --color-bad: #f0685a;
+  --color-warn-bg: rgb(229 166 74 / 0.12);
+  --color-bad: #ef6b5b;
   --color-bad-hover: #f58074;
   --color-bad-ink: #1f0705;
-  --color-bad-text: #ff8a7a;
-  --color-bad-bg: #2a1411;
-  --color-chart-cpu: #6fcf97;
-  --color-chart-calm: #8fa6ff;
-  --color-chart-warn: #e8a33d;
+  --color-bad-text: #ff8f81;
+  --color-bad-bg: rgb(239 107 91 / 0.12);
+  --color-chart-cpu: #5cc98a;
+  --color-chart-calm: #e4e2dc;
+  --color-chart-warn: #e5a64a;
   /* The terminal is dark in both themes (game logs are coloured for a dark background). */
-  --color-console: #090b0d;
+  --color-console: #0d0d0c;
+
+  --shadow-btn: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
 :root {
@@ -72,23 +78,23 @@
  */
 :root[data-theme="light"] {
   color-scheme: light;
-  --color-zinc-50: #0d1014;
-  --color-zinc-100: #161a1f;
-  --color-zinc-200: #2a3038;
-  --color-zinc-300: #3b424a;
-  --color-zinc-400: #4f5760;
-  --color-zinc-500: #5b636c;
-  --color-zinc-600: #aab2bb;
-  --color-zinc-700: #cfd5db;
-  --color-zinc-800: #e3e7eb;
+  --color-zinc-50: #0c0c0b;
+  --color-zinc-100: #171716;
+  --color-zinc-200: #2c2b29;
+  --color-zinc-300: #3d3c39;
+  --color-zinc-400: #55534e;
+  --color-zinc-500: #65635d;
+  --color-zinc-600: #b4b2ab;
+  --color-zinc-700: #d9d7d0;
+  --color-zinc-800: #e7e5df;
   --color-zinc-900: #ffffff;
-  --color-zinc-950: #f3f5f7;
+  --color-zinc-950: #f7f6f3;
 
-  --color-indigo-200: #2f3fae;
-  --color-indigo-300: #3346c6;
-  --color-indigo-400: #3b4fd8;
-  --color-indigo-500: #4a5ee8;
-  --color-indigo-600: #3b4fd8;
+  --color-indigo-200: #171716;
+  --color-indigo-300: #171716;
+  --color-indigo-400: #2c2b29;
+  --color-indigo-500: #3d3c39;
+  --color-indigo-600: #171716;
 
   --color-red-200: #912018;
   --color-red-300: #b42318;
@@ -100,14 +106,16 @@
   --color-amber-200: #7a4504;
   --color-amber-300: #8a4b00;
 
-  --color-side: #eef1f4;
-  --color-well: #e9edf1;
-  --color-line: #e6e9ed;
-  --color-line-strong: #d6dbe0;
-  --color-row-hover: #f1f3f6;
-  --color-row-active: #e6eaef;
-  --color-thead: #f7f8fa;
-  --color-chip: #eef1f4;
+  --color-side: #efeee9;
+  --color-panel: #ffffff;
+  --color-well: #f4f3ef;
+  --color-line: #e7e5df;
+  --color-line-strong: #d9d7d0;
+  --color-row-hover: #f4f3ef;
+  --color-row-active: #eceae5;
+  --color-thead: #f7f6f3;
+  --color-chip: #f1f0ec;
+  --color-btn: #ffffff;
   --color-good: #1f7a45;
   --color-good-hover: #186338;
   --color-good-ink: #ffffff;
@@ -125,13 +133,16 @@
   --color-bad-text: #b42318;
   --color-bad-bg: #fde8e6;
   --color-chart-cpu: #1f8a4c;
-  --color-chart-calm: #4a5ee8;
+  --color-chart-calm: #2c2b29;
   --color-chart-warn: #c77a12;
+  --shadow-btn: 0 1px 2px rgb(23 23 22 / 0.06);
+  --shadow-panel: 0 1px 3px rgb(23 23 22 / 0.06);
 }
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
+  @apply bg-side text-zinc-100 antialiased;
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 14px;
+  font-feature-settings: "tnum" 1;
 }
 h1,
 h2 {
@@ -140,37 +151,51 @@ h2 {
 
 @layer components {
   .btn {
-    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-1.5 text-sm font-medium text-zinc-100 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500;
+    @apply inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-btn px-3.5 py-1 text-[13px] font-medium whitespace-nowrap text-zinc-100 shadow-btn hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500;
+  }
+  .btn svg {
+    @apply text-zinc-400;
   }
   .btn-primary {
-    @apply border-zinc-100 bg-zinc-100 font-semibold text-zinc-950 hover:bg-zinc-50;
+    @apply border-zinc-100 bg-zinc-100 font-semibold text-zinc-950 hover:border-zinc-50 hover:bg-zinc-50;
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(0 0 0 / 0.08));
+  }
+  .btn-primary svg {
+    @apply text-zinc-950;
   }
   .btn-danger {
-    @apply border-red-900 bg-transparent text-red-300 hover:bg-red-950/60;
+    @apply border-bad/35 bg-bad-bg text-bad-text shadow-none hover:bg-bad/20;
+  }
+  .btn-danger svg {
+    @apply text-bad-text;
   }
   .btn-ghost {
-    @apply border-transparent bg-transparent hover:bg-zinc-800;
+    @apply border-transparent bg-transparent shadow-none hover:bg-row-hover;
   }
   .input {
-    @apply w-full min-h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-indigo-500;
+    @apply w-full min-h-9 rounded-lg border border-zinc-700 bg-well px-3 py-1 text-[13.5px] text-zinc-100 shadow-[inset_0_1px_2px_rgb(0_0_0/0.25)] placeholder:text-zinc-500 focus-visible:border-zinc-500 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-zinc-100/10;
   }
   .label {
-    @apply mb-1.5 block text-sm font-medium text-zinc-300;
+    @apply mb-1.5 block text-[13px] font-medium text-zinc-200;
   }
   .card {
-    @apply rounded-2xl border border-zinc-800 bg-zinc-900 p-5;
+    @apply rounded-xl border border-line bg-zinc-900 p-5;
   }
   .link {
-    @apply rounded text-indigo-400 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500;
+    @apply rounded text-zinc-100 underline decoration-zinc-600 underline-offset-[3px] hover:decoration-zinc-300 focus-visible:outline-2 focus-visible:outline-indigo-500;
   }
   .h-display {
     font-family: var(--font-display);
-    letter-spacing: -0.03em;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+  .kbd {
+    @apply inline-flex h-[18px] items-center rounded border border-zinc-700 bg-row-active px-1.5 font-mono text-[10.5px] font-medium text-zinc-400;
   }
 }
 
 @layer components {
   .menu-item {
-    @apply flex min-h-9 items-center gap-2 rounded-lg px-3 text-left text-sm text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-indigo-500;
+    @apply flex min-h-9 items-center gap-2 rounded-md px-2.5 text-left text-[13px] text-zinc-200 hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-indigo-500;
   }
 }
