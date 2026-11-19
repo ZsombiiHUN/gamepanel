@@ -1,0 +1,17 @@
+{
+  "name": "gamepanel-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@scalar/api-reference": "^1.81.0",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-llms": "^1.15.0"
+  }
+}

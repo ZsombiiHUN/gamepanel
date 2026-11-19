@@ -13,3 +13,8 @@ web/e2e/.report/
 
 # Go coverage profile (make cover)
 /coverage.out
+
+# docs site
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
