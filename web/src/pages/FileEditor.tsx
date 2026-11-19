@@ -61,7 +61,7 @@ export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; p
         <h2 className="break-all font-mono text-sm">
           {path}
           {dirty && (
-            <span className="ml-2 text-amber-400" title="Unsaved changes">
+            <span className="ml-2 text-warn-text" title="Unsaved changes">
               (modified)
             </span>
           )}
@@ -79,12 +79,12 @@ export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; p
       <ErrorBox error={friendly(file.error)} />
       <ErrorBox error={save.error} />
       {save.isSuccess && !dirty && (
-        <p role="status" className="text-sm text-emerald-400">
+        <p role="status" className="text-sm text-good-text">
           Saved.
         </p>
       )}
       {file.data && (
-        <div role="group" aria-label={`Editor for ${path}`} className="overflow-hidden rounded-md border border-zinc-800">
+        <div role="group" aria-label={`Editor for ${path}`} className="overflow-hidden rounded-md border border-line">
           <CodeMirror value={text} onChange={setEdited} theme={oneDark} extensions={langFor(path)} height="60vh" />
         </div>
       )}

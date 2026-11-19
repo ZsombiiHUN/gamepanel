@@ -97,9 +97,9 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
       onClick={(e) => {
         if (e.target === dialog.current) onClose();
       }}
-      className="m-auto mt-[12vh] w-full max-w-xl rounded-2xl border border-zinc-700 bg-zinc-900 p-0 text-zinc-100 shadow-2xl backdrop:bg-black/70"
+      className="m-auto mt-[12vh] w-full max-w-xl rounded-xl border border-zinc-700 bg-zinc-900 p-0 text-zinc-100 shadow-2xl backdrop:bg-black/70"
     >
-      <div className="flex items-center gap-3 border-b border-zinc-800 px-4">
+      <div className="flex items-center gap-3 border-b border-line px-4">
         <Search className="h-4 w-4 text-zinc-500" aria-hidden />
         <input
           ref={input}

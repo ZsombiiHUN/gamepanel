@@ -21,7 +21,7 @@ export function AuthLayout({ title, sub, children }: { title: string; sub: React
           {children}
         </div>
       </main>
-      <aside aria-hidden className="relative hidden overflow-hidden border-l border-zinc-800 bg-side lg:block">
+      <aside aria-hidden className="relative hidden overflow-hidden border-l border-line bg-side lg:block">
         <div className="absolute inset-0 grid place-content-center gap-5 p-12">
           <div className="grid grid-cols-4 gap-5">
             {ICONS.map((n) => (

@@ -79,7 +79,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
         <ErrorBox error={list.error ?? remove.error ?? save.error ?? withdraw.error} />
         {list.isPending && <Spinner />}
         {list.data && (ownerEmail || count > 0) && (
-          <ul className="divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800">
+          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
             {ownerEmail && (
               <li className="flex items-center gap-3 bg-thead/60 p-3.5">
                 <Avatar name={ownerEmail} />
@@ -122,7 +122,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                       </button>
                       <button
                         type="button"
-                        className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300"
+                        className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-bad-text"
                         aria-label={`Remove ${u.email}`}
                         onClick={() => setToRemove({ id: u.user_id, email: u.email })}
                       >
@@ -131,9 +131,9 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                     </div>
                   </div>
                   {open && (
-                    <div className="space-y-4 border-t border-zinc-800 p-3.5 sm:p-4">
+                    <div className="space-y-4 border-t border-line p-3.5 sm:p-4">
                       <AccessChooser all={all} value={editing.perms} onChange={(v) => setEditing({ id: u.user_id, perms: v })} />
-                      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 pt-4">
+                      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
                         {editing.perms.length === 0 && (
                           <span className="mr-auto text-sm text-warn-text">Pick at least one permission, or remove them instead.</span>
                         )}

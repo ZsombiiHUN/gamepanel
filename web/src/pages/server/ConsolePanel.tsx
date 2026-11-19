@@ -36,12 +36,12 @@ export function ConsolePanel({
     if (cmd.trim()) send.mutate(cmd);
   };
   const tool =
-    "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
+    "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
 
   return (
-    <section aria-label="Console" className="overflow-clip rounded-2xl border border-zinc-800 bg-well">
-      <div className="flex items-center gap-3 border-b border-row-hover py-1.5 pl-[18px] pr-2.5">
-        <h2 className="flex items-center gap-2.5 text-[15px] font-semibold">
+    <section aria-label="Console" className="overflow-clip rounded-xl border border-line bg-well shadow-panel">
+      <div className="flex items-center gap-3 border-b border-line bg-thead py-1 pl-4 pr-2">
+        <h2 className="flex items-center gap-2.5 text-[13.5px] font-medium">
           <span
             className={`h-[7px] w-[7px] rounded-full ${status === "open" ? "bg-good" : status === "closed" ? "bg-bad-text" : "bg-warn"}`}
             title={
@@ -97,7 +97,7 @@ export function ConsolePanel({
         <form
           onSubmit={submit}
           aria-label="Send a console command"
-          className="sticky bottom-0 z-10 flex items-center gap-2.5 border-t border-row-hover bg-thead pl-[18px] pr-2.5"
+          className="sticky bottom-0 z-10 flex items-center gap-2.5 border-t border-line bg-thead pl-4 pr-2"
         >
           <span className="font-mono text-zinc-600" aria-hidden>
             ›

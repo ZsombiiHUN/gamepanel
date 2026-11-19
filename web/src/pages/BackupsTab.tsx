@@ -1,9 +1,10 @@
 import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Cloud, Database, Download, Loader2, Lock, LockOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, Cloud, Download, Loader2, Lock, LockOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { backupsQuery, invalidates, keys, serverQuery } from "../api/queries";
-import { ErrorBox, Field } from "../components/ui";
+import { ErrorBox, Field, Stat, StatRow } from "../components/ui";
+import { relativeTime } from "../lib/activity";
 import { formatBytes } from "../lib/format";
 
 export function BackupsTab({ uuid }: { uuid: string }) {
@@ -49,38 +50,57 @@ export function BackupsTab({ uuid }: { uuid: string }) {
   };
 
   const kept = list.data?.length ?? 0;
+  const used = list.data?.reduce((n, b) => n + (b.status === "ok" ? b.size : 0), 0) ?? 0;
+  const locked = list.data?.filter((b) => b.locked).length ?? 0;
+  const latest = list.data?.reduce<(typeof list.data)[number] | undefined>(
+    (a, b) => (!a || b.created_at > a.created_at ? b : a),
+    undefined,
+  );
   const max = server.data?.backup_limit ?? 0;
   const iconBtn =
-    "inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-indigo-500";
+    "inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-row-hover hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-indigo-500";
   return (
     <div className="space-y-4">
-      <section className="card flex flex-wrap items-center gap-x-10 gap-y-4 !rounded-[14px]" aria-label="Backups kept">
-        <div className="min-w-64 flex-1">
-          <div className="flex justify-between text-sm text-zinc-400">
-            <span>Backups kept</span>
-            <span className="font-mono text-zinc-100">
-              {kept}
-              {max ? ` of ${max}` : ""}
-            </span>
-          </div>
-          {max > 0 && max <= 40 && (
-            <div className="mt-3 flex gap-[3px]" aria-hidden>
-              {Array.from({ length: max }, (_, i) => (
-                <span
-                  key={i}
-                  className={`h-2 flex-1 rounded-[2px] ${i < kept ? (kept >= max ? "bg-warn" : "bg-indigo-400") : "bg-line-strong"}`}
-                />
-              ))}
+      <StatRow label="Backups kept">
+        <Stat
+          label="Backups kept"
+          value={kept}
+          unit={max ? `of ${max}` : undefined}
+          hint={kept >= max && max > 0 ? "Full: the oldest unlocked one goes next" : undefined}
+          tone={kept >= max && max > 0 ? "warn" : undefined}
+        >
+          {max > 0 && (
+            <div className="h-1.5 overflow-hidden rounded-full bg-line" aria-hidden>
+              <div
+                className={`h-full rounded-full ${kept >= max ? "bg-warn" : "bg-gradient-to-r from-zinc-300 to-zinc-100"}`}
+                style={{ width: `${Math.min(100, (kept / max) * 100)}%` }}
+              />
             </div>
           )}
-        </div>
+        </Stat>
+        <Stat
+          label="Storage used"
+          value={formatBytes(used).split(" ")[0]}
+          unit={formatBytes(used).split(" ")[1]}
+          hint="Counts against the node's disk"
+        />
+        <Stat
+          label="Latest"
+          value={latest ? relativeTime(latest.created_at) : "None yet"}
+          hint={latest ? latest.name : "Create one before you try something risky"}
+        />
+        <Stat label="Locked" value={locked} hint="Never deleted automatically" />
+      </StatRow>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <h2 className="text-[15px] font-semibold">History</h2>
         <details className="relative">
           <summary className="btn btn-primary cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <Plus className="h-4 w-4" aria-hidden /> Create backup
           </summary>
           <form
             onSubmit={submit}
-            className="absolute right-0 z-20 mt-2 w-[min(90vw,380px)] space-y-3 rounded-2xl border border-zinc-700 bg-zinc-900 p-4 shadow-xl"
+            className="absolute right-0 z-20 mt-2 w-[min(90vw,380px)] space-y-3 rounded-xl border border-line-strong bg-zinc-900 p-4 shadow-xl"
             aria-label="New backup"
           >
             <Field label="Name (optional)">
@@ -103,27 +123,26 @@ export function BackupsTab({ uuid }: { uuid: string }) {
             </button>
           </form>
         </details>
-      </section>
+      </div>
 
       <ErrorBox error={list.error ?? remove.error ?? lock.error ?? restore.error} />
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900" aria-label="Your backups">
-        <h2 className="px-5 py-4 text-[15px] font-semibold">Your backups</h2>
+      <section className="overflow-hidden rounded-xl border border-line bg-zinc-900" aria-label="Your backups">
         {list.data?.length === 0 && (
-          <p className="border-t border-line px-5 py-5 text-sm text-zinc-400">No backups yet. Create one before you try something risky.</p>
+          <p className="px-5 py-6 text-sm text-zinc-400">No backups yet. Create one before you try something risky.</p>
         )}
         <ul>
           {list.data?.map((b) => (
-            <li key={b.uuid} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-3.5 hover:bg-row-hover">
+            <li key={b.uuid} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-3 hover:bg-row-hover">
               <span
-                className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-chip text-indigo-400"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-thead text-zinc-400"
                 aria-hidden
               >
-                <Database className="h-[17px] w-[17px]" />
+                <Archive className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1 basis-56">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="text-[15px] font-medium">{b.name}</span>
+                  <span className="text-[14px] font-medium">{b.name}</span>
                   {b.disk === "s3" && (
                     <span
                       className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-chip px-2.5 text-xs text-zinc-300"
@@ -134,7 +153,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
                     </span>
                   )}
                   {b.locked && (
-                    <span className="inline-flex min-h-6 items-center gap-1.5 rounded-full bg-chip px-2.5 text-xs text-zinc-300">
+                    <span className="inline-flex h-[22px] items-center gap-1.5 rounded-full border border-line-strong px-2 text-xs text-zinc-300">
                       <Lock className="h-3 w-3" aria-hidden />
                       Locked
                     </span>
@@ -158,7 +177,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 text-[13px] text-zinc-400">
+                <div className="mt-0.5 text-[12.5px] text-zinc-500">
                   {new Date(b.created_at * 1000).toLocaleString()}
                   {b.status === "ok" && (
                     <span className="ml-2 font-mono text-xs text-zinc-500" title="SHA-256">
@@ -173,7 +192,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  className="btn !min-h-9"
+                  className="btn !min-h-8"
                   aria-label={`Restore ${b.name}`}
                   title="Restore (stop the server first)"
                   disabled={b.status !== "ok" || restore.isPending || restoring}
@@ -215,7 +234,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
             </li>
           ))}
         </ul>
-        <label className="flex items-center gap-2 border-t border-line px-5 py-3 text-[13px] text-zinc-400">
+        <label className="flex items-center gap-2 bg-thead px-4 py-2.5 text-[13px] text-zinc-400">
           <input type="checkbox" checked={truncate} onChange={(e) => setTruncate(e.target.checked)} />
           When restoring, delete all current files first
         </label>

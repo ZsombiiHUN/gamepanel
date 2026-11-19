@@ -36,7 +36,7 @@ export function SftpConnect({ uuid, serverName }: { uuid: string; serverName: st
         <Pill>{i.write && i.read ? "Read and write" : i.write ? "Write only" : "Read only"}</Pill>
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-well p-4">
+      <div className="rounded-xl border border-line bg-well p-4">
         <div className="flex flex-wrap items-center gap-2">
           {ready ? (
             <a className="btn btn-primary !min-h-11 !px-5 font-semibold" href={link}>
@@ -81,7 +81,7 @@ export function SftpConnect({ uuid, serverName }: { uuid: string; serverName: st
         </p>
       </div>
 
-      <dl className="divide-y divide-zinc-800 text-sm">
+      <dl className="divide-y divide-line text-sm">
         <Row
           label="Host"
           value={host}
@@ -107,7 +107,7 @@ export function SftpConnect({ uuid, serverName }: { uuid: string; serverName: st
         <Row
           label="Password"
           plain
-          value={key ? <code className="font-mono text-[13px] text-emerald-300">{key.slice(0, 10)}…</code> : "An API key"}
+          value={key ? <code className="font-mono text-[13px] text-good-text">{key.slice(0, 10)}…</code> : "An API key"}
           note={key ? undefined : "Not your account password."}
           copy={key ?? undefined}
           action={
@@ -121,15 +121,15 @@ export function SftpConnect({ uuid, serverName }: { uuid: string; serverName: st
       </dl>
 
       {key && (
-        <div role="status" className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-950/20 p-4">
-          <p className="text-sm text-amber-200">
+        <div role="status" className="space-y-2 rounded-xl border border-warn/30 bg-warn-bg p-4">
+          <p className="text-sm text-warn-text">
             Copy this key now. It is not shown again. You can revoke it on your{" "}
             <Link to="/account" className="underline underline-offset-2">
               Account page
             </Link>
             .
           </p>
-          <code className="block break-all rounded-lg bg-well p-3 font-mono text-[13px] text-emerald-300 select-all">{key}</code>
+          <code className="block break-all rounded-lg bg-well p-3 font-mono text-[13px] text-good-text select-all">{key}</code>
           <CopyIcon text={key} label="Copy key" wide />
         </div>
       )}
@@ -227,7 +227,7 @@ function CopyIcon({ text, label, wide = false }: { text: string; label: string; 
   return (
     <button
       type="button"
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
       aria-label={done ? "Copied" : label}
       title={err ? "Copy failed - select it" : label}
       onClick={() => void copy()}
@@ -251,7 +251,7 @@ function MakeKey({ name, mfa, onMade, onCancel }: { name: string; mfa: boolean; 
     create.mutate();
   };
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-xl border border-zinc-800 p-4">
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-line p-4">
       <p className="text-sm text-zinc-300">
         Creates an API key named <span className="font-medium text-zinc-100">&ldquo;{name}&rdquo;</span> that lasts a year. It can do what
         you can on the panel, so treat it like a password.

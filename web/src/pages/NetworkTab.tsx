@@ -42,7 +42,7 @@ function Ports({ uuid, n }: { uuid: string; n: NetworkView }) {
   return (
     <div className="space-y-5">
       {n.pending && (
-        <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <p role="status" className="rounded-xl border border-warn/30 bg-warn-bg px-4 py-3 text-sm text-warn-text">
           Saved. The server picks up port changes the next time it starts, so restart it when it suits you.
         </p>
       )}
@@ -72,7 +72,7 @@ function Ports({ uuid, n }: { uuid: string; n: NetworkView }) {
           )
         }
       >
-        <ul className="divide-y divide-zinc-800">
+        <ul className="divide-y divide-line">
           {n.ports.map((p) => (
             <PortRow
               key={p.port}
@@ -165,7 +165,7 @@ function PortRow({
           </button>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-indigo-500"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-bad-text focus-visible:outline-2 focus-visible:outline-indigo-500"
             disabled={pending}
             onClick={onRemove}
             aria-label={`Remove port ${p.port}`}

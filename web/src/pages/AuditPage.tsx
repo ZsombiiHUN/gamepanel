@@ -18,7 +18,7 @@ export function AuditPage() {
   const rows = q.data ?? [];
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div>
       <PageHeader
         title="Audit log"
         sub="Security events across the panel, newest first. Times are in your browser's timezone."
@@ -40,54 +40,44 @@ export function AuditPage() {
         </Empty>
       )}
       {q.data && (q.data.length > 0 || page > 0 || term) && (
-        <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+        <div className="overflow-hidden rounded-xl border border-line bg-zinc-900">
           <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Audit events">
-            <table className="w-full text-left text-sm">
+            <table className="tbl">
               <caption className="sr-only">Security events, newest first</caption>
-              <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
+              <thead>
                 <tr>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Time
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Event
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    User
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    Target
-                  </th>
-                  <th scope="col" className="px-4 py-3 font-medium">
-                    IP
-                  </th>
+                  <th scope="col">Time</th>
+                  <th scope="col">Event</th>
+                  <th scope="col">User</th>
+                  <th scope="col">Target</th>
+                  <th scope="col">IP</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/70">
+              <tbody>
                 {rows.map((e) => {
                   const bad = e.action.includes("fail") || e.action.includes("blocked");
                   return (
-                    <tr key={e.id} className="hover:bg-white/[0.02]">
-                      <td className="whitespace-nowrap px-4 py-2.5 text-zinc-400">{new Date(e.at * 1000).toLocaleString()}</td>
-                      <td className="px-4 py-2.5">
+                    <tr key={e.id}>
+                      <td className="whitespace-nowrap text-zinc-400">{new Date(e.at * 1000).toLocaleString()}</td>
+                      <td>
                         {bad ? (
                           <Pill tone="warn">{e.action}</Pill>
                         ) : (
-                          <span className="font-mono text-[13px] text-zinc-200">{e.action}</span>
+                          <span className="font-mono text-[12.5px] text-zinc-200">{e.action}</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-zinc-300">{e.actor_email}</td>
-                      <td className="px-4 py-2.5 text-zinc-300">
+                      <td className="text-zinc-300">{e.actor_email}</td>
+                      <td className="text-zinc-300">
                         {e.target}
                         {e.detail && <span className="text-zinc-500"> ({e.detail})</span>}
                       </td>
-                      <td className="px-4 py-2.5 font-mono text-[13px] text-zinc-500">{e.ip}</td>
+                      <td className="font-mono text-[13px] text-zinc-500">{e.ip}</td>
                     </tr>
                   );
                 })}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-zinc-500">
+                    <td colSpan={5} className="!py-10 text-center text-zinc-500">
                       {term ? `No events match “${term}”.` : "No more events."}
                     </td>
                   </tr>
@@ -95,7 +85,7 @@ export function AuditPage() {
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between border-t border-zinc-800 bg-thead px-4 py-2.5 text-sm text-zinc-500">
+          <div className="flex items-center justify-between border-t border-line bg-thead px-4 py-2 text-[13px] text-zinc-500">
             <span aria-live="polite">
               Page {page + 1}
               {q.data.length ? ` · ${q.data.length} events` : ""}

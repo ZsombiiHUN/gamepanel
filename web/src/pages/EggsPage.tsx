@@ -46,7 +46,7 @@ export function EggsPage() {
   const showImport = open || eggs.data?.length === 0;
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
       <PageHeader
         title="Eggs"
         sub="Templates that say how to install and start a kind of game server. Pterodactyl and Pelican eggs import unchanged."
@@ -61,7 +61,7 @@ export function EggsPage() {
 
       <div className="space-y-5">
         {imp.isSuccess && !showImport && (
-          <p role="status" className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-2.5 text-sm text-emerald-300">
+          <p role="status" className="rounded-xl border border-good/25 bg-good-bg px-4 py-2.5 text-sm text-good-text">
             Imported egg &quot;{imp.data.name}&quot;.
           </p>
         )}
@@ -107,7 +107,7 @@ export function EggsPage() {
                 <ErrorBox error={parseError} />
                 <ErrorBox error={imp.error} />
                 {imp.isSuccess && (
-                  <p role="status" className="text-sm text-emerald-400">
+                  <p role="status" className="text-sm text-good-text">
                     Imported egg &quot;{imp.data.name}&quot;.
                   </p>
                 )}
@@ -125,7 +125,7 @@ export function EggsPage() {
         )}
         <ul className="grid gap-4 sm:grid-cols-2">
           {eggs.data?.map((egg) => (
-            <li key={egg.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+            <li key={egg.id} className="rounded-xl border border-line bg-zinc-900 p-5">
               <div className="flex items-start gap-3.5">
                 <ServerIcon name={egg.name} size={44} />
                 <div className="min-w-0 flex-1">

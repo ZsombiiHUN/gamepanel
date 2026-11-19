@@ -28,7 +28,7 @@ export function SessionsSection() {
       desc="Browsers and devices signed in to your account. If you do not recognise one, sign it out and change your password."
       footer={
         <>
-          <span className={revokeOthers.isSuccess ? "text-emerald-400" : ""} role={revokeOthers.isSuccess ? "status" : undefined}>
+          <span className={revokeOthers.isSuccess ? "text-good-text" : ""} role={revokeOthers.isSuccess ? "status" : undefined}>
             {revokeOthers.isSuccess ? "Other sessions signed out." : ""}
           </span>
           <button type="button" className="btn" onClick={() => revokeOthers.mutate()} disabled={revokeOthers.isPending || others === 0}>
@@ -39,7 +39,7 @@ export function SessionsSection() {
     >
       {list.isPending && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" aria-label="Loading sessions" />}
       {list.data && (
-        <ul className="divide-y divide-zinc-800 rounded-xl border border-zinc-800" aria-label="Signed-in sessions">
+        <ul className="divide-y divide-line rounded-xl border border-line" aria-label="Signed-in sessions">
           {list.data.map((s) => {
             const Icon = mobile(s.user_agent) ? Smartphone : Monitor;
             const name = describeUserAgent(s.user_agent);
@@ -84,7 +84,7 @@ export function SessionsSection() {
                 {!s.current && (
                   <button
                     type="button"
-                    className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300"
+                    className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-bad-text"
                     aria-label={`Sign out ${name}${where ? ` at ${where}` : ""}`}
                     title="Sign out"
                     disabled={revoke.isPending && revoke.variables === s.id}

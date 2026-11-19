@@ -163,6 +163,14 @@ h2 {
   .btn-primary svg {
     @apply text-zinc-950;
   }
+  /* A disabled primary button reads as an ordinary disabled button, not a grey slab. */
+  .btn-primary:disabled {
+    @apply border-zinc-700 bg-btn font-medium text-zinc-400 opacity-60;
+    background-image: none;
+  }
+  .btn-primary:disabled svg {
+    @apply text-zinc-500;
+  }
   .btn-danger {
     @apply border-bad/35 bg-bad-bg text-bad-text shadow-none hover:bg-bad/20;
   }
@@ -188,6 +196,34 @@ h2 {
     font-family: var(--font-display);
     font-weight: 600;
     letter-spacing: -0.025em;
+  }
+  /* Segmented control: a group of aria-pressed buttons on a well. */
+  .seg {
+    @apply inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] border border-line bg-well p-[3px];
+  }
+  .seg > button,
+  .seg > a {
+    @apply inline-flex min-h-7 items-center gap-1.5 rounded-[7px] px-2.5 text-[12.5px] font-medium text-zinc-400 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500;
+  }
+  .seg > [aria-pressed="true"],
+  .seg > [aria-current="page"] {
+    @apply bg-btn text-zinc-100 shadow-[inset_0_0_0_1px_var(--color-line-strong),0_1px_2px_rgb(0_0_0/0.25)];
+  }
+  /* Data tables: quiet sentence-case header on the thead tint, hairline rows. */
+  .tbl {
+    @apply w-full border-collapse text-left text-[13.5px];
+  }
+  .tbl thead th {
+    @apply h-9 border-b border-line bg-thead px-4 text-xs font-medium whitespace-nowrap text-zinc-500;
+  }
+  .tbl tbody td {
+    @apply border-b border-line px-4 py-2.5;
+  }
+  .tbl tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .tbl tbody tr:hover td {
+    @apply bg-row-hover/60;
   }
   .kbd {
     @apply inline-flex h-[18px] items-center rounded border border-zinc-700 bg-row-active px-1.5 font-mono text-[10.5px] font-medium text-zinc-400;
