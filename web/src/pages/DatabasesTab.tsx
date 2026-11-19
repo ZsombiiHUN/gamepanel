@@ -67,7 +67,7 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
         ) : (
           <ul className="space-y-3">
             {v.databases.map((d) => (
-              <li key={d.id} className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+              <li key={d.id} className="rounded-xl border border-line bg-zinc-950/40 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-mono text-[14px] font-medium text-zinc-100">{d.name}</h3>
                   {v.can_manage && (
@@ -85,7 +85,7 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                       </button>
                       <button
                         type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-bad-text"
                         aria-label={`Delete ${d.name}`}
                         onClick={() => setToDelete(d)}
                       >
@@ -112,7 +112,7 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                       {v.can_manage && (
                         <button
                           type="button"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover"
                           aria-label={shown[d.id] ? `Hide the password of ${d.name}` : `Show the password of ${d.name}`}
                           onClick={() => (shown[d.id] ? setShown(({ [d.id]: _, ...rest }) => rest) : reveal.mutate(d.id))}
                         >

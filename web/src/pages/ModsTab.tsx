@@ -23,7 +23,7 @@ export function ModsTab({ uuid }: { uuid: string }) {
 
   return (
     <div className="space-y-4">
-      <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-4" aria-label="Find mods">
+      <section className="space-y-3 rounded-xl border border-line bg-zinc-900 p-4" aria-label="Find mods">
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label htmlFor="mod-type" className="label">
@@ -110,7 +110,7 @@ function ModRow({ uuid, hit, type, loader, version }: { uuid: string; hit: Hit; 
   const list = versions.data ?? [];
   const chosen = picked || list[0]?.id || "";
   return (
-    <li className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+    <li className="rounded-xl border border-line bg-zinc-900 p-4">
       <div className="flex flex-wrap items-start gap-3">
         {hit.icon_url ? (
           <img

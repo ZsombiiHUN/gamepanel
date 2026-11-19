@@ -38,8 +38,8 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
     URL.revokeObjectURL(url);
   };
   return (
-    <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-950/20 p-4" role="status">
-      <p className="text-sm text-amber-200">
+    <div className="space-y-3 rounded-xl border border-warn/30 bg-warn-bg p-4" role="status">
+      <p className="text-sm text-warn-text">
         Save these recovery codes somewhere safe, like a password manager. Each works once if you lose your authenticator. They are not
         shown again.
       </p>
@@ -67,14 +67,14 @@ function RecoveryStatus() {
   if (!st) return null;
   if (st.outdated) {
     return (
-      <p className="text-sm text-amber-300" role="note">
+      <p className="text-sm text-warn-text" role="note">
         Your recovery codes are from an older, weaker format. They still work, but make new ones below and throw the old ones away.
       </p>
     );
   }
   if (st.remaining <= 3) {
     return (
-      <p className="text-sm text-amber-300" role="note">
+      <p className="text-sm text-warn-text" role="note">
         {st.remaining === 0
           ? "You have no recovery codes left."
           : `Only ${st.remaining} recovery ${st.remaining === 1 ? "code" : "codes"} left.`}{" "}

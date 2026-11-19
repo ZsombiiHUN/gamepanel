@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { invalidates, keys, meQuery } from "../api/queries";
-import { ErrorBox, Field, FormDialog, Section } from "../components/ui";
+import { ErrorBox, Field, FormDialog, Section, SectionsWithNav } from "../components/ui";
 import { SftpConnect } from "./server/SftpConnect";
 import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
 import { copyText } from "../lib/clipboard";
@@ -41,7 +41,7 @@ function CopyIcon({ text, label }: { text: string; label: string }) {
       type="button"
       aria-label={label}
       title={label}
-      className="grid h-7 w-7 shrink-0 place-content-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-indigo-500"
+      className="grid h-7 w-7 shrink-0 place-content-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-indigo-500"
       onClick={() => {
         void (async () => {
           try {
@@ -74,7 +74,7 @@ function Tile({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+    <div className="flex min-w-0 items-start gap-3 rounded-lg border border-line bg-well/60 p-3">
       <span className="grid h-8 w-8 shrink-0 place-content-center rounded-lg bg-chip text-zinc-400">{icon}</span>
       <dl className="min-w-0 flex-1">
         <dt className="text-xs text-zinc-500">{label}</dt>
@@ -125,7 +125,7 @@ export function SettingsTab({ server }: { server: ServerView }) {
   const canSftp = server.permissions.includes("files.read") || server.permissions.includes("files.write");
 
   return (
-    <div className="space-y-5">
+    <SectionsWithNav>
       {server.permissions.includes("settings.rename") && <RenameSection server={server} />}
 
       <Section
@@ -279,7 +279,7 @@ export function SettingsTab({ server }: { server: ServerView }) {
           del.reset();
         }}
       />
-    </div>
+    </SectionsWithNav>
   );
 }
 
@@ -379,7 +379,7 @@ function DeleteDialog({
     >
       <p>This permanently deletes the server, its files and its backups. It cannot be undone.</p>
       {offline && (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+        <p className="rounded-lg border border-warn/30 bg-warn-bg px-3 py-2 text-sm text-warn-text">
           Its node is offline. The server is removed from the panel now, and the node deletes its container and files when it connects
           again.
         </p>

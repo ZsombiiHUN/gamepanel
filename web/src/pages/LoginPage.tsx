@@ -125,7 +125,7 @@ export function LoginPage() {
     >
       <form onSubmit={submit} className="space-y-6" aria-labelledby="auth-title">
         {ssoMsg && (
-          <p role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">
+          <p role="alert" className="rounded-lg border border-warn/30 bg-warn-bg px-3 py-2.5 text-sm text-warn-text">
             {ssoMsg}
           </p>
         )}

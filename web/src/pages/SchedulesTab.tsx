@@ -103,11 +103,11 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
     meta,
   });
   const ghost =
-    "inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500";
+    "inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-indigo-500";
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900" aria-labelledby="sc-list">
+      <section className="overflow-hidden rounded-xl border border-line bg-zinc-900" aria-labelledby="sc-list">
         <div className="flex items-center justify-between px-5 py-4">
           <h2 id="sc-list" className="text-[15px] font-semibold">
             {list.data ? `${list.data.length} ${list.data.length === 1 ? "schedule" : "schedules"}` : "Schedules"}
@@ -199,7 +199,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
       </section>
       <p className="text-[12.5px] text-zinc-500">A schedule runs its tasks in order. Use the switch to pause one without deleting it.</p>
 
-      <details className="group rounded-2xl border border-zinc-800 bg-zinc-900 open:p-0">
+      <details className="group rounded-xl border border-line bg-zinc-900 open:p-0">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-[15px] font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500 [&::-webkit-details-marker]:hidden">
           <Plus className="h-4 w-4" aria-hidden /> New schedule
         </summary>

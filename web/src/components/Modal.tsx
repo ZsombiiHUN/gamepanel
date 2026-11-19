@@ -28,7 +28,7 @@ export function Modal({
       ref={ref}
       onClose={onClose}
       aria-labelledby={titleId}
-      className={`m-auto w-full ${wide ? "max-w-2xl" : "max-w-lg"} rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/70`}
+      className={`m-auto w-full ${wide ? "max-w-2xl" : "max-w-lg"} rounded-xl border border-line bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/70`}
     >
       {open && (
         <>

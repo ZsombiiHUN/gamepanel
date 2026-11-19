@@ -41,7 +41,7 @@ function PermPicker({ all, value, onChange }: { all: Perm[]; value: string[]; on
         return (
           <div
             key={g.area}
-            className={`rounded-xl border p-3 transition-colors ${on ? "border-line-strong bg-row-active/50" : "border-zinc-800"}`}
+            className={`rounded-xl border p-3 transition-colors ${on ? "border-line-strong bg-row-active/50" : "border-line"}`}
           >
             <div className="mb-2 flex items-center gap-2.5">
               {g.perms.length > 1 ? (
@@ -106,7 +106,7 @@ export function AccessChooser({ all, value, onChange }: { all: Perm[]; value: st
               aria-checked={active}
               onClick={() => onChange(r.perms(known))}
               className={`relative rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-indigo-500 ${
-                active ? "border-zinc-500 bg-row-active" : "border-zinc-800 hover:border-zinc-700 hover:bg-row-hover"
+                active ? "border-zinc-500 bg-row-active" : "border-line hover:border-zinc-700 hover:bg-row-hover"
               }`}
             >
               <span className="flex items-center justify-between gap-2">

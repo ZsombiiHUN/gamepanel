@@ -32,7 +32,7 @@ export function PasskeysSection() {
     >
       {list.data?.length === 0 && <p className="text-sm text-zinc-400">No passkeys yet.</p>}
       {!!list.data?.length && (
-        <ul className="divide-y divide-zinc-800 rounded-xl border border-zinc-800">
+        <ul className="divide-y divide-line rounded-xl border border-line">
           {list.data.map((p) => (
             <li key={p.id} className="flex items-center gap-3 p-3.5">
               <Fingerprint className="h-5 w-5 shrink-0 text-indigo-300" aria-hidden />
@@ -45,7 +45,7 @@ export function PasskeysSection() {
               </div>
               <button
                 type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-bad-text"
                 aria-label={`Remove ${p.name}`}
                 onClick={() => {
                   if (window.confirm(`Remove the passkey "${p.name}"? That device can no longer sign in with it.`)) remove.mutate(p.id);

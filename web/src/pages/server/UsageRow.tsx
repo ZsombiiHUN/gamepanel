@@ -23,8 +23,11 @@ export function UsageRow({
   running,
   latest,
   limits,
+  rail = false,
 }: {
   uuid: string;
+  /** Stack the charts in one narrow card (beside the console on wide screens). */
+  rail?: boolean;
   running: LiveStats | null;
   latest: LiveStats | null;
   limits: Limits;
@@ -54,15 +57,9 @@ export function UsageRow({
   return (
     <section aria-label="Usage" className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="group" aria-label="Time range" className="inline-flex rounded-lg border border-zinc-800 bg-zinc-900 p-0.5">
+        <div role="group" aria-label="Time range" className="seg">
           {RANGES.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              aria-pressed={range === r.id}
-              onClick={() => setRange(r.id)}
-              className={`min-h-8 rounded-md px-3 text-[13px] focus-visible:outline-2 focus-visible:outline-indigo-500 ${range === r.id ? "bg-zinc-800 font-medium text-zinc-100" : "text-zinc-400 hover:text-zinc-100"}`}
-            >
+            <button key={r.id} type="button" aria-pressed={range === r.id} onClick={() => setRange(r.id)}>
               {r.label}
             </button>
           ))}
@@ -73,10 +70,16 @@ export function UsageRow({
           </p>
         )}
       </div>
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr))]">
-        <UsageChart {...cpuChart} values={cpu} since={since} />
-        <UsageChart {...memChart} values={mem.map((b) => b / memChart.per)} since={since} />
-        <UsageChart {...diskChart} values={disk.map((b) => b / diskChart.per)} since={since} />
+      <div
+        className={
+          rail
+            ? "divide-y divide-line overflow-hidden rounded-xl border border-line bg-zinc-900"
+            : "grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr))]"
+        }
+      >
+        <UsageChart {...cpuChart} values={cpu} since={since} compact={rail} />
+        <UsageChart {...memChart} values={mem.map((b) => b / memChart.per)} since={since} compact={rail} />
+        <UsageChart {...diskChart} values={disk.map((b) => b / diskChart.per)} since={since} compact={rail} />
       </div>
       <p className="text-[12.5px] text-zinc-500" aria-live="polite">
         {range === "live"

@@ -15,7 +15,7 @@ export function ForgotPage() {
     return (
       <AuthLayout title="Check your email" sub="">
         <p role="status" className="flex gap-2 text-sm text-zinc-300">
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" aria-hidden />
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-good-text" aria-hidden />
           If {email.trim()} has an account, a link to choose a new password is on its way. It works for an hour.
         </p>
         <Link to="/login" className="link text-sm">
