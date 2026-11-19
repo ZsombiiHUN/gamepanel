@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -29,7 +29,7 @@ export function ForgotPage() {
       <form
         className="space-y-6"
         aria-labelledby="auth-title"
-        onSubmit={(e: FormEvent) => {
+        onSubmit={(e: SubmitEvent) => {
           e.preventDefault();
           send.mutate();
         }}
@@ -134,7 +134,7 @@ export function ResetPage() {
       <form
         className="space-y-6"
         aria-labelledby="auth-title"
-        onSubmit={(e: FormEvent) => {
+        onSubmit={(e: SubmitEvent) => {
           e.preventDefault();
           if (password === confirm) reset.mutate();
         }}
@@ -183,7 +183,7 @@ export function RegisterPage() {
           <form
             className="space-y-6"
             aria-labelledby="auth-title"
-            onSubmit={(e: FormEvent) => {
+            onSubmit={(e: SubmitEvent) => {
               e.preventDefault();
               if (password === confirm) register.mutate();
             }}
@@ -214,7 +214,7 @@ export function RegisterPage() {
                   or, without a password
                   <span className="h-px flex-1 bg-zinc-800" />
                 </div>
-                <SSOButtons providers={options.data!.sso} query={token ? { invite: token } : {}} />
+                <SSOButtons providers={options.data?.sso ?? []} query={token ? { invite: token } : {}} />
               </>
             )}
             <p className="text-center text-sm text-zinc-400">

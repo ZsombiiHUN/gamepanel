@@ -1,7 +1,7 @@
 import { Field } from "./ui";
 
 // Limits are edited as strings so a field can be empty while typing.
-export type LimitsForm = {
+export interface LimitsForm {
   memory_mb: string;
   swap_mb: string;
   cpu_pct: string;
@@ -13,9 +13,9 @@ export type LimitsForm = {
   port_limit: string;
   database_limit: string;
   bandwidth_mbit: string;
-};
+}
 
-export type LimitsValue = {
+export interface LimitsValue {
   memory_mb: number;
   swap_mb: number;
   cpu_pct: number;
@@ -27,7 +27,7 @@ export type LimitsValue = {
   port_limit?: number;
   database_limit?: number;
   bandwidth_mbit?: number;
-};
+}
 
 export const defaultLimitsForm: LimitsForm = {
   memory_mb: "1024",

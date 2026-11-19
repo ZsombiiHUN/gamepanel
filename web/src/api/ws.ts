@@ -48,7 +48,7 @@ export function useServerSocket(uuid: string, handlers: Handlers) {
         if (typeof ev.data !== "string") return;
         let frame: { type?: string; data?: unknown };
         try {
-          frame = JSON.parse(ev.data);
+          frame = JSON.parse(ev.data) as typeof frame;
         } catch {
           return;
         }

@@ -12,7 +12,7 @@ test("create a server from the form and find it in the list, ready to start", as
 
   await expect(page).toHaveURL(/\/servers\/[0-9a-f-]{36}/);
   await expect(page.getByRole("heading", { name })).toBeVisible();
-  const uuid = page.url().match(/servers\/([0-9a-f-]{36})/)![1]!;
+  const uuid = /servers\/([0-9a-f-]{36})/.exec(page.url())![1]!;
   panel.track(uuid);
   await panel.waitFor(uuid, "offline");
 
@@ -27,7 +27,7 @@ test("the form refuses to submit without a name, node or egg, and says which", a
   await page.goto("/servers/new");
   await page.getByRole("button", { name: "Create server" }).click();
   await expect(page).toHaveURL(/\/servers\/new$/);
-  const invalid = await page.locator(":invalid").evaluateAll((els) => els.map((e) => e.getAttribute("name") ?? e.id ?? e.tagName));
+  const invalid = await page.locator(":invalid").evaluateAll((els) => els.map((e) => e.getAttribute("name") ?? (e.id || e.tagName)));
   expect(invalid.length).toBeGreaterThanOrEqual(1);
   await page.getByLabel("Name", { exact: true }).fill("x");
   await page.getByRole("button", { name: "Create server" }).click();

@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useState, type ChangeEvent, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Egg, Loader2, Plus, Upload, X } from "lucide-react";
 import { api, call } from "../api/client";
@@ -30,7 +30,7 @@ export function EggsPage() {
     e.target.value = "";
   };
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     setParseError(null);
     imp.reset();
@@ -87,7 +87,7 @@ export function EggsPage() {
                       id={id}
                       type="file"
                       accept="application/json,.json"
-                      onChange={onFile}
+                      onChange={(e) => void onFile(e)}
                       className="input file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-2.5 file:py-1 file:text-zinc-100"
                     />
                   )}

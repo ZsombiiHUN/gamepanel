@@ -53,7 +53,7 @@ export function ModsTab({ uuid }: { uuid: string }) {
                 <option value="">Any</option>
                 {LOADERS[type].map((l) => (
                   <option key={l} value={l}>
-                    {l[0]!.toUpperCase() + l.slice(1)}
+                    {l.charAt(0).toUpperCase() + l.slice(1)}
                   </option>
                 ))}
               </select>

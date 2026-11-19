@@ -4,7 +4,7 @@ import { formatProblem, statusMessage } from "../lib/problem";
 
 export const api = createClient<paths>({ baseUrl: "/api", credentials: "same-origin" });
 
-let onUnauthorized: () => void = () => {};
+let onUnauthorized: () => void = () => undefined;
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }

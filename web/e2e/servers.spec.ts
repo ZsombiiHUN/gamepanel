@@ -5,7 +5,7 @@ const names = async (page: import("@playwright/test").Page) =>
   cards(page)
     .getByRole("link")
     .evaluateAll((els) =>
-      els.filter((e) => e.closest("h1,article")?.tagName === "ARTICLE" && !e.classList.contains("btn")).map((e) => e.textContent!.trim()),
+      els.filter((e) => e.closest("h1,article")?.tagName === "ARTICLE" && !e.classList.contains("btn")).map((e) => e.textContent.trim()),
     );
 const filter = (page: import("@playwright/test").Page) => page.getByRole("searchbox", { name: "Filter servers" });
 

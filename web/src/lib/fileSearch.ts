@@ -56,9 +56,9 @@ export async function searchFiles(
       const listed = await Promise.all(batch.map((d) => list(d).catch(() => null)));
       if (signal?.aborted) return result;
       result.scanned += batch.length;
-      listed.forEach((entries, k) => {
+      batch.forEach((dir, k) => {
+        const entries = listed[k];
         if (!entries) return;
-        const dir = batch[k]!;
         for (const e of [...entries].sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name))) {
           const path = joinPath(dir, e.name);
           if (e.name.toLowerCase().includes(needle)) {

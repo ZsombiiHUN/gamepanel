@@ -14,7 +14,7 @@ export interface Ready {
 
 /** This worker's panel's ready file and saved cookies (see slots.ts). */
 export const STATE = stateDir(SLOT);
-export const readState = (): Ready => JSON.parse(fs.readFileSync(path.join(STATE, "ready.json"), "utf8"));
+export const readState = () => JSON.parse(fs.readFileSync(path.join(STATE, "ready.json"), "utf8")) as Ready;
 export const ANONYMOUS = { cookies: [], origins: [] };
 
 let seq = 0;
@@ -52,8 +52,10 @@ export class Panel {
   }
 
   async eggId(name = "Paper Minecraft"): Promise<number> {
-    const eggs = await (await this.api.get("/api/eggs")).json();
-    return eggs.find((e: { name: string; id: number }) => e.name === name).id;
+    const eggs = (await (await this.api.get("/api/eggs")).json()) as { name: string; id: number }[];
+    const egg = eggs.find((e) => e.name === name);
+    if (!egg) throw new Error(`no egg named ${name}`);
+    return egg.id;
   }
 
   /** Creates a throwaway server, so a test can start, edit or delete it without disturbing the shared ones. */
@@ -62,9 +64,9 @@ export class Panel {
       data: { name, node_id: this.ready.node_id, egg_id: await this.eggId(opts.egg), memory_mb: opts.memory_mb ?? 256, disk_mb: 1024 },
     });
     expect(res.status(), await res.text()).toBe(201);
-    const s = await res.json();
+    const s = (await res.json()) as { uuid: string; port: number };
     this.created.push(s.uuid);
-    return { uuid: s.uuid as string, name, port: s.port as number };
+    return { uuid: s.uuid, name, port: s.port };
   }
 
   async power(uuid: string, action: "start" | "stop" | "kill") {
@@ -73,7 +75,7 @@ export class Panel {
   }
 
   async state(uuid: string): Promise<string> {
-    return (await (await this.api.get(`/api/servers/${uuid}`)).json()).state;
+    return ((await (await this.api.get(`/api/servers/${uuid}`)).json()) as { state: string }).state;
   }
   async waitFor(uuid: string, state: string) {
     await expect.poll(() => this.state(uuid), { timeout: 15_000 }).toBe(state);
@@ -85,7 +87,7 @@ export class Panel {
   }
   async readFile(uuid: string, filePath: string): Promise<string> {
     const res = await this.api.get(`/api/servers/${uuid}/files/content`, { params: { path: filePath } });
-    return (await res.json()).content;
+    return ((await res.json()) as { content: string }).content;
   }
 }
 

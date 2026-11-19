@@ -39,6 +39,8 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
   }));
 
   useEffect(() => {
+    const el = host.current;
+    if (!el) return;
     const t = new XTerm({
       convertEol: true,
       disableStdin: true,
@@ -51,12 +53,12 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
     });
     const f = new FitAddon();
     t.loadAddon(f);
-    t.open(host.current!);
+    t.open(el);
     term.current = t;
     fitAddon.current = f;
     fit();
     const ro = new ResizeObserver(fit);
-    ro.observe(host.current!);
+    ro.observe(el);
     return () => {
       ro.disconnect();
       t.dispose();

@@ -11,30 +11,30 @@ export function describeUserAgent(ua: string): string {
     ? "Edge"
     : /OPR\/|Opera/.test(ua)
       ? "Opera"
-      : /SamsungBrowser\//.test(ua)
+      : ua.includes("SamsungBrowser/")
         ? "Samsung Internet"
         : /Firefox\/|FxiOS\//.test(ua)
           ? "Firefox"
           : /Chrome\/|CriOS\/|Chromium\//.test(ua)
             ? "Chrome"
-            : /Safari\//.test(ua) && /Version\//.test(ua)
+            : ua.includes("Safari/") && ua.includes("Version/")
               ? "Safari"
-              : /^curl\//.test(ua)
+              : ua.startsWith("curl/")
                 ? "curl"
                 : null;
   const os = /iPhone|iPod/.test(ua)
     ? "iPhone"
-    : /iPad/.test(ua)
+    : ua.includes("iPad")
       ? "iPad"
-      : /Android/.test(ua)
+      : ua.includes("Android")
         ? "Android"
-        : /CrOS/.test(ua)
+        : ua.includes("CrOS")
           ? "ChromeOS"
-          : /Windows/.test(ua)
+          : ua.includes("Windows")
             ? "Windows"
             : /Mac OS X|Macintosh/.test(ua)
               ? "macOS"
-              : /Linux/.test(ua)
+              : ua.includes("Linux")
                 ? "Linux"
                 : null;
   if (browser && os) return `${browser} on ${os}`;

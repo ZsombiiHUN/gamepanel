@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, Loader2 } from "lucide-react";
 import QRCode from "qrcode";
@@ -11,8 +11,11 @@ function Qr({ uri }: { uri: string }) {
   useEffect(() => {
     let alive = true;
     QRCode.toDataURL(uri, { margin: 1, width: 192 }).then(
-      (s) => alive && setSrc(s),
-      () => {},
+      (s) => {
+        if (alive) setSrc(s);
+      },
+      // No QR code: the setup key below still works.
+      () => undefined,
     );
     return () => {
       alive = false;
@@ -121,7 +124,7 @@ export function TotpSection() {
     },
   });
 
-  const stop = (fn: () => void) => (e: FormEvent) => {
+  const stop = (fn: () => void) => (e: SubmitEvent) => {
     e.preventDefault();
     fn();
   };

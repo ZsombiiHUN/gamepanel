@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Cloud, Database, Download, Loader2, Lock, LockOpen, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
@@ -37,7 +37,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
   });
   const restoring = list.data?.some((b) => b.restore_status === "running") ?? false;
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     create.mutate();
   };

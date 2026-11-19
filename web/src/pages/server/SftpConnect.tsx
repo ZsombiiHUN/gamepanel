@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type SubmitEvent, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Copy, ExternalLink, KeyRound, Loader2, Plug } from "lucide-react";
@@ -7,6 +7,7 @@ import { invalidates, keys, meQuery, sftpQuery } from "../../api/queries";
 import { Modal } from "../../components/Modal";
 import { ErrorBox, Field, Pill, Spinner } from "../../components/ui";
 import { sftpHost, sftpLink } from "../../lib/sftp";
+import { copyText } from "../../lib/clipboard";
 
 /**
  * Everything needed to open a server in an SFTP client: one button that hands
@@ -207,7 +208,7 @@ function CopyIcon({ text, label, wide = false }: { text: string; label: string; 
   const [err, setErr] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       setDone(true);
       setErr(false);
       setTimeout(() => setDone(false), 1500);
@@ -218,7 +219,7 @@ function CopyIcon({ text, label, wide = false }: { text: string; label: string; 
   const icon = done ? <Check className="h-3.5 w-3.5 text-good-text" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />;
   if (wide) {
     return (
-      <button type="button" className="btn" onClick={copy}>
+      <button type="button" className="btn" onClick={() => void copy()}>
         {icon} {done ? "Copied" : err ? "Copy failed - select it" : label}
       </button>
     );
@@ -229,7 +230,7 @@ function CopyIcon({ text, label, wide = false }: { text: string; label: string; 
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
       aria-label={done ? "Copied" : label}
       title={err ? "Copy failed - select it" : label}
-      onClick={copy}
+      onClick={() => void copy()}
     >
       {icon}
     </button>
@@ -245,7 +246,7 @@ function MakeKey({ name, mfa, onMade, onCancel }: { name: string; mfa: boolean; 
     meta: invalidates(keys.apiKeys),
     onSuccess: (r) => onMade(r.token),
   });
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     create.mutate();
   };

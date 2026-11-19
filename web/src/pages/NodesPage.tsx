@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { HardDrive, Loader2, Plus, Settings2, Trash2, X } from "lucide-react";
 import { api, call, type components } from "../api/client";
@@ -71,7 +71,7 @@ export function NodesPage() {
     },
   });
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     setCreated(null);
     create.mutate();
@@ -102,6 +102,7 @@ export function NodesPage() {
             <p className="mt-1 text-sm text-amber-100/70">It is shown only once. Set it on the daemon as an environment variable:</p>
             <pre
               tabIndex={0}
+              role="region"
               aria-label="Daemon environment"
               className="mt-3 overflow-x-auto rounded-lg border border-zinc-800 bg-well p-3 font-mono text-[13px] text-emerald-300 select-all"
             >
@@ -325,7 +326,7 @@ export function NodesPage() {
                     )}
                   </div>
                 )}
-                {open && editing && (
+                {open && (
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -379,7 +380,7 @@ export function NodesPage() {
                     </button>
                   </form>
                 )}
-                {open && editing && (
+                {open && (
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();

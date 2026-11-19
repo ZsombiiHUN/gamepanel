@@ -155,7 +155,7 @@ export function ActivityTab({ uuid }: { uuid: string }) {
 
       <div className={q.isPlaceholderData ? "opacity-60 transition-opacity" : undefined}>
         {groupByDay(rows).map((g) => (
-          <div key={g.label + g.rows[0]?.id}>
+          <div key={g.label}>
             <h3 className="border-y border-line bg-thead px-5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
               {g.label}
             </h3>

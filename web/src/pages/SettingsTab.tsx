@@ -23,6 +23,7 @@ import { invalidates, keys, meQuery } from "../api/queries";
 import { ErrorBox, Field, FormDialog, Section } from "../components/ui";
 import { SftpConnect } from "./server/SftpConnect";
 import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
+import { copyText } from "../lib/clipboard";
 
 type ServerView = components["schemas"]["ServerView"];
 
@@ -41,14 +42,16 @@ function CopyIcon({ text, label }: { text: string; label: string }) {
       aria-label={label}
       title={label}
       className="grid h-7 w-7 shrink-0 place-content-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-indigo-500"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setDone(true);
-          setTimeout(() => setDone(false), 1500);
-        } catch {
-          /* the value stays selectable */
-        }
+      onClick={() => {
+        void (async () => {
+          try {
+            await copyText(text);
+            setDone(true);
+            setTimeout(() => setDone(false), 1500);
+          } catch {
+            /* the value stays selectable */
+          }
+        })();
       }}
     >
       {done ? <Check className="h-3.5 w-3.5 text-good-text" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}

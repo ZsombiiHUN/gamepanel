@@ -34,7 +34,7 @@ export function AuditPage() {
       />
       {q.isPending && <Spinner />}
       {q.error && <ErrorBox error={q.error} />}
-      {q.data && q.data.length === 0 && page === 0 && !term && (
+      {q.data?.length === 0 && page === 0 && !term && (
         <Empty icon={<ScrollText className="h-5 w-5" aria-hidden />} title="No events yet">
           Sign-ins, power actions and settings changes show up here.
         </Empty>

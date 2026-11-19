@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent, type RefObject } from "react";
+import { useEffect, useState, type SubmitEvent, type RefObject } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Check, Copy, Eraser, Expand, Loader2, Send, Shrink } from "lucide-react";
 import { api, call } from "../../api/client";
 import { ConsoleTerminal, type TerminalHandle } from "../../components/Terminal";
 import { ErrorBox } from "../../components/ui";
+import { copyText } from "../../lib/clipboard";
 
 export function ConsolePanel({
   uuid,
@@ -30,7 +31,7 @@ export function ConsolePanel({
     if (active) termRef.current?.fit();
   }, [active, expanded, termRef]);
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     if (cmd.trim()) send.mutate(cmd);
   };
@@ -61,8 +62,7 @@ export function ConsolePanel({
             aria-label={copied ? "Copied" : "Copy log"}
             title="Copy log"
             onClick={() => {
-              void navigator.clipboard
-                ?.writeText(termRef.current?.text() ?? "")
+              void copyText(termRef.current?.text() ?? "")
                 .then(() => {
                   setCopied(true);
                   setTimeout(() => setCopied(false), 1800);

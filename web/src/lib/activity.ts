@@ -132,7 +132,7 @@ export function groupByDay<T extends { at: number }>(rows: T[], now = Date.now()
   for (const r of rows) {
     const label = dayLabel(r.at, now);
     const last = out[out.length - 1];
-    if (last && last.label === label) last.rows.push(r);
+    if (last?.label === label) last.rows.push(r);
     else out.push({ label, rows: [r] });
   }
   return out;

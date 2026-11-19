@@ -46,7 +46,7 @@ export function UsageRow({
     limits,
     range === "live" ? cpu : [...cpu, ...pts.map((p) => p.cpu_max)],
   );
-  const since = RANGES.find((r) => r.id === range)!.since;
+  const since = RANGES.find((r) => r.id === range)?.since ?? "earlier";
   const peakCpu = Math.max(0, ...pts.map((p) => p.cpu_max));
   const peakMem = Math.max(0, ...pts.map((p) => p.mem_max));
   const step = history.data?.step ?? 60;

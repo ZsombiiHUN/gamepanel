@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { noop, type QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -76,7 +76,7 @@ function ForbiddenPage({ error }: ErrorComponentProps) {
 /** The signed-in user, or null when there is no session. Other failures are real errors. */
 async function currentUser(queryClient: QueryClient) {
   try {
-    return await queryClient.ensureQueryData(meQuery);
+    return await queryClient.query({ ...meQuery, staleTime: "static" });
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) return null;
     throw err;
@@ -139,7 +139,7 @@ const indexRoute = createRoute({
     q: text(s.q),
     status: oneOf(s.status, GROUPS),
   }),
-  loader: ({ context }) => void context.queryClient.prefetchQuery(serversQuery),
+  loader: ({ context }) => void context.queryClient.query(serversQuery).catch(noop),
 });
 const serverRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -150,7 +150,7 @@ const serverRoute = createRoute({
     dir: text(s.dir),
     q: text(s.q),
   }),
-  loader: ({ context, params }) => void context.queryClient.prefetchQuery(serverQuery(params.uuid)),
+  loader: ({ context, params }) => void context.queryClient.query(serverQuery(params.uuid)).catch(noop),
 });
 
 const accountRoute = createRoute({
@@ -178,29 +178,29 @@ const newServerRoute = createRoute({
   path: "/servers/new",
   component: CreateServerPage,
   loader: ({ context }) => {
-    void context.queryClient.prefetchQuery(nodesQuery);
-    void context.queryClient.prefetchQuery(eggsQuery);
+    void context.queryClient.query(nodesQuery).catch(noop);
+    void context.queryClient.query(eggsQuery).catch(noop);
   },
 });
 const nodesRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/nodes",
   component: NodesPage,
-  loader: ({ context }) => void context.queryClient.prefetchQuery(nodesQuery),
+  loader: ({ context }) => void context.queryClient.query(nodesQuery).catch(noop),
 });
 const eggsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/eggs",
   component: EggsPage,
-  loader: ({ context }) => void context.queryClient.prefetchQuery(eggsQuery),
+  loader: ({ context }) => void context.queryClient.query(eggsQuery).catch(noop),
 });
 const databaseHostsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/database-hosts",
   component: DatabaseHostsPage,
   loader: ({ context }) => {
-    void context.queryClient.prefetchQuery(databaseHostsQuery);
-    void context.queryClient.prefetchQuery(nodesQuery);
+    void context.queryClient.query(databaseHostsQuery).catch(noop);
+    void context.queryClient.query(nodesQuery).catch(noop);
   },
 });
 const auditRoute = createRoute({
@@ -209,7 +209,7 @@ const auditRoute = createRoute({
   component: AuditPage,
   validateSearch: (s: Record<string, unknown>): { q?: string; page?: number } => ({ q: text(s.q), page: page(s.page) }),
   loaderDeps: ({ search }) => ({ q: search.q ?? "", page: search.page ?? 0 }),
-  loader: ({ context, deps }) => void context.queryClient.prefetchQuery(auditQuery(deps.q, deps.page)),
+  loader: ({ context, deps }) => void context.queryClient.query(auditQuery(deps.q, deps.page)).catch(noop),
 });
 
 const routeTree = rootRoute.addChildren([

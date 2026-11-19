@@ -88,6 +88,8 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
   };
 
   return (
+    // Clicking the backdrop closes the switcher; Escape already does that for keyboards.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- see above
     <dialog
       ref={dialog}
       aria-label="Quick switcher"
@@ -146,7 +148,9 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
         )}
         {shown.map((it, i) => (
           <li key={it.id} role="presentation">
-            {(i === 0 || shown[i - 1]!.group !== it.group) && <div className="px-3 pb-1 pt-2.5 text-xs text-zinc-500">{it.group}</div>}
+            {(i === 0 || shown[i - 1]?.group !== it.group) && <div className="px-3 pb-1 pt-2.5 text-xs text-zinc-500">{it.group}</div>}
+            {/* Options are reached with the arrow keys from the search box (aria-activedescendant), so they take no focus. */}
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- see above */}
             <div
               id={`${listId}-${i}`}
               role="option"
