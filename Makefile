@@ -1,4 +1,4 @@
-.PHONY: all build web test cover lint fmt vuln check e2e run-dev openapi
+.PHONY: all build web test cover lint fmt fmt-check vuln check hooks e2e run-dev openapi
 all: web build
 
 # Tool versions, pinned so every machine and CI get the same results.
@@ -33,6 +33,10 @@ lint:
 fmt:
 	$(GOLANGCI_LINT) fmt ./...
 
+# Fails, showing the diff, if any Go file needs `make fmt`.
+fmt-check:
+	@$(GOLANGCI_LINT) fmt --diff ./...
+
 # Known vulnerabilities in the code paths the binaries actually use.
 vuln:
 	$(GOVULNCHECK) ./...
@@ -40,6 +44,10 @@ vuln:
 # Everything CI checks, short of the browser and Docker tests.
 check: lint vuln cover
 	cd web && pnpm install --frozen-lockfile && pnpm check
+
+# Checks formatting and lint on staged files before each commit (.githooks/pre-commit).
+hooks:
+	git config core.hooksPath .githooks
 
 # Browser tests: builds the UI, then runs web/e2e against a throwaway panel with a fake daemon.
 # First time on a machine: cd web && pnpm e2e:install

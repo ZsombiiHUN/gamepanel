@@ -162,10 +162,12 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 ```sh
 make web build   # UI and binaries
-make test        # Go tests, race detector on
+make check       # lint, govulncheck, Go tests with a coverage floor, web checks
 make e2e         # browser tests (first time: cd web && pnpm e2e:install)
-cd web && pnpm lint && pnpm test
+make hooks       # format and lint staged files before each commit
 ```
+
+[CONTRIBUTING.md](CONTRIBUTING.md) lists the code standards CI enforces.
 
 [`web/README.md`](web/README.md) lists the checks CI runs.
 
