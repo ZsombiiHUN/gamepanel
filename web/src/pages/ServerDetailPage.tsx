@@ -10,6 +10,7 @@ import { BackupsTab } from "./BackupsTab";
 import { ConsolePanel } from "./server/ConsolePanel";
 import { SchedulesTab } from "./SchedulesTab";
 import { ServerHeader } from "./server/ServerHeader";
+import { ServerTabs } from "./server/ServerTabs";
 import { SettingsTab } from "./SettingsTab";
 import { DatabasesTab } from "./DatabasesTab";
 import { ModsTab } from "./ModsTab";
@@ -52,7 +53,10 @@ export function ServerDetailPage() {
   const can = (need?: string) => !need || (need === "owner" ? s.owner : s.permissions.includes(need));
   return (
     <div className="space-y-6">
-      <ServerHeader server={s} state={state} wsStatus={ws.status} can={can} />
+      <div className="space-y-5">
+        <ServerHeader server={s} state={state} wsStatus={ws.status} can={can} />
+        <ServerTabs uuid={uuid} tab={tab} can={can} />
+      </div>
 
       {/* The console comes first on small screens (it is what people came for) and below the charts on large ones. */}
       <div className={tab === "console" ? "flex flex-col gap-6" : undefined}>

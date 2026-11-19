@@ -44,7 +44,7 @@ describe("sidebar", () => {
     const names = within(screen.getByRole("navigation", { name: "Servers" }))
       .getAllByRole("link")
       .map((l) => l.textContent.trim())
-      .filter((t) => !/All servers|New server/.test(t));
+      .filter((t) => t !== "" && !/All servers|New server/.test(t)); // the "+" for a new server is an icon link
     expect(names).toEqual(["Creative Plots", "Rust Wipe Friday", "Server 2", "Server 10", "Skyblock", "Survival SMP", "Valheim Friends"]);
   });
 
