@@ -123,16 +123,16 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 		// MemorySwap is memory+swap combined: equal to memory means no swap.
 		switch {
 		case s.SwapMB < 0:
-			hc.Resources.MemorySwap = -1
+			hc.MemorySwap = -1
 		default:
-			hc.Resources.MemorySwap = (s.MemoryMB + s.SwapMB) << 20
+			hc.MemorySwap = (s.MemoryMB + s.SwapMB) << 20
 		}
 	}
 	if s.CPUSet != "" {
-		hc.Resources.CpusetCpus = s.CPUSet
+		hc.CpusetCpus = s.CPUSet
 	}
 	if s.IOWeight > 0 {
-		hc.Resources.BlkioWeight = uint16(s.IOWeight)
+		hc.BlkioWeight = uint16(s.IOWeight)
 	}
 
 	_, err = d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{

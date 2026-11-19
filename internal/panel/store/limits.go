@@ -81,7 +81,8 @@ func (e ErrCapacity) Error() string { return e.Msg }
 // limit, otherwise one unlimited server defeats the accounting.
 func checkCapacity(ctx context.Context, q interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
-}, nodeID int64, exclude string, l Limits) error {
+}, nodeID int64, exclude string, l Limits,
+) error {
 	var memCap, diskCap, over int64
 	if err := q.QueryRowContext(ctx, `SELECT memory_mb,disk_mb,overallocate_pct FROM nodes WHERE id=?`, nodeID).Scan(&memCap, &diskCap, &over); err != nil {
 		return nf(err)
@@ -187,7 +188,7 @@ func validSFTPHost(h string) bool {
 			return false
 		}
 		for _, c := range label {
-			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' {
 				return false
 			}
 		}

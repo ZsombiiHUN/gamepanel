@@ -52,16 +52,20 @@ type nodeServerIn struct {
 	ID   int64  `path:"id"`
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 }
-type nodeListOut struct{ Body []nodeView }
-type idIn struct {
-	ID int64 `path:"id"`
-}
+type (
+	nodeListOut struct{ Body []nodeView }
+	idIn        struct {
+		ID int64 `path:"id"`
+	}
+)
 
 type eggImportIn struct {
 	RawBody []byte
 }
-type eggOut struct{ Body store.Egg }
-type eggListOut struct{ Body []store.Egg }
+type (
+	eggOut     struct{ Body store.Egg }
+	eggListOut struct{ Body []store.Egg }
+)
 
 func (a *App) registerAdmin(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "createNode", Method: "POST", Path: "/nodes", Summary: "Register a node", DefaultStatus: 201},
@@ -88,8 +92,10 @@ func (a *App) registerAdmin(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "setNodeCapacity", Method: "PUT", Path: "/nodes/{id}/capacity",
-		Summary: "Set what a node can hold (0 = not tracked); existing servers are not touched", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "setNodeCapacity", Method: "PUT", Path: "/nodes/{id}/capacity",
+		Summary: "Set what a node can hold (0 = not tracked); existing servers are not touched", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *nodeCapacityIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
@@ -142,9 +148,11 @@ func (a *App) registerAdmin(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "removeUnknownServer", Method: "DELETE", Path: "/nodes/{id}/unknown/{uuid}",
+	huma.Register(api, huma.Operation{
+		OperationID: "removeUnknownServer", Method: "DELETE", Path: "/nodes/{id}/unknown/{uuid}",
 		Summary:     "Remove a server the panel does not know from a node",
-		Description: "Deletes the container and files of a server the node reported but the panel has no record of.", DefaultStatus: 204},
+		Description: "Deletes the container and files of a server the node reported but the panel has no record of.", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *nodeServerIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
@@ -164,9 +172,11 @@ func (a *App) registerAdmin(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "importEgg", Method: "POST", Path: "/eggs/import", Summary: "Import a Pterodactyl (PTDL) egg", DefaultStatus: 201,
+	huma.Register(api, huma.Operation{
+		OperationID: "importEgg", Method: "POST", Path: "/eggs/import", Summary: "Import a Pterodactyl (PTDL) egg", DefaultStatus: 201,
 		RequestBody:  &huma.RequestBody{Content: map[string]*huma.MediaType{"application/json": {Schema: &huma.Schema{Type: "object"}}}},
-		MaxBodyBytes: 1 << 20},
+		MaxBodyBytes: 1 << 20,
+	},
 		func(ctx context.Context, in *eggImportIn) (*eggOut, error) {
 			if _, err := requireAdmin(ctx); err != nil {
 				return nil, err

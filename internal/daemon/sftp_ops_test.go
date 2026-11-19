@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -197,7 +198,7 @@ func TestSFTPRandomAccessWrites(t *testing.T) {
 	if n, err := f.ReadAt(b, 2); n != 4 || string(b) != "2ab5" {
 		t.Fatalf("ReadAt: %q %v", b[:n], err)
 	}
-	if n, err := f.ReadAt(b, 100); n != 0 || err != io.EOF {
+	if n, err := f.ReadAt(b, 100); n != 0 || !errors.Is(err, io.EOF) {
 		t.Fatalf("read past the end: %d %v", n, err)
 	}
 }

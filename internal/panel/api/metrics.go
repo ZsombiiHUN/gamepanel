@@ -121,8 +121,10 @@ type metricsOut struct {
 }
 
 func (a *App) registerMetrics(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "serverMetrics", Method: "GET", Path: "/servers/{uuid}/metrics",
-		Summary: "Usage history", Description: "CPU, memory and disk over time. Minutes are kept for two days, quarter hours for 30 days."},
+	huma.Register(api, huma.Operation{
+		OperationID: "serverMetrics", Method: "GET", Path: "/servers/{uuid}/metrics",
+		Summary: "Usage history", Description: "CPU, memory and disk over time. Minutes are kept for two days, quarter hours for 30 days.",
+	},
 		func(ctx context.Context, in *metricsIn) (*metricsOut, error) {
 			_, s, err := a.authorizeP(ctx, in.UUID, PermConsoleRead)
 			if err != nil {

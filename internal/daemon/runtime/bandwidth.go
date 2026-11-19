@@ -121,7 +121,7 @@ func applyLimit(ctx context.Context, run runner, dev string, mbit int64) (Ingres
 	}
 	do(cleanIngress(dev))
 	if err := do(policedIngressSteps(dev, mbit)); err != nil {
-		return "", fmt.Errorf("%w (shaping it first failed: %v)", err, shapeErr)
+		return "", fmt.Errorf("%w (shaping it first failed: %w)", err, shapeErr)
 	}
 	return IngressPoliced, nil
 }
@@ -148,7 +148,7 @@ func nsRunner(pid int) runner {
 	return func(ctx context.Context, s step) error {
 		args := append([]string{"--target", strconv.Itoa(pid), "--net", "--", s.bin}, s.args...)
 		if out, err := exec.CommandContext(ctx, "nsenter", args...).CombinedOutput(); err != nil {
-			return fmt.Errorf("%s: %v: %s", s, err, strings.TrimSpace(string(out)))
+			return fmt.Errorf("%s: %w: %s", s, err, strings.TrimSpace(string(out)))
 		}
 		return nil
 	}

@@ -110,14 +110,18 @@ type keyCreateOut struct {
 		Token string       `json:"token" doc:"the secret; shown only once"`
 	}
 }
-type keyListOut struct{ Body []store.APIKey }
-type keyIDIn struct {
-	ID int64 `path:"id"`
-}
+type (
+	keyListOut struct{ Body []store.APIKey }
+	keyIDIn    struct {
+		ID int64 `path:"id"`
+	}
+)
 
 func (a *App) registerMFA(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "totpSetup", Method: "POST", Path: "/auth/totp/setup",
-		Summary: "Start two-factor setup (returns a secret and QR URI)"},
+	huma.Register(api, huma.Operation{
+		OperationID: "totpSetup", Method: "POST", Path: "/auth/totp/setup",
+		Summary: "Start two-factor setup (returns a secret and QR URI)",
+	},
 		func(ctx context.Context, in *totpSetupIn) (*totpSetupOut, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -135,8 +139,10 @@ func (a *App) registerMFA(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "totpEnable", Method: "POST", Path: "/auth/totp/enable",
-		Summary: "Confirm setup with a code and turn two-factor on"},
+	huma.Register(api, huma.Operation{
+		OperationID: "totpEnable", Method: "POST", Path: "/auth/totp/enable",
+		Summary: "Confirm setup with a code and turn two-factor on",
+	},
 		func(ctx context.Context, in *totpEnableIn) (*recoveryOut, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -157,8 +163,10 @@ func (a *App) registerMFA(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "totpDisable", Method: "POST", Path: "/auth/totp/disable",
-		Summary: "Turn two-factor off (password and a code required)", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "totpDisable", Method: "POST", Path: "/auth/totp/disable",
+		Summary: "Turn two-factor off (password and a code required)", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *totpOffIn) (*struct{}, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -184,8 +192,10 @@ func (a *App) registerMFA(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "recoveryCodeStatus", Method: "GET", Path: "/auth/totp/recovery-codes",
-		Summary: "How many recovery codes you have left, and whether they should be replaced"},
+	huma.Register(api, huma.Operation{
+		OperationID: "recoveryCodeStatus", Method: "GET", Path: "/auth/totp/recovery-codes",
+		Summary: "How many recovery codes you have left, and whether they should be replaced",
+	},
 		func(ctx context.Context, _ *struct{}) (*recoveryStatusOut, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -198,8 +208,10 @@ func (a *App) registerMFA(api huma.API) {
 			return &recoveryStatusOut{Body: st}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "regenerateRecoveryCodes", Method: "POST", Path: "/auth/totp/recovery-codes",
-		Summary: "Replace recovery codes (password and a code required)"},
+	huma.Register(api, huma.Operation{
+		OperationID: "regenerateRecoveryCodes", Method: "POST", Path: "/auth/totp/recovery-codes",
+		Summary: "Replace recovery codes (password and a code required)",
+	},
 		func(ctx context.Context, in *regenIn) (*recoveryOut, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -224,8 +236,10 @@ func (a *App) registerMFA(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "createApiKey", Method: "POST", Path: "/auth/keys",
-		Summary: "Create an API key (the token is shown once)", DefaultStatus: 201},
+	huma.Register(api, huma.Operation{
+		OperationID: "createApiKey", Method: "POST", Path: "/auth/keys",
+		Summary: "Create an API key (the token is shown once)", DefaultStatus: 201,
+	},
 		func(ctx context.Context, in *keyCreateIn) (*keyCreateOut, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -266,8 +280,10 @@ func (a *App) registerMFA(api huma.API) {
 			return &keyListOut{Body: ks}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "deleteApiKey", Method: "DELETE", Path: "/auth/keys/{id}",
-		Summary: "Revoke an API key", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "deleteApiKey", Method: "DELETE", Path: "/auth/keys/{id}",
+		Summary: "Revoke an API key", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *keyIDIn) (*struct{}, error) {
 			u, err := requireSession(ctx)
 			if err != nil {

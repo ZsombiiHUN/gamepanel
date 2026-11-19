@@ -49,8 +49,10 @@ func newIdP(t *testing.T) *fakeIdP {
 	f := &fakeIdP{codes: map[string]idpGrant{}, tokens: map[string]idpUser{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"issuer": f.srv.URL, "authorization_endpoint": f.srv.URL + "/authorize",
-			"token_endpoint": f.srv.URL + "/token", "userinfo_endpoint": f.srv.URL + "/userinfo"})
+		json.NewEncoder(w).Encode(map[string]string{
+			"issuer": f.srv.URL, "authorization_endpoint": f.srv.URL + "/authorize",
+			"token_endpoint": f.srv.URL + "/token", "userinfo_endpoint": f.srv.URL + "/userinfo",
+		})
 	})
 	mux.HandleFunc("POST /token", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
@@ -60,7 +62,7 @@ func newIdP(t *testing.T) *fakeIdP {
 		f.mu.Unlock()
 		sum := sha256.Sum256([]byte(r.Form.Get("code_verifier")))
 		if !ok || r.Form.Get("client_secret") != "s3cret" || base64.RawURLEncoding.EncodeToString(sum[:]) != g.challenge || r.Form.Get("redirect_uri") != g.redirect {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
 			return
 		}
@@ -75,7 +77,7 @@ func newIdP(t *testing.T) *fakeIdP {
 		u, ok := f.tokens[strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")]
 		f.mu.Unlock()
 		if !ok {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]any{"sub": u.Sub, "email": u.Email, "email_verified": u.Verified})
@@ -99,8 +101,10 @@ func newSSOEnv(t *testing.T, signup string) *ssoEnv {
 	t.Cleanup(func() { st.Close() })
 	st.CreateUser(context.Background(), "admin@example.com", "correct-horse-battery", true)
 	idp := newIdP(t)
-	deps := api.Deps{Store: st, Hub: hub.New(log), Log: log, Signup: signup,
-		SSO: []*api.SSOProvider{api.OIDCSSO("Authentik", idp.srv.URL, "panel", "s3cret")}}
+	deps := api.Deps{
+		Store: st, Hub: hub.New(log), Log: log, Signup: signup,
+		SSO: []*api.SSOProvider{api.OIDCSSO("Authentik", idp.srv.URL, "panel", "s3cret")},
+	}
 	ts := httptest.NewUnstartedServer(nil)
 	ts.Start()
 	deps.PublicURL = ts.URL
@@ -122,7 +126,7 @@ func browser(t *testing.T) *http.Client {
 func (e *ssoEnv) signIn(b *http.Client, u idpUser, startQuery string) string {
 	e.t.Helper()
 	resp, err := b.Get(e.base + "/api/auth/sso/oidc/start" + startQuery)
-	if err != nil || resp.StatusCode != 302 {
+	if err != nil || resp.StatusCode != http.StatusFound {
 		e.t.Fatalf("start: %v %v", resp, err)
 	}
 	auth, _ := url.Parse(resp.Header.Get("Location"))
@@ -136,7 +140,7 @@ func (e *ssoEnv) signIn(b *http.Client, u idpUser, startQuery string) string {
 	e.idp.codes[code] = idpGrant{user: u, challenge: q.Get("code_challenge"), redirect: q.Get("redirect_uri")}
 	e.idp.mu.Unlock()
 	resp, err = b.Get(q.Get("redirect_uri") + "?code=" + code + "&state=" + url.QueryEscape(q.Get("state")))
-	if err != nil || resp.StatusCode != 302 {
+	if err != nil || resp.StatusCode != http.StatusFound {
 		e.t.Fatalf("callback: %v %v", resp, err)
 	}
 	return resp.Header.Get("Location")
@@ -199,7 +203,7 @@ func TestSSOLinkAndSignIn(t *testing.T) {
 
 	// Linking needs a signed-in browser.
 	resp, _ = browser(t).Get(e.base + "/api/auth/sso/oidc/start?mode=link")
-	if resp.StatusCode != 401 {
+	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("anonymous link start: %d", resp.StatusCode)
 	}
 }

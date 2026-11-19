@@ -149,7 +149,7 @@ func (s *Store) CreateUser(ctx context.Context, email, password string, admin bo
 
 func (s *Store) CountUsers(ctx context.Context) (n int) {
 	s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&n)
-	return
+	return n
 }
 
 // dummyHash lets Login spend the same time for unknown emails (no user enumeration by timing).
@@ -548,7 +548,7 @@ func (s *Store) ListServers(ctx context.Context, u User) ([]Server, error) {
 
 // CreateServer allocates the first free port in the node's range.
 func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
-	if err := v.Limits.Normalize(); err != nil {
+	if err := v.Normalize(); err != nil {
 		return v, err
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
@@ -611,7 +611,7 @@ func (s *Store) ServersOnNode(ctx context.Context, nodeID int64) ([]Server, erro
 // (the 8 hex characters used in SFTP usernames). Ambiguous prefixes fail.
 func (s *Store) ServerByPrefix(ctx context.Context, nodeID int64, prefix string) (Server, error) {
 	for _, c := range prefix {
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return Server{}, ErrNotFound
 		}
 	}

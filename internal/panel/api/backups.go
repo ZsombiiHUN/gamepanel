@@ -25,15 +25,18 @@ type backupCreateIn struct {
 		Ignore string `json:"ignore,omitempty" maxLength:"2000" doc:"patterns to leave out, one per line (e.g. logs, *.tmp, cache/)"`
 	}
 }
-type backupOut struct{ Body store.Backup }
-type backupListOut struct{ Body []store.Backup }
-type backupLockIn struct {
-	UUID   string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
-	Backup string `path:"backup" pattern:"^[0-9a-f-]{36}$"`
-	Body   struct {
-		Locked bool `json:"locked"`
+type (
+	backupOut     struct{ Body store.Backup }
+	backupListOut struct{ Body []store.Backup }
+	backupLockIn  struct {
+		UUID   string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+		Backup string `path:"backup" pattern:"^[0-9a-f-]{36}$"`
+		Body   struct {
+			Locked bool `json:"locked"`
+		}
 	}
-}
+)
+
 type backupRestoreIn struct {
 	UUID   string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	Backup string `path:"backup" pattern:"^[0-9a-f-]{36}$"`
@@ -147,8 +150,10 @@ func (a *App) registerBackups(api huma.API) {
 			return &backupListOut{Body: bs}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "createBackup", Method: "POST", Path: "/servers/{uuid}/backups",
-		Summary: "Start a backup (runs in the background)", DefaultStatus: 202},
+	huma.Register(api, huma.Operation{
+		OperationID: "createBackup", Method: "POST", Path: "/servers/{uuid}/backups",
+		Summary: "Start a backup (runs in the background)", DefaultStatus: 202,
+	},
 		func(ctx context.Context, in *backupCreateIn) (*backupOut, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermBackupsCreate)
 			if err != nil {
@@ -166,8 +171,10 @@ func (a *App) registerBackups(api huma.API) {
 			return &backupOut{Body: b}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "lockBackup", Method: "PUT", Path: "/servers/{uuid}/backups/{backup}/lock",
-		Summary: "Lock or unlock a backup (locked backups cannot be deleted or rotated out)", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "lockBackup", Method: "PUT", Path: "/servers/{uuid}/backups/{backup}/lock",
+		Summary: "Lock or unlock a backup (locked backups cannot be deleted or rotated out)", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *backupLockIn) (*struct{}, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermBackupsDelete)
 			if err != nil {
@@ -184,8 +191,10 @@ func (a *App) registerBackups(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "deleteBackup", Method: "DELETE", Path: "/servers/{uuid}/backups/{backup}",
-		Summary: "Delete a backup", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "deleteBackup", Method: "DELETE", Path: "/servers/{uuid}/backups/{backup}",
+		Summary: "Delete a backup", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *backupIn) (*struct{}, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermBackupsDelete)
 			if err != nil {
@@ -212,10 +221,12 @@ func (a *App) registerBackups(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "restoreBackup", Method: "POST", Path: "/servers/{uuid}/backups/{backup}/restore",
+	huma.Register(api, huma.Operation{
+		OperationID: "restoreBackup", Method: "POST", Path: "/servers/{uuid}/backups/{backup}/restore",
 		Summary:       "Restore a backup over the server's files (server must be stopped)",
 		Description:   "Runs in the background. Poll the backup list: restore_status goes from running to ok or failed (with restore_error).",
-		DefaultStatus: 202},
+		DefaultStatus: 202,
+	},
 		func(ctx context.Context, in *backupRestoreIn) (*struct{}, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermBackupsRestore)
 			if err != nil {

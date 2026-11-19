@@ -95,7 +95,7 @@ func (s *stack) write(path, content string) {
 
 func (s *stack) read(path string) (string, int) {
 	s.t.Helper()
-	req, _ := http.NewRequest("GET", s.admin.base+"/api/servers/"+s.server+"/files/content?path="+url.QueryEscape(path), nil)
+	req, _ := http.NewRequest(http.MethodGet, s.admin.base+"/api/servers/"+s.server+"/files/content?path="+url.QueryEscape(path), nil)
 	resp, err := s.admin.c.Do(req)
 	if err != nil {
 		s.t.Fatal(err)
@@ -205,8 +205,10 @@ func TestScheduleRunsCommandAndRespectsOnlyWhenOnline(t *testing.T) {
 	// validation
 	s.admin.do("POST", base, map[string]any{"name": "bad", "cron": "not a cron", "enabled": true, "tasks": []any{}}, 422)
 	s.admin.do("POST", base, map[string]any{"name": "bad", "cron": "@daily", "enabled": true, "tasks": []any{}}, 422)
-	s.admin.do("POST", base, map[string]any{"name": "bad", "cron": "* * * * *", "enabled": true,
-		"tasks": []map[string]any{{"action": "power", "payload": "explode"}}}, 422)
+	s.admin.do("POST", base, map[string]any{
+		"name": "bad", "cron": "* * * * *", "enabled": true,
+		"tasks": []map[string]any{{"action": "power", "payload": "explode"}},
+	}, 422)
 
 	var sc store.Schedule
 	json.Unmarshal(s.admin.do("POST", base, map[string]any{

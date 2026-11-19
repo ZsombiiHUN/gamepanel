@@ -162,8 +162,10 @@ func (d *Dir) List(p string) ([]proto.FileInfo, error) {
 		if err != nil {
 			continue
 		}
-		out = append(out, proto.FileInfo{Name: e.Name(), Dir: e.IsDir(), Size: fi.Size(), ModUnix: fi.ModTime().Unix(),
-			Mode: uint32(fi.Mode().Perm()), Symlink: fi.Mode()&fs.ModeSymlink != 0})
+		out = append(out, proto.FileInfo{
+			Name: e.Name(), Dir: e.IsDir(), Size: fi.Size(), ModUnix: fi.ModTime().Unix(),
+			Mode: uint32(fi.Mode().Perm()), Symlink: fi.Mode()&fs.ModeSymlink != 0,
+		})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Dir != out[j].Dir {

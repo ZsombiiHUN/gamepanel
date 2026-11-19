@@ -121,7 +121,7 @@ func TestPerAccountLockoutSurvivesIPRotation(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, "127.0.0.1")
 	// The attacker rotates source IPs via a trusted proxy, so the per-IP limit never trips.
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		c := e.client()
 		code, _ := c.do("POST", "/api/auth/login", map[string]string{"email": "bob@example.com", "password": "guess-number-" + string(rune('a'+i))},
 			map[string]string{"X-Forwarded-For": "203.0.113." + string(rune('1'+i%9)) + string(rune('0'+i/9))})
@@ -143,7 +143,7 @@ func TestIPRateLimitUsesRealClientBehindProxy(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, "127.0.0.1")
 	// 10 failures from one real client trip the per-IP limit...
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		e.client().do("POST", "/api/auth/login", map[string]string{"email": "nobody" + string(rune('a'+i)) + "@x.io", "password": "whatever-long-1"},
 			map[string]string{"X-Forwarded-For": "198.51.100.7"})
 	}
@@ -163,7 +163,7 @@ func TestIPRateLimitUsesRealClientBehindProxy(t *testing.T) {
 func TestForwardedForIgnoredFromUntrustedPeer(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, "") // no trusted proxies: header must be ignored
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		e.client().do("POST", "/api/auth/login", map[string]string{"email": "n@x.io", "password": "whatever-long-1"},
 			map[string]string{"X-Forwarded-For": "10.9.9." + string(rune('0'+i))})
 	}

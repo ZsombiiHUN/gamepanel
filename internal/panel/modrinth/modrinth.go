@@ -54,7 +54,7 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -90,8 +90,10 @@ func (c *Client) Search(ctx context.Context, query, typ, loader, version string,
 	if version != "" {
 		facets = append(facets, facet("versions:"+version))
 	}
-	q := url.Values{"query": {query}, "limit": {"20"}, "offset": {strconv.Itoa(offset)}, "index": {"relevance"},
-		"facets": {"[" + strings.Join(facets, ",") + "]"}}
+	q := url.Values{
+		"query": {query}, "limit": {"20"}, "offset": {strconv.Itoa(offset)}, "index": {"relevance"},
+		"facets": {"[" + strings.Join(facets, ",") + "]"},
+	}
 	var r SearchResult
 	err := c.get(ctx, "/search", q, &r)
 	if r.Hits == nil {
@@ -160,7 +162,7 @@ func (c *Client) Download(ctx context.Context, versionID string) (Version, File,
 	for _, h := range c.FileHosts {
 		ok = ok || (err == nil && u.Host == h)
 	}
-	if !ok || (u.Scheme != "https" && !(c.AllowHTTP && u.Scheme == "http")) {
+	if !ok || (u.Scheme != "https" && (!c.AllowHTTP || u.Scheme != "http")) {
 		return v, File{}, fmt.Errorf("the download is not on Modrinth's servers")
 	}
 	if len(f.Hashes.SHA512) != 128 {

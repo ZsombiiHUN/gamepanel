@@ -42,7 +42,7 @@ type serverLimitsView struct {
 
 func (s *stack) view() (v serverLimitsView) {
 	json.Unmarshal(s.admin.do("GET", "/api/servers/"+s.server, nil, 200), &v)
-	return
+	return v
 }
 
 func TestEditLimitsAndNodeCapacity(t *testing.T) {
@@ -67,7 +67,7 @@ func TestEditLimitsAndNodeCapacity(t *testing.T) {
 	}
 
 	// a backup limit of 3 is honoured
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		s.makeBackup(map[string]any{"name": "b"})
 	}
 	s.admin.do("POST", srv+"/backups", map[string]any{}, 409)
@@ -135,7 +135,7 @@ func TestDiskLimitEnforcement(t *testing.T) {
 		code, _ := s.admin.c.Do(mustReq("PUT", s.admin.base+srv+"/files/content", `{"path":"three.bin","content":"`+big+`"}`))
 		if code != nil {
 			code.Body.Close()
-			return code.StatusCode == 204
+			return code.StatusCode == http.StatusNoContent
 		}
 		return false
 	})

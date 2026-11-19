@@ -141,8 +141,10 @@ func requireAdmin(ctx context.Context) (store.User, error) {
 
 // New builds the full HTTP handler.
 func New(d Deps) http.Handler {
-	a := &App{Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute), mailLimit: newLimiter(10, 15*time.Minute),
-		hookWake: make(chan struct{}, 1), states: make(chan [2]string, 4096)}
+	a := &App{
+		Deps: d, limiter: newLimiter(10, time.Minute), fails: newLimiter(20, 15*time.Minute), mailLimit: newLimiter(10, 15*time.Minute),
+		hookWake: make(chan struct{}, 1), states: make(chan [2]string, 4096),
+	}
 	errLog.Store(d.Log)
 	if a.AuthRecheck <= 0 {
 		a.AuthRecheck = 10 * time.Second

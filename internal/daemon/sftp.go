@@ -112,9 +112,11 @@ func (d *Daemon) StartSFTP(ctx context.Context, addr string) (string, error) {
 	}
 	u.Path, u.RawQuery = "/daemon/sftp-auth", ""
 
-	s := &sftpServer{d: d, authURL: u.String(), http: &http.Client{Timeout: d.cfg.sftpPanelTimeout()},
+	s := &sftpServer{
+		d: d, authURL: u.String(), http: &http.Client{Timeout: d.cfg.sftpPanelTimeout()},
 		conns: map[string]int{}, fails: map[string][]time.Time{},
-		sessions: map[string]map[*ssh.ServerConn]struct{}{}}
+		sessions: map[string]map[*ssh.ServerConn]struct{}{},
+	}
 	s.cfg = &ssh.ServerConfig{
 		MaxAuthTries:  3,
 		ServerVersion: "SSH-2.0-GamePanel",
@@ -365,7 +367,8 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 		return
 	}
 	defer dir.Close()
-	h := &sftpFS{dir: dir, read: ext["read"] == "1", write: ext["write"] == "1", maxOpen: sftpMaxHandles,
+	h := &sftpFS{
+		dir: dir, read: ext["read"] == "1", write: ext["write"] == "1", maxOpen: sftpMaxHandles,
 		check: func(extra int64) error {
 			if _, err := s.d.spec(uuid); err != nil { // deleted: no limit left to check against
 				return sftp.ErrSSHFxPermissionDenied
@@ -373,7 +376,8 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 			return s.d.reserveDisk(uuid, extra)
 		},
 		disk: s.d.cacheFor(uuid), log: s.d.log,
-		statfs: func() (*sftp.StatVFS, error) { return s.d.sftpStatVFS(uuid) }}
+		statfs: func() (*sftp.StatVFS, error) { return s.d.sftpStatVFS(uuid) },
+	}
 
 	var mu sync.Mutex
 	channels := 0
@@ -797,8 +801,10 @@ func (d *Daemon) sftpStatVFS(uuid string) (*sftp.StatVFS, error) {
 	if bs == 0 {
 		bs = 4096
 	}
-	v := &sftp.StatVFS{Bsize: bs, Frsize: bs, Blocks: uint64(st.Blocks), Bfree: uint64(st.Bfree), Bavail: uint64(st.Bavail),
-		Files: uint64(st.Files), Ffree: uint64(st.Ffree), Favail: uint64(st.Ffree), Namemax: 255}
+	v := &sftp.StatVFS{
+		Bsize: bs, Frsize: bs, Blocks: uint64(st.Blocks), Bfree: uint64(st.Bfree), Bavail: uint64(st.Bavail),
+		Files: uint64(st.Files), Ffree: uint64(st.Ffree), Favail: uint64(st.Ffree), Namemax: 255,
+	}
 	if limit := d.diskLimitBytes(uuid); limit > 0 {
 		used, err := d.diskEstimate(uuid)
 		if err != nil {

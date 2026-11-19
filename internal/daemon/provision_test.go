@@ -150,8 +150,10 @@ func TestInstallAndReinstallWithoutAContainer(t *testing.T) {
 	rt := &slowRuntime{Fake: runtime.NewFake(), failing: true}
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
-	spec := proto.ServerSpec{UUID: id, Image: "img", Startup: "run", MemoryMB: 128,
-		Install: &proto.InstallSpec{Image: "inst", Entrypoint: "bash", Script: "echo hi\n"}}
+	spec := proto.ServerSpec{
+		UUID: id, Image: "img", Startup: "run", MemoryMB: 128,
+		Install: &proto.InstallSpec{Image: "inst", Entrypoint: "bash", Script: "echo hi\n"},
+	}
 	if err := d.create(context.Background(), spec); err != nil {
 		t.Fatal(err)
 	}

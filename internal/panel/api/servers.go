@@ -78,43 +78,49 @@ type deleteServerIn struct {
 	UUID  string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	Force bool   `query:"force" doc:"delete even though the server's node is offline"`
 }
-type serverOut struct{ Body serverView }
-type serverCreateOut struct {
-	Status int
-	Body   serverView
-}
+type (
+	serverOut       struct{ Body serverView }
+	serverCreateOut struct {
+		Status int
+		Body   serverView
+	}
+)
+
 type listServersIn struct {
 	ExternalID string `query:"external_id" maxLength:"191" doc:"only the server with this external id (admin)"`
 }
-type serverListOut struct{ Body []serverView }
-type serverCreateIn struct {
-	Body struct {
-		Name    string  `json:"name" minLength:"1" maxLength:"64"`
-		OwnerID int64   `json:"owner_id,omitempty" doc:"Defaults to you."`
-		NodeID  int64   `json:"node_id,omitempty" doc:"0 = the panel picks an online node with room, from node_ids if given"`
-		NodeIDs []int64 `json:"node_ids,omitempty" maxItems:"100" doc:"nodes the panel may pick from when node_id is 0 (default: all)"`
-		// ExternalID is the shop's id for this server. A create whose
-		// external_id is already used returns that server (200) instead of
-		// making another, so a shop can safely retry.
-		ExternalID        string `json:"external_id,omitempty" maxLength:"191" doc:"your own id for the server, unique; a retried create with the same one returns the existing server with 200"`
-		StartOnCompletion bool   `json:"start_on_completion,omitempty" doc:"start the server once it is installed"`
-		EggID             int64  `json:"egg_id"`
-		MemoryMB          int64  `json:"memory_mb" minimum:"64" maximum:"1048576"`
-		CPUPct            int64  `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
-		// More limits, all optional. See PUT /servers/{uuid}/limits.
-		SwapMB        int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
-		CPUSet        string            `json:"cpuset,omitempty" maxLength:"64"`
-		PidsLimit     int64             `json:"pids_limit,omitempty" minimum:"16" maximum:"65536" doc:"default 1024"`
-		IOWeight      int64             `json:"io_weight,omitempty" minimum:"0" maximum:"1000" doc:"0 = default, else 10-1000"`
-		DiskMB        int64             `json:"disk_mb,omitempty" minimum:"0" doc:"0 = unlimited"`
-		BackupLimit   int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
-		PortLimit     int64             `json:"port_limit,omitempty" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one"`
-		DatabaseLimit int64             `json:"database_limit,omitempty" minimum:"0" maximum:"100" doc:"databases the owner may create"`
-		BandwidthMbit int64             `json:"bandwidth_mbit,omitempty" minimum:"0" maximum:"100000" doc:"network limit each way in Mbit/s, 0 = unlimited"`
-		Port          int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
-		Env           map[string]string `json:"env,omitempty"`
+type (
+	serverListOut  struct{ Body []serverView }
+	serverCreateIn struct {
+		Body struct {
+			Name    string  `json:"name" minLength:"1" maxLength:"64"`
+			OwnerID int64   `json:"owner_id,omitempty" doc:"Defaults to you."`
+			NodeID  int64   `json:"node_id,omitempty" doc:"0 = the panel picks an online node with room, from node_ids if given"`
+			NodeIDs []int64 `json:"node_ids,omitempty" maxItems:"100" doc:"nodes the panel may pick from when node_id is 0 (default: all)"`
+			// ExternalID is the shop's id for this server. A create whose
+			// external_id is already used returns that server (200) instead of
+			// making another, so a shop can safely retry.
+			ExternalID        string `json:"external_id,omitempty" maxLength:"191" doc:"your own id for the server, unique; a retried create with the same one returns the existing server with 200"`
+			StartOnCompletion bool   `json:"start_on_completion,omitempty" doc:"start the server once it is installed"`
+			EggID             int64  `json:"egg_id"`
+			MemoryMB          int64  `json:"memory_mb" minimum:"64" maximum:"1048576"`
+			CPUPct            int64  `json:"cpu_pct,omitempty" minimum:"0" maximum:"6400" doc:"100 = one core, 0 = unlimited"`
+			// More limits, all optional. See PUT /servers/{uuid}/limits.
+			SwapMB        int64             `json:"swap_mb,omitempty" minimum:"-1" maximum:"1048576" doc:"0 = none, -1 = unlimited"`
+			CPUSet        string            `json:"cpuset,omitempty" maxLength:"64"`
+			PidsLimit     int64             `json:"pids_limit,omitempty" minimum:"16" maximum:"65536" doc:"default 1024"`
+			IOWeight      int64             `json:"io_weight,omitempty" minimum:"0" maximum:"1000" doc:"0 = default, else 10-1000"`
+			DiskMB        int64             `json:"disk_mb,omitempty" minimum:"0" doc:"0 = unlimited"`
+			BackupLimit   int64             `json:"backup_limit,omitempty" minimum:"1" maximum:"100" doc:"default 20"`
+			PortLimit     int64             `json:"port_limit,omitempty" minimum:"0" maximum:"100" doc:"ports the owner may add beyond the primary one"`
+			DatabaseLimit int64             `json:"database_limit,omitempty" minimum:"0" maximum:"100" doc:"databases the owner may create"`
+			BandwidthMbit int64             `json:"bandwidth_mbit,omitempty" minimum:"0" maximum:"100000" doc:"network limit each way in Mbit/s, 0 = unlimited"`
+			Port          int               `json:"port,omitempty" doc:"Leave 0 to auto-allocate."`
+			Env           map[string]string `json:"env,omitempty"`
+		}
 	}
-}
+)
+
 type powerIn struct {
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	Body struct {
@@ -135,13 +141,16 @@ type filePathIn struct {
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	Path string `query:"path" default:"/" maxLength:"4096"`
 }
-type fileListOut struct{ Body []proto.FileInfo }
-type fileContentOut struct {
-	Body struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
+type (
+	fileListOut    struct{ Body []proto.FileInfo }
+	fileContentOut struct {
+		Body struct {
+			Path    string `json:"path"`
+			Content string `json:"content"`
+		}
 	}
-}
+)
+
 type fileWriteIn struct {
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	Body struct {
@@ -284,9 +293,11 @@ func (a *App) registerServers(api huma.API) {
 			return &serverOut{Body: v}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "deleteServer", Method: "DELETE", Path: "/servers/{uuid}", Summary: "Delete a server and its data", DefaultStatus: 204,
+	huma.Register(api, huma.Operation{
+		OperationID: "deleteServer", Method: "DELETE", Path: "/servers/{uuid}", Summary: "Delete a server and its data", DefaultStatus: 204,
 		Description: "The node deletes the container and files first. With `force`, a server whose node is offline is deleted from the panel at once, " +
-			"and the node removes the rest when it next connects."},
+			"and the node removes the rest when it next connects.",
+	},
 		func(ctx context.Context, in *deleteServerIn) (*struct{}, error) {
 			if _, err := requireAdmin(ctx); err != nil {
 				return nil, err
@@ -322,8 +333,10 @@ func (a *App) registerServers(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "setLimits", Method: "PUT", Path: "/servers/{uuid}/limits",
-		Summary: "Change a server's resource limits (admin; a running server applies them at its next start)", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "setLimits", Method: "PUT", Path: "/servers/{uuid}/limits",
+		Summary: "Change a server's resource limits (admin; a running server applies them at its next start)", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *limitsIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
@@ -507,8 +520,10 @@ func (a *App) registerServerDetails(api huma.API) {
 			return &serverOut{Body: v}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "setServerOwner", Method: "PUT", Path: "/servers/{uuid}/owner",
-		Summary: "Hand a server to another account (admin)", Description: "The previous owner loses access unless an admin adds them back as a subuser."},
+	huma.Register(api, huma.Operation{
+		OperationID: "setServerOwner", Method: "PUT", Path: "/servers/{uuid}/owner",
+		Summary: "Hand a server to another account (admin)", Description: "The previous owner loses access unless an admin adds them back as a subuser.",
+	},
 		func(ctx context.Context, in *ownerIn) (*serverOut, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {

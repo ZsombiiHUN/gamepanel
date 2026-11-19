@@ -12,16 +12,19 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
-type subuserListOut struct{ Body []store.Subuser }
-type subuserOut struct{ Body store.Subuser }
-type permListOut struct{ Body []store.Permission }
-type subuserAddIn struct {
-	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
-	Body struct {
-		Email       string   `json:"email" format:"email"`
-		Permissions []string `json:"permissions" minItems:"1"`
+type (
+	subuserListOut struct{ Body []store.Subuser }
+	subuserOut     struct{ Body store.Subuser }
+	permListOut    struct{ Body []store.Permission }
+	subuserAddIn   struct {
+		UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+		Body struct {
+			Email       string   `json:"email" format:"email"`
+			Permissions []string `json:"permissions" minItems:"1"`
+		}
 	}
-}
+)
+
 type subuserIn struct {
 	UUID   string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	UserID int64  `path:"user_id"`

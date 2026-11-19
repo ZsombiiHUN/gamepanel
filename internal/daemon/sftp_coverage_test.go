@@ -396,8 +396,10 @@ func TestSFTPReinstallKeepsSessionsAndRemeasures(t *testing.T) {
 	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	id := uuidN(3)
-	if err := r.d.create(context.Background(), proto.ServerSpec{UUID: id, Image: "img", Startup: "run", Stop: "^C", MemoryMB: 128, DiskMB: 50,
-		Install: &proto.InstallSpec{Image: "inst", Entrypoint: "bash", Script: strings.Repeat("echo installing\n", 1000)}}); err != nil {
+	if err := r.d.create(context.Background(), proto.ServerSpec{
+		UUID: id, Image: "img", Startup: "run", Stop: "^C", MemoryMB: 128, DiskMB: 50,
+		Install: &proto.InstallSpec{Image: "inst", Entrypoint: "bash", Script: strings.Repeat("echo installing\n", 1000)},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	installed := func() bool { st, _ := r.d.installState(id); return st == "" }
@@ -463,10 +465,10 @@ func TestSFTPReadWhileTheGameRewrites(t *testing.T) {
 	os.Truncate(r.path("log.txt"), 10)
 	b := make([]byte, 64<<10)
 	n, err := f.ReadAt(b, 0)
-	if n != 10 || err != io.EOF {
+	if n != 10 || !errors.Is(err, io.EOF) {
 		t.Fatalf("read of a shrunk file: %d %v", n, err)
 	}
-	if n, err := f.ReadAt(b, 50<<10); n != 0 || err != io.EOF {
+	if n, err := f.ReadAt(b, 50<<10); n != 0 || !errors.Is(err, io.EOF) {
 		t.Fatalf("read past the new end: %d %v", n, err)
 	}
 	os.WriteFile(r.path("log.txt"), []byte("rewritten"), 0o644)
@@ -664,5 +666,7 @@ func TestSFTPKeysNeverLogged(t *testing.T) {
 	}
 }
 
-var _ = errors.New
-var _ = ssh.Dial
+var (
+	_ = errors.New
+	_ = ssh.Dial
+)

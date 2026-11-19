@@ -80,8 +80,10 @@ func TestSubuserPermissions(t *testing.T) {
 
 	// a schedule must not be a way around missing permissions
 	sched := func(action, payload string, want int) {
-		bob.do("POST", srv+"/schedules", map[string]any{"name": "n", "cron": "0 4 * * *", "enabled": true,
-			"tasks": []map[string]any{{"action": action, "payload": payload}}}, want)
+		bob.do("POST", srv+"/schedules", map[string]any{
+			"name": "n", "cron": "0 4 * * *", "enabled": true,
+			"tasks": []map[string]any{{"action": action, "payload": payload}},
+		}, want)
 	}
 	sched("command", "op bob", 403)
 	sched("power", "restart", 403)

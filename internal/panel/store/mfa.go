@@ -127,7 +127,7 @@ func (s *Store) totpSecret(ctx context.Context, userID int64) (secret []byte, en
 	var enc string
 	var en int
 	if err = s.DB.QueryRowContext(ctx, `SELECT totp_secret,totp_enabled,totp_last_step FROM users WHERE id=?`, userID).Scan(&enc, &en, &last); err != nil {
-		return
+		return secret, enabled, last, err
 	}
 	if enc == "" {
 		return nil, false, 0, userErr("two-factor setup not started")

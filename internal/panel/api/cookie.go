@@ -24,8 +24,10 @@ const (
 	secureCookieName = "__Host-" + cookieName
 )
 
-type secureKey struct{}
-type sessionKey struct{}
+type (
+	secureKey  struct{}
+	sessionKey struct{}
+)
 
 // isSecure reports whether the browser reached us over HTTPS: directly, via a
 // trusted proxy that says so in X-Forwarded-Proto, or because the operator
