@@ -25,7 +25,10 @@ func (d *Daemon) postPanel(ctx context.Context, path string, in, out any) error 
 		return err
 	}
 	u.Path = path
-	body, _ := json.Marshal(in)
+	body, err := json.Marshal(in)
+	if err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -55,7 +58,7 @@ func (d *Daemon) uploadBackup(ctx context.Context, b proto.BackupReq) (err error
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer closeQuiet(f)
 	fi, err := f.Stat()
 	if err != nil {
 		return err
@@ -102,7 +105,9 @@ func (d *Daemon) putPart(ctx context.Context, target string, r *io.SectionReader
 		if attempt > 0 && !sleep(ctx, time.Duration(attempt)*2*time.Second) {
 			return "", ctx.Err()
 		}
-		r.Seek(0, io.SeekStart)
+		if _, err := r.Seek(0, io.SeekStart); err != nil {
+			return "", err
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodPut, target, r)
 		if err != nil {
 			return "", err
@@ -113,7 +118,8 @@ func (d *Daemon) putPart(ctx context.Context, target string, r *io.SectionReader
 			last = err
 			continue
 		}
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+		// Drain so the connection is reused; a short read only costs that.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
 		resp.Body.Close()
 		if resp.StatusCode/100 == 2 && resp.Header.Get("ETag") != "" {
 			return resp.Header.Get("ETag"), nil
@@ -130,7 +136,7 @@ func (d *Daemon) putPart(ctx context.Context, target string, r *io.SectionReader
 // local backups, for a restore. The caller removes it.
 func (d *Daemon) fetchBackup(ctx context.Context, b proto.BackupReq) (string, error) {
 	dir := filepath.Join(d.cfg.DataDir, "backups", b.UUID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", err
 	}
 	tmp := filepath.Join(dir, b.BackupID+".download")
@@ -155,7 +161,7 @@ func (d *Daemon) fetchBackup(ctx context.Context, b proto.BackupReq) (string, er
 		err = cerr
 	}
 	if err != nil {
-		os.Remove(tmp)
+		d.removeAll(tmp)
 		return "", fmt.Errorf("could not download the backup: %w", err)
 	}
 	return tmp, nil

@@ -42,7 +42,7 @@ func (d *Dir) ReadDir(p string) ([]fs.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer closeQuiet(f)
 	ents, err := f.ReadDir(-1)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (d *Dir) usage(dir string) (int64, error) {
 		return 0, err
 	}
 	ents, err := f.ReadDir(-1)
-	f.Close()
+	closeQuiet(f)
 	if err != nil {
 		return 0, err
 	}

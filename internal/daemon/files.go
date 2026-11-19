@@ -166,7 +166,7 @@ func (d *Daemon) download(ctx context.Context, typ string, t proto.Transfer) (pr
 		}
 		fi, err := f.Stat()
 		if err != nil {
-			f.Close()
+			closeQuiet(f)
 			return proto.TransferResult{}, err
 		}
 		size, name = fi.Size(), t.BackupID+".tar.gz"
@@ -183,11 +183,11 @@ func (d *Daemon) download(ctx context.Context, typ string, t proto.Transfer) (pr
 		}
 		size, name = fi.Size(), fi.Name()
 		if t.Max > 0 && size > t.Max {
-			f.Close()
+			closeQuiet(f)
 			return proto.TransferResult{}, fsx.ErrTooLarge
 		}
 	}
-	defer f.Close()
+	defer closeQuiet(f)
 	// The browser is waiting: the panel gives the node a while to connect, then
 	// the copy runs as long as bytes keep flowing.
 	resp, err := d.relay(ctx, http.MethodPost, t.Ticket, io.LimitReader(f, size), size, name)
@@ -258,7 +258,7 @@ func (d *Daemon) pull(ctx context.Context, t proto.Transfer) (proto.TransferResu
 	req.Header.Set("User-Agent", "GamePanel-daemon/"+Version)
 	resp, err := d.pullClient().Do(req)
 	if err != nil {
-		var blocked *blockedAddr
+		var blocked *blockedAddrError
 		if errors.As(err, &blocked) {
 			return proto.TransferResult{}, proto.Invalid("that address is on a private network, which this node does not download from")
 		}
@@ -274,7 +274,7 @@ func (d *Daemon) pull(ctx context.Context, t proto.Transfer) (proto.TransferResu
 	}
 	limit := d.writeLimit(t.UUID)
 	if resp.ContentLength > 0 && limit > 0 && resp.ContentLength > limit {
-		return proto.TransferResult{}, ErrDiskFull{d.diskLimitBytes(t.UUID) - limit, d.diskLimitBytes(t.UUID)}
+		return proto.TransferResult{}, DiskFullError{d.diskLimitBytes(t.UUID) - limit, d.diskLimitBytes(t.UUID)}
 	}
 	defer d.cacheFor(t.UUID).invalidate()
 	var body io.Reader = resp.Body
@@ -313,9 +313,9 @@ func pullName(resp *http.Response, u *url.URL) string {
 	return name
 }
 
-type blockedAddr struct{ ip net.IP }
+type blockedAddrError struct{ ip net.IP }
 
-func (b *blockedAddr) Error() string { return "refusing to connect to " + b.ip.String() }
+func (b *blockedAddrError) Error() string { return "refusing to connect to " + b.ip.String() }
 
 // pullClient checks every address it connects to, after DNS resolution and
 // on every redirect, so neither a hostname nor a redirect can lead it inward.
@@ -329,7 +329,7 @@ func (d *Daemon) pullClient() *http.Client {
 			}
 			ip := net.ParseIP(host)
 			if ip == nil || !publicIP(ip) {
-				return &blockedAddr{ip}
+				return &blockedAddrError{ip}
 			}
 			return nil
 		}
@@ -365,7 +365,7 @@ func publicIP(ip net.IP) bool {
 	}
 	// IPv4-mapped and NAT64 forms of private addresses.
 	if len(ip) == net.IPv6len && ip[0] == 0x00 && ip[1] == 0x64 && ip[2] == 0xff && ip[3] == 0x9b {
-		return publicIP(net.IP(ip[12:16]))
+		return publicIP(ip[12:16])
 	}
 	return true
 }

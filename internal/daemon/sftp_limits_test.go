@@ -25,7 +25,7 @@ func (r *sftpRig) realUsage() int64 {
 // measured makes sure the figure exists before the test starts changing files.
 func (r *sftpRig) measured() {
 	r.t.Helper()
-	if _, err := r.d.diskUsage(r.id, 0); err != nil {
+	if _, err := r.d.diskUsage(r.id); err != nil {
 		r.t.Fatal(err)
 	}
 }
@@ -349,7 +349,7 @@ func TestSFTPStormWithWalksRunning(t *testing.T) {
 				t.Error(p)
 			}
 			// once everything is quiet, a fresh measurement agrees exactly
-			if got, err := r.d.diskUsage(r.id, 0); err != nil || got != r.realUsage() {
+			if got, err := r.d.diskUsage(r.id); err != nil || got != r.realUsage() {
 				t.Fatalf("settled figure %d, disk %d (%v)", got, r.realUsage(), err)
 			}
 		})

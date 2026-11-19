@@ -93,7 +93,7 @@ func newFuzzRoot(t testing.TB) *fuzzRoot {
 	os.WriteFile(outside, []byte("keep"), 0o644)
 	os.Symlink(outside, dir+"/out")
 	os.Symlink(d.cfg.DataDir, dir+"/updir")
-	if _, err := d.diskUsage(id, 0); err != nil {
+	if _, err := d.diskUsage(id); err != nil {
 		t.Fatal(err)
 	}
 	f := &fuzzRoot{d: d, id: id, outside: outside}

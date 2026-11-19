@@ -72,7 +72,7 @@ func (f *Fake) SpecOf(uuid string) (Spec, bool) {
 	return s.spec, true
 }
 
-func (f *Fake) Start(ctx context.Context, uuid string) error {
+func (f *Fake) Start(_ context.Context, uuid string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	s, err := f.get(uuid)
@@ -90,7 +90,7 @@ func (f *Fake) Start(ctx context.Context, uuid string) error {
 	f.emit(uuid, StateStarting)
 	f.emit(uuid, StateRunning)
 	go func() {
-		fmt.Fprintf(outW, "[fake] booting %s\r\n[fake] ready\r\n", s.spec.Image)
+		say(outW, "[fake] booting %s\r\n[fake] ready\r\n", s.spec.Image)
 		sc := bufio.NewScanner(inR)
 		lines := make(chan string)
 		go func() {
@@ -106,16 +106,16 @@ func (f *Fake) Start(ctx context.Context, uuid string) error {
 				return
 			case l, ok := <-lines:
 				if !ok || l == "stop" {
-					fmt.Fprint(outW, "[fake] stopping\r\n")
+					say(outW, "[fake] stopping\r\n")
 					f.exit(uuid, Exit{})
 					return
 				}
 				if l == "crash" {
-					fmt.Fprint(outW, "[fake] crashing\r\n")
+					say(outW, "[fake] crashing\r\n")
 					f.exit(uuid, Exit{Code: 1})
 					return
 				}
-				fmt.Fprintf(outW, "[fake] > %s\r\n", l)
+				say(outW, "[fake] > %s\r\n", l)
 			}
 		}
 	}()
@@ -127,7 +127,7 @@ func (f *Fake) exit(uuid string, x Exit) {
 	defer f.mu.Unlock()
 	if s, ok := f.servers[uuid]; ok && s.state != StateOffline {
 		s.state = StateOffline
-		s.out.Close()
+		_ = s.out.Close() // a PipeWriter's Close always returns nil
 		s.cancel()
 		f.emitEvent(Event{UUID: uuid, State: StateOffline, Exit: &x})
 	}
@@ -142,7 +142,7 @@ func (f *Fake) Stop(ctx context.Context, uuid string, timeoutSec int) error {
 	}
 	in := s.inW
 	f.mu.Unlock()
-	go fmt.Fprintln(in, "stop")
+	go say(in, "stop\n")
 	deadline := time.After(time.Duration(timeoutSec) * time.Second)
 	for {
 		select {
@@ -219,7 +219,7 @@ func (f *Fake) WatchStats(ctx context.Context, uuid string, fn func(proto.Stats)
 	}
 }
 
-func (f *Fake) Events(ctx context.Context) (<-chan Event, error) {
+func (f *Fake) Events(_ context.Context) (<-chan Event, error) {
 	ch := make(chan Event, 64)
 	f.mu.Lock()
 	f.subs = append(f.subs, ch)
@@ -244,18 +244,24 @@ func (f *Fake) Install(_ context.Context, r InstallRun, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "[fake-install] %s %s\r\n", r.Entrypoint, r.Image)
+	say(out, "[fake-install] %s %s\r\n", r.Entrypoint, r.Image)
 	if bytes.Contains(b, []byte("#slow")) {
 		time.Sleep(time.Second)
 	}
 	if bytes.Contains(b, []byte("#fail")) {
-		fmt.Fprint(out, "[fake-install] failing\r\n")
+		say(out, "[fake-install] failing\r\n")
 		return errors.New("installer exited with code 1")
 	}
-	return os.WriteFile(filepath.Join(r.DataDir, "installed.txt"), b, 0o644)
+	return os.WriteFile(filepath.Join(r.DataDir, "installed.txt"), b, 0o600) //nolint:gosec // G703: DataDir is the daemon's own server directory
 }
 
 // LimitBandwidth records nothing: the fake has no network.
 func (f *Fake) LimitBandwidth(context.Context, string) (IngressMode, error) {
 	return IngressUnlimited, nil
+}
+
+// say writes a line of fake console output. A write fails only when nobody
+// reads the console any more, which is fine for a fake.
+func say(w io.Writer, format string, a ...any) {
+	_, _ = fmt.Fprintf(w, format, a...)
 }

@@ -21,7 +21,7 @@ import (
 // *os.Root, so no path, symlink or archive entry can reach outside the
 // server's directory.
 
-// ErrUnsupportedArchive: the file is not an archive this daemon can unpack.
+// ErrUnsupportedArchive means the file is not an archive this daemon can unpack.
 var ErrUnsupportedArchive = errors.New("unsupported archive type: use .zip, .tar, .tar.gz, .tgz, .tar.bz2 or .gz")
 
 // Move renames from to to, creating to's parent folders. It refuses to
@@ -120,7 +120,7 @@ func (d *Dir) copyAny(f, t string, fi fs.FileInfo, reserve func(int64) error) er
 		if err != nil {
 			return err
 		}
-		defer src.Close()
+		defer closeQuiet(src)
 		dst, err := d.create(t, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fi.Mode().Perm()|0o600)
 		if err != nil {
 			return err
@@ -183,7 +183,7 @@ func (d *Dir) WriteStreamCheck(p string, r io.Reader, limit int64, check func() 
 		err = d.root.Rename(tmp, name)
 	}
 	if err != nil {
-		d.root.Remove(tmp)
+		_ = d.root.Remove(tmp) // best effort; err is what the caller needs
 		return n, err
 	}
 	return n, nil
@@ -257,7 +257,7 @@ func (d *Dir) Compress(dir string, paths []string, format string, limit int64) (
 		err = cerr
 	}
 	if err != nil {
-		d.root.Remove(out)
+		_ = d.root.Remove(out) // best effort; err is what the caller needs
 		return "", err
 	}
 	return "/" + out, nil
@@ -320,7 +320,7 @@ func (d *Dir) addFileAs(tw *tar.Writer, rel, name string) error {
 		}
 		return err
 	}
-	defer f.Close()
+	defer closeQuiet(f)
 	fi, err := f.Stat()
 	if err != nil || !fi.Mode().IsRegular() {
 		return err
@@ -358,7 +358,7 @@ func (d *Dir) writeZip(w io.Writer, rels []string, strip func(string) string) er
 			if err != nil {
 				return err
 			}
-			defer src.Close()
+			defer closeQuiet(src)
 			_, err = io.Copy(dst, io.LimitReader(src, fi.Size()))
 			return err
 		})
@@ -419,7 +419,7 @@ func (d *Dir) Decompress(p, dest string, maxBytes int64) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer closeQuiet(src)
 	switch {
 	case strings.HasSuffix(lower, ".zip"):
 		fi, err := src.Stat()
@@ -458,7 +458,7 @@ func (d *Dir) Decompress(p, dest string, maxBytes int64) error {
 			if err != nil {
 				return fmt.Errorf("not a gzip archive: %w", err)
 			}
-			defer gz.Close()
+			defer closeQuiet(gz)
 			r = gz
 		case strings.HasSuffix(lower, "bz2"):
 			r = bzip2.NewReader(src)
@@ -478,7 +478,8 @@ func (d *Dir) Decompress(p, dest string, maxBytes int64) error {
 					return err
 				}
 			case tar.TypeReg:
-				if err := put(h.Name, fs.FileMode(h.Mode), io.LimitReader(tr, h.Size)); err != nil {
+				// Permission bits only, as put keeps: never setuid/setgid/sticky.
+				if err := put(h.Name, fs.FileMode(h.Mode&0o777), io.LimitReader(tr, h.Size)); err != nil {
 					return err
 				}
 			}
@@ -488,7 +489,7 @@ func (d *Dir) Decompress(p, dest string, maxBytes int64) error {
 		if err != nil {
 			return fmt.Errorf("not a gzip file: %w", err)
 		}
-		defer gz.Close()
+		defer closeQuiet(gz)
 		return put(strings.TrimSuffix(path.Base(name), path.Ext(name)), 0o644, gz)
 	}
 	return ErrUnsupportedArchive
@@ -520,11 +521,11 @@ func (d *Dir) Open(p string) (*os.File, fs.FileInfo, error) {
 	}
 	fi, err := f.Stat()
 	if err != nil {
-		f.Close()
+		closeQuiet(f)
 		return nil, nil, err
 	}
 	if !fi.Mode().IsRegular() {
-		f.Close()
+		closeQuiet(f)
 		return nil, nil, &fs.PathError{Op: "open", Path: p, Err: syscall.EISDIR}
 	}
 	return f, fi, nil

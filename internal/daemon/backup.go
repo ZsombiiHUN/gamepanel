@@ -39,7 +39,7 @@ func (d *Daemon) backup(ctx context.Context, typ string, b proto.BackupReq) (jso
 		res, err := d.backupCreate(b)
 		if err == nil && b.Remote {
 			if err = d.uploadBackup(ctx, b); err != nil {
-				os.Remove(d.backupPath(b.UUID, b.BackupID))
+				d.removeAll(d.backupPath(b.UUID, b.BackupID))
 			}
 		}
 		return proto.Marshal(res), err
@@ -63,7 +63,7 @@ func (d *Daemon) backupCreate(b proto.BackupReq) (res proto.BackupResult, err er
 	}
 	defer dir.Close()
 	final := d.backupPath(b.UUID, b.BackupID)
-	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(final), 0o750); err != nil {
 		return res, err
 	}
 	tmp := final + ".part"
@@ -72,20 +72,24 @@ func (d *Daemon) backupCreate(b proto.BackupReq) (res proto.BackupResult, err er
 		return res, err
 	}
 	defer func() {
-		f.Close()
 		if err != nil {
-			os.Remove(tmp)
+			_ = f.Close() // may already be closed; the archive error is what matters
+			d.removeAll(tmp)
 		}
 	}()
 	h := sha256.New()
 	cw := &countWriter{w: io.MultiWriter(f, h)}
-	if err = dir.Archive(cw, b.Ignore); err != nil {
+	if err := dir.Archive(cw, b.Ignore); err != nil {
 		return res, err
 	}
-	if err = f.Sync(); err != nil {
+	if err := f.Sync(); err != nil {
 		return res, err
 	}
-	if err = os.Rename(tmp, final); err != nil {
+	// Close before the rename: a failed close can mean lost writes.
+	if err := f.Close(); err != nil {
+		return res, err
+	}
+	if err := os.Rename(tmp, final); err != nil {
 		return res, err
 	}
 	return proto.BackupResult{Size: cw.n, SHA256: hex.EncodeToString(h.Sum(nil))}, nil
@@ -118,13 +122,13 @@ func (d *Daemon) backupRestore(ctx context.Context, b proto.BackupReq) error {
 		if path, err = d.fetchBackup(ctx, b); err != nil {
 			return err
 		}
-		defer os.Remove(path)
+		defer d.removeAll(path)
 	}
 	f, err := os.Open(path)
 	if err != nil {
 		return proto.NotFound("backup file not found on the node")
 	}
-	defer f.Close()
+	defer closeQuiet(f)
 	dir, err := d.dir(b.UUID)
 	if err != nil {
 		return err

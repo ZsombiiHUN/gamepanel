@@ -23,7 +23,7 @@ func (r *recorder) run(_ context.Context, s step) error {
 
 func TestBandwidthShapesBothWays(t *testing.T) {
 	r := &recorder{}
-	mode, err := applyLimit(context.Background(), r.run, "eth0", 100)
+	mode, err := applyLimit(context.Background(), r.run, 100)
 	if err != nil || mode != IngressShaped {
 		t.Fatalf("%v %v", mode, err)
 	}
@@ -46,7 +46,7 @@ func TestBandwidthShapesBothWays(t *testing.T) {
 // the limit again on the same namespace works.
 func TestBandwidthCleanUpMayFail(t *testing.T) {
 	r := &recorder{fail: func(s step) bool { return s.mayFail }}
-	if mode, err := applyLimit(context.Background(), r.run, "eth0", 10); err != nil || mode != IngressShaped {
+	if mode, err := applyLimit(context.Background(), r.run, 10); err != nil || mode != IngressShaped {
 		t.Fatalf("%v %v", mode, err)
 	}
 }
@@ -55,7 +55,7 @@ func TestBandwidthCleanUpMayFail(t *testing.T) {
 // enough for TCP to reach the limit.
 func TestBandwidthFallsBackToPolicing(t *testing.T) {
 	r := &recorder{fail: func(s step) bool { return strings.Contains(s.String(), "type ifb") }}
-	mode, err := applyLimit(context.Background(), r.run, "eth0", 100)
+	mode, err := applyLimit(context.Background(), r.run, 100)
 	if err != nil || mode != IngressPoliced {
 		t.Fatalf("%v %v", mode, err)
 	}
@@ -71,7 +71,7 @@ func TestBandwidthFallsBackToPolicing(t *testing.T) {
 
 func TestBandwidthFailsWithoutTC(t *testing.T) {
 	r := &recorder{fail: func(step) bool { return true }}
-	if _, err := applyLimit(context.Background(), r.run, "eth0", 10); err == nil {
+	if _, err := applyLimit(context.Background(), r.run, 10); err == nil {
 		t.Fatal("no error when nothing could be applied")
 	}
 	if len(r.ran) != 1 {
@@ -79,7 +79,7 @@ func TestBandwidthFailsWithoutTC(t *testing.T) {
 	}
 	// Egress works but neither kind of ingress does: an error, not a silent half limit.
 	r = &recorder{fail: func(s step) bool { return strings.Contains(s.String(), "ingress") && !s.mayFail }}
-	if _, err := applyLimit(context.Background(), r.run, "eth0", 10); err == nil {
+	if _, err := applyLimit(context.Background(), r.run, 10); err == nil {
 		t.Fatal("no error when ingress could not be limited")
 	}
 }

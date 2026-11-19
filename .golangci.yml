@@ -55,6 +55,13 @@ linters:
         - (*database/sql.Rows).Close
         # Closing a pool after use: every query already reported its own error.
         - (*database/sql.DB).Close
+        # Closing a directory handle or a network endpoint cannot lose data;
+        # file writes are different and must check Close.
+        - (*github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx.Dir).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (golang.org/x/crypto/ssh.Conn).Close
+        - (golang.org/x/crypto/ssh.Channel).Close
         # Response bodies are only read; a close error cannot lose data.
         - (io.ReadCloser).Close
     govet:
