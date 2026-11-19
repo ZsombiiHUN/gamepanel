@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 
@@ -118,7 +117,9 @@ func (a *App) registerMods(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			out := &transferOut{}
-			json.Unmarshal(raw, &out.Body)
+			if err := decodeReply(raw, &out.Body); err != nil {
+				return nil, err
+			}
 			a.audit(ctx, u, "mod.install", s.UUID, v.ProjectID+" "+v.Number+" -> "+out.Body.Path)
 			return out, nil
 		})

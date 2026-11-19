@@ -42,6 +42,9 @@ type relayTicket struct {
 	done     chan error    // the copy's outcome, once attached
 }
 
+// wait blocks until the relay's copy has ended and returns its outcome.
+func (t *relayTicket) wait() error { return <-t.done }
+
 func (a *App) newTicket(node int64) (string, *relayTicket) {
 	b := make([]byte, 32)
 	rand.Read(b)
@@ -179,7 +182,7 @@ func (a *App) relayDownload(w http.ResponseWriter, r *http.Request, node int64, 
 		// copy has finished: the node replies only once its upload ended.
 		select {
 		case <-tk.attached:
-			<-tk.done
+			_ = tk.wait() // the relay already answered, success or not
 		default:
 			a.relays.Delete(id)
 			if err == nil {
@@ -188,7 +191,7 @@ func (a *App) relayDownload(w http.ResponseWriter, r *http.Request, node int64, 
 			writeErr(w, nodeErr(err))
 		}
 	case <-tk.attached:
-		<-tk.done // the response belongs to the relay until the copy ends
+		_ = tk.wait() // the response belongs to the relay until the copy ends; it reports its own errors
 	}
 }
 
@@ -215,7 +218,7 @@ func (a *App) uploadFile(w http.ResponseWriter, r *http.Request) {
 	raw, err := a.Hub.Request(ctx, s.NodeID, proto.ReqFilesUpload, proto.Transfer{UUID: s.UUID, Path: p, Ticket: id, Size: r.ContentLength})
 	select {
 	case <-tk.attached:
-		<-tk.done // never return while the relay still reads the body
+		_ = tk.wait() // never return while the relay still reads the body; the node's reply carries the outcome
 	default:
 		a.relays.Delete(id)
 	}
@@ -226,7 +229,7 @@ func (a *App) uploadFile(w http.ResponseWriter, r *http.Request) {
 	a.audit(r.Context(), u, "file.upload", s.UUID, p+" ("+strconv.FormatInt(r.ContentLength, 10)+" bytes)")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write(raw)
+	_, _ = w.Write(raw) // a failed write means the client went away
 }
 
 // maxEditBytes is the largest file the editor opens or saves, as on the node.
@@ -294,7 +297,8 @@ func (a *App) writeSmall(ctx context.Context, node int64, uuid, p string, conten
 	select {
 	case <-tk.attached:
 		select {
-		case <-tk.done:
+		case cerr := <-tk.done:
+			_ = cerr // the node's reply (err above) carries the outcome
 		case <-ctx.Done():
 		}
 	default:

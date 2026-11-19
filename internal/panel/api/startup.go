@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"slices"
 	"sort"
@@ -276,7 +275,9 @@ func (a *App) applySpec(ctx context.Context, s store.Server) (pending bool, err 
 		return false, nodeErr(err)
 	}
 	var res proto.UpdateResult
-	json.Unmarshal(raw, &res)
+	if err := decodeReply(raw, &res); err != nil {
+		return false, err
+	}
 	return res.Pending, nil
 }
 

@@ -65,7 +65,11 @@ const (
 // and at full cost (slower still under -race) the hashing took a quarter of
 // their CPU time. testing.Testing is false in every binary but a test's, so the
 // panel always hashes at full cost.
-func argonParams() (time, memory uint32, threads uint8) {
+// maxHashLen bounds a stored hash's length, so a corrupt row cannot make
+// argon2 derive a huge key.
+const maxHashLen = 1024
+
+func argonParams() (passes, memory uint32, threads uint8) {
 	if testing.Testing() {
 		return 1, 8, 1
 	}
@@ -126,11 +130,11 @@ func checkPassword(pw, enc string) bool {
 	}
 	salt, err1 := hex.DecodeString(parts[1])
 	key, err2 := hex.DecodeString(parts[2])
-	if err1 != nil || err2 != nil || len(key) == 0 {
+	if err1 != nil || err2 != nil || len(key) == 0 || len(key) > maxHashLen {
 		return false
 	}
 	t, m, p := argonParams()
-	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(key)))
+	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(key))) //nolint:gosec // G115: len(key) <= maxHashLen, checked above
 	return subtle.ConstantTimeCompare(got, key) == 1
 }
 
@@ -147,9 +151,8 @@ func (s *Store) CreateUser(ctx context.Context, email, password string, admin bo
 	return User{ID: id, Email: email, IsAdmin: admin}, nil
 }
 
-func (s *Store) CountUsers(ctx context.Context) (n int) {
-	s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&n)
-	return n
+func (s *Store) CountUsers(ctx context.Context) (int, error) {
+	return count(ctx, s.DB, `SELECT COUNT(*) FROM users`)
 }
 
 // dummyHash lets Login spend the same time for unknown emails (no user enumeration by timing).
@@ -214,7 +217,7 @@ func (s *Store) UserBySession(ctx context.Context, token, ip string) (User, erro
 		if ip == "" {
 			ip = lastIP
 		}
-		s.exec(ctx, `UPDATE sessions SET last_seen_at=?, last_ip=? WHERE token_hash=?`, now(), ip, h)
+		s.execBestEffort(ctx, "session last seen", `UPDATE sessions SET last_seen_at=?, last_ip=? WHERE token_hash=?`, now(), ip, h)
 	}
 	return u, nil
 }
@@ -269,8 +272,9 @@ func (s *Store) GetUser(ctx context.Context, id int64) (User, error) {
 	return u, nf(err)
 }
 
-func (s *Store) DeleteSession(ctx context.Context, token string) {
-	s.exec(ctx, `DELETE FROM sessions WHERE token_hash=?`, HashToken(token))
+func (s *Store) DeleteSession(ctx context.Context, token string) error {
+	_, err := s.exec(ctx, `DELETE FROM sessions WHERE token_hash=?`, HashToken(token))
+	return err
 }
 
 // ---- nodes ----
@@ -408,8 +412,14 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	if e.Variables == nil {
 		e.Variables = []EggVar{}
 	}
-	vars, _ := json.Marshal(e.Variables)
-	imgs, _ := json.Marshal(e.DockerImages)
+	vars, err := json.Marshal(e.Variables)
+	if err != nil {
+		return Egg{}, err
+	}
+	imgs, err := json.Marshal(e.DockerImages)
+	if err != nil {
+		return Egg{}, err
+	}
 	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
 		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, now())
 	if err != nil {
@@ -425,11 +435,15 @@ func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
 	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript); err != nil {
 		return e, nf(err)
 	}
-	json.Unmarshal([]byte(vars), &e.Variables)
+	if err := json.Unmarshal([]byte(vars), &e.Variables); err != nil {
+		return e, fmt.Errorf("egg %d variables: %w", e.ID, err)
+	}
 	if e.Variables == nil {
 		e.Variables = []EggVar{}
 	}
-	json.Unmarshal([]byte(imgs), &e.DockerImages)
+	if err := json.Unmarshal([]byte(imgs), &e.DockerImages); err != nil {
+		return e, fmt.Errorf("egg %d docker images: %w", e.ID, err)
+	}
 	if len(e.DockerImages) == 0 {
 		e.DockerImages = []EggImage{{Label: e.DockerImage, Image: e.DockerImage}}
 	}
@@ -492,7 +506,7 @@ const (
 	InstallFailed     = "failed"
 )
 
-// ErrExternalIDTaken: another server or account already has that external id.
+// ErrExternalIDTaken means another server or account already has that external id.
 var ErrExternalIDTaken = userErr("that external_id is already used")
 
 // nullable stores "" as NULL, so unique indexes ignore unset ids.
@@ -513,7 +527,9 @@ func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
 		return v, nf(err)
 	}
 	v.ExternalID = ext.String
-	json.Unmarshal([]byte(env), &v.Env)
+	if err := json.Unmarshal([]byte(env), &v.Env); err != nil {
+		return v, fmt.Errorf("server %s env: %w", v.UUID, err)
+	}
 	if v.Env == nil {
 		v.Env = map[string]string{}
 	}
@@ -569,7 +585,10 @@ func (s *Store) CreateServer(ctx context.Context, v Server) (Server, error) {
 	if v.Env == nil {
 		v.Env = map[string]string{}
 	}
-	env, _ := json.Marshal(v.Env)
+	env, err := json.Marshal(v.Env)
+	if err != nil {
+		return Server{}, err
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),
 		v.SwapMB, v.CPUSet, v.PidsLimit, v.IOWeight, v.DiskMB, v.BackupLimit, v.Image, v.Startup, v.PortLimit, v.DatabaseLimit, v.Description, v.BandwidthMbit, v.CrashRestart,
@@ -615,18 +634,9 @@ func (s *Store) ServerByPrefix(ctx context.Context, nodeID int64, prefix string)
 			return Server{}, ErrNotFound
 		}
 	}
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+srvCols+` FROM servers WHERE node_id=? AND uuid LIKE ? LIMIT 2`, nodeID, prefix+"%")
+	found, err := queryAll(ctx, s.DB, scanServer, `SELECT `+srvCols+` FROM servers WHERE node_id=? AND uuid LIKE ? LIMIT 2`, nodeID, prefix+"%")
 	if err != nil {
 		return Server{}, err
-	}
-	defer rows.Close()
-	var found []Server
-	for rows.Next() {
-		v, err := scanServer(rows)
-		if err != nil {
-			return Server{}, err
-		}
-		found = append(found, v)
 	}
 	if len(found) != 1 {
 		return Server{}, ErrNotFound
@@ -639,24 +649,21 @@ func (s *Store) ServerByPrefix(ctx context.Context, nodeID int64, prefix string)
 func (s *Store) Labels(ctx context.Context) (eggs, nodes map[int64]string, err error) {
 	eggs, nodes = map[int64]string{}, map[int64]string{}
 	for table, dst := range map[string]map[int64]string{"eggs": eggs, "nodes": nodes} {
-		rows, qerr := s.DB.QueryContext(ctx, `SELECT id,name FROM `+table)
+		type label struct {
+			id   int64
+			name string
+		}
+		labels, qerr := queryAll(ctx, s.DB, func(sc rowScanner) (label, error) {
+			var l label
+			err := sc.Scan(&l.id, &l.name)
+			return l, err
+		}, `SELECT id,name FROM `+table) // table comes from the fixed map above
 		if qerr != nil {
 			return nil, nil, qerr
 		}
-		for rows.Next() {
-			var id int64
-			var name string
-			if err := rows.Scan(&id, &name); err != nil {
-				rows.Close()
-				return nil, nil, err
-			}
-			dst[id] = name
+		for _, l := range labels {
+			dst[l.id] = l.name
 		}
-		if err := rows.Err(); err != nil {
-			rows.Close()
-			return nil, nil, err
-		}
-		rows.Close()
 	}
 	return eggs, nodes, nil
 }

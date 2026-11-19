@@ -269,7 +269,10 @@ func (s *Store) UpdateStartup(ctx context.Context, uuid string, c StartupChange)
 	if c.CrashRestart != nil {
 		v.CrashRestart = *c.CrashRestart
 	}
-	env, _ := json.Marshal(v.Env)
+	env, err := json.Marshal(v.Env)
+	if err != nil {
+		return v, err
+	}
 	if _, err := tx.ExecContext(ctx, `UPDATE servers SET env=?, image=?, startup=?, crash_restart=? WHERE uuid=?`, string(env), v.Image, v.Startup, v.CrashRestart, uuid); err != nil {
 		return v, err
 	}

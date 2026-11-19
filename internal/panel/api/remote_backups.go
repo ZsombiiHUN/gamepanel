@@ -93,7 +93,7 @@ func (a *App) backupUpload(w http.ResponseWriter, r *http.Request) {
 	a.uploads.Store(in.BackupID, id)
 	size, urls := a.S3.PartURLs(key, id, in.Size, uploadURLTimeout)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(proto.BackupUpload{PartSize: size, URLs: urls})
+	writeBody(w, proto.BackupUpload{PartSize: size, URLs: urls})
 }
 
 // backupComplete finishes (or aborts) a node's multipart upload.
@@ -108,7 +108,12 @@ func (a *App) backupComplete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	key, id := a.S3.Key(in.Server, in.BackupID), v.(string)
+	id, ok := v.(string)
+	if !ok {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	key := a.S3.Key(in.Server, in.BackupID)
 	if in.Failed {
 		if err := a.S3.AbortUpload(r.Context(), key, id); err != nil {
 			a.Log.Warn("s3: could not abort an upload", "backup", in.BackupID, "err", err)
@@ -122,7 +127,9 @@ func (a *App) backupComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.S3.CompleteUpload(r.Context(), key, id, parts); err != nil {
 		a.Log.Warn("s3: could not complete an upload", "backup", in.BackupID, "err", err)
-		a.S3.AbortUpload(r.Context(), key, id)
+		if err := a.S3.AbortUpload(r.Context(), key, id); err != nil {
+			a.Log.Warn("s3: could not abort an upload", "backup", in.BackupID, "err", err)
+		}
 		http.Error(w, "the backup storage refused the upload", http.StatusBadGateway)
 		return
 	}

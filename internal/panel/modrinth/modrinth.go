@@ -28,7 +28,7 @@ func New() *Client {
 	return &Client{BaseURL: "https://api.modrinth.com/v2", FileHosts: []string{"cdn.modrinth.com"}, http: &http.Client{Timeout: 15 * time.Second}}
 }
 
-// Types this panel can install, and the folder each goes to.
+// Folders maps the project types this panel can install to the folder each goes to.
 var Folders = map[string]string{"mod": "/mods/", "plugin": "/plugins/", "datapack": "/world/datapacks/"}
 
 type Hit struct {
@@ -77,7 +77,7 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 var ErrNotFound = fmt.Errorf("not found on Modrinth")
 
 func facet(vals ...string) string {
-	b, _ := json.Marshal(vals)
+	b, _ := json.Marshal(vals) //nolint:errchkjson // a []string always encodes
 	return string(b)
 }
 

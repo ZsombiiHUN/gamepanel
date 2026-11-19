@@ -137,7 +137,8 @@ func (a *App) registerSchedules(api huma.API) {
 			}
 			a.audit(ctx, u, "schedule.run", s.UUID, v.Name)
 			a.Store.TouchSchedule(ctx, v.ID)
-			go a.runSchedule(context.Background(), s, v, true)
+			// The run outlives this request; keep its values, drop its cancellation.
+			go a.runSchedule(context.WithoutCancel(ctx), s, v, true)
 			return nil, nil
 		})
 }

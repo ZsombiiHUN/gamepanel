@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -354,7 +353,7 @@ func (a *App) registerServers(api huma.API) {
 			next := s
 			next.Limits = l
 			if err := a.Store.CheckLimits(ctx, s.UUID, l); err != nil {
-				var ce store.ErrCapacity
+				var ce store.CapacityError
 				if errors.As(err, &ce) {
 					return nil, userErr(http.StatusConflict, err)
 				}
@@ -423,7 +422,9 @@ func (a *App) registerServers(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			out := &fileListOut{}
-			json.Unmarshal(raw, &out.Body)
+			if err := decodeReply(raw, &out.Body); err != nil {
+				return nil, err
+			}
 			if out.Body == nil {
 				out.Body = []proto.FileInfo{}
 			}
@@ -575,7 +576,8 @@ func (a *App) sendPower(ctx context.Context, u store.User, s store.Server, actio
 	a.audit(ctx, u, "server.power", s.UUID, action)
 	res := make(chan error, 1)
 	go func() {
-		c, cancel := context.WithTimeout(context.Background(), powerTimeout)
+		// The action finishes even if the caller stops waiting (see powerGrace).
+		c, cancel := context.WithTimeout(context.WithoutCancel(ctx), powerTimeout)
 		defer cancel()
 		_, err := a.Hub.Request(c, s.NodeID, proto.ReqServerPower, proto.Power{UUID: s.UUID, Action: action})
 		res <- err

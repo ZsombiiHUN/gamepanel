@@ -46,7 +46,7 @@ type SSOProvider struct {
 }
 
 func GitHubSSO(clientID, secret string) *SSOProvider {
-	return &SSOProvider{
+	return &SSOProvider{ //nolint:gosec // G101: public OAuth endpoint URLs, the secret comes from the caller
 		ID: "github", Name: "GitHub", kind: "github", ClientID: clientID, ClientSecret: secret,
 		AuthURL: "https://github.com/login/oauth/authorize", TokenURL: "https://github.com/login/oauth/access_token",
 		UserURL: "https://api.github.com/user", Scopes: []string{"read:user", "user:email"},
@@ -54,7 +54,7 @@ func GitHubSSO(clientID, secret string) *SSOProvider {
 }
 
 func DiscordSSO(clientID, secret string) *SSOProvider {
-	return &SSOProvider{
+	return &SSOProvider{ //nolint:gosec // G101: public OAuth endpoint URLs, the secret comes from the caller
 		ID: "discord", Name: "Discord", kind: "discord", ClientID: clientID, ClientSecret: secret,
 		AuthURL: "https://discord.com/oauth2/authorize", TokenURL: "https://discord.com/api/oauth2/token",
 		UserURL: "https://discord.com/api/users/@me", Scopes: []string{"identify", "email"},
@@ -324,12 +324,12 @@ func (a *App) ssoCallback(w http.ResponseWriter, r *http.Request) {
 	state := q.Get("state")
 	c, err := r.Cookie(ssoCookie)
 	v, ok := a.ssoStates.LoadAndDelete(state)
-	if state == "" || err != nil || c.Value != state || !ok {
+	st, isState := v.(ssoState)
+	if state == "" || err != nil || c.Value != state || !ok || !isState {
 		// Started in another browser, already used, or forged.
 		fail("/login", "expired")
 		return
 	}
-	st := v.(ssoState)
 	back := "/login"
 	if st.mode == "link" {
 		back = "/account"
@@ -477,8 +477,10 @@ func (a *App) registerSSO(api huma.API) {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}
 			a.audit(ctx, u, "login.ok", u.Email, "single sign-on with "+p.provider+" and a second factor")
-			clear := http.Cookie{Name: ssoMFACookie, Value: "", Path: "/api/auth/", MaxAge: -1, HttpOnly: true}
-			return &ssoVerifyOut{Body: a.loginUser(u, store.MethodSSOTOTP), SetCookie: append(sessionCookies(ctx, tok, a.Store.SessionMax), clear)}, nil
+			pending := http.Cookie{ //nolint:gosec // G124: Secure follows the request's scheme, as for the session cookie
+				Name: ssoMFACookie, Value: "", Path: "/api/auth/", MaxAge: -1, HttpOnly: true, Secure: secureFrom(ctx), SameSite: http.SameSiteLaxMode,
+			}
+			return &ssoVerifyOut{Body: a.loginUser(u, store.MethodSSOTOTP), SetCookie: append(sessionCookies(ctx, tok, a.Store.SessionMax), pending)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listIdentities", Method: "GET", Path: "/auth/identities", Summary: "Your single sign-on links"},
@@ -491,8 +493,12 @@ func (a *App) registerSSO(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("db error", err)
 			}
+			hasPw, err := a.Store.HasPassword(ctx, u.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
 			out := &identitiesOut{}
-			out.Body.Identities, out.Body.Providers, out.Body.HasPassword = ids, a.ssoList(), a.Store.HasPassword(ctx, u.ID)
+			out.Body.Identities, out.Body.Providers, out.Body.HasPassword = ids, a.ssoList(), hasPw
 			return out, nil
 		})
 

@@ -80,12 +80,14 @@ func (s *Store) HostWithSecret(ctx context.Context, id int64) (HostSecret, error
 	return h, err
 }
 
-// ErrHostInUse: a host with databases on it cannot be removed.
+// ErrHostInUse means a host with databases on it cannot be removed.
 var ErrHostInUse = userErr("delete the databases on this host first")
 
 func (s *Store) DeleteDatabaseHost(ctx context.Context, id int64) error {
-	var n int
-	s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM server_databases WHERE host_id=?`, id).Scan(&n)
+	n, err := count(ctx, s.DB, `SELECT COUNT(*) FROM server_databases WHERE host_id=?`, id)
+	if err != nil {
+		return err
+	}
 	if n > 0 {
 		return ErrHostInUse
 	}
@@ -156,7 +158,7 @@ func (s *Store) GetServerDatabase(ctx context.Context, server string, id int64) 
 	return scanSDB(s.DB.QueryRowContext(ctx, `SELECT `+sdbCols+` FROM server_databases d JOIN database_hosts h ON h.id=d.host_id WHERE d.server_uuid=? AND d.id=?`, server, id))
 }
 
-// ErrDatabaseLimit: the server has as many databases as it may.
+// ErrDatabaseLimit means the server has as many databases as it may.
 var ErrDatabaseLimit = userErr("this server cannot have more databases; ask an administrator to raise its limit")
 
 // ReserveDatabase records a database before it is created on the host, so

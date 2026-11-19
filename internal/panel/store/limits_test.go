@@ -59,7 +59,7 @@ func TestNodeCapacityAccounting(t *testing.T) {
 	}
 	s.SetNodeCapacity(ctx, n.ID, 8192, 10240, 0) // 4096 already allocated
 
-	var ce ErrCapacity
+	var ce CapacityError
 	if _, err := mk(2, Limits{MemoryMB: 4097, DiskMB: 100}); !errors.As(err, &ce) {
 		t.Fatalf("over memory accepted: %v", err)
 	}

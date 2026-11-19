@@ -13,7 +13,7 @@ const (
 	InviteTTL = 7 * 24 * time.Hour
 )
 
-// ErrBadLink: the reset or invite link is unknown, used or expired. One
+// ErrBadLink means the reset or invite link is unknown, used or expired. One
 // message for all three, so a link cannot be probed.
 var ErrBadLink = userErr("this link is invalid or has expired; ask for a new one")
 
@@ -93,8 +93,10 @@ func (s *Store) NewInvite(ctx context.Context, email string, by int64, server st
 			return "", Invite{}, err
 		}
 	}
-	var exists int
-	s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE email=?`, email).Scan(&exists)
+	exists, err := count(ctx, s.DB, `SELECT COUNT(*) FROM users WHERE email=?`, email)
+	if err != nil {
+		return "", Invite{}, err
+	}
 	if exists > 0 {
 		return "", Invite{}, ErrAccountExists
 	}
@@ -124,7 +126,7 @@ func (s *Store) NewInvite(ctx context.Context, email string, by int64, server st
 	return tok, inv, tx.Commit()
 }
 
-// ErrAccountExists: an invitation or sign-up for an email that already has an account.
+// ErrAccountExists is returned for an invitation or sign-up for an email that already has an account.
 var ErrAccountExists = userErr("an account with this email already exists")
 
 const inviteCols = `t.id,t.email,COALESCE(t.server_uuid,''),COALESCE(s.name,''),t.permissions,t.is_admin,t.expires_at,t.created_at`
@@ -210,21 +212,15 @@ func (s *Store) Register(ctx context.Context, token, email, password string) (Us
 	id, _ := res.LastInsertId()
 	if token != "" {
 		// Every pending server invite for this email, not just the one clicked.
-		rows, err := tx.QueryContext(ctx, `SELECT server_uuid,permissions FROM user_tokens WHERE kind='invite' AND email=? AND server_uuid IS NOT NULL AND expires_at>?`, email, now())
+		type grant struct{ server, perms string }
+		gs, err := queryAll(ctx, tx, func(sc rowScanner) (grant, error) {
+			var g grant
+			err := sc.Scan(&g.server, &g.perms)
+			return g, err
+		}, `SELECT server_uuid,permissions FROM user_tokens WHERE kind='invite' AND email=? AND server_uuid IS NOT NULL AND expires_at>?`, email, now())
 		if err != nil {
 			return User{}, err
 		}
-		type grant struct{ server, perms string }
-		var gs []grant
-		for rows.Next() {
-			var g grant
-			if err := rows.Scan(&g.server, &g.perms); err != nil {
-				rows.Close()
-				return User{}, err
-			}
-			gs = append(gs, g)
-		}
-		rows.Close()
 		for _, g := range gs {
 			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO server_users(server_uuid,user_id,permissions,created_at) VALUES(?,?,?,?)`, g.server, id, g.perms, now()); err != nil {
 				return User{}, err

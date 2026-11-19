@@ -2,8 +2,7 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,7 +90,9 @@ func (a *App) registerFiles(api huma.API) {
 			return proto.FileOpResult{}, nodeErr(err)
 		}
 		var res proto.FileOpResult
-		json.Unmarshal(raw, &res)
+		if err := decodeReply(raw, &res); err != nil {
+			return proto.FileOpResult{}, err
+		}
 		a.audit(ctx, u, action, s.UUID, truncate(detail, 500))
 		return res, nil
 	}
@@ -119,9 +120,11 @@ func (a *App) registerFiles(api huma.API) {
 
 	huma.Register(api, huma.Operation{OperationID: "chmodFiles", Method: "POST", Path: "/servers/{uuid}/files/chmod", Summary: "Change permissions", DefaultStatus: 204},
 		func(ctx context.Context, in *fileChmodIn) (*struct{}, error) {
-			var mode uint32
-			fmt.Sscanf(in.Body.Mode, "%o", &mode)
-			_, err := fileOp(ctx, in.UUID, "file.chmod", in.Body.Mode+" "+strings.Join(in.Body.Paths, ", "), proto.FileOp{Op: proto.OpChmod, Paths: in.Body.Paths, Mode: mode})
+			mode, err := strconv.ParseUint(in.Body.Mode, 8, 32)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity("mode must be three octal digits, e.g. 644")
+			}
+			_, err = fileOp(ctx, in.UUID, "file.chmod", in.Body.Mode+" "+strings.Join(in.Body.Paths, ", "), proto.FileOp{Op: proto.OpChmod, Paths: in.Body.Paths, Mode: uint32(mode)})
 			return nil, err
 		})
 
@@ -187,7 +190,9 @@ func (a *App) registerFiles(api huma.API) {
 				return nil, nodeErr(err)
 			}
 			out := &transferOut{}
-			json.Unmarshal(raw, &out.Body)
+			if err := decodeReply(raw, &out.Body); err != nil {
+				return nil, err
+			}
 			a.audit(ctx, u, "file.pull", s.UUID, truncate(in.Body.URL, 300)+" -> "+out.Body.Path)
 			return out, nil
 		})

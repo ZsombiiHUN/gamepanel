@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -145,7 +146,11 @@ func (a *App) registerPasskeys(api huma.API) {
 				return nil, off()
 			}
 			// A new way into the account: prove it is you, as for API keys.
-			if a.Store.HasPassword(ctx, u.ID) {
+			hasPw, err := a.Store.HasPassword(ctx, u.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
+			if hasPw {
 				if err := a.confirm(ctx, u, in.Body.Password); err != nil {
 					return nil, err
 				}
@@ -244,7 +249,7 @@ func (a *App) registerPasskeys(api huma.API) {
 				return nil, huma.Error401Unauthorized("the passkey could not be verified")
 			}
 			var who *waUser
-			lookup := func(rawID, handle []byte) (webauthn.User, error) {
+			lookup := func(_, handle []byte) (webauthn.User, error) {
 				u, err := a.Store.UserByWebAuthnHandle(ctx, handle)
 				if err != nil {
 					return nil, err
@@ -327,6 +332,5 @@ func (a *App) registerPasskeys(api huma.API) {
 }
 
 func itoa64(n int64) string {
-	b, _ := json.Marshal(n)
-	return string(b)
+	return strconv.FormatInt(n, 10)
 }

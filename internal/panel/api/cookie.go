@@ -74,7 +74,8 @@ func readSessionCookie(r *http.Request) (tok string, legacy, ok bool) {
 
 // clearLegacyCookie removes the bare-named cookie from the browser.
 func clearLegacyCookie() http.Cookie {
-	return http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1}
+	// Only sent over HTTPS (see sessionCookies), so it can be Secure.
+	return http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode, MaxAge: -1}
 }
 
 // sessionCookies is sessionCookie plus, over HTTPS, the removal of any
@@ -90,7 +91,9 @@ func sessionCookies(ctx context.Context, tok string, maxAge time.Duration) []htt
 // sessionCookie is the Set-Cookie for a new session (or, with tok "", the one
 // that removes it).
 func sessionCookie(ctx context.Context, tok string, maxAge time.Duration) http.Cookie {
-	c := http.Cookie{
+	// Secure is set below whenever the request came over HTTPS; plain-HTTP
+	// panels (a LAN install without TLS) still need a working cookie.
+	c := http.Cookie{ //nolint:gosec // G124: Secure is set conditionally below
 		Name: cookieName, Value: tok, Path: "/", HttpOnly: true,
 		SameSite: http.SameSiteLaxMode, MaxAge: int(maxAge.Seconds()),
 	}

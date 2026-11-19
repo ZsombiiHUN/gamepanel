@@ -88,8 +88,10 @@ func Create(ctx context.Context, h Host, name, user, password, remote string) (e
 	}
 	defer func() {
 		if err != nil {
-			db.ExecContext(context.WithoutCancel(ctx), "DROP USER IF EXISTS ?@?", user, remote)
-			db.ExecContext(context.WithoutCancel(ctx), "DROP DATABASE IF EXISTS `"+name+"`")
+			undo := context.WithoutCancel(ctx)
+			_, uerr := db.ExecContext(undo, "DROP USER IF EXISTS ?@?", user, remote)
+			_, derr := db.ExecContext(undo, "DROP DATABASE IF EXISTS `"+name+"`")
+			err = errors.Join(err, uerr, derr)
 		}
 	}()
 	if _, err = db.ExecContext(ctx, "CREATE USER ?@? IDENTIFIED BY ?", user, remote, password); err != nil {

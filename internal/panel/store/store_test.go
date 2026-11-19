@@ -54,7 +54,9 @@ func TestPasswordsAndSessions(t *testing.T) {
 	if _, err := s.UserBySession(ctx, tok, ""); err != nil {
 		t.Fatal(err)
 	}
-	s.DeleteSession(ctx, tok)
+	if err := s.DeleteSession(ctx, tok); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.UserBySession(ctx, tok, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("revoked session still valid: %v", err)
 	}

@@ -120,7 +120,7 @@ func (a *App) sendMail(m mail.Message) {
 
 func (a *App) registerLinks(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "authOptions", Method: "GET", Path: "/auth/options", Summary: "Ways to sign in on this panel (public)"},
-		func(ctx context.Context, _ *struct{}) (*optionsOut, error) {
+		func(_ context.Context, _ *struct{}) (*optionsOut, error) {
 			out := &optionsOut{}
 			out.Body.PasswordReset = a.mailOn()
 			out.Body.Signup = a.signup()
@@ -144,7 +144,8 @@ func (a *App) registerLinks(api huma.API) {
 			u, err := a.Store.UserByEmail(ctx, email)
 			if err != nil {
 				a.audit(ctx, store.User{Email: email}, "password.reset.request", email, "no such account")
-				return nil, nil
+				// Same answer as for a real account: no account enumeration.
+				return nil, nil //nolint:nilerr // see above
 			}
 			tok, err := a.Store.NewResetToken(ctx, u.ID)
 			if err != nil {

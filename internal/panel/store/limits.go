@@ -31,7 +31,7 @@ func DefaultLimits() Limits {
 	return Limits{MemoryMB: 1024, PidsLimit: 1024, BackupLimit: 20}
 }
 
-var cpusetRe = regexp.MustCompile(`^[0-9]+([-,][0-9]+)*$`)
+var cpusetRe = regexp.MustCompile(`^\d+([-,]\d+)*$`)
 
 // Normalize fills defaults for zero-valued fields that cannot be zero and
 // validates ranges (the HTTP schema checks the same bounds; this guards every
@@ -70,10 +70,10 @@ func (l *Limits) Normalize() error {
 	return nil
 }
 
-// ErrCapacity means a node would be over-allocated.
-type ErrCapacity struct{ Msg string }
+// CapacityError means a node would be over-allocated.
+type CapacityError struct{ Msg string }
 
-func (e ErrCapacity) Error() string { return e.Msg }
+func (e CapacityError) Error() string { return e.Msg }
 
 // checkCapacity verifies that adding (or resizing, via exclude) a server with
 // limits l keeps the node within its configured capacity. A capacity of 0
@@ -93,15 +93,15 @@ func checkCapacity(ctx context.Context, q interface {
 	}
 	if memCap > 0 {
 		if allowed := memCap * (100 + over) / 100; memUsed+l.MemoryMB > allowed {
-			return ErrCapacity{fmt.Sprintf("this node has %d of %d MB memory left to allocate; %d MB requested", max(allowed-memUsed, 0), allowed, l.MemoryMB)}
+			return CapacityError{fmt.Sprintf("this node has %d of %d MB memory left to allocate; %d MB requested", max(allowed-memUsed, 0), allowed, l.MemoryMB)}
 		}
 	}
 	if diskCap > 0 {
 		if l.DiskMB == 0 {
-			return ErrCapacity{"this node tracks disk capacity, so the server needs a disk limit"}
+			return CapacityError{"this node tracks disk capacity, so the server needs a disk limit"}
 		}
 		if allowed := diskCap * (100 + over) / 100; diskUsed+l.DiskMB > allowed {
-			return ErrCapacity{fmt.Sprintf("this node has %d of %d MB disk left to allocate; %d MB requested", max(allowed-diskUsed, 0), allowed, l.DiskMB)}
+			return CapacityError{fmt.Sprintf("this node has %d of %d MB disk left to allocate; %d MB requested", max(allowed-diskUsed, 0), allowed, l.DiskMB)}
 		}
 	}
 	return nil

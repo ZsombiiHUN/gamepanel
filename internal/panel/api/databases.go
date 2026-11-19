@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,8 +16,6 @@ import (
 
 // dbTimeout bounds one conversation with a database host.
 const dbTimeout = 30 * time.Second
-
-var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_]{1,48}$`)
 
 type (
 	hostListOut  struct{ Body []store.DatabaseHost }
@@ -181,7 +178,9 @@ func (a *App) registerDatabases(api huma.API) {
 				cancel()
 			}
 			if err != nil {
-				a.Store.DeleteServerDatabase(ctx, d.ID)
+				if derr := a.Store.DeleteServerDatabase(ctx, d.ID); derr != nil {
+					a.Log.ErrorContext(ctx, "could not release a database reservation", "database", d.ID, "err", derr)
+				}
 				return nil, dbErr("creating a database failed", err)
 			}
 			a.audit(ctx, u, "database.create", s.UUID, d.Name)

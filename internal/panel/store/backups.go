@@ -46,7 +46,7 @@ func scanBackup(sc interface{ Scan(...any) error }) (Backup, error) {
 	return b, nf(err)
 }
 
-// ErrRestoreRunning: a server can only restore one backup at a time.
+// ErrRestoreRunning means a server can only restore one backup at a time.
 var ErrRestoreRunning = userErr("a restore is already running for this server")
 
 // BeginRestore marks a backup as being restored, refusing while any backup of
@@ -96,14 +96,21 @@ func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted
 		return nil, err
 	}
 	defer tx.Rollback()
-	var running, total int
-	tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM backups WHERE server_uuid=? AND status=?`, b.ServerUUID, BackupRunning).Scan(&running)
+	running, err := count(ctx, tx, `SELECT COUNT(*) FROM backups WHERE server_uuid=? AND status=?`, b.ServerUUID, BackupRunning)
+	if err != nil {
+		return nil, err
+	}
 	if running > 0 {
 		return nil, userErr("a backup is already running for this server")
 	}
-	tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM backups WHERE server_uuid=?`, b.ServerUUID).Scan(&total)
-	limit := DefaultBackupLimit
-	tx.QueryRowContext(ctx, `SELECT backup_limit FROM servers WHERE uuid=?`, b.ServerUUID).Scan(&limit)
+	total, err := count(ctx, tx, `SELECT COUNT(*) FROM backups WHERE server_uuid=?`, b.ServerUUID)
+	if err != nil {
+		return nil, err
+	}
+	limit, err := count(ctx, tx, `SELECT backup_limit FROM servers WHERE uuid=?`, b.ServerUUID)
+	if err != nil {
+		return nil, nf(err)
+	}
 	for total >= limit {
 		if !rotate {
 			return nil, ErrBackupLimit
@@ -129,7 +136,7 @@ func (s *Store) BeginBackup(ctx context.Context, b Backup, rotate bool) (evicted
 	return evicted, tx.Commit()
 }
 
-func (s *Store) FinishBackup(ctx context.Context, uuid string, size int64, sum string, failure string) error {
+func (s *Store) FinishBackup(ctx context.Context, uuid string, size int64, sum, failure string) error {
 	st := BackupOK
 	if failure != "" {
 		st = BackupFailed
