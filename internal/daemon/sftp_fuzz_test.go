@@ -83,6 +83,7 @@ func (f *fuzzRoot) outsidePaths() string {
 }
 
 func newFuzzRoot(t testing.TB) *fuzzRoot {
+	t.Helper()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1)
@@ -93,7 +94,7 @@ func newFuzzRoot(t testing.TB) *fuzzRoot {
 	os.WriteFile(outside, []byte("keep"), 0o644)
 	os.Symlink(outside, dir+"/out")
 	os.Symlink(d.cfg.DataDir, dir+"/updir")
-	if _, err := d.diskUsage(id, 0); err != nil {
+	if _, err := d.diskUsage(id); err != nil {
 		t.Fatal(err)
 	}
 	f := &fuzzRoot{d: d, id: id, outside: outside}
@@ -129,7 +130,7 @@ func frames(in []byte) [][]byte {
 // serve runs one session over the input the way a client does: one packet
 // at a time, waiting (briefly) for each answer. A client that sends data for
 // a handle before the open is answered races inside the sftp package itself
-// (it registers the handle before opening the file); real clients always
+// (it registers the handle before opening the file); onDisk clients always
 // wait for the handle.
 func (f *fuzzRoot) serve(t testing.TB, input []byte) {
 	t.Helper()
@@ -138,9 +139,11 @@ func (f *fuzzRoot) serve(t testing.TB, input []byte) {
 		t.Fatal(err)
 	}
 	defer dir.Close()
-	h := &sftpFS{dir: dir, read: true, write: true, maxOpen: 16, disk: f.d.cacheFor(f.id),
+	h := &sftpFS{
+		dir: dir, read: true, write: true, maxOpen: 16, disk: f.d.cacheFor(f.id),
 		check:  func(n int64) error { return f.d.reserveDisk(f.id, n) },
-		statfs: func() (*sftp.StatVFS, error) { return f.d.sftpStatVFS(f.id) }}
+		statfs: func() (*sftp.StatVFS, error) { return f.d.sftpStatVFS(f.id) },
+	}
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 	srv := sftp.NewRequestServer(rwc{inR, outW}, sftp.Handlers{FileGet: h, FilePut: h, FileCmd: h, FileList: h})
@@ -197,12 +200,13 @@ func (f *fuzzRoot) check(t testing.TB) {
 	if now := f.outsidePaths(); now != f.before {
 		t.Fatalf("something changed outside the server's folder:\n%s\nwas:\n%s", now, f.before)
 	}
-	if used, real := usedBytes(f.d, f.id), mustWalk(t, f.d, f.id); used < real {
-		t.Fatalf("figure %d below the %d bytes on disk", used, real)
+	if used, onDisk := usedBytes(f.d, f.id), mustWalk(t, f.d, f.id); used < onDisk {
+		t.Fatalf("figure %d below the %d bytes on disk", used, onDisk)
 	}
 }
 
 func mustWalk(t testing.TB, d *Daemon, id string) int64 {
+	t.Helper()
 	n, err := d.walkUsage(id)
 	if err != nil {
 		t.Fatal(err)
@@ -210,8 +214,10 @@ func mustWalk(t testing.TB, d *Daemon, id string) int64 {
 	return n
 }
 
-var fuzzPaths = []string{"/a.txt", "a.txt", "/d", "/d/x", "/new", "../../outside.txt", "/out", "/updir/outside.txt",
-	"/updir", "/", "", ".", "..", "/../..", "/d/../../x", "\x00", "/a.txt\x00.png", strings.Repeat("a/", 300), "//d//x"}
+var fuzzPaths = []string{
+	"/a.txt", "a.txt", "/d", "/d/x", "/new", "../../outside.txt", "/out", "/updir/outside.txt",
+	"/updir", "/", "", ".", "..", "/../..", "/d/../../x", "\x00", "/a.txt\x00.png", strings.Repeat("a/", 300), "//d//x",
+}
 
 // randomPacket builds a well-formed-ish packet: random type, plausible fields.
 func randomPacket(rnd *rand.Rand, handles []string) []byte {
@@ -223,8 +229,10 @@ func randomPacket(rnd *rand.Rand, handles []string) []byte {
 		return string(rune('0' + rnd.Intn(10)))
 	}
 	p := &pkt{}
-	types := []byte{pOpen, pClose, pRead, pWrite, pLstat, pFstat, pSetstat, pFsetstat, pOpendir, pReaddir,
-		pRemove, pMkdir, pRmdir, pRealpath, pStat, pRename, pReadlink, pSymlink, pExtended, 99, 0}
+	types := []byte{
+		pOpen, pClose, pRead, pWrite, pLstat, pFstat, pSetstat, pFsetstat, pOpendir, pReaddir,
+		pRemove, pMkdir, pRmdir, pRealpath, pStat, pRename, pReadlink, pSymlink, pExtended, 99, 0,
+	}
 	typ := types[rnd.Intn(len(types))]
 	p.u8(typ).u32(rnd.Uint32())
 	attrs := func() {

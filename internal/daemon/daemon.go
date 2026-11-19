@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -191,18 +192,22 @@ type Daemon struct {
 
 func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
 	for _, d := range []string{"servers", "state"} {
-		if err := os.MkdirAll(filepath.Join(cfg.DataDir, d), 0o755); err != nil {
+		// Server data is handed to the game's own user (see provision), so its parents stay traversable.
+		if err := os.MkdirAll(filepath.Join(cfg.DataDir, d), 0o755); err != nil { //nolint:gosec // G301: see above
 			return nil, err
 		}
 	}
-	d := &Daemon{cfg: cfg, rt: rt, log: log, servers: map[string]*managed{},
+	d := &Daemon{
+		cfg: cfg, rt: rt, log: log, servers: map[string]*managed{},
 		// No overall timeout: a large download runs as long as bytes flow.
-		relayClient: &http.Client{Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute}}}
+		relayClient: &http.Client{Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute}},
+	}
 	d.loadState()
 	return d, nil
 }
 
 func (d *Daemon) serverDir(uuid string) string { return filepath.Join(d.cfg.DataDir, "servers", uuid) }
+
 func (d *Daemon) statePath(uuid string) string {
 	return filepath.Join(d.cfg.DataDir, "state", uuid+".json")
 }
@@ -243,14 +248,15 @@ func (d *Daemon) loadState() {
 }
 
 // Run keeps a connection to the panel until ctx ends, reconnecting with
-// exponential backoff.
-func (d *Daemon) Run(ctx context.Context) error {
+// exponential backoff. Losing the connection is never fatal, so there is no
+// error to return.
+func (d *Daemon) Run(ctx context.Context) {
 	backoff := time.Second
 	for ctx.Err() == nil {
 		start := time.Now()
 		err := d.session(ctx)
 		if ctx.Err() != nil {
-			return nil
+			return
 		}
 		if time.Since(start) > 30*time.Second {
 			backoff = time.Second
@@ -258,18 +264,17 @@ func (d *Daemon) Run(ctx context.Context) error {
 		d.log.Warn("panel connection lost", "err", err, "retry_in", backoff)
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-time.After(backoff):
 		}
 		if backoff < 30*time.Second {
 			backoff *= 2
 		}
 	}
-	return nil
 }
 
 func (d *Daemon) session(ctx context.Context) error {
-	c, _, err := websocket.Dial(ctx, d.cfg.PanelURL, &websocket.DialOptions{
+	c, _, err := websocket.Dial(ctx, d.cfg.PanelURL, &websocket.DialOptions{ //nolint:bodyclose // websocket.Dial owns the response body
 		HTTPHeader: map[string][]string{"Authorization": {"Bearer " + d.cfg.Token}},
 	})
 	if err != nil {
@@ -279,7 +284,7 @@ func (d *Daemon) session(ctx context.Context) error {
 	d.wmu.Lock()
 	d.conn = c
 	d.wmu.Unlock()
-	defer c.CloseNow()
+	defer c.CloseNow() //nolint:errcheck // the session is over either way
 	d.log.Info("connected to panel", "url", d.cfg.PanelURL)
 
 	sctx, cancel := context.WithCancel(ctx)
@@ -366,7 +371,10 @@ func (d *Daemon) send(ctx context.Context, env proto.Envelope) error {
 		d.sendHook(env)
 		return nil
 	}
-	b, _ := json.Marshal(env)
+	b, err := json.Marshal(env)
+	if err != nil {
+		return err
+	}
 	d.wmu.Lock()
 	defer d.wmu.Unlock()
 	if d.conn == nil {
@@ -686,27 +694,27 @@ func (d *Daemon) dispatch(ctx context.Context, env proto.Envelope) (json.RawMess
 }
 
 func (d *Daemon) files(typ string, f proto.FileReq) (json.RawMessage, error) {
-	fs, err := d.dir(f.UUID)
+	sd, err := d.dir(f.UUID)
 	if err != nil {
 		return nil, err
 	}
-	defer fs.Close()
+	defer sd.Close()
 	switch typ {
 	case proto.ReqFilesList:
-		l, err := fs.List(f.Path)
+		l, err := sd.List(f.Path)
 		return proto.Marshal(l), err
 	case proto.ReqFilesRead:
-		b, err := fs.Read(f.Path)
+		b, err := sd.Read(f.Path)
 		return proto.Marshal(proto.FileReq{UUID: f.UUID, Path: f.Path, Content: b}), err
 	case proto.ReqFilesWrite:
 		if err := d.reserveDisk(f.UUID, int64(len(f.Content))); err != nil {
 			return nil, err
 		}
-		return nil, fs.Write(f.Path, f.Content)
+		return nil, sd.Write(f.Path, f.Content)
 	case proto.ReqFilesMkdir:
-		return nil, fs.Mkdir(f.Path)
+		return nil, sd.Mkdir(f.Path)
 	default:
-		return nil, fs.Delete(f.Path)
+		return nil, sd.Delete(f.Path)
 	}
 }
 
@@ -715,7 +723,7 @@ func (d *Daemon) create(ctx context.Context, s proto.ServerSpec) error {
 		return proto.Invalid("invalid server id")
 	}
 	dir := d.serverDir(s.UUID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // G301: the game's user owns it (below) and must traverse it
 		return err
 	}
 	// Game images typically run as a non-root user; hand over the data dir.
@@ -724,7 +732,10 @@ func (d *Daemon) create(ctx context.Context, s proto.ServerSpec) error {
 	// take longer than the panel waits for a reply. Until it exists the server
 	// is stale, so a start, also after a daemon restart, builds it. The marker
 	// goes first: a state file without it would mean a container exists.
-	b, _ := json.Marshal(s)
+	b, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
 	if err := os.WriteFile(d.stalePath(s.UUID), nil, 0o600); err != nil {
 		d.discard(s.UUID)
 		return err
@@ -826,8 +837,9 @@ func (d *Daemon) runInstall(ctx context.Context, uuid string) {
 		fail(err)
 		return
 	}
-	defer os.RemoveAll(tmp)
-	if err := os.WriteFile(filepath.Join(tmp, "install.sh"), []byte(spec.Install.Script), 0o644); err != nil {
+	defer d.removeAll(tmp)
+	// World-readable: the installer container runs as its own user.
+	if err := os.WriteFile(filepath.Join(tmp, "install.sh"), []byte(spec.Install.Script), 0o644); err != nil { //nolint:gosec // G306: see above
 		fail(err)
 		return
 	}
@@ -851,7 +863,7 @@ func (d *Daemon) runInstall(ctx context.Context, uuid string) {
 		UUID: uuid, Image: spec.Install.Image, Entrypoint: spec.Install.Entrypoint,
 		ScriptDir: absTmp, DataDir: abs, Env: spec.Env, MemoryMB: spec.MemoryMB,
 	}, pw)
-	pw.Close()
+	_ = pw.Close() // a PipeWriter's Close always returns nil
 	<-done
 	// The installer wrote files the daemon did not account for.
 	d.cacheFor(uuid).invalidate()
@@ -979,8 +991,8 @@ func (d *Daemon) startClaimed(ctx context.Context, uuid string) error {
 		return proto.Conflict("this server is suspended")
 	}
 	if spec.DiskMB > 0 {
-		if used, err := d.diskUsage(uuid, 0); err == nil && used > spec.DiskMB<<20 {
-			return ErrDiskFull{used, spec.DiskMB << 20}
+		if used, err := d.diskUsage(uuid); err == nil && used > spec.DiskMB<<20 {
+			return DiskFullError{used, spec.DiskMB << 20}
 		}
 	}
 	d.mu.Lock()
@@ -1033,8 +1045,7 @@ func (d *Daemon) stopWhenFree(ctx context.Context, uuid string) error {
 	for {
 		end, err := d.begin(uuid, opStop)
 		if err == nil {
-			defer end()
-			return d.stopClaimed(ctx, uuid)
+			return d.stopClaimedThenEnd(ctx, uuid, end)
 		}
 		if proto.CodeOf(err) != proto.CodeConflict {
 			return err
@@ -1201,7 +1212,10 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 	if err != nil {
 		return proto.UpdateResult{}, err
 	}
-	b, _ := json.Marshal(s)
+	b, err := json.Marshal(s)
+	if err != nil {
+		return proto.UpdateResult{}, err
+	}
 	if sameContainer(old, s) {
 		// Nothing the container is built from changed (the crash restart
 		// setting, a suspension), so it applies at once and needs no rebuild.
@@ -1291,9 +1305,10 @@ func sameContainer(a, b proto.ServerSpec) bool {
 	a.NoCrashRestart, b.NoCrashRestart = false, false
 	a.Suspended, b.Suspended = false, false
 	a.StartOnCompletion, b.StartOnCompletion = false, false
-	ja, _ := json.Marshal(a)
-	jb, _ := json.Marshal(b)
-	return string(ja) == string(jb)
+	ja, erra := json.Marshal(a)
+	jb, errb := json.Marshal(b)
+	// Specs that cannot be compared are treated as different: a rebuild is safe.
+	return erra == nil && errb == nil && bytes.Equal(ja, jb)
 }
 
 func (d *Daemon) isStale(uuid string) bool {
@@ -1323,4 +1338,24 @@ func (d *Daemon) rebuildIfStale(ctx context.Context, uuid string) error {
 	m.stale = false
 	d.mu.Unlock()
 	return nil
+}
+
+// removeAll deletes path (a file or a tree) and logs a failure: a leftover
+// wastes disk but must not fail the operation that made it.
+func (d *Daemon) removeAll(path string) {
+	if err := os.RemoveAll(path); err != nil {
+		d.log.Warn("could not remove a leftover file", "path", path, "err", err)
+	}
+}
+
+// closeQuiet closes a handle no data was written through: one opened for
+// reading, used only for metadata calls (stat, truncate), or abandoned before
+// any write. Such a close cannot lose data, so its error is not worth reporting.
+func closeQuiet(c io.Closer) { _ = c.Close() }
+
+// stopClaimedThenEnd stops a server whose stop was claimed with begin and
+// releases the claim, even if stopping panics.
+func (d *Daemon) stopClaimedThenEnd(ctx context.Context, uuid string, end func()) error {
+	defer end()
+	return d.stopClaimed(ctx, uuid)
 }

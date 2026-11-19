@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -112,9 +113,11 @@ func (d *Daemon) StartSFTP(ctx context.Context, addr string) (string, error) {
 	}
 	u.Path, u.RawQuery = "/daemon/sftp-auth", ""
 
-	s := &sftpServer{d: d, authURL: u.String(), http: &http.Client{Timeout: d.cfg.sftpPanelTimeout()},
+	s := &sftpServer{
+		d: d, authURL: u.String(), http: &http.Client{Timeout: d.cfg.sftpPanelTimeout()},
 		conns: map[string]int{}, fails: map[string][]time.Time{},
-		sessions: map[string]map[*ssh.ServerConn]struct{}{}}
+		sessions: map[string]map[*ssh.ServerConn]struct{}{},
+	}
 	s.cfg = &ssh.ServerConfig{
 		MaxAuthTries:  3,
 		ServerVersion: "SSH-2.0-GamePanel",
@@ -123,7 +126,8 @@ func (d *Daemon) StartSFTP(ctx context.Context, addr string) (string, error) {
 	}
 	s.cfg.AddHostKey(signer)
 
-	ln, err := net.Listen("tcp", addr)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return "", err
 	}
@@ -168,7 +172,8 @@ func (s *sftpServer) admit(ip string) bool {
 func (s *sftpServer) release(ip string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.conns[ip]--; s.conns[ip] <= 0 {
+	s.conns[ip]--
+	if s.conns[ip] <= 0 {
 		delete(s.conns, ip)
 	}
 }
@@ -199,10 +204,17 @@ func (s *sftpServer) noteFail(ip string) {
 // ask has the panel check a login. err is set when the panel could not
 // answer: unreachable, or any status but 200 (a reverse proxy answers 502
 // while the panel restarts). A refusal is a 200 with OK false.
-func (s *sftpServer) ask(user, pw, ip string, recheck bool) (proto.SFTPAuthResp, error) {
+func (s *sftpServer) ask(ctx context.Context, user, pw, ip string, recheck bool) (proto.SFTPAuthResp, error) {
 	var r proto.SFTPAuthResp
-	body, _ := json.Marshal(proto.SFTPAuthReq{Username: user, Password: pw, IP: ip, Recheck: recheck})
-	req, _ := http.NewRequest(http.MethodPost, s.authURL, bytes.NewReader(body))
+	// The password is an API key the panel checks; it goes to the panel only.
+	body, err := json.Marshal(proto.SFTPAuthReq{Username: user, Password: pw, IP: ip, Recheck: recheck}) //nolint:gosec // G117: see above
+	if err != nil {
+		return r, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.authURL, bytes.NewReader(body))
+	if err != nil {
+		return r, err
+	}
 	req.Header.Set("Authorization", "Bearer "+s.d.cfg.Token)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.http.Do(req)
@@ -230,7 +242,8 @@ func (s *sftpServer) auth(c ssh.ConnMetadata, pw []byte) (*ssh.Permissions, erro
 		s.noteFail(ip)
 		return nil, errors.New("denied")
 	}
-	r, err := s.ask(c.User(), string(pw), ip, false)
+	// The SSH library gives the callback no context; s.http's timeout bounds the call.
+	r, err := s.ask(context.Background(), c.User(), string(pw), ip, false)
 	if err != nil {
 		return nil, errors.New("unavailable")
 	}
@@ -260,7 +273,7 @@ func (s *sftpServer) auth(c ssh.ConnMetadata, pw []byte) (*ssh.Permissions, erro
 func (s *sftpServer) watchAccess(ctx context.Context, conn *ssh.ServerConn, ip string) {
 	ext := conn.Permissions.Extensions
 	for sleep(ctx, s.d.cfg.sftpRecheck()) {
-		r, err := s.ask(conn.User(), ext["key"], ip, true)
+		r, err := s.ask(ctx, conn.User(), ext["key"], ip, true)
 		if err != nil {
 			continue
 		}
@@ -338,12 +351,17 @@ func (s *sftpServer) keepAlive(ctx context.Context, conn *ssh.ServerConn) {
 
 func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 	defer nc.Close()
-	nc.SetDeadline(time.Now().Add(s.d.cfg.sftpHandshake())) // handshake + auth
+	// Without the deadline a client could hold the handshake open forever.
+	if err := nc.SetDeadline(time.Now().Add(s.d.cfg.sftpHandshake())); err != nil { // handshake + auth
+		return
+	}
 	conn, chans, reqs, err := ssh.NewServerConn(nc, s.cfg)
 	if err != nil {
 		return
 	}
-	nc.SetDeadline(time.Time{})
+	if err := nc.SetDeadline(time.Time{}); err != nil {
+		return
+	}
 	defer conn.Close()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -365,7 +383,8 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 		return
 	}
 	defer dir.Close()
-	h := &sftpFS{dir: dir, read: ext["read"] == "1", write: ext["write"] == "1", maxOpen: sftpMaxHandles,
+	h := &sftpFS{
+		dir: dir, read: ext["read"] == "1", write: ext["write"] == "1", maxOpen: sftpMaxHandles,
 		check: func(extra int64) error {
 			if _, err := s.d.spec(uuid); err != nil { // deleted: no limit left to check against
 				return sftp.ErrSSHFxPermissionDenied
@@ -373,13 +392,14 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 			return s.d.reserveDisk(uuid, extra)
 		},
 		disk: s.d.cacheFor(uuid), log: s.d.log,
-		statfs: func() (*sftp.StatVFS, error) { return s.d.sftpStatVFS(uuid) }}
+		statfs: func() (*sftp.StatVFS, error) { return s.d.sftpStatVFS(uuid) },
+	}
 
 	var mu sync.Mutex
 	channels := 0
 	for nch := range chans {
 		if nch.ChannelType() != "session" { // no port forwarding, no x11
-			nch.Reject(ssh.UnknownChannelType, "only sftp sessions are allowed")
+			_ = nch.Reject(ssh.UnknownChannelType, "only sftp sessions are allowed") // fails only if the client is gone
 			continue
 		}
 		mu.Lock()
@@ -389,7 +409,7 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 		}
 		mu.Unlock()
 		if full {
-			nch.Reject(ssh.ResourceShortage, "too many sessions on one connection")
+			_ = nch.Reject(ssh.ResourceShortage, "too many sessions on one connection") // fails only if the client is gone
 			continue
 		}
 		ch, creqs, err := nch.Accept()
@@ -409,13 +429,17 @@ func (s *sftpServer) handle(ctx context.Context, nc net.Conn, ip string) {
 			for r := range creqs {
 				// Only the sftp subsystem: no shell, exec, pty, env or agent.
 				ok := r.Type == "subsystem" && len(r.Payload) >= 4 && string(r.Payload[4:]) == "sftp"
-				r.Reply(ok, nil)
+				if err := r.Reply(ok, nil); err != nil {
+					return // the client is gone
+				}
 				if !ok {
 					continue
 				}
 				srv := sftp.NewRequestServer(ch, sftp.Handlers{FileGet: h, FilePut: h, FileCmd: h, FileList: h})
-				srv.Serve()
-				srv.Close()
+				if err := srv.Serve(); err != nil && !errors.Is(err, io.EOF) {
+					s.d.log.Debug("sftp session ended", "server", uuid, "err", err)
+				}
+				_ = srv.Close() // closes the channel, which the deferred ch.Close also does
 				return
 			}
 		}()
@@ -445,7 +469,7 @@ type sftpFS struct {
 // runs handlers on its own goroutines without recovering, so a panic there
 // (a malformed packet reaching a code path that did not expect it) would
 // take down the daemon and every server on the node with it.
-func survive(log *slog.Logger, err *error) {
+func survive(log *slog.Logger, err *error) { //nolint:gocritic // ptrToRefParam: it sets the caller's named result
 	if p := recover(); p != nil {
 		if log == nil {
 			log = slog.Default()
@@ -618,7 +642,8 @@ func (w *limitedWriter) WriteAt(p []byte, off int64) (n int, err error) {
 	w.pend(-grow)
 
 	w.mu.Lock()
-	if w.inflight--; w.inflight == 0 {
+	w.inflight--
+	if w.inflight == 0 {
 		w.ahead = 0 // all landed: the size shows them now
 	}
 	w.mu.Unlock()
@@ -664,7 +689,7 @@ func (h *sftpFS) Fileread(r *sftp.Request) (_ io.ReaderAt, err error) {
 		return nil, deny(err)
 	}
 	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
-		f.Close()
+		closeQuiet(f)
 		free()
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
@@ -735,12 +760,12 @@ func (h *sftpFS) Filewrite(r *sftp.Request) (_ io.WriterAt, err error) {
 	}
 	fi, err := f.Stat()
 	if err != nil || !fi.Mode().IsRegular() {
-		f.Close()
+		closeQuiet(f)
 		return nil, sftp.ErrSSHFxPermissionDenied
 	}
 	if p.Trunc {
 		if err := f.Truncate(0); err != nil {
-			f.Close()
+			closeQuiet(f)
 			return nil, deny(err)
 		}
 		stale = fi.Size() != freed
@@ -764,13 +789,16 @@ func (h *sftpFS) OpenFile(r *sftp.Request) (_ sftp.WriterAtReaderAt, err error) 
 	if err != nil {
 		return nil, err
 	}
-	lw := w.(*limitedWriter)
+	lw, ok := w.(*limitedWriter)
+	if !ok { // Filewrite returns nothing else
+		return nil, sftp.ErrSSHFxFailure
+	}
 	lw.read = h.read
 	return lw, nil
 }
 
 // StatVFS answers statvfs@openssh.com (df on an sshfs mount, rclone about).
-func (h *sftpFS) StatVFS(r *sftp.Request) (_ *sftp.StatVFS, err error) {
+func (h *sftpFS) StatVFS(_ *sftp.Request) (_ *sftp.StatVFS, err error) {
 	defer survive(h.log, &err)
 	if (!h.read && !h.write) || h.statfs == nil {
 		return nil, sftp.ErrSSHFxPermissionDenied
@@ -793,12 +821,14 @@ func (d *Daemon) sftpStatVFS(uuid string) (*sftp.StatVFS, error) {
 	if err := syscall.Statfs(d.serverDir(uuid), &st); err != nil {
 		return nil, err
 	}
-	bs := uint64(st.Bsize)
+	bs := uint64(max(st.Bsize, 0))
 	if bs == 0 {
 		bs = 4096
 	}
-	v := &sftp.StatVFS{Bsize: bs, Frsize: bs, Blocks: uint64(st.Blocks), Bfree: uint64(st.Bfree), Bavail: uint64(st.Bavail),
-		Files: uint64(st.Files), Ffree: uint64(st.Ffree), Favail: uint64(st.Ffree), Namemax: 255}
+	v := &sftp.StatVFS{
+		Bsize: bs, Frsize: bs, Blocks: st.Blocks, Bfree: st.Bfree, Bavail: st.Bavail,
+		Files: st.Files, Ffree: st.Ffree, Favail: st.Ffree, Namemax: 255,
+	}
 	if limit := d.diskLimitBytes(uuid); limit > 0 {
 		used, err := d.diskEstimate(uuid)
 		if err != nil {
@@ -828,7 +858,7 @@ func (h *sftpFS) truncate(p string, size int64) error {
 	if err != nil {
 		return deny(err)
 	}
-	defer f.Close()
+	defer closeQuiet(f) // only truncated: the size change is not buffered
 	fi, err := f.Stat()
 	if err != nil || !fi.Mode().IsRegular() {
 		return sftp.ErrSSHFxPermissionDenied
@@ -931,7 +961,7 @@ func (h *sftpFS) renameNoReplace(from, to string, src fs.FileInfo) error {
 		return deny(h.dir.Rename(from, to))
 	}
 	if err := h.dir.Remove(from); err != nil {
-		h.dir.Remove(to) // undo: the file keeps its old name only
+		_ = h.dir.Remove(to) // undo, best effort: the file keeps its old name only; err is what the client needs
 		return deny(err)
 	}
 	return nil
@@ -949,6 +979,9 @@ func (h *sftpFS) Filecmd(r *sftp.Request) (err error) {
 			return sftp.ErrSSHFxBadMessage
 		}
 		if set.Size {
+			if a.Size > math.MaxInt64 {
+				return sftp.ErrSSHFxFailure
+			}
 			if err := h.truncate(r.Filepath, int64(a.Size)); err != nil {
 				return err
 			}

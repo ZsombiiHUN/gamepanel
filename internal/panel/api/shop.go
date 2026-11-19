@@ -41,7 +41,7 @@ func (a *App) existingCreate(ctx context.Context, u store.User, externalID strin
 // tried from the one with the most free memory down; nodes that do not track
 // memory come last, the least used first.
 func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int64) (store.Server, error) {
-	if err := v.Limits.Normalize(); err != nil {
+	if err := v.Normalize(); err != nil {
 		return v, userErr(http.StatusUnprocessableEntity, err)
 	}
 	if v.NodeID != 0 {
@@ -82,7 +82,7 @@ func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int6
 		if err == nil {
 			return s, nil
 		}
-		var ce store.ErrCapacity
+		var ce store.CapacityError
 		var ue *store.UserError
 		if errors.Is(err, store.ErrExternalIDTaken) || (!errors.As(err, &ce) && !errors.As(err, &ue)) {
 			return s, createErr(err)
@@ -148,11 +148,15 @@ func (a *App) registerShop(api huma.API) {
 			return &serverOut{Body: v}, nil
 		}
 	}
-	huma.Register(api, huma.Operation{OperationID: "suspendServer", Method: "POST", Path: "/servers/{uuid}/suspend", Summary: "Suspend a server (admin)",
-		Description: "Stops the server and keeps it stopped: it cannot be started, and its owner and subusers can see it but do nothing with it (console, files, SFTP, backups, schedules) until it is unsuspended. Nothing is deleted. Suspending a suspended server changes nothing."},
+	huma.Register(api, huma.Operation{
+		OperationID: "suspendServer", Method: "POST", Path: "/servers/{uuid}/suspend", Summary: "Suspend a server (admin)",
+		Description: "Stops the server and keeps it stopped: it cannot be started, and its owner and subusers can see it but do nothing with it (console, files, SFTP, backups, schedules) until it is unsuspended. Nothing is deleted. Suspending a suspended server changes nothing.",
+	},
 		suspend(true))
-	huma.Register(api, huma.Operation{OperationID: "unsuspendServer", Method: "POST", Path: "/servers/{uuid}/unsuspend", Summary: "Lift a suspension (admin)",
-		Description: "The server can be used and started again; it is not started by this."},
+	huma.Register(api, huma.Operation{
+		OperationID: "unsuspendServer", Method: "POST", Path: "/servers/{uuid}/unsuspend", Summary: "Lift a suspension (admin)",
+		Description: "The server can be used and started again; it is not started by this.",
+	},
 		suspend(false))
 
 	huma.Register(api, huma.Operation{OperationID: "setServerExternalID", Method: "PUT", Path: "/servers/{uuid}/external-id", Summary: "Set or clear a server's external id (admin)"},

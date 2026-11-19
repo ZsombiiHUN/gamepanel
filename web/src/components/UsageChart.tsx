@@ -5,7 +5,18 @@ const H = 120;
 
 /** Area chart of readings since the page opened. `max` fixes the y-axis; `limit` draws a dashed line. */
 export function UsageChart({
-  title, value, unit, note, noteWarn, values, max, ticks, limit, color, action, since = "earlier",
+  title,
+  value,
+  unit,
+  note,
+  noteWarn,
+  values,
+  max,
+  ticks,
+  limit,
+  color,
+  action,
+  since = "earlier",
 }: {
   title: string;
   value: string;
@@ -34,17 +45,30 @@ export function UsageChart({
         {action}
       </div>
       <p className={`h-display mt-2.5 text-[32px] font-bold leading-none ${noteWarn ? "text-warn-text" : ""}`}>
-        {value}<span className="ml-2 font-sans text-sm font-normal tracking-normal text-zinc-400">{unit}</span>
+        {value}
+        <span className="ml-2 font-sans text-sm font-normal tracking-normal text-zinc-400">{unit}</span>
       </p>
       <p className={`mt-1.5 text-[13px] ${noteWarn ? "text-warn-text" : "text-zinc-500"}`}>{note}</p>
       <div className="mt-3.5 flex gap-2.5">
         <div className="relative h-[120px] w-12 shrink-0" aria-hidden>
           {ticks.map((t) => (
-            <span key={t.label} className="absolute right-0 translate-y-1/2 whitespace-nowrap font-mono text-[11.5px] text-zinc-500" style={{ bottom: `${(t.at / max) * 100}%` }}>{t.label}</span>
+            <span
+              key={t.label}
+              className="absolute right-0 translate-y-1/2 whitespace-nowrap font-mono text-[11.5px] text-zinc-500"
+              style={{ bottom: `${(t.at / max) * 100}%` }}
+            >
+              {t.label}
+            </span>
           ))}
         </div>
         <div className="min-w-0 flex-1">
-          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block h-[120px] w-full overflow-visible" role="img" aria-label={`${title} over the last readings`}>
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="none"
+            className="block h-[120px] w-full overflow-visible"
+            role="img"
+            aria-label={`${title} over the last readings`}
+          >
             <defs>
               <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0" style={{ stopColor: color }} stopOpacity=".28" />
@@ -52,15 +76,45 @@ export function UsageChart({
               </linearGradient>
             </defs>
             {ticks.map((t) => (
-              <line key={t.label} x1="0" x2={W} y1={y(t.at)} y2={y(t.at)} className="stroke-line-strong" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+              <line
+                key={t.label}
+                x1="0"
+                x2={W}
+                y1={y(t.at)}
+                y2={y(t.at)}
+                className="stroke-line-strong"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
             ))}
             {n > 1 && <path d={area} fill={`url(#${gid})`} />}
             {limit !== undefined && (
-              <line x1="0" x2={W} y1={y(limit) + 0.5} y2={y(limit) + 0.5} className="stroke-zinc-500" strokeWidth="1.2" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+              <line
+                x1="0"
+                x2={W}
+                y1={y(limit) + 0.5}
+                y2={y(limit) + 0.5}
+                className="stroke-zinc-500"
+                strokeWidth="1.2"
+                strokeDasharray="4 4"
+                vectorEffect="non-scaling-stroke"
+              />
             )}
-            {n > 1 && <polyline points={line} fill="none" style={{ stroke: color }} strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+            {n > 1 && (
+              <polyline
+                points={line}
+                fill="none"
+                style={{ stroke: color }}
+                strokeWidth="2"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
           </svg>
-          <div className="mt-2 flex justify-between font-mono text-[11.5px] text-zinc-500" aria-hidden><span>{since}</span><span>now</span></div>
+          <div className="mt-2 flex justify-between font-mono text-[11.5px] text-zinc-500" aria-hidden>
+            <span>{since}</span>
+            <span>now</span>
+          </div>
         </div>
       </div>
     </section>

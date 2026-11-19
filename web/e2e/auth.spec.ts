@@ -46,7 +46,11 @@ test.describe("signed out", () => {
       await p.getByRole("button", { name: "Sign in", exact: true }).click();
       await expect(p.getByRole("heading", { name: "Servers" })).toBeVisible();
     };
-    const other = await browser.newContext({ storageState: ANONYMOUS, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" });
+    const other = await browser.newContext({
+      storageState: ANONYMOUS,
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    });
     const phone = await other.newPage();
     await signIn(phone);
     await signIn(page);
@@ -55,7 +59,10 @@ test.describe("signed out", () => {
     const list = page.getByRole("list", { name: "Signed-in sessions" });
     await expect(list.getByText("This device")).toBeVisible();
     await expect(list.getByText("Safari on iPhone").first()).toBeVisible();
-    await list.getByRole("button", { name: /^Sign out Safari on iPhone/ }).first().click();
+    await list
+      .getByRole("button", { name: /^Sign out Safari on iPhone/ })
+      .first()
+      .click();
     await expect(list.getByText("Safari on iPhone")).toHaveCount(0);
 
     expect((await phone.request.get("/api/auth/me")).status()).toBe(401);

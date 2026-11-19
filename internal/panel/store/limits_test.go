@@ -59,7 +59,7 @@ func TestNodeCapacityAccounting(t *testing.T) {
 	}
 	s.SetNodeCapacity(ctx, n.ID, 8192, 10240, 0) // 4096 already allocated
 
-	var ce ErrCapacity
+	var ce CapacityError
 	if _, err := mk(2, Limits{MemoryMB: 4097, DiskMB: 100}); !errors.As(err, &ce) {
 		t.Fatalf("over memory accepted: %v", err)
 	}
@@ -103,14 +103,14 @@ func TestBackupLimitIsPerServer(t *testing.T) {
 	if err := s.UpdateLimits(ctx, srv, Limits{MemoryMB: 128, BackupLimit: 2}); err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		id := fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
 		if _, err := s.BeginBackup(ctx, Backup{UUID: id, ServerUUID: srv, Name: "b"}, false); err != nil {
 			t.Fatal(err)
 		}
 		s.FinishBackup(ctx, id, 1, "x", "")
 	}
-	if _, err := s.BeginBackup(ctx, Backup{UUID: "00000000-0000-4000-8000-000000000009", ServerUUID: srv, Name: "c"}, false); err != ErrBackupLimit {
+	if _, err := s.BeginBackup(ctx, Backup{UUID: "00000000-0000-4000-8000-000000000009", ServerUUID: srv, Name: "c"}, false); !errors.Is(err, ErrBackupLimit) {
 		t.Fatalf("third backup past a limit of 2: %v", err)
 	}
 }

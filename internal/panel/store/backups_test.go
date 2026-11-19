@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -46,12 +47,12 @@ func TestBackupCapRotationAndLocks(t *testing.T) {
 		}
 		return ids, err
 	}
-	for i := 0; i < DefaultBackupLimit; i++ {
+	for i := range DefaultBackupLimit {
 		if _, err := mk(i, false); err != nil {
 			t.Fatalf("backup %d: %v", i, err)
 		}
 	}
-	if _, err := mk(99, false); err != ErrBackupLimit {
+	if _, err := mk(99, false); !errors.Is(err, ErrBackupLimit) {
 		t.Fatalf("manual backup past the cap must be refused, got %v", err)
 	}
 	// lock the oldest; rotation must evict the oldest *unlocked* one
@@ -65,7 +66,7 @@ func TestBackupCapRotationAndLocks(t *testing.T) {
 	for _, b := range l {
 		s.SetBackupLocked(ctx, srv, b.UUID, true)
 	}
-	if _, err := mk(101, true); err != ErrBackupLimit {
+	if _, err := mk(101, true); !errors.Is(err, ErrBackupLimit) {
 		t.Fatalf("all locked: got %v", err)
 	}
 }
@@ -101,8 +102,10 @@ func TestNextRunAndClaimDue(t *testing.T) {
 	}
 
 	s, srv := testServer(t)
-	v, err := s.SaveSchedule(ctx, Schedule{ServerUUID: srv, Name: "x", Cron: "*/5 * * * *", Enabled: true,
-		Tasks: []Task{{Action: ActionCommand, Payload: "save-all"}}})
+	v, err := s.SaveSchedule(ctx, Schedule{
+		ServerUUID: srv, Name: "x", Cron: "*/5 * * * *", Enabled: true,
+		Tasks: []Task{{Action: ActionCommand, Payload: "save-all"}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -120,7 +120,7 @@ func (s *Store) ListSessions(ctx context.Context, userID int64, current string) 
 	return out, rows.Err()
 }
 
-// ErrCurrentSession: revoking your own session by id; sign out instead.
+// ErrCurrentSession is returned when revoking your own session by id; sign out instead.
 var ErrCurrentSession = userErr("that is the session you are using; sign out instead")
 
 // DeleteSessionByID revokes one of the user's sessions, by its public id. It

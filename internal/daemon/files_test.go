@@ -90,7 +90,7 @@ func TestPullChecksTheChecksum(t *testing.T) {
 	d.cfg.PullAllowPrivate = true
 	uuid := uuidN(2)
 	addServer(t, d, uuid, 0)
-	src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("mod bytes")) }))
+	src := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("mod bytes")) }))
 	defer src.Close()
 	good := "e6b3c2e4c1d17b2f2f1b8a95ac76d2bd4e33a2e0d2e8f3c2f1d4f5a7c7b0e9a1" // wrong on purpose
 	if _, err := d.pull(context.Background(), proto.Transfer{UUID: uuid, URL: src.URL + "/a.jar", Path: "/mods/", SHA512: good}); err == nil || !strings.Contains(err.Error(), "checksum") {

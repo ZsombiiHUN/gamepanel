@@ -9,6 +9,7 @@ package fsx
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -36,7 +37,7 @@ type Dir struct {
 
 // Open creates the directory if needed and confines all access to it.
 func Open(hostPath string) (*Dir, error) {
-	if err := os.MkdirAll(hostPath, 0o755); err != nil {
+	if err := os.MkdirAll(hostPath, 0o755); err != nil { //nolint:gosec // G301: server data dirs belong to the game's user, who must traverse them
 		return nil, err
 	}
 	return OpenExisting(hostPath)
@@ -125,8 +126,7 @@ func (d *Dir) create(name string, flag int, perm fs.FileMode) (*os.File, error) 
 	}
 	if errors.Is(statErr, fs.ErrNotExist) {
 		if err := d.adoptFile(f, name); err != nil {
-			f.Close()
-			return nil, err
+			return nil, errors.Join(err, f.Close())
 		}
 	}
 	return f, nil
@@ -151,7 +151,7 @@ func (d *Dir) List(p string) ([]proto.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer closeQuiet(f)
 	ents, err := f.ReadDir(-1)
 	if err != nil {
 		return nil, err
@@ -162,8 +162,10 @@ func (d *Dir) List(p string) ([]proto.FileInfo, error) {
 		if err != nil {
 			continue
 		}
-		out = append(out, proto.FileInfo{Name: e.Name(), Dir: e.IsDir(), Size: fi.Size(), ModUnix: fi.ModTime().Unix(),
-			Mode: uint32(fi.Mode().Perm()), Symlink: fi.Mode()&fs.ModeSymlink != 0})
+		out = append(out, proto.FileInfo{
+			Name: e.Name(), Dir: e.IsDir(), Size: fi.Size(), ModUnix: fi.ModTime().Unix(),
+			Mode: uint32(fi.Mode().Perm()), Symlink: fi.Mode()&fs.ModeSymlink != 0,
+		})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Dir != out[j].Dir {
@@ -216,3 +218,8 @@ func (d *Dir) Delete(p string) error {
 	}
 	return d.root.RemoveAll(name)
 }
+
+// closeQuiet closes a handle no data was written through: one opened for
+// reading, used only for metadata calls (stat, truncate), or abandoned before
+// any write. Such a close cannot lose data, so its error is not worth reporting.
+func closeQuiet(c io.Closer) { _ = c.Close() }

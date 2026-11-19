@@ -8,7 +8,12 @@ import { fillCommand, inputKind } from "../lib/startup";
 
 type StartupView = components["schemas"]["StartupView"];
 type StartupVar = components["schemas"]["StartupVar"];
-type Change = { env?: Record<string, string>; image?: string; startup?: string; crash_restart?: boolean };
+interface Change {
+  env?: Record<string, string>;
+  image?: string;
+  startup?: string;
+  crash_restart?: boolean;
+}
 
 export function StartupTab({ uuid }: { uuid: string }) {
   const startup = useQuery(startupQuery(uuid));
@@ -48,7 +53,15 @@ function CrashSection({ uuid, s }: { uuid: string; s: StartupView }) {
     <Section
       title="Crashes"
       desc="What happens when the server stops without anyone asking. A server that exits normally, for example after a stop command typed in the game, counts as stopped, not crashed."
-      footer={<span role={save.isSuccess ? "status" : undefined}>{save.isPending ? "Saving..." : save.isSuccess ? "Saved. This applies right away." : "If it crashes again within a minute of a restart, it is left stopped."}</span>}
+      footer={
+        <span role={save.isSuccess ? "status" : undefined}>
+          {save.isPending
+            ? "Saving..."
+            : save.isSuccess
+              ? "Saved. This applies right away."
+              : "If it crashes again within a minute of a restart, it is left stopped."}
+        </span>
+      }
     >
       <label className="flex items-start gap-3 text-sm text-zinc-200">
         <input
@@ -69,7 +82,7 @@ function CrashSection({ uuid, s }: { uuid: string; s: StartupView }) {
 }
 
 function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
-  const values = Object.fromEntries([...Object.entries(s.builtins ?? {}), ...s.variables.map((v) => [v.env, v.value] as const)]);
+  const values = Object.fromEntries([...Object.entries(s.builtins), ...s.variables.map((v) => [v.env, v.value] as const)]);
   const preview = fillCommand(s.command, values);
   const [raw, setRaw] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -79,14 +92,33 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
   return (
     <Section
       title="Startup command"
-      desc={s.custom_command ? "An administrator replaced the egg's command for this server." : "The command the server runs, from its egg."}
+      desc={
+        s.custom_command ? "An administrator replaced the egg's command for this server." : "The command the server runs, from its egg."
+      }
       footer={
         <>
-          <span>{raw ? "Placeholders like {{SERVER_PORT}} are filled from the variables below." : "Shown with the current values filled in."}</span>
+          <span>
+            {raw ? "Placeholders like {{SERVER_PORT}} are filled from the variables below." : "Shown with the current values filled in."}
+          </span>
           <div className="flex flex-wrap gap-2">
-            {!editing && <button type="button" className="btn btn-ghost" onClick={() => setRaw(!raw)} aria-pressed={raw}>{raw ? "Show values" : "Show placeholders"}</button>}
+            {!editing && (
+              <button type="button" className="btn btn-ghost" onClick={() => setRaw(!raw)} aria-pressed={raw}>
+                {raw ? "Show values" : "Show placeholders"}
+              </button>
+            )}
             {!editing && <CopyButton text={raw ? s.command : preview} label="Copy" />}
-            {s.can_edit_command && !editing && <button type="button" className="btn" onClick={() => { save.reset(); setDraft(s.command); }}>Edit</button>}
+            {s.can_edit_command && !editing && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  save.reset();
+                  setDraft(s.command);
+                }}
+              >
+                Edit
+              </button>
+            )}
           </div>
         </>
       }
@@ -99,7 +131,9 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
           }}
           className="space-y-3"
         >
-          <label htmlFor="startup-cmd" className="label">Command</label>
+          <label htmlFor="startup-cmd" className="label">
+            Command
+          </label>
           <textarea
             id="startup-cmd"
             className="input min-h-24 font-mono text-[13px]"
@@ -107,20 +141,33 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
             onChange={(e) => setDraft(e.target.value.replace(/[\r\n]+/g, " "))}
             spellCheck={false}
           />
-          <p className="text-xs text-zinc-500">Use {"{{VARIABLE}}"} for values. They reach the server as environment variables, so they can never inject shell commands.</p>
+          <p className="text-xs text-zinc-500">
+            Use {"{{VARIABLE}}"} for values. They reach the server as environment variables, so they can never inject shell commands.
+          </p>
           <ErrorBox error={save.error} />
           <div className="flex flex-wrap justify-end gap-2">
             {s.custom_command && (
-              <button type="button" className="btn btn-ghost" disabled={save.isPending} onClick={() => save.mutate({ startup: "" }, { onSuccess: () => setDraft(null) })}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={save.isPending}
+                onClick={() => save.mutate({ startup: "" }, { onSuccess: () => setDraft(null) })}
+              >
                 <RotateCcw className="h-4 w-4" aria-hidden /> Use the egg's command
               </button>
             )}
-            <button type="button" className="btn" onClick={() => setDraft(null)}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={save.isPending || !draft?.trim()}>Save command</button>
+            <button type="button" className="btn" onClick={() => setDraft(null)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={save.isPending || !draft.trim()}>
+              Save command
+            </button>
           </div>
         </form>
       ) : (
-        <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 font-mono text-[13px] text-zinc-200">{raw ? s.command : preview}</pre>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 font-mono text-[13px] text-zinc-200">
+          {raw ? s.command : preview}
+        </pre>
       )}
     </Section>
   );
@@ -136,7 +183,9 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
     return (
       <Section
         title="Docker image"
-        desc={s.custom_image ? "An administrator chose this image. Ask them if you need a different one." : "The runtime the server runs in."}
+        desc={
+          s.custom_image ? "An administrator chose this image. Ask them if you need a different one." : "The runtime the server runs in."
+        }
       >
         <p className="flex flex-wrap items-center gap-2 font-mono text-[13px] text-zinc-200">
           {label && <span className="font-sans text-sm font-medium">{label}</span>}
@@ -151,22 +200,33 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
     <Section
       title="Docker image"
       desc="The runtime the server runs in, such as a Java version. Pick a newer one if the game asks for it."
-      footer={<span role={save.isSuccess ? "status" : undefined}>{save.isPending ? "Saving..." : save.isSuccess ? "Image saved." : "Changing the image does not touch your files."}</span>}
+      footer={
+        <span role={save.isSuccess ? "status" : undefined}>
+          {save.isPending ? "Saving..." : save.isSuccess ? "Image saved." : "Changing the image does not touch your files."}
+        </span>
+      }
     >
-      <label htmlFor="startup-image" className="label">Image</label>
+      <label htmlFor="startup-image" className="label">
+        Image
+      </label>
       <select
         id="startup-image"
         className="input"
         value={selectValue}
         disabled={save.isPending}
         onChange={(e) => {
-          if (e.target.value === "__custom") return setCustom(listed ? "" : s.image);
+          if (e.target.value === "__custom") {
+            setCustom(listed ? "" : s.image);
+            return;
+          }
           setCustom(null);
           save.mutate({ image: e.target.value });
         }}
       >
         {s.images.map((i) => (
-          <option key={i.image} value={i.image}>{i.label === i.image ? i.image : `${i.label} (${i.image})`}</option>
+          <option key={i.image} value={i.image}>
+            {i.label === i.image ? i.image : `${i.label} (${i.image})`}
+          </option>
         ))}
         {/* Admins may run any image; others only pick from the egg's list. */}
         {(s.can_edit_command || !listed) && <option value="__custom">{listed ? "Custom image..." : `Custom: ${s.image}`}</option>}
@@ -179,7 +239,9 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
             save.mutate({ image: (custom ?? s.image).trim() }, { onSuccess: () => setCustom(null) });
           }}
         >
-          <label htmlFor="startup-custom-image" className="sr-only">Custom image</label>
+          <label htmlFor="startup-custom-image" className="sr-only">
+            Custom image
+          </label>
           <input
             id="startup-custom-image"
             className="input flex-1 basis-64 font-mono text-[13px]"
@@ -188,10 +250,14 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
             onChange={(e) => setCustom(e.target.value)}
             spellCheck={false}
           />
-          <button type="submit" className="btn btn-primary" disabled={save.isPending || !(custom ?? s.image).trim()}>Use image</button>
+          <button type="submit" className="btn btn-primary" disabled={save.isPending || !(custom ?? s.image).trim()}>
+            Use image
+          </button>
         </form>
       )}
-      <div className="mt-3"><ErrorBox error={save.error} /></div>
+      <div className="mt-3">
+        <ErrorBox error={save.error} />
+      </div>
     </Section>
   );
 }
@@ -220,11 +286,28 @@ function VariablesSection({ uuid, s }: { uuid: string; s: StartupView }) {
           s.can_edit_variables ? (
             <>
               <span role={save.isSuccess && !dirty ? "status" : undefined}>
-                {dirty ? `${Object.keys(changed).length} unsaved ${Object.keys(changed).length === 1 ? "change" : "changes"}.` : save.isSuccess ? "Variables saved." : "Locked variables can only be changed by an administrator."}
+                {dirty
+                  ? `${Object.keys(changed).length} unsaved ${Object.keys(changed).length === 1 ? "change" : "changes"}.`
+                  : save.isSuccess
+                    ? "Variables saved."
+                    : "Locked variables can only be changed by an administrator."}
               </span>
               <div className="flex gap-2">
-                {dirty && <button type="button" className="btn btn-ghost" onClick={() => { setEdits({}); save.reset(); }}>Discard</button>}
-                <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>Save variables</button>
+                {dirty && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setEdits({});
+                      save.reset();
+                    }}
+                  >
+                    Discard
+                  </button>
+                )}
+                <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
+                  Save variables
+                </button>
               </div>
             </>
           ) : (
@@ -237,7 +320,9 @@ function VariablesSection({ uuid, s }: { uuid: string; s: StartupView }) {
             <VariableField key={v.env} v={v} value={edits[v.env] ?? v.value} onChange={(val) => setEdits({ ...edits, [v.env]: val })} />
           ))}
         </div>
-        <div className="mt-4"><ErrorBox error={save.error} /></div>
+        <div className="mt-4">
+          <ErrorBox error={save.error} />
+        </div>
       </Section>
     </form>
   );
@@ -250,15 +335,28 @@ function VariableField({ v, value, onChange }: { v: StartupVar; value: string; o
   return (
     <div>
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
-        <label htmlFor={id} className="text-sm font-medium text-zinc-300">{v.name}</label>
+        <label htmlFor={id} className="text-sm font-medium text-zinc-300">
+          {v.name}
+        </label>
         <code className="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-400">{v.env}</code>
         {!v.editable && <Lock className="h-3.5 w-3.5 text-zinc-500" aria-label="Read only" />}
         {v.admin_only && <Pill tone="warn">Hidden from users</Pill>}
       </div>
       {kind.type === "select" ? (
-        <select id={id} className="input" value={value} disabled={!v.editable} onChange={(e) => onChange(e.target.value)} aria-describedby={hint ? `${id}-hint` : undefined}>
+        <select
+          id={id}
+          className="input"
+          value={value}
+          disabled={!v.editable}
+          onChange={(e) => onChange(e.target.value)}
+          aria-describedby={hint ? `${id}-hint` : undefined}
+        >
           {!kind.options.includes(value) && <option value={value}>{value || "(empty)"}</option>}
-          {kind.options.map((o) => <option key={o} value={o}>{kind.labels?.[o] ?? o}</option>)}
+          {kind.options.map((o) => (
+            <option key={o} value={o}>
+              {kind.labels?.[o] ?? o}
+            </option>
+          ))}
         </select>
       ) : (
         <input
@@ -272,7 +370,11 @@ function VariableField({ v, value, onChange }: { v: StartupVar; value: string; o
           spellCheck={false}
         />
       )}
-      {hint && <p id={`${id}-hint`} className="mt-1 text-xs text-zinc-500">{hint}</p>}
+      {hint && (
+        <p id={`${id}-hint`} className="mt-1 text-xs text-zinc-500">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

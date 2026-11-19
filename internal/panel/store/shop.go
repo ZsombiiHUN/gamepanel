@@ -90,7 +90,7 @@ func scanAccount(sc interface{ Scan(...any) error }) (Account, error) {
 	return a, nf(err)
 }
 
-// ErrEmailTaken: another account has that email.
+// ErrEmailTaken means another account has that email.
 var ErrEmailTaken = userErr("an account with that email already exists")
 
 // GetAccount loads an account by id.
@@ -231,7 +231,7 @@ func (s *Store) UpdateAccount(ctx context.Context, id int64, c AccountChange) (A
 	return s.GetAccount(ctx, id)
 }
 
-// ErrOwnsServers: an account that owns servers cannot be deleted.
+// ErrOwnsServers means an account that owns servers cannot be deleted.
 var ErrOwnsServers = userErr("this account still owns servers; delete them or hand them to another account first")
 
 // DeleteAccount removes an account that owns no servers. Its sessions, keys,

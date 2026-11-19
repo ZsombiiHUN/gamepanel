@@ -68,7 +68,7 @@ func TestRequireMFAHoldsSessionsToEnrolment(t *testing.T) {
 	if code, _ := c.do("GET", "/api/auth/sessions", nil, nil); code != 200 {
 		t.Fatalf("sessions during enrolment: %d", code)
 	}
-	enrolTOTP(t, c, bobPW)
+	enrolTOTP(t, c)
 	if mfaRequiredFlag(t, c) {
 		t.Fatal("enrolling must lift the restriction for this session")
 	}
@@ -113,7 +113,7 @@ func TestRequireMFABlocksKeysWithoutSecondFactor(t *testing.T) {
 	}
 	c := e.client()
 	c.login(bobEmail, bobPW)
-	enrolTOTP(t, c, bobPW)
+	enrolTOTP(t, c)
 	if code, _ := e.client().do("GET", "/api/servers", nil, bearer); code != 200 {
 		t.Fatalf("key after enrolment: %d", code)
 	}

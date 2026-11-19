@@ -13,13 +13,8 @@ type ServerPort struct {
 	Primary bool   `json:"primary" doc:"the port the game listens on (SERVER_PORT)"`
 }
 
-// ErrPortLimit: the server already has as many extra ports as it may.
+// ErrPortLimit means the server already has as many extra ports as it may.
 var ErrPortLimit = userErr("this server cannot have more ports; ask an administrator to raise its limit")
-
-type querier interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
 
 // pickPort returns want if it is free and in the node's range, or the first
 // free port in the range when want is 0.
@@ -31,22 +26,13 @@ func pickPort(ctx context.Context, q querier, nodeID int64, want int) (int, erro
 	if want != 0 && (want < ps || want > pe) {
 		return 0, userErrf("port must be within the node range %d-%d", ps, pe)
 	}
-	rows, err := q.QueryContext(ctx, `SELECT port FROM server_ports WHERE node_id=?`, nodeID)
+	ports, err := queryAll(ctx, q, scanInt, `SELECT port FROM server_ports WHERE node_id=?`, nodeID)
 	if err != nil {
 		return 0, err
 	}
-	used := map[int]bool{}
-	for rows.Next() {
-		var p int
-		if err := rows.Scan(&p); err != nil {
-			rows.Close()
-			return 0, err
-		}
+	used := make(map[int]bool, len(ports))
+	for _, p := range ports {
 		used[p] = true
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, err
 	}
 	if want != 0 {
 		if used[want] {
@@ -93,7 +79,7 @@ func (s *Store) AddPort(ctx context.Context, uuid string, want int, notes string
 	if err := tx.QueryRowContext(ctx, `SELECT node_id, port_limit, (SELECT COUNT(*) FROM server_ports WHERE server_uuid=servers.uuid) FROM servers WHERE uuid=?`, uuid).Scan(&node, &limit, &have); err != nil {
 		return ServerPort{}, nf(err)
 	}
-	if !override && have-1 >= limit {
+	if !override && have > limit {
 		return ServerPort{}, ErrPortLimit
 	}
 	port, err := pickPort(ctx, tx, node, want)
@@ -106,7 +92,7 @@ func (s *Store) AddPort(ctx context.Context, uuid string, want int, notes string
 	return ServerPort{Port: port, Notes: notes}, tx.Commit()
 }
 
-// ErrPrimaryPort: the primary port cannot be removed.
+// ErrPrimaryPort means the primary port cannot be removed.
 var ErrPrimaryPort = userErr("the primary port cannot be removed; make another port primary first")
 
 // RemovePort takes a port away from a server.

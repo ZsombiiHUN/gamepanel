@@ -27,7 +27,8 @@ func TestLimiterForgetsStaleKeys(t *testing.T) {
 func TestLimiterAllow(t *testing.T) {
 	t.Parallel()
 	l := newLimiter(2, 50*time.Millisecond)
-	if !l.allow("a") || !l.allow("a") || l.allow("a") {
+	first, second, third := l.allow("a"), l.allow("a"), l.allow("a")
+	if !first || !second || third {
 		t.Fatal("the third attempt inside the window should be refused")
 	}
 	if !l.allow("b") {

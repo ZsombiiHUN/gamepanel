@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -114,11 +115,14 @@ type passkeyFinishIn struct {
 		Credential json.RawMessage `json:"credential" doc:"the PublicKeyCredential, JSON-encoded"`
 	}
 }
-type passkeyOut struct{ Body store.Passkey }
-type passkeysOut struct{ Body []store.Passkey }
-type passkeyIDIn struct {
-	ID string `path:"id" maxLength:"512"`
-}
+type (
+	passkeyOut  struct{ Body store.Passkey }
+	passkeysOut struct{ Body []store.Passkey }
+	passkeyIDIn struct {
+		ID string `path:"id" maxLength:"512"`
+	}
+)
+
 type passkeyRenameIn struct {
 	ID   string `path:"id" maxLength:"512"`
 	Body struct {
@@ -126,11 +130,12 @@ type passkeyRenameIn struct {
 	}
 }
 
-func (a *App) registerPasskeys(api huma.API) {
-	off := func() error {
-		return huma.Error404NotFound("passkeys need the panel's public address (GAMEPANEL_PUBLIC_URL)")
-	}
+// errPasskeysOff answers passkey routes on a panel without a public address.
+func errPasskeysOff() error {
+	return huma.Error404NotFound("passkeys need the panel's public address (GAMEPANEL_PUBLIC_URL)")
+}
 
+func (a *App) registerPasskeys(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "passkeyRegisterBegin", Method: "POST", Path: "/auth/passkeys/register/begin", Summary: "Start adding a passkey"},
 		func(ctx context.Context, in *passkeyBeginIn) (*passkeyOptionsOut, error) {
 			u, err := requireSession(ctx)
@@ -139,10 +144,14 @@ func (a *App) registerPasskeys(api huma.API) {
 			}
 			wa := a.webauthn()
 			if wa == nil {
-				return nil, off()
+				return nil, errPasskeysOff()
 			}
 			// A new way into the account: prove it is you, as for API keys.
-			if a.Store.HasPassword(ctx, u.ID) {
+			hasPw, err := a.Store.HasPassword(ctx, u.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
+			if hasPw {
 				if err := a.confirm(ctx, u, in.Body.Password); err != nil {
 					return nil, err
 				}
@@ -176,7 +185,7 @@ func (a *App) registerPasskeys(api huma.API) {
 			}
 			wa := a.webauthn()
 			if wa == nil {
-				return nil, off()
+				return nil, errPasskeysOff()
 			}
 			c, ok := a.takeCeremony("reg:" + itoa64(u.ID))
 			if !ok || c.userID != u.ID {
@@ -205,11 +214,17 @@ func (a *App) registerPasskeys(api huma.API) {
 			return &passkeyOut{Body: p}, nil
 		})
 
+	a.registerPasskeyLogin(api)
+	a.registerPasskeyManagement(api)
+}
+
+// registerPasskeyLogin registers signing in with a passkey.
+func (a *App) registerPasskeyLogin(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "passkeyLoginBegin", Method: "POST", Path: "/auth/passkeys/login/begin", Summary: "Start signing in with a passkey"},
 		func(ctx context.Context, _ *struct{}) (*passkeyOptionsOut, error) {
 			wa := a.webauthn()
 			if wa == nil {
-				return nil, off()
+				return nil, errPasskeysOff()
 			}
 			if !a.limiter.allow("passkey:" + ipFrom(ctx)) {
 				return nil, huma.Error429TooManyRequests("too many sign-in attempts, try again in a minute")
@@ -230,7 +245,7 @@ func (a *App) registerPasskeys(api huma.API) {
 		func(ctx context.Context, in *passkeyFinishIn) (*loginOut, error) {
 			wa := a.webauthn()
 			if wa == nil {
-				return nil, off()
+				return nil, errPasskeysOff()
 			}
 			c, ok := a.takeCeremony("login:" + in.Body.Ticket)
 			if in.Body.Ticket == "" || !ok {
@@ -241,7 +256,7 @@ func (a *App) registerPasskeys(api huma.API) {
 				return nil, huma.Error401Unauthorized("the passkey could not be verified")
 			}
 			var who *waUser
-			lookup := func(rawID, handle []byte) (webauthn.User, error) {
+			lookup := func(_, handle []byte) (webauthn.User, error) {
 				u, err := a.Store.UserByWebAuthnHandle(ctx, handle)
 				if err != nil {
 					return nil, err
@@ -271,7 +286,10 @@ func (a *App) registerPasskeys(api huma.API) {
 			a.audit(ctx, who.u, "login.ok", who.u.Email, "passkey")
 			return &loginOut{Body: a.loginUser(who.u, store.MethodPasskey), SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})
+}
 
+// registerPasskeyManagement registers listing, renaming and deleting passkeys.
+func (a *App) registerPasskeyManagement(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "listPasskeys", Method: "GET", Path: "/auth/passkeys", Summary: "Your passkeys"},
 		func(ctx context.Context, _ *struct{}) (*passkeysOut, error) {
 			u, err := requireUser(ctx)
@@ -324,6 +342,5 @@ func (a *App) registerPasskeys(api huma.API) {
 }
 
 func itoa64(n int64) string {
-	b, _ := json.Marshal(n)
-	return string(b)
+	return strconv.FormatInt(n, 10)
 }

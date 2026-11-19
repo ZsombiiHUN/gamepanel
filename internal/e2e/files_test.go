@@ -33,7 +33,7 @@ func TestFileManager(t *testing.T) {
 	t.Parallel()
 	s := newStack(t)
 	srv := "/api/servers/" + s.server
-	q := func(p string) string { return url.QueryEscape(p) }
+	q := url.QueryEscape
 
 	// Upload a binary file larger than one websocket frame and read it back.
 	payload := make([]byte, 3<<20)
@@ -103,7 +103,7 @@ func TestFileManager(t *testing.T) {
 	}
 
 	// Pull from URL: a local address is refused by default.
-	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("internal secret")) }))
+	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("internal secret")) }))
 	defer local.Close()
 	if b := s.admin.do("POST", srv+"/files/pull", map[string]string{"url": local.URL + "/x.txt", "path": "/"}, 422); !strings.Contains(string(b), "private network") {
 		t.Fatalf("pull from a private address: %s", b)
@@ -134,7 +134,7 @@ func TestFileManager(t *testing.T) {
 	}
 	bob.do("POST", srv+"/files/delete", map[string]any{"paths": []string{"/config"}}, 403)
 	// A stranger cannot even tell the server exists.
-	s.admin.do("DELETE", srv+"/users/"+userID(t, s, "bob@example.com"), nil, 204)
+	s.admin.do("DELETE", srv+"/users/"+bobID(t, s), nil, 204)
 	if code, _, _ := bob.raw("GET", srv+"/files/download?path="+q("/config/server.properties"), nil); code != 404 {
 		t.Fatalf("stranger download: %d", code)
 	}

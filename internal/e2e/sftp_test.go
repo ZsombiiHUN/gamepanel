@@ -303,9 +303,11 @@ func TestSFTPKeepAliveDropsDeadClients(t *testing.T) {
 		close(upClosed)
 	}()
 
-	cfg := &ssh.ClientConfig{User: "admin@example.com." + s.server[:8],
+	cfg := &ssh.ClientConfig{
+		User:            "admin@example.com." + s.server[:8],
 		Auth:            []ssh.AuthMethod{ssh.Password(s.apiKey(s.admin, "correct-horse-battery"))},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second}
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second,
+	}
 	conn, err := ssh.Dial("tcp", ln.Addr().String(), cfg)
 	if err != nil {
 		t.Fatal(err)

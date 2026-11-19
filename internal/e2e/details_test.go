@@ -24,7 +24,7 @@ func TestRenameAndOwner(t *testing.T) {
 	// Renaming needs settings.rename.
 	s.admin.do("POST", srv+"/users", map[string]any{"email": "bob@example.com", "permissions": []string{"console.read"}}, 201)
 	bob.do("PUT", srv+"/details", map[string]any{"name": "Mine now"}, 403)
-	s.admin.do("PUT", srv+"/users/"+userID(t, s, "bob@example.com"), map[string]any{"permissions": []string{"console.read", "settings.rename"}}, 204)
+	s.admin.do("PUT", srv+"/users/"+bobID(t, s), map[string]any{"permissions": []string{"console.read", "settings.rename"}}, 204)
 	var v struct {
 		Name, Description string
 		OwnerEmail        string `json:"owner_email"`
@@ -75,7 +75,7 @@ func TestServerActivity(t *testing.T) {
 	bob.do("POST", "/api/auth/login", map[string]string{"email": "bob@example.com", "password": "another-long-password"}, 200)
 	s.admin.do("POST", srv+"/users", map[string]any{"email": "bob@example.com", "permissions": []string{"console.read"}}, 201)
 	bob.do("GET", srv+"/activity", nil, 403)
-	s.admin.do("PUT", srv+"/users/"+userID(t, s, "bob@example.com"), map[string]any{"permissions": []string{"activity.read"}}, 204)
+	s.admin.do("PUT", srv+"/users/"+bobID(t, s), map[string]any{"permissions": []string{"activity.read"}}, 204)
 
 	var es []struct{ Action, IP, ActorEmail string }
 	json.Unmarshal(bob.do("GET", srv+"/activity", nil, 200), &es)

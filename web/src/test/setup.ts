@@ -10,12 +10,30 @@ if (typeof document !== "undefined") {
 
   // jsdom does not implement <dialog> modality.
   const proto = HTMLDialogElement.prototype;
-  proto.showModal ??= function (this: HTMLDialogElement) { this.setAttribute("open", ""); };
-  proto.close ??= function (this: HTMLDialogElement) { this.removeAttribute("open"); this.dispatchEvent(new Event("close")); };
+  proto.showModal ??= function (this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+  proto.close ??= function (this: HTMLDialogElement) {
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+  };
   Element.prototype.scrollIntoView ??= () => {};
-  window.scrollTo = (() => {}) as typeof window.scrollTo;
-  globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
-  window.matchMedia ??= ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false })) as typeof window.matchMedia;
+  window.scrollTo = () => {};
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  window.matchMedia ??= ((q: string) => ({
+    matches: false,
+    media: q,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    onchange: null,
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
 }
 
 // The API client captures `fetch` and `Request` when its module loads, so install
@@ -34,6 +52,6 @@ if (typeof document !== "undefined") {
     constructor(input: RequestInfo | URL, init?: RequestInit) {
       super(typeof input === "string" && input.startsWith("/") ? "http://localhost" + input : input, init);
     }
-  } as typeof Request;
-  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => impl(input, init)) as typeof fetch;
+  };
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => impl(input, init);
 }

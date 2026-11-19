@@ -54,7 +54,10 @@ export class FakeApi {
 }
 
 export function problem(status: number, detail: string) {
-  return new Response(JSON.stringify({ title: "Error", status, detail }), { status, headers: { "content-type": "application/problem+json" } });
+  return new Response(JSON.stringify({ title: "Error", status, detail }), {
+    status,
+    headers: { "content-type": "application/problem+json" },
+  });
 }
 
 export function newQueryClient() {

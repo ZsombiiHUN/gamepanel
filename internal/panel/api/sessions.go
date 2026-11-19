@@ -22,16 +22,20 @@ func (a *App) newSession(ctx context.Context, userID int64, method string) (stri
 	return a.Store.NewSession(ctx, userID, store.SessionMeta{IP: ipFrom(ctx), UserAgent: userAgentFrom(ctx), Method: method})
 }
 
-type sessionsOut struct{ Body []store.Session }
-type sessionIDIn struct {
-	ID string `path:"id" minLength:"32" maxLength:"32" pattern:"^[0-9a-f]{32}$"`
-}
+type (
+	sessionsOut struct{ Body []store.Session }
+	sessionIDIn struct {
+		ID string `path:"id" minLength:"32" maxLength:"32" pattern:"^[0-9a-f]{32}$"`
+	}
+)
 
 // registerSessions: the account's session list (ASVS v5.0.0-7.5.2). Both
 // need a browser session: an API key cannot see or end sessions.
 func (a *App) registerSessions(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "listSessions", Method: "GET", Path: "/auth/sessions",
-		Summary: "Your signed-in sessions"},
+	huma.Register(api, huma.Operation{
+		OperationID: "listSessions", Method: "GET", Path: "/auth/sessions",
+		Summary: "Your signed-in sessions",
+	},
 		func(ctx context.Context, _ *struct{}) (*sessionsOut, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -44,8 +48,10 @@ func (a *App) registerSessions(api huma.API) {
 			return &sessionsOut{Body: l}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "revokeSession", Method: "DELETE", Path: "/auth/sessions/{id}",
-		Summary: "Sign out one of your other sessions", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "revokeSession", Method: "DELETE", Path: "/auth/sessions/{id}",
+		Summary: "Sign out one of your other sessions", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *sessionIDIn) (*struct{}, error) {
 			u, err := requireSession(ctx)
 			if err != nil {

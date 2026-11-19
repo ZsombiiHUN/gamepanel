@@ -44,14 +44,26 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
         footer={
           v.can_manage ? (
             <>
-              <span>{!v.available ? "No database host is set up yet. Ask an administrator." : `${v.databases.length} of ${v.limit} ${v.limit === 1 ? "database" : "databases"} used.`}</span>
-              <button type="button" className="btn btn-primary" disabled={!v.available || full} onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden /> New database</button>
+              <span>
+                {!v.available
+                  ? "No database host is set up yet. Ask an administrator."
+                  : `${v.databases.length} of ${v.limit} ${v.limit === 1 ? "database" : "databases"} used.`}
+              </span>
+              <button type="button" className="btn btn-primary" disabled={!v.available || full} onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" aria-hidden /> New database
+              </button>
             </>
-          ) : <span>You can see these databases but not their passwords.</span>
+          ) : (
+            <span>You can see these databases but not their passwords.</span>
+          )
         }
       >
         {v.databases.length === 0 ? (
-          <Empty icon={<Database className="h-5 w-5" aria-hidden />} title="No databases yet">{v.limit === 0 ? "This server may not have databases. An administrator can raise its limit." : "Create one when a plugin asks for MySQL."}</Empty>
+          <Empty icon={<Database className="h-5 w-5" aria-hidden />} title="No databases yet">
+            {v.limit === 0
+              ? "This server may not have databases. An administrator can raise its limit."
+              : "Create one when a plugin asks for MySQL."}
+          </Empty>
         ) : (
           <ul className="space-y-3">
             {v.databases.map((d) => (
@@ -60,10 +72,23 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                   <h3 className="font-mono text-[14px] font-medium text-zinc-100">{d.name}</h3>
                   {v.can_manage && (
                     <span className="flex gap-1">
-                      <button type="button" className="btn btn-ghost !min-h-8 !px-2.5 text-xs" disabled={rotate.isPending} onClick={() => { if (window.confirm(`Give ${d.name} a new password? Anything using the old one stops connecting.`)) rotate.mutate(d.id); }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost !min-h-8 !px-2.5 text-xs"
+                        disabled={rotate.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Give ${d.name} a new password? Anything using the old one stops connecting.`))
+                            rotate.mutate(d.id);
+                        }}
+                      >
                         <KeyRound className="h-4 w-4" aria-hidden /> New password
                       </button>
-                      <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300" aria-label={`Delete ${d.name}`} onClick={() => setToDelete(d)}>
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
+                        aria-label={`Delete ${d.name}`}
+                        onClick={() => setToDelete(d)}
+                      >
                         <Trash2 className="h-4 w-4" aria-hidden />
                       </button>
                     </span>
@@ -76,10 +101,21 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                   <div className="flex items-center justify-between gap-2">
                     <dt className="text-zinc-500">Password</dt>
                     <dd className="flex items-center gap-1 font-mono text-[13px] text-zinc-200">
-                      {shown[d.id] ? <><span className="break-all">{shown[d.id]}</span><CopyButton text={shown[d.id]!} label="Copy" /></> : "••••••••"}
+                      {shown[d.id] ? (
+                        <>
+                          <span className="break-all">{shown[d.id]}</span>
+                          <CopyButton text={shown[d.id] ?? ""} label="Copy" />
+                        </>
+                      ) : (
+                        "••••••••"
+                      )}
                       {v.can_manage && (
-                        <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800" aria-label={shown[d.id] ? `Hide the password of ${d.name}` : `Show the password of ${d.name}`}
-                          onClick={() => (shown[d.id] ? setShown(({ [d.id]: _, ...rest }) => rest) : reveal.mutate(d.id))}>
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800"
+                          aria-label={shown[d.id] ? `Hide the password of ${d.name}` : `Show the password of ${d.name}`}
+                          onClick={() => (shown[d.id] ? setShown(({ [d.id]: _, ...rest }) => rest) : reveal.mutate(d.id))}
+                        >
                           {shown[d.id] ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
                         </button>
                       )}
@@ -89,7 +125,9 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                   <div className="sm:col-span-2">
                     <dt className="sr-only">JDBC address</dt>
                     <dd className="flex flex-wrap items-center gap-2 font-mono text-xs text-zinc-500">
-                      <span className="break-all">jdbc:mysql://{d.host}:{d.port}/{d.name}</span>
+                      <span className="break-all">
+                        jdbc:mysql://{d.host}:{d.port}/{d.name}
+                      </span>
                       <CopyButton text={`jdbc:mysql://${d.host}:${d.port}/${d.name}`} label="Copy JDBC" />
                     </dd>
                   </div>
@@ -98,9 +136,13 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
             ))}
           </ul>
         )}
-        <div className="mt-3"><ErrorBox error={reveal.error ?? rotate.error ?? remove.error} /></div>
+        <div className="mt-3">
+          <ErrorBox error={reveal.error ?? rotate.error ?? remove.error} />
+        </div>
       </Section>
-      {creating && <CreateDialog uuid={uuid} onClose={() => setCreating(false)} onCreated={(d) => setShown((s) => ({ ...s, [d.id]: d.password }))} />}
+      {creating && (
+        <CreateDialog uuid={uuid} onClose={() => setCreating(false)} onCreated={(d) => setShown((s) => ({ ...s, [d.id]: d.password }))} />
+      )}
       <ConfirmDialog
         open={!!toDelete}
         title={`Delete ${toDelete?.name ?? ""}?`}
@@ -109,7 +151,10 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
         pending={remove.isPending}
         error={remove.error}
         onConfirm={() => toDelete && remove.mutate(toDelete.id)}
-        onCancel={() => { setToDelete(null); remove.reset(); }}
+        onCancel={() => {
+          setToDelete(null);
+          remove.reset();
+        }}
       />
     </div>
   );
@@ -124,12 +169,21 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CreateDialog({ uuid, onClose, onCreated }: { uuid: string; onClose: () => void; onCreated: (d: { id: number; password: string }) => void }) {
+function CreateDialog({
+  uuid,
+  onClose,
+  onCreated,
+}: {
+  uuid: string;
+  onClose: () => void;
+  onCreated: (d: { id: number; password: string }) => void;
+}) {
   const [name, setName] = useState("");
   const [remote, setRemote] = useState("%");
   const valid = /^[A-Za-z0-9_]{1,48}$/.test(name);
   const create = useMutation({
-    mutationFn: () => call(api.POST("/servers/{uuid}/databases", { params: { path: { uuid } }, body: { name, remote: remote.trim() || "%" } })),
+    mutationFn: () =>
+      call(api.POST("/servers/{uuid}/databases", { params: { path: { uuid } }, body: { name, remote: remote.trim() || "%" } })),
     meta: invalidates(keys.databases(uuid)),
     onSuccess: (d) => {
       onCreated(d);
@@ -137,12 +191,36 @@ function CreateDialog({ uuid, onClose, onCreated }: { uuid: string; onClose: () 
     },
   });
   return (
-    <FormDialog open title="New database" submitLabel="Create database" pending={create.isPending} error={create.error} disabled={!valid} onSubmit={() => create.mutate()} onClose={onClose}>
-      <Field label="Name" hint={name && !valid ? "Letters, digits and _ only, up to 48." : "The server's prefix is added in front, so names never clash."}>
-        {(id) => <input id={id} className="input font-mono" value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="luckperms" spellCheck={false} />}
+    <FormDialog
+      open
+      title="New database"
+      submitLabel="Create database"
+      pending={create.isPending}
+      error={create.error}
+      disabled={!valid}
+      onSubmit={() => create.mutate()}
+      onClose={onClose}
+    >
+      <Field
+        label="Name"
+        hint={name && !valid ? "Letters, digits and _ only, up to 48." : "The server's prefix is added in front, so names never clash."}
+      >
+        {(id) => (
+          <input
+            id={id}
+            className="input font-mono"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            placeholder="luckperms"
+            spellCheck={false}
+          />
+        )}
       </Field>
       <Field label="Connections from" hint="% allows any address. Use the game server's address to allow only it.">
-        {(id) => <input id={id} className="input font-mono" value={remote} onChange={(e) => setRemote(e.target.value)} spellCheck={false} />}
+        {(id) => (
+          <input id={id} className="input font-mono" value={remote} onChange={(e) => setRemote(e.target.value)} spellCheck={false} />
+        )}
       </Field>
     </FormDialog>
   );

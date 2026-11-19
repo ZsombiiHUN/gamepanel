@@ -24,7 +24,9 @@ export function PasskeysSection() {
       footer={
         <>
           <span>{supported ? "Each device or password manager can hold its own passkey." : "This browser does not support passkeys."}</span>
-          <button type="button" className="btn btn-primary" disabled={!supported} onClick={() => setAdding(true)}><Fingerprint className="h-4 w-4" aria-hidden /> Add a passkey</button>
+          <button type="button" className="btn btn-primary" disabled={!supported} onClick={() => setAdding(true)}>
+            <Fingerprint className="h-4 w-4" aria-hidden /> Add a passkey
+          </button>
         </>
       }
     >
@@ -36,17 +38,28 @@ export function PasskeysSection() {
               <Fingerprint className="h-5 w-5 shrink-0 text-indigo-300" aria-hidden />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-zinc-100">{p.name}</div>
-                <div className="text-xs text-zinc-500">Added {new Date(p.created_at * 1000).toLocaleDateString()} · {p.last_used_at ? `last used ${new Date(p.last_used_at * 1000).toLocaleDateString()}` : "never used"}</div>
+                <div className="text-xs text-zinc-500">
+                  Added {new Date(p.created_at * 1000).toLocaleDateString()} ·{" "}
+                  {p.last_used_at ? `last used ${new Date(p.last_used_at * 1000).toLocaleDateString()}` : "never used"}
+                </div>
               </div>
-              <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300" aria-label={`Remove ${p.name}`}
-                onClick={() => { if (window.confirm(`Remove the passkey "${p.name}"? That device can no longer sign in with it.`)) remove.mutate(p.id); }}>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300"
+                aria-label={`Remove ${p.name}`}
+                onClick={() => {
+                  if (window.confirm(`Remove the passkey "${p.name}"? That device can no longer sign in with it.`)) remove.mutate(p.id);
+                }}
+              >
                 <Trash2 className="h-4 w-4" aria-hidden />
               </button>
             </li>
           ))}
         </ul>
       )}
-      <div className="mt-3"><ErrorBox error={list.error ?? remove.error} /></div>
+      <div className="mt-3">
+        <ErrorBox error={list.error ?? remove.error} />
+      </div>
       {adding && <AddPasskey needsPassword={ids.data?.has_password ?? true} onClose={() => setAdding(false)} />}
     </Section>
   );
@@ -64,22 +77,49 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
       } catch (err) {
         throw passkeyError(err);
       }
-      return call(api.POST("/auth/passkeys/register/finish", { body: { name: name.trim(), credential: credential as unknown as Record<string, unknown> } }));
+      return call(
+        api.POST("/auth/passkeys/register/finish", {
+          body: { name: name.trim(), credential: credential },
+        }),
+      );
     },
     meta: invalidates(keys.passkeys, keys.me),
     onSuccess: onClose,
   });
   return (
-    <FormDialog open title="Add a passkey" submitLabel="Continue" pending={add.isPending} error={add.error} disabled={(needsPassword && !password) || !name.trim()} onSubmit={() => add.mutate()} onClose={onClose}>
+    <FormDialog
+      open
+      title="Add a passkey"
+      submitLabel="Continue"
+      pending={add.isPending}
+      error={add.error}
+      disabled={(needsPassword && !password) || !name.trim()}
+      onSubmit={() => add.mutate()}
+      onClose={onClose}
+    >
       <Field label="Name" hint="So you can tell your passkeys apart later.">
         {(id) => <input id={id} className="input" maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />}
       </Field>
       {needsPassword && (
         <Field label="Your password" hint="Adding a way into your account needs your password.">
-          {(id) => <input id={id} className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />}
+          {(id) => (
+            <input
+              id={id}
+              className="input"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+            />
+          )}
         </Field>
       )}
-      {add.isPending && <p role="status" className="flex items-center gap-2 text-sm text-zinc-400"><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Follow your browser's prompt.</p>}
+      {add.isPending && (
+        <p role="status" className="flex items-center gap-2 text-sm text-zinc-400">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Follow your browser's prompt.
+        </p>
+      )}
     </FormDialog>
   );
 }
@@ -87,8 +127,8 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
 function guessDevice() {
   const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
   if (/iPhone|iPad/.test(ua)) return "iPhone or iPad";
-  if (/Android/.test(ua)) return "Android phone";
-  if (/Mac/.test(ua)) return "Mac";
-  if (/Windows/.test(ua)) return "Windows PC";
+  if (ua.includes("Android")) return "Android phone";
+  if (ua.includes("Mac")) return "Mac";
+  if (ua.includes("Windows")) return "Windows PC";
   return "Passkey";
 }

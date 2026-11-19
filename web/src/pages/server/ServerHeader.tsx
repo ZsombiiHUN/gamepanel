@@ -6,12 +6,23 @@ import { invalidates, keys } from "../../api/queries";
 import type { WsStatus } from "../../api/ws";
 import { ErrorBox, OnlineDot, ServerIcon, StateBadge } from "../../components/ui";
 import { shownState } from "../../lib/servers";
+import { copyText } from "../../lib/clipboard";
 
 type ServerView = components["schemas"]["ServerView"];
 type PowerAction = "start" | "stop" | "restart" | "kill";
 
 /** Name, status, port and the power controls. Owns the power and reinstall calls. */
-export function ServerHeader({ server: s, state, wsStatus, can }: { server: ServerView; state: string; wsStatus: WsStatus; can: (need?: string) => boolean }) {
+export function ServerHeader({
+  server: s,
+  state,
+  wsStatus,
+  can,
+}: {
+  server: ServerView;
+  state: string;
+  wsStatus: WsStatus;
+  can: (need?: string) => boolean;
+}) {
   const uuid = s.uuid;
   const power = useMutation({
     mutationFn: (action: PowerAction) => call(api.POST("/servers/{uuid}/power", { params: { path: { uuid } }, body: { action } })),
@@ -41,7 +52,9 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
     <button
       type="button"
       className={`btn !min-h-11 !px-5 ${extra}`}
-      disabled={power.isPending || sentIn !== null || !s.node_online || !can("power") || (notReady && (action === "start" || action === "restart"))}
+      disabled={
+        power.isPending || sentIn !== null || !s.node_online || !can("power") || (notReady && (action === "start" || action === "restart"))
+      }
       onClick={() => send(action)}
     >
       {power.isPending && power.variables === action ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : icon}
@@ -63,20 +76,55 @@ export function ServerHeader({ server: s, state, wsStatus, can }: { server: Serv
           <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-zinc-400">
             <CopyChip text={String(s.port)} label={`Port ${s.port}`} />
             <OnlineDot online={s.node_online} label="Node" />
-            <span aria-live="polite" className="text-xs text-zinc-500">Live: {wsStatus === "open" ? "connected" : wsStatus}</span>
+            <span aria-live="polite" className="text-xs text-zinc-500">
+              Live: {wsStatus === "open" ? "connected" : wsStatus}
+            </span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!running && btn("start", "Start", <Play className="h-[17px] w-[17px]" aria-hidden />, "!bg-good !border-good !text-good-ink font-semibold hover:!bg-good-hover")}
-          {running && btn("restart", "Restart", <RotateCw className="h-[17px] w-[17px]" aria-hidden />, "!bg-warn !border-warn !text-warn-ink font-semibold hover:!bg-warn-hover")}
-          {running && btn("stop", "Stop", <Square className="h-[17px] w-[17px]" aria-hidden />, "!bg-bad !border-bad !text-bad-ink font-semibold hover:!bg-bad-hover")}
+          {!running &&
+            btn(
+              "start",
+              "Start",
+              <Play className="h-[17px] w-[17px]" aria-hidden />,
+              "!bg-good !border-good !text-good-ink font-semibold hover:!bg-good-hover",
+            )}
+          {running &&
+            btn(
+              "restart",
+              "Restart",
+              <RotateCw className="h-[17px] w-[17px]" aria-hidden />,
+              "!bg-warn !border-warn !text-warn-ink font-semibold hover:!bg-warn-hover",
+            )}
+          {running &&
+            btn(
+              "stop",
+              "Stop",
+              <Square className="h-[17px] w-[17px]" aria-hidden />,
+              "!bg-bad !border-bad !text-bad-ink font-semibold hover:!bg-bad-hover",
+            )}
           <MoreMenu>
-            <button type="button" role="menuitem" className="menu-item" disabled={power.isPending || !killable || !s.node_online || !can("power")} onClick={() => send("kill")}><Skull className="h-4 w-4" aria-hidden /> Kill</button>
             <button
               type="button"
               role="menuitem"
               className="menu-item"
-              disabled={reinstall.isPending || !s.node_online || !can("settings.reinstall") || state === "installing" || state === "running" || state === "starting"}
+              disabled={power.isPending || !killable || !s.node_online || !can("power")}
+              onClick={() => send("kill")}
+            >
+              <Skull className="h-4 w-4" aria-hidden /> Kill
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              disabled={
+                reinstall.isPending ||
+                !s.node_online ||
+                !can("settings.reinstall") ||
+                state === "installing" ||
+                state === "running" ||
+                state === "starting"
+              }
               onClick={() => {
                 if (window.confirm("Re-run the install script? Files it writes may overwrite your changes.")) reinstall.mutate();
               }}
@@ -106,12 +154,19 @@ function CopyChip({ text, label }: { text: string; label: string }) {
       title="Copy"
       className="inline-flex min-h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-thead px-2.5 font-mono text-[13px] text-zinc-200 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500"
       onClick={() => {
-        void navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1800); }).catch(() => undefined);
+        void copyText(text)
+          .then(() => {
+            setDone(true);
+            setTimeout(() => setDone(false), 1800);
+          })
+          .catch(() => undefined);
       }}
     >
       {label}
       {done ? <Check className="h-3.5 w-3.5 text-good" aria-hidden /> : <Copy className="h-3.5 w-3.5 text-zinc-500" aria-hidden />}
-      <span className="sr-only" aria-live="polite">{done ? "Copied" : ""}</span>
+      <span className="sr-only" aria-live="polite">
+        {done ? "Copied" : ""}
+      </span>
     </button>
   );
 }
@@ -119,9 +174,15 @@ function CopyChip({ text, label }: { text: string; label: string }) {
 function MoreMenu({ children }: { children: React.ReactNode }) {
   return (
     <details className="relative">
-      <summary className="btn !min-h-11 !w-11 cursor-pointer list-none !px-0 [&::-webkit-details-marker]:hidden" aria-label="More actions"><MoreVertical className="h-4 w-4" aria-hidden /></summary>
-      <div role="menu" className="absolute right-0 z-20 mt-1 flex min-w-40 flex-col rounded-xl border border-zinc-700 bg-zinc-900 p-1 shadow-xl">{children}</div>
+      <summary className="btn !min-h-11 !w-11 cursor-pointer list-none !px-0 [&::-webkit-details-marker]:hidden" aria-label="More actions">
+        <MoreVertical className="h-4 w-4" aria-hidden />
+      </summary>
+      <div
+        role="menu"
+        className="absolute right-0 z-20 mt-1 flex min-w-40 flex-col rounded-xl border border-zinc-700 bg-zinc-900 p-1 shadow-xl"
+      >
+        {children}
+      </div>
     </details>
   );
 }
-

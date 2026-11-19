@@ -1,6 +1,9 @@
 /** Subuser permissions as people think about them: areas, roles and what each tick implies. */
 
-export type Perm = { id: string; description: string };
+export interface Perm {
+  id: string;
+  description: string;
+}
 
 /** Friendly area names, in the order the picker shows them. Unknown prefixes go last under their own name. */
 export const AREAS: { id: string; label: string }[] = [
@@ -107,7 +110,12 @@ export function setArea(value: string[], area: string, on: boolean, known: strin
   return known.filter((p) => has.has(p));
 }
 
-export type Role = { id: string; label: string; desc: string; perms: (known: string[]) => string[] };
+export interface Role {
+  id: string;
+  label: string;
+  desc: string;
+  perms: (known: string[]) => string[];
+}
 
 const pick = (ids: string[]) => (known: string[]) => known.filter((p) => ids.includes(p));
 
@@ -130,10 +138,21 @@ export const ROLES: Role[] = [
     label: "Manager",
     desc: "Also edits files, mods, schedules and startup settings.",
     perms: pick([
-      "console.read", "console.send", "power", "activity.read",
-      "files.read", "files.write",
-      "backups.read", "backups.create", "backups.restore", "backups.download",
-      "schedules.manage", "startup.read", "startup.update", "network.read", "databases.read",
+      "console.read",
+      "console.send",
+      "power",
+      "activity.read",
+      "files.read",
+      "files.write",
+      "backups.read",
+      "backups.create",
+      "backups.restore",
+      "backups.download",
+      "schedules.manage",
+      "startup.read",
+      "startup.update",
+      "network.read",
+      "databases.read",
     ]),
   },
   {
@@ -159,5 +178,8 @@ export function areaSummary(value: string[]): string {
     const i = AREAS.findIndex((x) => x.id === a);
     return i < 0 ? AREAS.length : i;
   };
-  return areas.sort((a, b) => rank(a) - rank(b)).map(areaLabel).join(", ");
+  return areas
+    .sort((a, b) => rank(a) - rank(b))
+    .map(areaLabel)
+    .join(", ");
 }

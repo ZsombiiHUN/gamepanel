@@ -80,6 +80,7 @@ func TestServerSFTPInfo(t *testing.T) {
 }
 
 func mustID(t *testing.T, e *env, email string) int64 {
+	t.Helper()
 	u, err := e.st.UserByEmail(context.Background(), email)
 	if err != nil {
 		t.Fatal(err)

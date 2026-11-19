@@ -7,7 +7,9 @@ import { FakeApi, problem, renderApp } from "../test/harness";
 
 // CodeMirror needs real layout; the editor's behaviour is not what these tests are about.
 vi.mock("@uiw/react-codemirror", () => ({
-  default: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => <textarea aria-label="editor" value={value} onChange={(e) => onChange(e.target.value)} />,
+  default: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <textarea aria-label="editor" value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
 }));
 
 // The page needs no live socket here.
@@ -15,7 +17,12 @@ vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: n
 
 const UUID = "11111111-2222-4333-8444-555555555555";
 const minecraft = { ...server({ name: "Survival" }), uuid: UUID, permissions: ["files.read", "files.write", "console.read"] };
-type Entry = { name: string; dir: boolean; size: number; mod_unix: number };
+interface Entry {
+  name: string;
+  dir: boolean;
+  size: number;
+  mod_unix: number;
+}
 const f = (name: string): Entry => ({ name, dir: false, size: 12, mod_unix: 1_700_000_000 });
 const d = (name: string): Entry => ({ name, dir: true, size: 0, mod_unix: 1_700_000_000 });
 
@@ -41,7 +48,11 @@ const mc = {
   "/logs": [f("latest.log")],
 };
 const searchBox = () => screen.getByRole("searchbox", { name: "Search files" });
-const names = () => within(screen.getByRole("table")).getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("button")[0]!.textContent!.trim());
+const names = () =>
+  within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1)
+    .map((r) => within(r).getAllByRole("button")[0]!.textContent.trim());
 
 async function open(tree: Record<string, Entry[] | Response> = mc, extra: Record<string, unknown> = {}, ready = "server.properties") {
   const api = fileApi(tree, extra);
@@ -159,7 +170,9 @@ describe("Files tab: search", () => {
     await screen.findByText(/2 matches/);
     await userEvent.click(screen.getByRole("button", { name: "Actions for plugins/WorldEdit/config.yml" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
-    await userEvent.click(within(screen.getByRole("dialog", { name: /^Delete/, hidden: true })).getByRole("button", { name: "Delete", hidden: true }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: /^Delete/, hidden: true })).getByRole("button", { name: "Delete", hidden: true }),
+    );
     await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/files/delete`)).toHaveLength(1));
     expect(api.callsTo(`POST /api/servers/${UUID}/files/delete`)[0]!.body).toEqual({ paths: ["/plugins/WorldEdit/config.yml"] });
     await waitFor(() => expect(screen.getByText(/1 match\b/)).toBeInTheDocument());
@@ -176,7 +189,9 @@ describe("Files tab: managing files", () => {
     await userEvent.clear(name);
     await userEvent.type(name, "admins.json");
     await userEvent.click(dialog(/^Rename/).getByRole("button", { name: "Rename", hidden: true }));
-    await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/files/move`)[0]?.body).toEqual({ moves: [{ from: "/ops.json", to: "/admins.json" }] }));
+    await waitFor(() =>
+      expect(api.callsTo(`POST /api/servers/${UUID}/files/move`)[0]?.body).toEqual({ moves: [{ from: "/ops.json", to: "/admins.json" }] }),
+    );
   });
   it("acts on several selected items at once", async () => {
     const { api } = await open(mc, { [`POST /api/servers/${UUID}/files/compress`]: { path: "/archive.zip" } });
@@ -186,7 +201,13 @@ describe("Files tab: managing files", () => {
     expect(within(bar).getByText("2 selected")).toBeInTheDocument();
     await userEvent.click(within(bar).getByRole("button", { name: "Compress" }));
     await userEvent.click(dialog(/^Compress/).getByRole("button", { name: "Create archive", hidden: true }));
-    await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/files/compress`)[0]?.body).toEqual({ root: "/", paths: ["/config", "/ops.json"], format: "zip" }));
+    await waitFor(() =>
+      expect(api.callsTo(`POST /api/servers/${UUID}/files/compress`)[0]?.body).toEqual({
+        root: "/",
+        paths: ["/config", "/ops.json"],
+        format: "zip",
+      }),
+    );
   });
   it("selects everything in the folder", async () => {
     await open();
@@ -194,8 +215,11 @@ describe("Files tab: managing files", () => {
     expect(screen.getByText("5 selected")).toBeInTheDocument();
   });
   it("offers extraction for archives and downloads for files", async () => {
-    await open({ ...mc, "/": [...mc["/"]!, f("world.zip")] });
-    expect(screen.getByRole("link", { name: "Download world.zip" })).toHaveAttribute("href", `/api/servers/${UUID}/files/download?path=%2Fworld.zip`);
+    await open({ ...mc, "/": [...mc["/"], f("world.zip")] });
+    expect(screen.getByRole("link", { name: "Download world.zip" })).toHaveAttribute(
+      "href",
+      `/api/servers/${UUID}/files/download?path=%2Fworld.zip`,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Actions for world.zip" }));
     expect(screen.getByRole("menuitem", { name: "Extract here" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Compress" })).toBeNull();
@@ -207,7 +231,11 @@ describe("Files tab: managing files", () => {
     await screen.findByText("server.properties");
     expect(screen.queryByRole("button", { name: "Upload files" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Actions for ops.json" }));
-    expect(within(screen.getByRole("menu", { name: "Actions for ops.json" })).getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual(["Download"]);
+    expect(
+      within(screen.getByRole("menu", { name: "Actions for ops.json" }))
+        .getAllByRole("menuitem")
+        .map((m) => m.textContent.trim()),
+    ).toEqual(["Download"]);
   });
   it("creates a folder", async () => {
     const { api } = await open(mc, { [`POST /api/servers/${UUID}/files/folder`]: undefined });

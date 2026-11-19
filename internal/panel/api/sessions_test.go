@@ -143,20 +143,21 @@ func TestRecoveryCodesThroughTheAPI(t *testing.T) {
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)
-	_, codes := enrolTOTP(t, a, bobPW)
+	_, codes := enrolTOTP(t, a)
 	if len(codes) != 10 || len(codes[0]) != 29 {
 		t.Fatalf("codes %q", codes)
 	}
 	status := func() (st struct {
 		Remaining int
 		Outdated  bool
-	}) {
+	},
+	) {
 		code, body := a.do("GET", "/api/auth/totp/recovery-codes", nil, nil)
 		if code != 200 {
 			t.Fatalf("status: %d %s", code, body)
 		}
 		json.Unmarshal(body, &st)
-		return
+		return st
 	}
 	if st := status(); st.Remaining != 10 || st.Outdated {
 		t.Fatalf("status %+v", st)

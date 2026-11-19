@@ -96,7 +96,15 @@ export const metricsQuery = (uuid: string, range: MetricRange) =>
 export const modSearchQuery = (uuid: string, f: { q: string; type: "mod" | "plugin" | "datapack"; loader: string; version: string }) =>
   queryOptions({
     queryKey: [...keys.mods(uuid), "search", f] as const,
-    queryFn: () => call(api.GET("/servers/{uuid}/mods/search", { params: { path: { uuid }, query: { q: f.q, type: f.type, ...(f.loader ? { loader: f.loader } : {}), ...(f.version ? { version: f.version } : {}) } } })),
+    queryFn: () =>
+      call(
+        api.GET("/servers/{uuid}/mods/search", {
+          params: {
+            path: { uuid },
+            query: { q: f.q, type: f.type, ...(f.loader ? { loader: f.loader } : {}), ...(f.version ? { version: f.version } : {}) },
+          },
+        }),
+      ),
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
   });
@@ -104,7 +112,12 @@ export const modSearchQuery = (uuid: string, f: { q: string; type: "mod" | "plug
 export const modVersionsQuery = (uuid: string, project: string, loader: string, version: string) =>
   queryOptions({
     queryKey: [...keys.mods(uuid), "versions", project, loader, version] as const,
-    queryFn: async () => (await call(api.GET("/servers/{uuid}/mods/{project}/versions", { params: { path: { uuid, project }, query: { ...(loader ? { loader } : {}), ...(version ? { version } : {}) } } }))) ?? [],
+    queryFn: async () =>
+      (await call(
+        api.GET("/servers/{uuid}/mods/{project}/versions", {
+          params: { path: { uuid, project }, query: { ...(loader ? { loader } : {}), ...(version ? { version } : {}) } },
+        }),
+      )) ?? [],
     staleTime: 5 * 60_000,
   });
 
@@ -247,7 +260,11 @@ export const activityQuery = (uuid: string, term: string, page: number) =>
   queryOptions({
     queryKey: [...keys.activity(uuid), term, page] as const,
     queryFn: async () =>
-      (await call(api.GET("/servers/{uuid}/activity", { params: { path: { uuid }, query: { limit: ACTIVITY_PAGE_SIZE, offset: page * ACTIVITY_PAGE_SIZE, ...(term ? { q: term } : {}) } } }))) ?? [],
+      (await call(
+        api.GET("/servers/{uuid}/activity", {
+          params: { path: { uuid }, query: { limit: ACTIVITY_PAGE_SIZE, offset: page * ACTIVITY_PAGE_SIZE, ...(term ? { q: term } : {}) } },
+        }),
+      )) ?? [],
     placeholderData: keepPreviousData,
   });
 
@@ -257,6 +274,8 @@ export const auditQuery = (term: string, page: number) =>
   queryOptions({
     queryKey: [...keys.audit, term, page] as const,
     queryFn: async () =>
-      (await call(api.GET("/audit", { params: { query: { limit: AUDIT_PAGE_SIZE, offset: page * AUDIT_PAGE_SIZE, ...(term ? { q: term } : {}) } } }))) ?? [],
+      (await call(
+        api.GET("/audit", { params: { query: { limit: AUDIT_PAGE_SIZE, offset: page * AUDIT_PAGE_SIZE, ...(term ? { q: term } : {}) } } }),
+      )) ?? [],
     placeholderData: keepPreviousData,
   });

@@ -24,7 +24,7 @@ export function rankItems<T extends PaletteItem>(items: readonly T[], query: str
       const at = label.indexOf(w);
       let s: number;
       if (at === 0) s = 100;
-      else if (at > 0 && /[\s\-_./]/.test(label[at - 1]!)) s = 80;
+      else if (at > 0 && /[\s\-_./]/.test(label.charAt(at - 1))) s = 80;
       else if (at > 0) s = 60;
       else if (extra.includes(w)) s = 30;
       else return;

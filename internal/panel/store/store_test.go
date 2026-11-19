@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -53,8 +54,10 @@ func TestPasswordsAndSessions(t *testing.T) {
 	if _, err := s.UserBySession(ctx, tok, ""); err != nil {
 		t.Fatal(err)
 	}
-	s.DeleteSession(ctx, tok)
-	if _, err := s.UserBySession(ctx, tok, ""); err != ErrNotFound {
+	if err := s.DeleteSession(ctx, tok); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UserBySession(ctx, tok, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("revoked session still valid: %v", err)
 	}
 }

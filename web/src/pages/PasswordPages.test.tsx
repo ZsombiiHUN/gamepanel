@@ -5,17 +5,25 @@ import userEvent from "@testing-library/user-event";
 import { FakeApi, problem, renderApp } from "../test/harness";
 
 const signedOut = () => problem(401, "sign in required");
-afterEach(() => { window.location.hash = ""; });
+afterEach(() => {
+  window.location.hash = "";
+});
 
 describe("sign-in page links", () => {
   it("offers a reset link and sign-up only when the panel supports them", async () => {
-    const api = new FakeApi({ "GET /api/auth/me": signedOut, "GET /api/auth/options": { password_reset: true, signup: "open", sso: [], passkeys: false } });
+    const api = new FakeApi({
+      "GET /api/auth/me": signedOut,
+      "GET /api/auth/options": { password_reset: true, signup: "open", sso: [], passkeys: false },
+    });
     renderApp(api, "/login");
     expect(await screen.findByRole("link", { name: "Forgot your password?" })).toHaveAttribute("href", "/forgot");
     expect(screen.getByRole("link", { name: "Create an account" })).toBeInTheDocument();
   });
   it("hides them otherwise", async () => {
-    const api = new FakeApi({ "GET /api/auth/me": signedOut, "GET /api/auth/options": { password_reset: false, signup: "invite", sso: [], passkeys: false } });
+    const api = new FakeApi({
+      "GET /api/auth/me": signedOut,
+      "GET /api/auth/options": { password_reset: false, signup: "invite", sso: [], passkeys: false },
+    });
     renderApp(api, "/login");
     await screen.findByRole("heading", { name: "Welcome back" });
     await waitFor(() => expect(api.callsTo("GET /api/auth/options")).toHaveLength(1));
@@ -42,7 +50,10 @@ describe("forgot and reset", () => {
     await userEvent.type(screen.getByLabelText("Repeat it"), "a-brand-new-passphrase");
     await userEvent.click(screen.getByRole("button", { name: "Save new password" }));
     expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
-    expect(api.callsTo("POST /api/auth/reset")[0]!.body).toEqual({ token: "abcdefghijklmnopqrstuvwxyz", password: "a-brand-new-passphrase" });
+    expect(api.callsTo("POST /api/auth/reset")[0]!.body).toEqual({
+      token: "abcdefghijklmnopqrstuvwxyz",
+      password: "a-brand-new-passphrase",
+    });
   });
   it("explains a link without a token", async () => {
     renderApp(new FakeApi({}), "/reset");
@@ -55,7 +66,15 @@ describe("register", () => {
     window.location.hash = "#token=abcdefghijklmnopqrstuvwxyz";
     const api = new FakeApi({
       "GET /api/auth/me": signedOut,
-      "POST /api/auth/invite": { id: 1, email: "carol@example.com", server_name: "Survival", permissions: ["console.read"], is_admin: false, expires_at: 0, created_at: 0 },
+      "POST /api/auth/invite": {
+        id: 1,
+        email: "carol@example.com",
+        server_name: "Survival",
+        permissions: ["console.read"],
+        is_admin: false,
+        expires_at: 0,
+        created_at: 0,
+      },
       "POST /api/auth/register": { id: 3, email: "carol@example.com", is_admin: false },
     });
     renderApp(api, "/register");
@@ -66,11 +85,22 @@ describe("register", () => {
     await userEvent.type(screen.getByLabelText("Repeat it"), "carols-long-passphrase");
     api.on({ "GET /api/auth/me": { id: 3, email: "carol@example.com", is_admin: false }, "GET /api/servers": [] });
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    await waitFor(() => expect(api.callsTo("POST /api/auth/register")[0]?.body).toEqual({ token: "abcdefghijklmnopqrstuvwxyz", password: "carols-long-passphrase" }));
+    await waitFor(() =>
+      expect(api.callsTo("POST /api/auth/register")[0]?.body).toEqual({
+        token: "abcdefghijklmnopqrstuvwxyz",
+        password: "carols-long-passphrase",
+      }),
+    );
   });
   it("says when an invitation has expired", async () => {
     window.location.hash = "#token=abcdefghijklmnopqrstuvwxyz";
-    renderApp(new FakeApi({ "GET /api/auth/me": signedOut, "POST /api/auth/invite": () => problem(404, "this link is invalid or has expired; ask for a new one") }), "/register");
+    renderApp(
+      new FakeApi({
+        "GET /api/auth/me": signedOut,
+        "POST /api/auth/invite": () => problem(404, "this link is invalid or has expired; ask for a new one"),
+      }),
+      "/register",
+    );
     expect(await screen.findByText(/invalid or has expired/)).toBeInTheDocument();
   });
 });

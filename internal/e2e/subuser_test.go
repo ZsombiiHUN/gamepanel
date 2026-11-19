@@ -30,8 +30,8 @@ func TestSubuserPermissions(t *testing.T) {
 	}
 
 	// validation on grant
-	add := func(email string, perms []string, want int) []byte {
-		return s.admin.do("POST", srv+"/users", map[string]any{"email": email, "permissions": perms}, want)
+	add := func(email string, perms []string, want int) {
+		s.admin.do("POST", srv+"/users", map[string]any{"email": email, "permissions": perms}, want)
 	}
 	add("bob@example.com", []string{"root"}, 422)
 	add("nobody@example.com", []string{"files.read"}, 422)
@@ -80,8 +80,10 @@ func TestSubuserPermissions(t *testing.T) {
 
 	// a schedule must not be a way around missing permissions
 	sched := func(action, payload string, want int) {
-		bob.do("POST", srv+"/schedules", map[string]any{"name": "n", "cron": "0 4 * * *", "enabled": true,
-			"tasks": []map[string]any{{"action": action, "payload": payload}}}, want)
+		bob.do("POST", srv+"/schedules", map[string]any{
+			"name": "n", "cron": "0 4 * * *", "enabled": true,
+			"tasks": []map[string]any{{"action": action, "payload": payload}},
+		}, want)
 	}
 	sched("command", "op bob", 403)
 	sched("power", "restart", 403)

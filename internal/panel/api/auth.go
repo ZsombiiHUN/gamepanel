@@ -22,11 +22,14 @@ type loginIn struct {
 		TOTPCode string `json:"totp_code,omitempty" maxLength:"64"`
 	}
 }
-type userOut struct{ Body store.User }
-type loginOut struct {
-	SetCookie []http.Cookie `header:"Set-Cookie"`
-	Body      store.User
-}
+type (
+	userOut  struct{ Body store.User }
+	loginOut struct {
+		SetCookie []http.Cookie `header:"Set-Cookie"`
+		Body      store.User
+	}
+)
+
 type logoutIn struct {
 	Session     string `cookie:"gp_session"`
 	HostSession string `cookie:"__Host-gp_session"`
@@ -85,8 +88,11 @@ func (a *App) registerAuth(api huma.API) {
 		func(ctx context.Context, in *logoutIn) (*logoutOut, error) {
 			// Revoke server-side, not just in the browser, under either cookie name.
 			for _, s := range []string{in.HostSession, in.Session} {
-				if s != "" {
-					a.Store.DeleteSession(ctx, s)
+				if s == "" {
+					continue
+				}
+				if err := a.Store.DeleteSession(ctx, s); err != nil {
+					return nil, huma.Error500InternalServerError("could not sign out; try again", err)
 				}
 			}
 			if u, ok := userFrom(ctx); ok {
@@ -122,8 +128,10 @@ type auditIn struct {
 type auditOut struct{ Body []store.AuditEntry }
 
 func (a *App) registerAccount(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "changePassword", Method: "POST", Path: "/auth/password",
-		Summary: "Change your password (signs out every other session)", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "changePassword", Method: "POST", Path: "/auth/password",
+		Summary: "Change your password (signs out every other session)", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *passwordIn) (*struct{}, error) {
 			u, err := requireSession(ctx)
 			if err != nil {
@@ -165,8 +173,10 @@ func (a *App) registerAccount(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "revokeOtherSessions", Method: "POST", Path: "/auth/sessions/revoke-others",
-		Summary: "Sign out everywhere except this browser", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "revokeOtherSessions", Method: "POST", Path: "/auth/sessions/revoke-others",
+		Summary: "Sign out everywhere except this browser", DefaultStatus: 204,
+	},
 		func(ctx context.Context, _ *struct{}) (*struct{}, error) {
 			u, err := requireSession(ctx)
 			if err != nil {

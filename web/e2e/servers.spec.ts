@@ -1,7 +1,12 @@
 import { expect, test, unique, watchErrors } from "./support";
 
 const cards = (page: import("@playwright/test").Page) => page.getByRole("article");
-const names = async (page: import("@playwright/test").Page) => cards(page).getByRole("link").evaluateAll((els) => els.filter((e) => e.closest("h1,article")?.tagName === "ARTICLE" && !e.classList.contains("btn")).map((e) => e.textContent!.trim()));
+const names = async (page: import("@playwright/test").Page) =>
+  cards(page)
+    .getByRole("link")
+    .evaluateAll((els) =>
+      els.filter((e) => e.closest("h1,article")?.tagName === "ARTICLE" && !e.classList.contains("btn")).map((e) => e.textContent.trim()),
+    );
 const filter = (page: import("@playwright/test").Page) => page.getByRole("searchbox", { name: "Filter servers" });
 
 test.beforeEach(async ({ page }) => {
@@ -33,10 +38,16 @@ test.describe("filter", () => {
   });
   test("by game, including servers whose name does not say which game they run", async ({ page, panel }) => {
     await filter(page).fill("valheim");
-    const want = panel.ready.servers.filter((s) => s.egg === "Valheim" || /valheim/i.test(s.name)).map((s) => s.name).sort();
+    const want = panel.ready.servers
+      .filter((s) => s.egg === "Valheim" || /valheim/i.test(s.name))
+      .map((s) => s.name)
+      .sort();
     expect(want.length).toBeGreaterThan(2);
     expect((await names(page)).sort()).toEqual(want);
-    expect(want.some((n) => !/valheim/i.test(n)), "needs a server whose name does not mention its game").toBe(true);
+    expect(
+      want.some((n) => !/valheim/i.test(n)),
+      "needs a server whose name does not mention its game",
+    ).toBe(true);
   });
   test("by port", async ({ page, panel }) => {
     const s = panel.seeded("Terraria Hardmode");

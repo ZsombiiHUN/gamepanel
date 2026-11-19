@@ -56,7 +56,7 @@ func (d *Dir) addDir(tw *tar.Writer, dir string, ignore []string) error {
 		return err
 	}
 	ents, err := f.ReadDir(-1)
-	f.Close()
+	closeQuiet(f)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (d *Dir) addFile(tw *tar.Writer, rel string) error {
 		}
 		return err
 	}
-	defer f.Close()
+	defer closeQuiet(f)
 	fi, err := f.Stat()
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func entries(r io.Reader, fn func(h *tar.Header, name string, body io.Reader) er
 	if err != nil {
 		return fmt.Errorf("not a gzip archive: %w", err)
 	}
-	defer gz.Close()
+	defer closeQuiet(gz)
 	tr := tar.NewReader(gz)
 	for {
 		h, err := tr.Next()
@@ -211,7 +211,7 @@ func (d *Dir) Extract(r io.ReadSeeker, truncate bool, maxBytes int64) error {
 				return err
 			}
 			// Permission bits only: never restore setuid/setgid/sticky.
-			mode := fs.FileMode(h.Mode)&0o777 | 0o600
+			mode := fs.FileMode(h.Mode&0o777) | 0o600
 			f, err := d.create(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 			if err != nil {
 				return err
@@ -232,7 +232,7 @@ func (d *Dir) clear() error {
 		return err
 	}
 	ents, err := f.ReadDir(-1)
-	f.Close()
+	closeQuiet(f)
 	if err != nil {
 		return err
 	}

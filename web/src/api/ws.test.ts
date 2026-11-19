@@ -45,7 +45,7 @@ describe("useServerSocket", () => {
     expect(result.current.status).toBe("open");
     act(() => sock(0).onclose?.({ code: 1006 }));
     expect(result.current.status).toBe("reconnecting");
-    act(() => vi.advanceTimersByTime(1000));
+    act(() => void vi.advanceTimersByTime(1000));
     expect(FakeSocket.all).toHaveLength(2);
   });
 
@@ -56,7 +56,7 @@ describe("useServerSocket", () => {
     const { result } = renderHook(() => useServerSocket(uuid, handlers));
     act(() => sock(0).onclose?.({ code }));
     expect(result.current.status).toBe("closed");
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => void vi.advanceTimersByTime(60_000));
     expect(FakeSocket.all).toHaveLength(1);
   });
 
@@ -67,7 +67,7 @@ describe("useServerSocket", () => {
     act(() => sock(0).onclose?.({ code: CLOSE_UNAUTHORIZED }));
     expect(result.current.status).toBe("closed");
     expect(signedOut).toHaveBeenCalledOnce();
-    act(() => vi.advanceTimersByTime(60_000));
+    act(() => void vi.advanceTimersByTime(60_000));
     expect(FakeSocket.all).toHaveLength(1);
   });
 
