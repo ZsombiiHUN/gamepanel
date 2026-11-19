@@ -3,7 +3,17 @@ import { Check, SlidersHorizontal } from "lucide-react";
 import { ROLES, areaSummary, groupPerms, permLabel, requires, roleOf, setArea, togglePerm, type Perm } from "../../lib/access";
 
 /** A checkbox that can show "some ticked". */
-function AreaBox({ checked, mixed, onChange, label }: { checked: boolean; mixed: boolean; onChange: (on: boolean) => void; label: string }) {
+function AreaBox({
+  checked,
+  mixed,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  mixed: boolean;
+  onChange: (on: boolean) => void;
+  label: string;
+}) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = mixed;
@@ -29,22 +39,37 @@ function PermPicker({ all, value, onChange }: { all: Perm[]; value: string[]; on
       {groupPerms(all).map((g) => {
         const on = g.perms.filter((p) => value.includes(p.id)).length;
         return (
-          <div key={g.area} className={`rounded-xl border p-3 transition-colors ${on ? "border-indigo-500/30 bg-indigo-500/[0.04]" : "border-zinc-800"}`}>
+          <div
+            key={g.area}
+            className={`rounded-xl border p-3 transition-colors ${on ? "border-indigo-500/30 bg-indigo-500/[0.04]" : "border-zinc-800"}`}
+          >
             <div className="mb-2 flex items-center gap-2.5">
               {g.perms.length > 1 ? (
-                <AreaBox label={`All ${g.label} permissions`} checked={on === g.perms.length} mixed={on > 0 && on < g.perms.length} onChange={(v) => onChange(setArea(value, g.area, v, known))} />
+                <AreaBox
+                  label={`All ${g.label} permissions`}
+                  checked={on === g.perms.length}
+                  mixed={on > 0 && on < g.perms.length}
+                  onChange={(v) => onChange(setArea(value, g.area, v, known))}
+                />
               ) : (
                 <span className="w-4" aria-hidden />
               )}
               <span className="text-sm font-semibold text-zinc-100">{g.label}</span>
-              <span className="ml-auto font-mono text-xs text-zinc-500">{on}/{g.perms.length}</span>
+              <span className="ml-auto font-mono text-xs text-zinc-500">
+                {on}/{g.perms.length}
+              </span>
             </div>
             <div className="space-y-0.5">
               {g.perms.map((p) => {
                 const needs = requires(p.id).filter((r) => known.includes(r));
                 return (
                   <label key={p.id} className="flex cursor-pointer items-start gap-2.5 rounded-lg px-1 py-1.5 hover:bg-row-hover">
-                    <input type="checkbox" className="mt-0.5 h-4 w-4 cursor-pointer accent-indigo-400" checked={value.includes(p.id)} onChange={() => onChange(togglePerm(value, p.id, known))} />
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 cursor-pointer accent-indigo-400"
+                      checked={value.includes(p.id)}
+                      onChange={() => onChange(togglePerm(value, p.id, known))}
+                    />
                     <span className="min-w-0">
                       <span className="block text-sm text-zinc-200">{permLabel(p.id)}</span>
                       <span className="block text-xs text-zinc-500">
@@ -99,7 +124,13 @@ export function AccessChooser({ all, value, onChange }: { all: Perm[]; value: st
           {custom ? "Hide individual permissions" : "Pick individual permissions"}
         </button>
         <span className="text-zinc-500">
-          {value.length === 0 ? "Nothing selected yet." : <>{role ? role.label : "Custom"}: {value.length} of {known.length || value.length} · {areaSummary(value)}</>}
+          {value.length === 0 ? (
+            "Nothing selected yet."
+          ) : (
+            <>
+              {role ? role.label : "Custom"}: {value.length} of {known.length || value.length} · {areaSummary(value)}
+            </>
+          )}
         </span>
       </div>
       {custom && <PermPicker all={all} value={value} onChange={onChange} />}

@@ -3,6 +3,7 @@ package e2e
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -50,7 +51,10 @@ func TestServerDatabases(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return c, c.Ping()
+		if err := c.Ping(); err != nil {
+			return nil, errors.Join(err, c.Close())
+		}
+		return c, nil
 	}
 
 	// The owner-side flow, as a subuser with databases.manage and a limit of 1.
@@ -112,7 +116,7 @@ func TestServerDatabases(t *testing.T) {
 	}
 
 	// Read-only subusers see the list but cannot touch it.
-	s.admin.do("PUT", srv+"/users/"+userID(t, s, "bob@example.com"), map[string]any{"permissions": []string{"databases.read"}}, 204)
+	s.admin.do("PUT", srv+"/users/"+bobID(t, s), map[string]any{"permissions": []string{"databases.read"}}, 204)
 	bob.do("GET", srv+"/databases", nil, 200)
 	bob.do("GET", srv+"/databases/"+strconv.FormatInt(d.ID, 10)+"/password", nil, 403)
 	bob.do("DELETE", srv+"/databases/"+strconv.FormatInt(d.ID, 10), nil, 403)

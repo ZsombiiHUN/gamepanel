@@ -8,7 +8,9 @@
       // Pick the theme before the first paint, so a light page never flashes dark (or the reverse).
       (function () {
         var pref = "system";
-        try { pref = localStorage.getItem("gp-theme") || "system"; } catch (e) {}
+        try {
+          pref = localStorage.getItem("gp-theme") || "system";
+        } catch (e) {}
         var light = pref === "light" || (pref === "system" && window.matchMedia("(prefers-color-scheme: light)").matches);
         document.documentElement.dataset.theme = light ? "light" : "dark";
       })();

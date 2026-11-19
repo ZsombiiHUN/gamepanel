@@ -15,8 +15,10 @@ func TestStartOnCompletion(t *testing.T) {
 	rt := runtime.NewFake()
 	d := newTestDaemon(t, rt)
 	id := uuidN(1)
-	if err := d.create(context.Background(), proto.ServerSpec{UUID: id, Image: "img", Startup: "run", MemoryMB: 128, StartOnCompletion: true,
-		Install: &proto.InstallSpec{Image: "inst", Entrypoint: "bash", Script: "echo hi\n"}}); err != nil {
+	if err := d.create(context.Background(), proto.ServerSpec{
+		UUID: id, Image: "img", Startup: "run", MemoryMB: 128, StartOnCompletion: true,
+		Install: &proto.InstallSpec{Image: "inst", Entrypoint: "bash", Script: "echo hi\n"},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if !eventually(5*time.Second, func() bool { st, _ := rt.State(context.Background(), id); return st == runtime.StateRunning }) {

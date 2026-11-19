@@ -34,112 +34,209 @@ func env(k, def string) string {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "openapi" {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
+
+// run is main with errors returned, so deferred cleanup (closing the
+// database) happens on every exit path.
+func run(args []string) error {
+	if len(args) > 0 && args[0] == "openapi" {
 		// Prints the API description; needs no database (make openapi).
 		b, err := api.OpenAPI()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
+			return err
 		}
-		os.Stdout.Write(b)
-		return
+		_, err = os.Stdout.Write(b)
+		return err
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	dbPath := env("GAMEPANEL_DB", "./panel.db")
 	st, err := store.Open(dbPath)
 	if err != nil {
-		log.Error("open database", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("open database: %w", err)
 	}
-	defer st.Close()
-
+	defer func() {
+		if err := st.Close(); err != nil {
+			log.Error("close database", "err", err)
+		}
+	}()
+	st.Log = log
 	if err := loadSecretKey(st, dbPath); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+		return err
 	}
-	if len(os.Args) > 1 && os.Args[1] == "reset-2fa" {
-		if err := reset2FA(st, os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
+	commands := map[string]func(*store.Store, []string) error{
+		"reset-2fa": reset2FA, "reset-link": resetLink, "create-admin": createAdmin,
+	}
+	if len(args) > 0 {
+		if cmd, ok := commands[args[0]]; ok {
+			return cmd(st, args[1:])
 		}
-		return
 	}
-	if len(os.Args) > 1 && os.Args[1] == "reset-link" {
-		if err := resetLink(st, os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
-		}
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "create-admin" {
-		if err := createAdmin(st, os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
-		}
-		return
-	}
+	return serve(st, log, args)
+}
 
-	fs := flag.NewFlagSet("panel", flag.ExitOnError)
+// serve runs the panel until SIGINT or SIGTERM.
+func serve(st *store.Store, log *slog.Logger, args []string) error {
+	fs := flag.NewFlagSet("panel", flag.ContinueOnError)
 	addr := fs.String("addr", env("GAMEPANEL_ADDR", "127.0.0.1:8080"), "listen address")
-	fs.Parse(os.Args[1:])
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil // usage was printed
+		}
+		return err
+	}
+	deps, err := configure(st, log, *addr)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	deps.SchedulerCtx = ctx
+	handler := api.New(deps)
+	if n, err := st.CountUsers(ctx); err == nil && n == 0 {
+		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")
+	}
+	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	shutdown := make(chan error, 1)
+	go func() {
+		<-ctx.Done()
+		c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		shutdown <- srv.Shutdown(c)
+	}()
+	log.Info("panel listening", "addr", *addr)
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("serve: %w", err)
+	}
+	if err := <-shutdown; err != nil {
+		return fmt.Errorf("shutdown: %w", err)
+	}
+	return nil
+}
 
+// configure reads the GAMEPANEL_* settings into the API's dependencies,
+// failing on any that are invalid and warning about risky combinations.
+func configure(st *store.Store, log *slog.Logger, addr string) (api.Deps, error) {
 	proxies, err := api.ParseTrustedProxies(env("GAMEPANEL_TRUSTED_PROXIES", ""))
 	if err != nil {
-		log.Error("invalid GAMEPANEL_TRUSTED_PROXIES", "err", err)
-		os.Exit(1)
+		return api.Deps{}, fmt.Errorf("invalid GAMEPANEL_TRUSTED_PROXIES: %w", err)
 	}
+	if err := sessionLimits(st); err != nil {
+		return api.Deps{}, err
+	}
+	cookieSecure := env("GAMEPANEL_COOKIE_SECURE", "") == "1"
+	if host, _, err := net.SplitHostPort(addr); err == nil && !cookieSecure && len(proxies) == 0 && !isLoopback(host) {
+		log.Warn("listening beyond this machine without HTTPS settings: session cookies are not marked Secure. " +
+			"Put the panel behind an HTTPS proxy and set GAMEPANEL_TRUSTED_PROXIES (or GAMEPANEL_COOKIE_SECURE=1)")
+	}
+	backups, err := s3Backups(log)
+	if err != nil {
+		return api.Deps{}, err
+	}
+	publicURL := strings.TrimRight(os.Getenv("GAMEPANEL_PUBLIC_URL"), "/")
+	mailer, err := smtpMailer(log, publicURL)
+	if err != nil {
+		return api.Deps{}, err
+	}
+	signup := env("GAMEPANEL_SIGNUP", "invite")
+	if signup != "invite" && signup != "open" {
+		return api.Deps{}, fmt.Errorf("GAMEPANEL_SIGNUP must be invite or open, not %q", signup)
+	}
+	requireMFA := os.Getenv("GAMEPANEL_REQUIRE_MFA")
+	if !api.ValidMFAPolicy(requireMFA) {
+		return api.Deps{}, fmt.Errorf("GAMEPANEL_REQUIRE_MFA must be off, admins or all, not %q", requireMFA)
+	}
+	hsts, err := hstsHeader(os.Getenv("GAMEPANEL_HSTS"))
+	if err != nil {
+		return api.Deps{}, err
+	}
+	deps := api.Deps{
+		Store: st, Hub: hub.New(log), Log: log, Web: web.Handler(),
+		TrustedProxies: proxies, S3: backups,
+		PublicURL: publicURL, Signup: signup, SSO: ssoProviders(log, publicURL),
+		CookieSecure: cookieSecure, RequireMFA: requireMFA, HSTS: hsts,
+	}
+	if mailer != nil { // never a typed nil in the interface
+		deps.Mail = mailer
+	}
+	return deps, nil
+}
+
+// sessionLimits applies GAMEPANEL_SESSION_MAX and GAMEPANEL_SESSION_IDLE.
+func sessionLimits(st *store.Store) error {
 	for _, d := range []struct {
 		name string
 		dst  *time.Duration
 	}{{"GAMEPANEL_SESSION_MAX", &st.SessionMax}, {"GAMEPANEL_SESSION_IDLE", &st.SessionIdle}} {
-		if v := os.Getenv(d.name); v != "" {
-			dur, err := time.ParseDuration(v)
-			if err != nil || dur < time.Minute {
-				log.Error("invalid "+d.name+": want a duration of at least 1m, such as 30m or 12h", "value", v)
-				os.Exit(1)
-			}
-			*d.dst = dur
+		v := os.Getenv(d.name)
+		if v == "" {
+			continue
+		}
+		dur, err := time.ParseDuration(v)
+		if err != nil || dur < time.Minute {
+			return fmt.Errorf("invalid %s %q: want a duration of at least 1m, such as 30m or 12h", d.name, v)
+		}
+		*d.dst = dur
+	}
+	return nil
+}
+
+// s3Backups returns the remote backup store, or nil when none is configured.
+func s3Backups(log *slog.Logger) (*s3.Client, error) {
+	ep := os.Getenv("GAMEPANEL_S3_ENDPOINT")
+	if ep == "" {
+		return nil, nil
+	}
+	backups, err := s3.New(s3.Config{
+		Endpoint: ep, Region: os.Getenv("GAMEPANEL_S3_REGION"), Bucket: os.Getenv("GAMEPANEL_S3_BUCKET"),
+		AccessKey: os.Getenv("GAMEPANEL_S3_ACCESS_KEY"), SecretKey: os.Getenv("GAMEPANEL_S3_SECRET_KEY"),
+		Prefix: os.Getenv("GAMEPANEL_S3_PREFIX"), PathStyle: os.Getenv("GAMEPANEL_S3_PATH_STYLE") == "1",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("invalid S3 backup settings: %w", err)
+	}
+	c, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := backups.Check(c); err != nil {
+		// Not fatal: the store may be down for a moment. Backups fail with
+		// a reason until it works.
+		log.Warn("could not write to the S3 backup bucket; check the GAMEPANEL_S3_* settings", "err", err)
+	}
+	log.Info("new backups go to S3", "endpoint", ep, "bucket", os.Getenv("GAMEPANEL_S3_BUCKET"))
+	return backups, nil
+}
+
+// smtpMailer returns the mail sender, or nil when none is configured.
+func smtpMailer(log *slog.Logger, publicURL string) (*mail.SMTP, error) {
+	h := os.Getenv("GAMEPANEL_SMTP_HOST")
+	if h == "" {
+		return nil, nil
+	}
+	port := 0
+	if p := os.Getenv("GAMEPANEL_SMTP_PORT"); p != "" {
+		var err error
+		if port, err = strconv.Atoi(p); err != nil {
+			return nil, fmt.Errorf("GAMEPANEL_SMTP_PORT must be a number, not %q", p)
 		}
 	}
-	cookieSecure := env("GAMEPANEL_COOKIE_SECURE", "") == "1"
-	if host, _, err := net.SplitHostPort(*addr); err == nil && !cookieSecure && len(proxies) == 0 && !isLoopback(host) {
-		log.Warn("listening beyond this machine without HTTPS settings: session cookies are not marked Secure. " +
-			"Put the panel behind an HTTPS proxy and set GAMEPANEL_TRUSTED_PROXIES (or GAMEPANEL_COOKIE_SECURE=1)")
+	mailer, err := mail.New(mail.Config{
+		Host: h, Port: port, Username: os.Getenv("GAMEPANEL_SMTP_USERNAME"), Password: os.Getenv("GAMEPANEL_SMTP_PASSWORD"),
+		From: os.Getenv("GAMEPANEL_SMTP_FROM"), TLS: os.Getenv("GAMEPANEL_SMTP_TLS"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("invalid SMTP settings: %w", err)
 	}
-	var backups *s3.Client
-	if ep := os.Getenv("GAMEPANEL_S3_ENDPOINT"); ep != "" {
-		backups, err = s3.New(s3.Config{
-			Endpoint: ep, Region: os.Getenv("GAMEPANEL_S3_REGION"), Bucket: os.Getenv("GAMEPANEL_S3_BUCKET"),
-			AccessKey: os.Getenv("GAMEPANEL_S3_ACCESS_KEY"), SecretKey: os.Getenv("GAMEPANEL_S3_SECRET_KEY"),
-			Prefix: os.Getenv("GAMEPANEL_S3_PREFIX"), PathStyle: os.Getenv("GAMEPANEL_S3_PATH_STYLE") == "1",
-		})
-		if err != nil {
-			log.Error("invalid S3 backup settings", "err", err)
-			os.Exit(1)
-		}
-		c, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		if err := backups.Check(c); err != nil {
-			// Not fatal: the store may be down for a moment. Backups fail with
-			// a reason until it works.
-			log.Warn("could not write to the S3 backup bucket; check the GAMEPANEL_S3_* settings", "err", err)
-		}
-		cancel()
-		log.Info("new backups go to S3", "endpoint", ep, "bucket", os.Getenv("GAMEPANEL_S3_BUCKET"))
+	if publicURL == "" {
+		log.Warn("GAMEPANEL_SMTP_HOST is set but GAMEPANEL_PUBLIC_URL is not: emails need the panel's address for their links, so none are sent")
 	}
-	var mailer *mail.SMTP
-	publicURL := strings.TrimRight(os.Getenv("GAMEPANEL_PUBLIC_URL"), "/")
-	if h := os.Getenv("GAMEPANEL_SMTP_HOST"); h != "" {
-		port, _ := strconv.Atoi(os.Getenv("GAMEPANEL_SMTP_PORT"))
-		mailer, err = mail.New(mail.Config{Host: h, Port: port, Username: os.Getenv("GAMEPANEL_SMTP_USERNAME"), Password: os.Getenv("GAMEPANEL_SMTP_PASSWORD"),
-			From: os.Getenv("GAMEPANEL_SMTP_FROM"), TLS: os.Getenv("GAMEPANEL_SMTP_TLS")})
-		if err != nil {
-			log.Error("invalid SMTP settings", "err", err)
-			os.Exit(1)
-		}
-		if publicURL == "" {
-			log.Warn("GAMEPANEL_SMTP_HOST is set but GAMEPANEL_PUBLIC_URL is not: emails need the panel's address for their links, so none are sent")
-		}
-	}
+	return mailer, nil
+}
+
+// ssoProviders returns the configured single sign-on providers.
+func ssoProviders(log *slog.Logger, publicURL string) []*api.SSOProvider {
 	var sso []*api.SSOProvider
 	if id := os.Getenv("GAMEPANEL_SSO_GITHUB_CLIENT_ID"); id != "" {
 		sso = append(sso, api.GitHubSSO(id, os.Getenv("GAMEPANEL_SSO_GITHUB_CLIENT_SECRET")))
@@ -153,56 +250,21 @@ func main() {
 	if len(sso) > 0 && publicURL == "" {
 		log.Warn("single sign-on is configured but GAMEPANEL_PUBLIC_URL is not: the provider needs the panel's address to send people back, so it stays off")
 	}
-	signup := env("GAMEPANEL_SIGNUP", "invite")
-	if signup != "invite" && signup != "open" {
-		log.Error("GAMEPANEL_SIGNUP must be invite or open", "value", signup)
-		os.Exit(1)
-	}
-	requireMFA := os.Getenv("GAMEPANEL_REQUIRE_MFA")
-	if !api.ValidMFAPolicy(requireMFA) {
-		log.Error("GAMEPANEL_REQUIRE_MFA must be off, admins or all", "value", requireMFA)
-		os.Exit(1)
-	}
-	var hsts string
-	switch v := os.Getenv("GAMEPANEL_HSTS"); v {
-	case "", "host":
-	case "subdomains":
-		hsts = "max-age=31536000; includeSubDomains"
-	case "preload":
-		hsts = "max-age=63072000; includeSubDomains; preload"
-	default:
-		log.Error("GAMEPANEL_HSTS must be host, subdomains or preload", "value", v)
-		os.Exit(1)
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	h := hub.New(log)
-	deps := api.Deps{
-		Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx,
-		TrustedProxies: proxies, S3: backups,
-		PublicURL: publicURL, Signup: signup, SSO: sso,
-		CookieSecure: cookieSecure, RequireMFA: requireMFA, HSTS: hsts,
-	}
-	if mailer != nil { // never a typed nil in the interface
-		deps.Mail = mailer
-	}
-	handler := api.New(deps)
-	if st.CountUsers(context.Background()) == 0 {
-		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")
-	}
-	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	return sso
+}
 
-	go func() {
-		<-ctx.Done()
-		c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		srv.Shutdown(c)
-	}()
-	log.Info("panel listening", "addr", *addr)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Error("serve", "err", err)
-		os.Exit(1)
+// hstsHeader maps GAMEPANEL_HSTS to the Strict-Transport-Security value
+// ("" leaves the API's default for the host only).
+func hstsHeader(v string) (string, error) {
+	switch v {
+	case "", "host":
+		return "", nil
+	case "subdomains":
+		return "max-age=31536000; includeSubDomains", nil
+	case "preload":
+		return "max-age=63072000; includeSubDomains; preload", nil
 	}
+	return "", fmt.Errorf("GAMEPANEL_HSTS must be host, subdomains or preload, not %q", v)
 }
 
 // isLoopback reports whether a listen host only accepts local connections.
@@ -298,7 +360,9 @@ func reset2FA(st *store.Store, args []string) error {
 	if err := st.DisableTOTP(ctx, id); err != nil {
 		return err
 	}
-	st.Audit(ctx, store.AuditEntry{ActorEmail: "cli", Action: "totp.reset", Target: args[0], Detail: "reset from the command line"})
+	if err := st.Audit(ctx, store.AuditEntry{ActorEmail: "cli", Action: "totp.reset", Target: args[0], Detail: "reset from the command line"}); err != nil {
+		fmt.Fprintln(os.Stderr, "warning: two-factor was reset, but writing the audit log failed:", err)
+	}
 	fmt.Println("Two-factor authentication disabled for", args[0])
 	return nil
 }

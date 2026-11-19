@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -18,14 +19,6 @@ import (
 	"time"
 
 	"github.com/pkg/sftp"
-)
-
-// SFTP status codes.
-const (
-	fxNoSuchFile       = 2
-	fxPermissionDenied = 3
-	fxFailure          = 4
-	fxOpUnsupported    = 8
 )
 
 // ---- permissions ----
@@ -197,7 +190,7 @@ func TestSFTPRandomAccessWrites(t *testing.T) {
 	if n, err := f.ReadAt(b, 2); n != 4 || string(b) != "2ab5" {
 		t.Fatalf("ReadAt: %q %v", b[:n], err)
 	}
-	if n, err := f.ReadAt(b, 100); n != 0 || err != io.EOF {
+	if n, err := f.ReadAt(b, 100); n != 0 || !errors.Is(err, io.EOF) {
 		t.Fatalf("read past the end: %d %v", n, err)
 	}
 }
@@ -912,6 +905,7 @@ func TestSFTPAppendOutOfOrder(t *testing.T) {
 	t.Parallel()
 	head := []byte("0123456789") // the file before the append
 	open := func(t *testing.T) (*limitedWriter, string) {
+		t.Helper()
 		p := filepath.Join(t.TempDir(), "f")
 		if err := os.WriteFile(p, head, 0o644); err != nil {
 			t.Fatal(err)

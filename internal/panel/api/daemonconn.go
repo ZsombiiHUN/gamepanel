@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -99,7 +100,9 @@ func (a *App) onHello(ctx context.Context, nodeID int64, h proto.Hello) {
 // unknownOn lists servers a node reported that the panel has no record of.
 func (a *App) unknownOn(nodeID int64) []string {
 	if v, ok := a.unknown.Load(nodeID); ok {
-		return v.([]string)
+		if list, ok := v.([]string); ok {
+			return list
+		}
 	}
 	return []string{}
 }
@@ -116,7 +119,7 @@ func (a *App) onCrash(c proto.Crash) {
 	} else if c.Reason != "" {
 		detail += "; not restarted: " + c.Reason
 	}
-	a.Store.Audit(context.Background(), store.AuditEntry{Action: "server.crash", Target: c.UUID, Detail: detail})
+	a.auditEntry(context.Background(), store.AuditEntry{Action: "server.crash", Target: c.UUID, Detail: detail})
 }
 
 func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, error) {
@@ -171,6 +174,16 @@ func (a *App) pushServer(ctx context.Context, s store.Server, start bool) error 
 // nodeErr turns a failed node request into an HTTP error. A daemon error
 // with a code was written for people and keeps its message; any other is
 // logged and replaced with a generic one.
+// decodeReply decodes a node's reply into v. A reply that does not decode is
+// the node's fault (version skew or a bug), so it becomes a 502 rather than a
+// silent zero value.
+func decodeReply(raw []byte, v any) error {
+	if err := json.Unmarshal(raw, v); err != nil {
+		return huma.Error502BadGateway("the node sent a reply the panel could not read", err)
+	}
+	return nil
+}
+
 func nodeErr(err error) error {
 	if err == nil {
 		return nil

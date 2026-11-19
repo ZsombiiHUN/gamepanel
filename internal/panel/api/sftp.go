@@ -28,7 +28,7 @@ import (
 func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 	deny := func() {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(proto.SFTPAuthResp{})
+		writeBody(w, proto.SFTPAuthResp{})
 	}
 	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	node, err := a.Store.NodeByToken(r.Context(), tok)
@@ -61,7 +61,7 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 		if !req.Recheck {
 			a.fails.add(acct)
 			a.fails.add(byIP)
-			a.Store.Audit(r.Context(), storeAudit(email, "sftp.fail", prefix, req.IP))
+			a.auditEntry(r.Context(), storeAudit(email, "sftp.fail", prefix, req.IP))
 		}
 		deny()
 	}
@@ -70,7 +70,7 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, err := a.Store.UserByAPIKey(r.Context(), req.Password)
-	if err != nil || strings.ToLower(u.Email) != email {
+	if err != nil || !strings.EqualFold(u.Email, email) {
 		fail()
 		return
 	}
@@ -87,10 +87,10 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	if !req.Recheck {
 		a.fails.reset(acct)
-		a.Store.Audit(r.Context(), storeAudit(email, "sftp.login", s.UUID, req.IP))
+		a.auditEntry(r.Context(), storeAudit(email, "sftp.login", s.UUID, req.IP))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(proto.SFTPAuthResp{OK: true, ServerUUID: s.UUID, Read: read, Write: write})
+	writeBody(w, proto.SFTPAuthResp{OK: true, ServerUUID: s.UUID, Read: read, Write: write})
 }
 
 func storeAudit(email, action, target, ip string) store.AuditEntry {
@@ -120,8 +120,10 @@ type nodeSFTPIn struct {
 }
 
 func (a *App) registerSFTP(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "getServerSFTP", Method: "GET", Path: "/servers/{uuid}/sftp",
-		Summary: "How to connect to this server with an SFTP client"},
+	huma.Register(api, huma.Operation{
+		OperationID: "getServerSFTP", Method: "GET", Path: "/servers/{uuid}/sftp",
+		Summary: "How to connect to this server with an SFTP client",
+	},
 		func(ctx context.Context, in *uuidIn) (*sftpInfoOut, error) {
 			u, s, err := a.authorize(ctx, in.UUID)
 			if err != nil {
@@ -155,8 +157,10 @@ func (a *App) registerSFTP(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "setNodeSFTP", Method: "PUT", Path: "/nodes/{id}/sftp",
-		Summary: "Set the address SFTP clients use to reach a node", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "setNodeSFTP", Method: "PUT", Path: "/nodes/{id}/sftp",
+		Summary: "Set the address SFTP clients use to reach a node", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *nodeSFTPIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {

@@ -45,7 +45,7 @@ func TestErrorRepliesRevealNoInternals(t *testing.T) {
 	}
 
 	// The cross-origin refusal is problem+json with a sentence a person can act on.
-	req, _ := http.NewRequest("POST", s.admin.base+"/api/auth/login", strings.NewReader(`{}`))
+	req, _ := http.NewRequest(http.MethodPost, s.admin.base+"/api/auth/login", strings.NewReader(`{}`))
 	req.Header.Set("Origin", "https://evil.example")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestErrorRepliesRevealNoInternals(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 403 || resp.Header.Get("Content-Type") != "application/problem+json" || !strings.Contains(string(body), "Open the panel directly") {
+	if resp.StatusCode != http.StatusForbidden || resp.Header.Get("Content-Type") != "application/problem+json" || !strings.Contains(string(body), "Open the panel directly") {
 		t.Errorf("cross-origin reply: %d %s %s", resp.StatusCode, resp.Header.Get("Content-Type"), body)
 	}
 }

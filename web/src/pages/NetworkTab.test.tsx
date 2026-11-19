@@ -10,8 +10,17 @@ vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: n
 const UUID = "11111111-2222-4333-8444-555555555555";
 const srv = { ...server({ name: "Paper" }), uuid: UUID, permissions: ["network.read", "network.manage"] };
 const view = (over = {}) => ({
-  ports: [{ port: 25565, notes: "", primary: true }, { port: 25566, notes: "Dynmap", primary: false }],
-  limit: 2, can_manage: true, can_pick: false, range_from: 25565, range_to: 25600, pending: false, ...over,
+  ports: [
+    { port: 25565, notes: "", primary: true },
+    { port: 25566, notes: "Dynmap", primary: false },
+  ],
+  limit: 2,
+  can_manage: true,
+  can_pick: false,
+  range_from: 25565,
+  range_to: 25600,
+  pending: false,
+  ...over,
 });
 
 function open(net: ReturnType<typeof view>, extra: Record<string, unknown> = {}) {
@@ -41,7 +50,15 @@ describe("Network tab", () => {
     expect(await screen.findByText(/picks up port changes the next time it starts/)).toBeInTheDocument();
   });
   it("cannot add past the limit", async () => {
-    open(view({ ports: [{ port: 25565, notes: "", primary: true }, { port: 25566, notes: "", primary: false }, { port: 25567, notes: "", primary: false }] }));
+    open(
+      view({
+        ports: [
+          { port: 25565, notes: "", primary: true },
+          { port: 25566, notes: "", primary: false },
+          { port: 25567, notes: "", primary: false },
+        ],
+      }),
+    );
     expect(await screen.findByRole("button", { name: "Add port" })).toBeDisabled();
   });
   it("saves notes when the field loses focus", async () => {

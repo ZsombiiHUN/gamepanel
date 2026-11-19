@@ -25,7 +25,7 @@ func (r *sftpRig) realUsage() int64 {
 // measured makes sure the figure exists before the test starts changing files.
 func (r *sftpRig) measured() {
 	r.t.Helper()
-	if _, err := r.d.diskUsage(r.id, 0); err != nil {
+	if _, err := r.d.diskUsage(r.id); err != nil {
 		r.t.Fatal(err)
 	}
 }
@@ -39,11 +39,11 @@ func TestSFTPUploadStopsAtTheLimit(t *testing.T) {
 	if err == nil {
 		t.Fatal("a 3 MB upload into a 1 MB server succeeded")
 	}
-	if real := r.realUsage(); real > 1<<20 {
-		t.Fatalf("%d bytes on disk, the limit is %d", real, 1<<20)
+	if onDisk := r.realUsage(); onDisk > 1<<20 {
+		t.Fatalf("%d bytes on disk, the limit is %d", onDisk, 1<<20)
 	}
-	if used, real := usedBytes(r.d, r.id), r.realUsage(); used != real {
-		t.Fatalf("figure %d, disk %d", used, real)
+	if used, onDisk := usedBytes(r.d, r.id), r.realUsage(); used != onDisk {
+		t.Fatalf("figure %d, disk %d", used, onDisk)
 	}
 	// deleting the partial upload frees the room again
 	if err := c.Remove("/huge.bin"); err != nil {
@@ -97,8 +97,8 @@ func TestSFTPOverTheLimit(t *testing.T) {
 	if err := upload(c, "/new.bin", make([]byte, 100<<10)); err != nil {
 		t.Fatalf("upload after getting under the limit: %v", err)
 	}
-	if used, real := usedBytes(r.d, r.id), r.realUsage(); used != real {
-		t.Fatalf("figure %d, disk %d", used, real)
+	if used, onDisk := usedBytes(r.d, r.id), r.realUsage(); used != onDisk {
+		t.Fatalf("figure %d, disk %d", used, onDisk)
 	}
 }
 
@@ -185,11 +185,11 @@ func TestSFTPFigureMatchesDisk(t *testing.T) {
 			var log []string
 			for range 300 {
 				log = append(log, stormOp(c, rnd))
-				if used, real := usedBytes(r.d, r.id), r.realUsage(); used != real {
-					t.Fatalf("figure %d, disk %d after:\n%v", used, real, log[max(0, len(log)-8):])
+				if used, onDisk := usedBytes(r.d, r.id), r.realUsage(); used != onDisk {
+					t.Fatalf("figure %d, disk %d after:\n%v", used, onDisk, log[max(0, len(log)-8):])
 				}
-				if real := r.realUsage(); real > 2<<20 {
-					t.Fatalf("%d bytes on disk, limit %d, after %v", real, 2<<20, log[len(log)-1])
+				if onDisk := r.realUsage(); onDisk > 2<<20 {
+					t.Fatalf("%d bytes on disk, limit %d, after %v", onDisk, 2<<20, log[len(log)-1])
 				}
 			}
 		})
@@ -215,9 +215,9 @@ func TestSFTPConcurrentClientsRespectTheLimit(t *testing.T) {
 			rnd := rand.New(rand.NewSource(int64(i)))
 			for range 120 {
 				stormOp(c, rnd)
-				if real := r.realUsage(); real > 2<<20 {
+				if onDisk := r.realUsage(); onDisk > 2<<20 {
 					mu.Lock()
-					worst = max(worst, real)
+					worst = max(worst, onDisk)
 					mu.Unlock()
 				}
 			}
@@ -227,8 +227,8 @@ func TestSFTPConcurrentClientsRespectTheLimit(t *testing.T) {
 	if worst > 0 {
 		t.Fatalf("%d bytes on disk at one point, limit %d", worst, 2<<20)
 	}
-	if used, real := usedBytes(r.d, r.id), r.realUsage(); used < real {
-		t.Fatalf("figure %d is below the %d bytes on disk", used, real)
+	if used, onDisk := usedBytes(r.d, r.id), r.realUsage(); used < onDisk {
+		t.Fatalf("figure %d is below the %d bytes on disk", used, onDisk)
 	}
 }
 
@@ -251,7 +251,7 @@ func TestSFTPParallelUploads(t *testing.T) {
 			}
 			got, err := download(c, fmt.Sprintf("/p%d.bin", i))
 			if err != nil || !bytes.Equal(got, data) {
-				errs <- fmt.Errorf("file %d came back different (%v)", i, err)
+				errs <- fmt.Errorf("file %d came back different (%w)", i, err)
 			}
 		}()
 	}
@@ -277,11 +277,11 @@ func TestSFTPParallelUploadsShareTheRoom(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if real := r.realUsage(); real > 1<<20 {
-		t.Fatalf("%d bytes on disk, limit %d", real, 1<<20)
+	if onDisk := r.realUsage(); onDisk > 1<<20 {
+		t.Fatalf("%d bytes on disk, limit %d", onDisk, 1<<20)
 	}
-	if used, real := usedBytes(r.d, r.id), r.realUsage(); used != real {
-		t.Fatalf("figure %d, disk %d", used, real)
+	if used, onDisk := usedBytes(r.d, r.id), r.realUsage(); used != onDisk {
+		t.Fatalf("figure %d, disk %d", used, onDisk)
 	}
 }
 
@@ -307,9 +307,9 @@ func TestSFTPStormWithWalksRunning(t *testing.T) {
 					rnd := rand.New(rand.NewSource(int64(100 + i)))
 					for range 150 {
 						op := stormOp(c, rnd)
-						if real := r.realUsage(); real > 2<<20 {
+						if onDisk := r.realUsage(); onDisk > 2<<20 {
 							mu.Lock()
-							problems = append(problems, fmt.Sprintf("%d bytes on disk after %s", real, op))
+							problems = append(problems, fmt.Sprintf("%d bytes on disk after %s", onDisk, op))
 							mu.Unlock()
 						}
 					}
@@ -332,11 +332,11 @@ func TestSFTPStormWithWalksRunning(t *testing.T) {
 					used, walking := c.bytes, c.run != nil
 					state := fmt.Sprintf("at=%v gen=%d pending=%d", c.at.Format("15:04:05.000000"), c.gen, c.pending)
 					c.mu.Unlock()
-					real := r.realUsage()
+					onDisk := r.realUsage()
 					c.shape.Unlock()
-					if !walking && used < real {
+					if !walking && used < onDisk {
 						mu.Lock()
-						problems = append(problems, fmt.Sprintf("figure %d below disk %d (%s, now %s)", used, real, state, time.Now().Format("15:04:05.000000")))
+						problems = append(problems, fmt.Sprintf("figure %d below disk %d (%s, now %s)", used, onDisk, state, time.Now().Format("15:04:05.000000")))
 						mu.Unlock()
 					}
 					time.Sleep(2 * time.Millisecond)
@@ -349,7 +349,7 @@ func TestSFTPStormWithWalksRunning(t *testing.T) {
 				t.Error(p)
 			}
 			// once everything is quiet, a fresh measurement agrees exactly
-			if got, err := r.d.diskUsage(r.id, 0); err != nil || got != r.realUsage() {
+			if got, err := r.d.diskUsage(r.id); err != nil || got != r.realUsage() {
 				t.Fatalf("settled figure %d, disk %d (%v)", got, r.realUsage(), err)
 			}
 		})
@@ -359,6 +359,7 @@ func TestSFTPStormWithWalksRunning(t *testing.T) {
 // ---- throughput ----
 
 func benchTransfer(b *testing.B, download bool) {
+	b.Helper()
 	r := newSFTPRig(b, 0, nil)
 	c := r.login(ownerUser, ownerKey, sftp.UseConcurrentWrites(true), sftp.UseConcurrentReads(true), sftp.MaxConcurrentRequestsPerFile(64))
 	data := make([]byte, 16<<20)

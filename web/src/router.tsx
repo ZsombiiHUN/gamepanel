@@ -1,5 +1,14 @@
-import type { QueryClient } from "@tanstack/react-query";
-import { createRootRouteWithContext, createRoute, createRouter, Link, Outlet, redirect, type ErrorComponentProps, type RouterHistory } from "@tanstack/react-router";
+import { noop, type QueryClient } from "@tanstack/react-query";
+import {
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+  Link,
+  Outlet,
+  redirect,
+  type ErrorComponentProps,
+  type RouterHistory,
+} from "@tanstack/react-router";
 import { AlertTriangle, Compass, Lock } from "lucide-react";
 import { ApiError } from "./api/client";
 import { auditQuery, databaseHostsQuery, eggsQuery, meQuery, nodesQuery, serverQuery, serversQuery } from "./api/queries";
@@ -28,7 +37,10 @@ function NotFound() {
   return (
     <div className="mx-auto max-w-md px-6 pt-24">
       <Empty icon={<Compass className="h-5 w-5" aria-hidden />} title="Page not found">
-        That address does not lead anywhere. <Link to="/" className="link">Back to your servers</Link>
+        That address does not lead anywhere.{" "}
+        <Link to="/" className="link">
+          Back to your servers
+        </Link>
       </Empty>
     </div>
   );
@@ -40,7 +52,9 @@ function AppError({ error }: ErrorComponentProps) {
     <div role="alert" className="mx-auto max-w-md px-6 pt-24">
       <Empty icon={<AlertTriangle className="h-5 w-5" aria-hidden />} title="This page could not be shown">
         {errorText(error)}{" "}
-        <button type="button" className="link" onClick={() => window.location.reload()}>Reload</button>
+        <button type="button" className="link" onClick={() => window.location.reload()}>
+          Reload
+        </button>
       </Empty>
     </div>
   );
@@ -52,7 +66,9 @@ function ForbiddenPage({ error }: ErrorComponentProps) {
   if (!(error instanceof Forbidden)) throw error;
   return (
     <div role="alert" className="mx-auto max-w-md pt-10">
-      <Empty icon={<Lock className="h-5 w-5" aria-hidden />} title="Administrators only">You need administrator access to view this page.</Empty>
+      <Empty icon={<Lock className="h-5 w-5" aria-hidden />} title="Administrators only">
+        You need administrator access to view this page.
+      </Empty>
     </div>
   );
 }
@@ -60,7 +76,7 @@ function ForbiddenPage({ error }: ErrorComponentProps) {
 /** The signed-in user, or null when there is no session. Other failures are real errors. */
 async function currentUser(queryClient: QueryClient) {
   try {
-    return await queryClient.ensureQueryData(meQuery);
+    return await queryClient.query({ ...meQuery, staleTime: "static" });
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) return null;
     throw err;
@@ -73,7 +89,10 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
-  validateSearch: (s: Record<string, unknown>): { sso?: string; sso_error?: string } => ({ sso: text(s.sso), sso_error: text(s.sso_error) }),
+  validateSearch: (s: Record<string, unknown>): { sso?: string; sso_error?: string } => ({
+    sso: text(s.sso),
+    sso_error: text(s.sso_error),
+  }),
   // Already signed in: skip the form.
   beforeLoad: async ({ context }) => {
     if (await currentUser(context.queryClient)) throw redirect({ to: "/" });
@@ -86,7 +105,12 @@ const skipWhenSignedIn = async ({ context }: { context: RouterContext }) => {
 };
 const forgotRoute = createRoute({ getParentRoute: () => rootRoute, path: "/forgot", component: ForgotPage, beforeLoad: skipWhenSignedIn });
 const resetRoute = createRoute({ getParentRoute: () => rootRoute, path: "/reset", component: ResetPage });
-const registerRoute = createRoute({ getParentRoute: () => rootRoute, path: "/register", component: RegisterPage, beforeLoad: skipWhenSignedIn });
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/register",
+  component: RegisterPage,
+  beforeLoad: skipWhenSignedIn,
+});
 
 /** Everything behind sign-in. `me` is resolved before any page renders, so pages never handle "not signed in". */
 const appRoute = createRoute({
@@ -115,7 +139,7 @@ const indexRoute = createRoute({
     q: text(s.q),
     status: oneOf(s.status, GROUPS),
   }),
-  loader: ({ context }) => void context.queryClient.prefetchQuery(serversQuery),
+  loader: ({ context }) => void context.queryClient.query(serversQuery).catch(noop),
 });
 const serverRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -126,14 +150,17 @@ const serverRoute = createRoute({
     dir: text(s.dir),
     q: text(s.q),
   }),
-  loader: ({ context, params }) => void context.queryClient.prefetchQuery(serverQuery(params.uuid)),
+  loader: ({ context, params }) => void context.queryClient.query(serverQuery(params.uuid)).catch(noop),
 });
 
 const accountRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/account",
   component: AccountPage,
-  validateSearch: (s: Record<string, unknown>): { sso_linked?: string; sso_error?: string } => ({ sso_linked: text(s.sso_linked), sso_error: text(s.sso_error) }),
+  validateSearch: (s: Record<string, unknown>): { sso_linked?: string; sso_error?: string } => ({
+    sso_linked: text(s.sso_linked),
+    sso_error: text(s.sso_error),
+  }),
 });
 
 /** Pages only administrators may open. */
@@ -151,29 +178,29 @@ const newServerRoute = createRoute({
   path: "/servers/new",
   component: CreateServerPage,
   loader: ({ context }) => {
-    void context.queryClient.prefetchQuery(nodesQuery);
-    void context.queryClient.prefetchQuery(eggsQuery);
+    void context.queryClient.query(nodesQuery).catch(noop);
+    void context.queryClient.query(eggsQuery).catch(noop);
   },
 });
 const nodesRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/nodes",
   component: NodesPage,
-  loader: ({ context }) => void context.queryClient.prefetchQuery(nodesQuery),
+  loader: ({ context }) => void context.queryClient.query(nodesQuery).catch(noop),
 });
 const eggsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/eggs",
   component: EggsPage,
-  loader: ({ context }) => void context.queryClient.prefetchQuery(eggsQuery),
+  loader: ({ context }) => void context.queryClient.query(eggsQuery).catch(noop),
 });
 const databaseHostsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/database-hosts",
   component: DatabaseHostsPage,
   loader: ({ context }) => {
-    void context.queryClient.prefetchQuery(databaseHostsQuery);
-    void context.queryClient.prefetchQuery(nodesQuery);
+    void context.queryClient.query(databaseHostsQuery).catch(noop);
+    void context.queryClient.query(nodesQuery).catch(noop);
   },
 });
 const auditRoute = createRoute({
@@ -182,7 +209,7 @@ const auditRoute = createRoute({
   component: AuditPage,
   validateSearch: (s: Record<string, unknown>): { q?: string; page?: number } => ({ q: text(s.q), page: page(s.page) }),
   loaderDeps: ({ search }) => ({ q: search.q ?? "", page: search.page ?? 0 }),
-  loader: ({ context, deps }) => void context.queryClient.prefetchQuery(auditQuery(deps.q, deps.page)),
+  loader: ({ context, deps }) => void context.queryClient.query(auditQuery(deps.q, deps.page)).catch(noop),
 });
 
 const routeTree = rootRoute.addChildren([
@@ -190,7 +217,12 @@ const routeTree = rootRoute.addChildren([
   forgotRoute,
   resetRoute,
   registerRoute,
-  appRoute.addChildren([indexRoute, serverRoute, accountRoute, adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, databaseHostsRoute, auditRoute])]),
+  appRoute.addChildren([
+    indexRoute,
+    serverRoute,
+    accountRoute,
+    adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, databaseHostsRoute, auditRoute]),
+  ]),
 ]);
 
 export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {

@@ -1,0 +1,31 @@
+#!/bin/sh
+# Fast checks on staged files only; CI runs everything. Enable with `make hooks`.
+# Skip once with `git commit --no-verify`.
+set -e
+
+go_files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.go')
+web_files=$(git diff --cached --name-only --diff-filter=ACMR -- 'web/' | sed 's|^web/||')
+
+if [ -n "$go_files" ]; then
+  echo "pre-commit: gofumpt/goimports"
+  if ! make -s fmt-check; then
+    echo "Run 'make fmt' and stage the result."
+    exit 1
+  fi
+fi
+
+if [ -n "$web_files" ]; then
+  cd web
+  echo "pre-commit: prettier"
+  # shellcheck disable=SC2086 # one path per word
+  if ! pnpm exec prettier --check --ignore-unknown $web_files; then
+    echo "Run 'pnpm format' in web/ and stage the result."
+    exit 1
+  fi
+  lint=$(echo "$web_files" | grep -E '\.(ts|tsx|js)$' || true)
+  if [ -n "$lint" ]; then
+    echo "pre-commit: eslint"
+    # shellcheck disable=SC2086
+    pnpm exec eslint $lint
+  fi
+fi

@@ -9,7 +9,18 @@ vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: n
 
 const UUID = "11111111-2222-4333-8444-555555555555";
 const srv = { ...server({ name: "Survival", egg_name: "Paper Minecraft" }), uuid: UUID, permissions: ["files.read", "files.write"] };
-const hit = { project_id: "Vebnzrzj", slug: "luckperms", title: "LuckPerms", author: "Luck", description: "Permissions.", downloads: 2400000, icon_url: "", project_type: "plugin", versions: [], categories: [] };
+const hit = {
+  project_id: "Vebnzrzj",
+  slug: "luckperms",
+  title: "LuckPerms",
+  author: "Luck",
+  description: "Permissions.",
+  downloads: 2400000,
+  icon_url: "",
+  project_type: "plugin",
+  versions: [],
+  categories: [],
+};
 
 describe("Mods tab", () => {
   it("starts from the egg's kind and loader, then installs the newest matching version", async () => {
@@ -17,7 +28,19 @@ describe("Mods tab", () => {
       "GET /api/servers": [srv],
       [`GET /api/servers/${UUID}`]: srv,
       [`GET /api/servers/${UUID}/mods/search`]: { hits: [hit], total_hits: 1 },
-      [`GET /api/servers/${UUID}/mods/Vebnzrzj/versions`]: [{ id: "v54", project_id: "Vebnzrzj", name: "", version_number: "5.4.0", version_type: "release", game_versions: ["1.21.1"], loaders: ["paper"], date_published: "", files: [] }],
+      [`GET /api/servers/${UUID}/mods/Vebnzrzj/versions`]: [
+        {
+          id: "v54",
+          project_id: "Vebnzrzj",
+          name: "",
+          version_number: "5.4.0",
+          version_type: "release",
+          game_versions: ["1.21.1"],
+          loaders: ["paper"],
+          date_published: "",
+          files: [],
+        },
+      ],
       [`POST /api/servers/${UUID}/mods`]: { path: "/plugins/LuckPerms.jar", size: 1 },
     });
     renderApp(api, `/servers/${UUID}?tab=mods`);

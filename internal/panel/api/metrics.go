@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -46,9 +47,10 @@ func (a *App) collect(s proto.Stats) {
 	if s.MemBytes > 0 {
 		b.Samples++
 		b.CPUSum += s.CPUPct
-		b.MemSum += int64(s.MemBytes)
+		mem := int64(min(s.MemBytes, math.MaxInt64))
+		b.MemSum += mem
 		b.CPUMax = max(b.CPUMax, s.CPUPct)
-		b.MemMax = max(b.MemMax, int64(s.MemBytes))
+		b.MemMax = max(b.MemMax, mem)
 	}
 }
 
@@ -121,8 +123,10 @@ type metricsOut struct {
 }
 
 func (a *App) registerMetrics(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "serverMetrics", Method: "GET", Path: "/servers/{uuid}/metrics",
-		Summary: "Usage history", Description: "CPU, memory and disk over time. Minutes are kept for two days, quarter hours for 30 days."},
+	huma.Register(api, huma.Operation{
+		OperationID: "serverMetrics", Method: "GET", Path: "/servers/{uuid}/metrics",
+		Summary: "Usage history", Description: "CPU, memory and disk over time. Minutes are kept for two days, quarter hours for 30 days.",
+	},
 		func(ctx context.Context, in *metricsIn) (*metricsOut, error) {
 			_, s, err := a.authorizeP(ctx, in.UUID, PermConsoleRead)
 			if err != nil {

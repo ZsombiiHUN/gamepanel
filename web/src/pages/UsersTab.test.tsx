@@ -8,7 +8,9 @@ import { FakeApi, renderApp } from "../test/harness";
 vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: null, stats: null }) }));
 
 const UUID = "11111111-2222-4333-8444-555555555555";
-const PERMS = ["console.read", "console.send", "power", "files.read", "files.write", "backups.read", "backups.create", "activity.read"].map((id) => ({ id, description: id }));
+const PERMS = ["console.read", "console.send", "power", "files.read", "files.write", "backups.read", "backups.create", "activity.read"].map(
+  (id) => ({ id, description: id }),
+);
 
 function setup(users: unknown[] = []) {
   const srv = { ...server({ name: "Survival" }), uuid: UUID, owner: true, owner_email: "admin@example.com" };
@@ -48,7 +50,11 @@ describe("Access tab", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: /Upload, edit and delete/ }));
     expect(screen.getByRole("checkbox", { name: /Browse and download/ })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Add person" }));
-    await waitFor(() => expect(api.callsTo(`POST /api/servers/${UUID}/invites`)[0]?.body).toMatchObject({ permissions: ["console.read", "files.read", "files.write", "activity.read"] }));
+    await waitFor(() =>
+      expect(api.callsTo(`POST /api/servers/${UUID}/invites`)[0]?.body).toMatchObject({
+        permissions: ["console.read", "files.read", "files.write", "activity.read"],
+      }),
+    );
   });
   it("shows the owner and each person's role, and saves edits", async () => {
     const api = setup([{ user_id: 7, email: "pal@example.com", permissions: ["console.read", "activity.read"] }]);

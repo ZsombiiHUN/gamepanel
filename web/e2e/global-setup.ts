@@ -16,8 +16,11 @@ async function signIn(slot: number) {
     if (i > 600) throw new Error(`test panel ${slot} never finished seeding`);
     await new Promise((r) => setTimeout(r, 100));
   }
-  const ready: Ready = JSON.parse(fs.readFileSync(file, "utf8"));
-  for (const [name, who] of [["admin", ready.admin], ["user", ready.user]] as const) {
+  const ready = JSON.parse(fs.readFileSync(file, "utf8")) as Ready;
+  for (const [name, who] of [
+    ["admin", ready.admin],
+    ["user", ready.user],
+  ] as const) {
     const ctx = await request.newContext({ baseURL: panelURL(slot) });
     const res = await ctx.post("/api/auth/login", { data: { email: who.email, password: who.password } });
     if (!res.ok()) throw new Error(`sign in as ${name} on panel ${slot} failed: ${res.status()} ${await res.text()}`);

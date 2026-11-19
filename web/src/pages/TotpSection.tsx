@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, Loader2 } from "lucide-react";
 import QRCode from "qrcode";
@@ -10,7 +10,13 @@ function Qr({ uri }: { uri: string }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
     let alive = true;
-    QRCode.toDataURL(uri, { margin: 1, width: 192 }).then((s) => alive && setSrc(s), () => {});
+    QRCode.toDataURL(uri, { margin: 1, width: 192 }).then(
+      (s) => {
+        if (alive) setSrc(s);
+      },
+      // No QR code: the setup key below still works.
+      () => undefined,
+    );
     return () => {
       alive = false;
     };
@@ -22,7 +28,9 @@ function Qr({ uri }: { uri: string }) {
 function RecoveryCodes({ codes }: { codes: string[] }) {
   const text = codes.join("\n") + "\n";
   const download = () => {
-    const url = URL.createObjectURL(new Blob([`GamePanel recovery codes for ${location.host}\nEach code works once.\n\n${text}`], { type: "text/plain" }));
+    const url = URL.createObjectURL(
+      new Blob([`GamePanel recovery codes for ${location.host}\nEach code works once.\n\n${text}`], { type: "text/plain" }),
+    );
     const a = document.createElement("a");
     a.href = url;
     a.download = `gamepanel-recovery-codes-${location.host}.txt`;
@@ -32,9 +40,13 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
   return (
     <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-950/20 p-4" role="status">
       <p className="text-sm text-amber-200">
-        Save these recovery codes somewhere safe, like a password manager. Each works once if you lose your authenticator. They are not shown again.
+        Save these recovery codes somewhere safe, like a password manager. Each works once if you lose your authenticator. They are not
+        shown again.
       </p>
-      <ul className="grid gap-x-6 gap-y-1 rounded-lg bg-well p-3 font-mono text-sm text-zinc-200 sm:grid-cols-2" aria-label="Recovery codes">
+      <ul
+        className="grid gap-x-6 gap-y-1 rounded-lg bg-well p-3 font-mono text-sm text-zinc-200 sm:grid-cols-2"
+        aria-label="Recovery codes"
+      >
         {codes.map((c) => (
           <li key={c}>{c}</li>
         ))}
@@ -63,7 +75,10 @@ function RecoveryStatus() {
   if (st.remaining <= 3) {
     return (
       <p className="text-sm text-amber-300" role="note">
-        {st.remaining === 0 ? "You have no recovery codes left." : `Only ${st.remaining} recovery ${st.remaining === 1 ? "code" : "codes"} left.`} Make new ones below so you cannot be locked out.
+        {st.remaining === 0
+          ? "You have no recovery codes left."
+          : `Only ${st.remaining} recovery ${st.remaining === 1 ? "code" : "codes"} left.`}{" "}
+        Make new ones below so you cannot be locked out.
       </p>
     );
   }
@@ -109,7 +124,7 @@ export function TotpSection() {
     },
   });
 
-  const stop = (fn: () => void) => (e: FormEvent) => {
+  const stop = (fn: () => void) => (e: SubmitEvent) => {
     e.preventDefault();
     fn();
   };
@@ -126,7 +141,17 @@ export function TotpSection() {
         {!enabled && !setup.data && (
           <form onSubmit={stop(() => setup.mutate())} className="max-w-md space-y-3">
             <Field label="Your password">
-              {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />}
+              {(id) => (
+                <input
+                  id={id}
+                  className="input"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              )}
             </Field>
             <ErrorBox error={setup.error} />
             <button type="submit" className="btn btn-primary" disabled={setup.isPending}>
@@ -137,16 +162,32 @@ export function TotpSection() {
 
         {!enabled && setup.data && (
           <form onSubmit={stop(() => enable.mutate())} className="space-y-4">
-            <p className="text-sm text-zinc-400">Scan the QR code with your authenticator app, or enter the key by hand, then type the 6-digit code it shows.</p>
+            <p className="text-sm text-zinc-400">
+              Scan the QR code with your authenticator app, or enter the key by hand, then type the 6-digit code it shows.
+            </p>
             <div className="flex flex-wrap items-start gap-5">
               <Qr uri={setup.data.uri} />
               <div className="min-w-0 space-y-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Setup key</div>
-                  <p className="mt-1 break-all font-mono text-sm text-zinc-200" aria-label="Setup key">{setup.data.secret}</p>
+                  <p className="mt-1 break-all font-mono text-sm text-zinc-200" aria-label="Setup key">
+                    {setup.data.secret}
+                  </p>
                 </div>
                 <Field label="6-digit code">
-                  {(id) => <input id={id} className="input w-40 font-mono tracking-widest" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value)} />}
+                  {(id) => (
+                    <input
+                      id={id}
+                      className="input w-40 font-mono tracking-widest"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      required
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                    />
+                  )}
                 </Field>
                 <ErrorBox error={enable.error} />
                 <button type="submit" className="btn btn-primary" disabled={enable.isPending}>
@@ -163,13 +204,35 @@ export function TotpSection() {
 
         {enabled && (
           <form onSubmit={stop(() => disable.mutate())} className="space-y-4">
-            <p className="text-sm text-zinc-400">To turn it off or get new recovery codes, enter your password and a current authenticator or recovery code.</p>
+            <p className="text-sm text-zinc-400">
+              To turn it off or get new recovery codes, enter your password and a current authenticator or recovery code.
+            </p>
             <div className="grid max-w-xl gap-4 sm:grid-cols-2">
               <Field label="Your password">
-                {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />}
+                {(id) => (
+                  <input
+                    id={id}
+                    className="input"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                )}
               </Field>
               <Field label="Authenticator or recovery code">
-                {(id) => <input id={id} className="input font-mono" autoComplete="one-time-code" required maxLength={64} value={code} onChange={(e) => setCode(e.target.value)} />}
+                {(id) => (
+                  <input
+                    id={id}
+                    className="input font-mono"
+                    autoComplete="one-time-code"
+                    required
+                    maxLength={64}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                  />
+                )}
               </Field>
             </div>
             <ErrorBox error={disable.error ?? regen.error} />

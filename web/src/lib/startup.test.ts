@@ -3,8 +3,9 @@ import { fillCommand, inputKind } from "./startup";
 
 describe("fillCommand", () => {
   it("fills known placeholders and keeps unknown ones", () => {
-    expect(fillCommand("java -Xmx{{SERVER_MEMORY}}M -jar {{ JAR }} {{HIDDEN}}", { SERVER_MEMORY: "1024", JAR: "paper.jar" }))
-      .toBe("java -Xmx1024M -jar paper.jar {{HIDDEN}}");
+    expect(fillCommand("java -Xmx{{SERVER_MEMORY}}M -jar {{ JAR }} {{HIDDEN}}", { SERVER_MEMORY: "1024", JAR: "paper.jar" })).toBe(
+      "java -Xmx1024M -jar paper.jar {{HIDDEN}}",
+    );
   });
   it("does not treat values as patterns", () => {
     expect(fillCommand("{{A}}", { A: "$& $1" })).toBe("$& $1");

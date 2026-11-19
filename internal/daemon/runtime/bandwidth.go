@@ -102,7 +102,11 @@ type runner func(ctx context.Context, s step) error
 // applyLimit limits dev to mbit each way: egress always shaped, ingress
 // shaped when the kernel has ifb and policed otherwise. Safe to run again on
 // the same namespace.
-func applyLimit(ctx context.Context, run runner, dev string, mbit int64) (IngressMode, error) {
+// containerDev is the container's side of its network: Docker always names it eth0.
+const containerDev = "eth0"
+
+func applyLimit(ctx context.Context, run runner, mbit int64) (IngressMode, error) {
+	const dev = containerDev
 	do := func(steps []step) error {
 		for _, s := range steps {
 			if err := run(ctx, s); err != nil && !s.mayFail {
@@ -114,14 +118,14 @@ func applyLimit(ctx context.Context, run runner, dev string, mbit int64) (Ingres
 	if err := do(egressSteps(dev, mbit)); err != nil {
 		return "", err
 	}
-	do(cleanIngress(dev))
+	_ = do(cleanIngress(dev)) // every clean step may fail: there may be nothing to remove
 	shapeErr := do(shapedIngressSteps(dev, mbit))
 	if shapeErr == nil {
 		return IngressShaped, nil
 	}
-	do(cleanIngress(dev))
+	_ = do(cleanIngress(dev)) // as above
 	if err := do(policedIngressSteps(dev, mbit)); err != nil {
-		return "", fmt.Errorf("%w (shaping it first failed: %v)", err, shapeErr)
+		return "", fmt.Errorf("%w (shaping it first failed: %w)", err, shapeErr)
 	}
 	return IngressPoliced, nil
 }
@@ -140,15 +144,16 @@ func (d *Docker) LimitBandwidth(ctx context.Context, uuid string) (IngressMode, 
 	if pid <= 0 {
 		return "", fmt.Errorf("the container is not running")
 	}
-	return applyLimit(ctx, nsRunner(pid), "eth0", mbit)
+	return applyLimit(ctx, nsRunner(pid), mbit)
 }
 
 // nsRunner runs steps with nsenter in the network namespace of pid.
 func nsRunner(pid int) runner {
 	return func(ctx context.Context, s step) error {
 		args := append([]string{"--target", strconv.Itoa(pid), "--net", "--", s.bin}, s.args...)
-		if out, err := exec.CommandContext(ctx, "nsenter", args...).CombinedOutput(); err != nil {
-			return fmt.Errorf("%s: %v: %s", s, err, strings.TrimSpace(string(out)))
+		// No shell: s.bin and s.args come from the fixed step lists above.
+		if out, err := exec.CommandContext(ctx, "nsenter", args...).CombinedOutput(); err != nil { //nolint:gosec // G204: see above
+			return fmt.Errorf("%s: %w: %s", s, err, strings.TrimSpace(string(out)))
 		}
 		return nil
 	}

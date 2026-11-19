@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { countGroups, groupOf, matchesServer, shownState, sortServers, summarize } from "./servers";
 
-const s = (over: Partial<Parameters<typeof matchesServer>[0]> = {}) => ({ name: "Survival SMP", state: "offline", port: 25565, egg_name: "Paper Minecraft", node_name: "eu-west-1", ...over });
+const s = (over: Partial<Parameters<typeof matchesServer>[0]> = {}) => ({
+  name: "Survival SMP",
+  state: "offline",
+  port: 25565,
+  egg_name: "Paper Minecraft",
+  node_name: "eu-west-1",
+  ...over,
+});
 
 describe("matchesServer", () => {
   it("matches everything for an empty or blank query", () => {
@@ -43,7 +50,11 @@ describe("sortServers", () => {
     expect(sortServers([{ name: "b" }, { name: "A" }, { name: "c" }]).map((x) => x.name)).toEqual(["A", "b", "c"]);
   });
   it("orders numbers naturally", () => {
-    expect(sortServers([{ name: "Server 10" }, { name: "Server 2" }, { name: "Server 1" }]).map((x) => x.name)).toEqual(["Server 1", "Server 2", "Server 10"]);
+    expect(sortServers([{ name: "Server 10" }, { name: "Server 2" }, { name: "Server 1" }]).map((x) => x.name)).toEqual([
+      "Server 1",
+      "Server 2",
+      "Server 10",
+    ]);
   });
   it("does not mutate its input", () => {
     const input = [{ name: "b" }, { name: "a" }];
@@ -51,8 +62,14 @@ describe("sortServers", () => {
     expect(input.map((x) => x.name)).toEqual(["b", "a"]);
   });
   it("does not depend on state, so a started server stays where it was", () => {
-    const before = sortServers([{ name: "a", state: "offline" }, { name: "b", state: "offline" }]).map((x) => x.name);
-    const after = sortServers([{ name: "a", state: "offline" }, { name: "b", state: "running" }]).map((x) => x.name);
+    const before = sortServers([
+      { name: "a", state: "offline" },
+      { name: "b", state: "offline" },
+    ]).map((x) => x.name);
+    const after = sortServers([
+      { name: "a", state: "offline" },
+      { name: "b", state: "running" },
+    ]).map((x) => x.name);
     expect(after).toEqual(before);
   });
 });

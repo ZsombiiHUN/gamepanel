@@ -7,7 +7,13 @@ const accepted: Record<string, string> = {};
 async function scan(page: import("@playwright/test").Page, label: string) {
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   const bad = result.violations.filter((v) => (v.impact === "serious" || v.impact === "critical") && !accepted[v.id]);
-  const summary = bad.map((v) => `${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join("\n    ")}`);
+  const summary = bad.map(
+    (v) =>
+      `${v.id} (${v.impact}): ${v.help}\n    ${v.nodes
+        .slice(0, 3)
+        .map((n) => n.target.join(" "))
+        .join("\n    ")}`,
+  );
   expect(summary, `${label}\n${summary.join("\n")}`).toEqual([]);
 }
 
@@ -30,7 +36,15 @@ test.describe("signed out", () => {
   });
 });
 
-for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["nodes", "/nodes"], ["eggs", "/eggs"], ["database hosts", "/database-hosts"], ["audit log", "/audit"], ["account", "/account"]] as const) {
+for (const [name, path] of [
+  ["servers", "/"],
+  ["new server", "/servers/new"],
+  ["nodes", "/nodes"],
+  ["eggs", "/eggs"],
+  ["database hosts", "/database-hosts"],
+  ["audit log", "/audit"],
+  ["account", "/account"],
+] as const) {
   test(`${name} page`, async ({ page }) => {
     await page.goto(path);
     await settled(page);
@@ -38,7 +52,19 @@ for (const [name, path] of [["servers", "/"], ["new server", "/servers/new"], ["
   });
 }
 
-for (const tab of ["console", "files", "mods", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"]) {
+for (const tab of [
+  "console",
+  "files",
+  "mods",
+  "backups",
+  "schedules",
+  "startup",
+  "network",
+  "databases",
+  "activity",
+  "users",
+  "settings",
+]) {
   test(`server ${tab} tab`, async ({ page, panel }) => {
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=${tab}`);
     await settled(page);

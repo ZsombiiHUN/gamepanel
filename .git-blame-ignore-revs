@@ -1,0 +1,7 @@
+# Commits that only reformat code. GitHub skips them in blame automatically; locally:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Format Go code with gofumpt and goimports
+7c80015f2a8bf217da17a5c5dbf03334cda218cc
+# Format the web UI with Prettier
+1aae96e5689f169191a6dab4d9373f3ba4734b28

@@ -91,8 +91,12 @@ func (s *SMTP) Build(m Message) ([]byte, error) {
 	b.WriteString("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n")
 	b.WriteString("Auto-Submitted: auto-generated\r\n\r\n")
 	qp := quotedprintable.NewWriter(&b)
-	qp.Write([]byte(strings.ReplaceAll(m.Text, "\n", "\r\n")))
-	qp.Close()
+	if _, err := qp.Write([]byte(strings.ReplaceAll(m.Text, "\n", "\r\n"))); err != nil {
+		return nil, err
+	}
+	if err := qp.Close(); err != nil {
+		return nil, err
+	}
 	return b.Bytes(), nil
 }
 
@@ -101,30 +105,35 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 	if err != nil {
 		return err
 	}
-	to, _ := mail.ParseAddress(m.To)
+	to, err := mail.ParseAddress(m.To)
+	if err != nil {
+		return fmt.Errorf("recipient: %w", err)
+	}
 	addr := net.JoinHostPort(s.cfg.Host, strconv.Itoa(s.cfg.Port))
 	d := net.Dialer{Timeout: 15 * time.Second}
 	var conn net.Conn
 	tlsCfg := &tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12}
 	if s.cfg.TLS == "tls" {
-		conn, err = tls.DialWithDialer(&d, "tcp", addr, tlsCfg)
+		td := tls.Dialer{NetDialer: &d, Config: tlsCfg}
+		conn, err = td.DialContext(ctx, "tcp", addr)
 	} else {
 		conn, err = d.DialContext(ctx, "tcp", addr)
 	}
 	if err != nil {
 		return err
 	}
-	if dl, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(dl)
-	} else {
-		conn.SetDeadline(time.Now().Add(time.Minute))
+	dl, ok := ctx.Deadline()
+	if !ok {
+		dl = time.Now().Add(time.Minute)
+	}
+	if err := conn.SetDeadline(dl); err != nil {
+		return errors.Join(err, conn.Close())
 	}
 	c, err := smtp.NewClient(conn, s.cfg.Host)
 	if err != nil {
-		conn.Close()
-		return err
+		return errors.Join(err, conn.Close())
 	}
-	defer c.Close()
+	defer c.Close() //nolint:errcheck // closes the socket after Quit (which reports errors) or after a failure already returned
 	if s.cfg.TLS == "starttls" {
 		if err := c.StartTLS(tlsCfg); err != nil {
 			return fmt.Errorf("starttls: %w", err)

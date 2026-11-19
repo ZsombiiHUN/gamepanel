@@ -23,7 +23,7 @@ func TestCreateServerChecksItsInput(t *testing.T) {
 	}
 	count := func() (n int) {
 		s.st.DB.QueryRow(`SELECT COUNT(*) FROM servers`).Scan(&n)
-		return
+		return n
 	}
 	before := count()
 	refused := func(extra map[string]any, want string) {
@@ -41,7 +41,7 @@ func TestCreateServerChecksItsInput(t *testing.T) {
 	refused(map[string]any{"name": "   "}, "name on one line")
 	refused(map[string]any{"name": "a\nb"}, "name on one line")
 	refused(map[string]any{"name": "a\x1b[31mb"}, "control or text-direction")
-	refused(map[string]any{"name": "admin‮gnp.exe"}, "control or text-direction")
+	refused(map[string]any{"name": "admin\u202egnp.exe"}, "control or text-direction")
 	if n := count(); n != before {
 		t.Fatalf("refused creates left %d servers", n-before)
 	}
@@ -59,7 +59,7 @@ func TestCreateServerChecksItsInput(t *testing.T) {
 	}
 
 	// Renaming applies the same name rules.
-	s.admin.do("PUT", "/api/servers/"+created.UUID+"/details", map[string]any{"name": "x⁦y"}, 422)
+	s.admin.do("PUT", "/api/servers/"+created.UUID+"/details", map[string]any{"name": "x\u2066y"}, 422)
 }
 
 // A node that cannot take the server (here: offline) rolls the create back.

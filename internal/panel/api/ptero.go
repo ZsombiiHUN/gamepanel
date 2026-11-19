@@ -29,7 +29,7 @@ type pteroObj struct {
 func pteroJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	writeBody(w, v)
 }
 
 // pteroError answers in Pterodactyl's error format.
@@ -38,13 +38,16 @@ func pteroError(w http.ResponseWriter, err error) {
 	var se huma.StatusError
 	if errors.As(err, &se) {
 		status = se.GetStatus()
-		if m, ok := err.(*huma.ErrorModel); ok {
+		m := &huma.ErrorModel{}
+		if errors.As(err, &m) {
 			detail = m.Detail
 		}
 	}
-	code := map[int]string{400: "BadRequestHttpException", 401: "AuthenticationException", 403: "AccessDeniedHttpException",
+	code := map[int]string{
+		400: "BadRequestHttpException", 401: "AuthenticationException", 403: "AccessDeniedHttpException",
 		404: "NotFoundHttpException", 409: "ConflictHttpException", 422: "ValidationException", 429: "TooManyRequestsHttpException",
-		502: "HttpException", 503: "HttpException", 504: "HttpException"}[status]
+		502: "HttpException", 503: "HttpException", 504: "HttpException",
+	}[status]
 	if code == "" {
 		code = "HttpException"
 	}
@@ -116,22 +119,30 @@ func pteroState(st string) string {
 	return "offline"
 }
 
-func (a *App) registerPtero(mux *http.ServeMux) {
-	h := func(pattern string, fn func(w http.ResponseWriter, r *http.Request) error) {
+// pteroRoutes returns a function that registers a handler on mux whose
+// errors are answered in Pterodactyl's format.
+func pteroRoutes(mux *http.ServeMux) func(pattern string, fn func(w http.ResponseWriter, r *http.Request) error) {
+	return func(pattern string, fn func(w http.ResponseWriter, r *http.Request) error) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 			if err := fn(w, r); err != nil {
 				pteroError(w, err)
 			}
 		})
 	}
+}
+
+func (a *App) registerPtero(mux *http.ServeMux) {
+	h := pteroRoutes(mux)
 
 	h("GET /api/client/account", func(w http.ResponseWriter, r *http.Request) error {
 		u, err := requireUser(r.Context())
 		if err != nil {
 			return err
 		}
-		pteroJSON(w, 200, pteroObj{"user", map[string]any{"id": u.ID, "admin": u.IsAdmin, "username": strings.Split(u.Email, "@")[0], "email": u.Email,
-			"first_name": "", "last_name": "", "language": "en"}})
+		pteroJSON(w, 200, pteroObj{"user", map[string]any{
+			"id": u.ID, "admin": u.IsAdmin, "username": strings.Split(u.Email, "@")[0], "email": u.Email,
+			"first_name": "", "last_name": "", "language": "en",
+		}})
 		return nil
 	})
 
@@ -149,8 +160,10 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 		for _, s := range ss {
 			data = append(data, pteroObj{"server", a.pteroServerAttrs(ctx, u, s)})
 		}
-		pteroJSON(w, 200, map[string]any{"object": "list", "data": data,
-			"meta": map[string]any{"pagination": map[string]any{"total": len(data), "count": len(data), "per_page": max(len(data), 50), "current_page": 1, "total_pages": 1, "links": map[string]any{}}}})
+		pteroJSON(w, 200, map[string]any{
+			"object": "list", "data": data,
+			"meta": map[string]any{"pagination": map[string]any{"total": len(data), "count": len(data), "per_page": max(len(data), 50), "current_page": 1, "total_pages": 1, "links": map[string]any{}}},
+		})
 		return nil
 	})
 
@@ -169,18 +182,29 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return err
 		}
 		st, _ := a.Hub.Stats(s.UUID)
-		pteroJSON(w, 200, pteroObj{"stats", map[string]any{"current_state": pteroState(a.Hub.State(s.UUID)), "is_suspended": s.Suspended,
-			"resources": map[string]any{"memory_bytes": st.MemBytes, "cpu_absolute": st.CPUPct, "disk_bytes": st.DiskBytes, "network_rx_bytes": 0, "network_tx_bytes": 0, "uptime": 0}}})
+		pteroJSON(w, 200, pteroObj{"stats", map[string]any{
+			"current_state": pteroState(a.Hub.State(s.UUID)), "is_suspended": s.Suspended,
+			"resources": map[string]any{"memory_bytes": st.MemBytes, "cpu_absolute": st.CPUPct, "disk_bytes": st.DiskBytes, "network_rx_bytes": 0, "network_tx_bytes": 0, "uptime": 0},
+		}})
 		return nil
 	})
 
+	a.registerPteroControl(mux)
+	a.registerPteroFiles(mux)
+}
+
+// registerPteroControl registers Pterodactyl-style power and console commands.
+func (a *App) registerPteroControl(mux *http.ServeMux) {
+	h := pteroRoutes(mux)
 	h("POST /api/client/servers/{id}/power", func(w http.ResponseWriter, r *http.Request) error {
 		u, s, err := a.pteroServer(r.Context(), r.PathValue("id"), PermPower)
 		if err != nil {
 			return err
 		}
 		var in struct{ Signal string }
-		json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in)
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil {
+			return huma.Error422UnprocessableEntity("The request body must be JSON.")
+		}
 		switch in.Signal {
 		case "start", "stop", "restart", "kill":
 		default:
@@ -199,7 +223,9 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return err
 		}
 		var in struct{ Command string }
-		json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&in)
+		if err := json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&in); err != nil {
+			return huma.Error422UnprocessableEntity("The request body must be JSON.")
+		}
 		if in.Command == "" || len(in.Command) > 2048 || strings.ContainsAny(in.Command, "\r\n") {
 			return huma.Error422UnprocessableEntity("The command must be one line.")
 		}
@@ -214,7 +240,11 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	})
+}
 
+// registerPteroFiles registers Pterodactyl-style file and backup routes.
+func (a *App) registerPteroFiles(mux *http.ServeMux) {
+	h := pteroRoutes(mux)
 	h("GET /api/client/servers/{id}/files/list", func(w http.ResponseWriter, r *http.Request) error {
 		_, s, err := a.pteroServer(r.Context(), r.PathValue("id"), PermFilesRead)
 		if err != nil {
@@ -229,13 +259,17 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return nodeErr(err)
 		}
 		var list []proto.FileInfo
-		json.Unmarshal(raw, &list)
+		if err := decodeReply(raw, &list); err != nil {
+			return err
+		}
 		data := []any{}
 		for _, f := range list {
 			mod := time.Unix(f.ModUnix, 0).UTC().Format(time.RFC3339)
-			data = append(data, pteroObj{"file_object", map[string]any{"name": f.Name, "mode": modeString(f.Mode, f.Dir), "mode_bits": modeBits(f.Mode),
+			data = append(data, pteroObj{"file_object", map[string]any{
+				"name": f.Name, "mode": modeString(f.Mode, f.Dir), "mode_bits": modeBits(f.Mode),
 				"size": f.Size, "is_file": !f.Dir, "is_symlink": f.Symlink, "mimetype": map[bool]string{true: "inode/directory", false: "application/octet-stream"}[f.Dir],
-				"created_at": mod, "modified_at": mod}})
+				"created_at": mod, "modified_at": mod,
+			}})
 		}
 		pteroJSON(w, 200, map[string]any{"object": "list", "data": data})
 		return nil
@@ -251,7 +285,8 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return err
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(b)
+		// text/plain with nosniff (set for every response in api.go): never rendered as HTML.
+		_, _ = w.Write(b) //nolint:gosec // G705: see above; a failed write means the client went away
 		return nil
 	})
 
@@ -291,9 +326,11 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			if b.CompletedAt > 0 {
 				done = time.Unix(b.CompletedAt, 0).UTC().Format(time.RFC3339)
 			}
-			data = append(data, pteroObj{"backup", map[string]any{"uuid": b.UUID, "is_successful": b.Status == store.BackupOK, "is_locked": b.Locked, "name": b.Name,
+			data = append(data, pteroObj{"backup", map[string]any{
+				"uuid": b.UUID, "is_successful": b.Status == store.BackupOK, "is_locked": b.Locked, "name": b.Name,
 				"ignored_files": store.IgnoreList(b.Ignore), "checksum": "sha256:" + b.SHA256, "bytes": b.Size,
-				"created_at": time.Unix(b.CreatedAt, 0).UTC().Format(time.RFC3339), "completed_at": done}})
+				"created_at": time.Unix(b.CreatedAt, 0).UTC().Format(time.RFC3339), "completed_at": done,
+			}})
 		}
 		pteroJSON(w, 200, map[string]any{"object": "list", "data": data})
 		return nil
@@ -306,7 +343,7 @@ func modeString(mode uint32, dir bool) string {
 	if dir {
 		b[0] = 'd'
 	}
-	for i := 0; i < 9; i++ {
+	for i := range 9 {
 		if mode&(1<<(8-i)) == 0 {
 			b[i+1] = '-'
 		}

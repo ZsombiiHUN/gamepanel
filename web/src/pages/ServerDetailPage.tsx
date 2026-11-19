@@ -31,7 +31,10 @@ export function ServerDetailPage() {
   const early = useRef<string[]>([]);
   const ws = useServerSocket(uuid, {
     onConsole: (l) => (term.current ? term.current.writeln(l) : early.current.push(l)),
-    onReset: () => { early.current = []; term.current?.clear(); },
+    onReset: () => {
+      early.current = [];
+      term.current?.clear();
+    },
   });
   const ready = !server.isPending && !server.error;
   useEffect(() => {
@@ -55,7 +58,12 @@ export function ServerDetailPage() {
       <div className={tab === "console" ? "flex flex-col gap-6" : undefined}>
         {tab === "console" && (
           <div className="order-2 lg:order-1">
-            <UsageRow uuid={uuid} running={state === "running" ? stats : null} latest={stats} limits={{ memoryMb: s.memory_mb, diskMb: s.disk_mb, cpuPct: s.cpu_pct }} />
+            <UsageRow
+              uuid={uuid}
+              running={state === "running" ? stats : null}
+              latest={stats}
+              limits={{ memoryMb: s.memory_mb, diskMb: s.disk_mb, cpuPct: s.cpu_pct }}
+            />
           </div>
         )}
         {/* Console stays mounted so the buffer survives tab switches */}

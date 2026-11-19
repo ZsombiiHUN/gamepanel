@@ -50,7 +50,7 @@ func (h *hookSink) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer h.mu.Unlock()
 	if h.fail > 0 {
 		h.fail--
-		http.Error(w, "down for maintenance", 500)
+		http.Error(w, "down for maintenance", http.StatusInternalServerError)
 		return
 	}
 	sig := r.Header.Get("X-GamePanel-Signature")
@@ -89,7 +89,7 @@ func (h *hookSink) count(name string) (n int) {
 			n++
 		}
 	}
-	return
+	return n
 }
 
 func TestShopSellsAServer(t *testing.T) {
@@ -131,8 +131,10 @@ func TestShopSellsAServer(t *testing.T) {
 
 	// 2. The server: no node named, so the panel picks one; started once
 	// installed. A retried create returns the first server, unchanged.
-	order := map[string]any{"name": "Survival", "egg_id": 1, "memory_mb": 512, "owner_id": c1.ID,
-		"external_id": "order-1001", "start_on_completion": true}
+	order := map[string]any{
+		"name": "Survival", "egg_id": 1, "memory_mb": 512, "owner_id": c1.ID,
+		"external_id": "order-1001", "start_on_completion": true,
+	}
 	var srv, again shopServer
 	json.Unmarshal(s.admin.do("POST", "/api/servers", order, 201), &srv)
 	json.Unmarshal(s.admin.do("POST", "/api/servers", order, 200), &again)
@@ -146,7 +148,7 @@ func TestShopSellsAServer(t *testing.T) {
 	}
 	get := func(c *client) (v shopServer) {
 		json.Unmarshal(c.do("GET", "/api/servers/"+srv.UUID, nil, 200), &v)
-		return
+		return v
 	}
 	waitFor(t, "installed and running", func() bool {
 		v := get(s.admin)
@@ -193,8 +195,11 @@ func TestShopSellsAServer(t *testing.T) {
 		method, path string
 		body         any
 	}{
-		{"POST", "/power", map[string]string{"action": "start"}}, {"GET", "/files?path=/", nil}, {"GET", "/backups", nil},
-		{"GET", "/startup", nil}, {"POST", "/command", map[string]string{"command": "say hi"}},
+		{"POST", "/power", map[string]string{"action": "start"}},
+		{"GET", "/files?path=/", nil},
+		{"GET", "/backups", nil},
+		{"GET", "/startup", nil},
+		{"POST", "/command", map[string]string{"command": "say hi"}},
 	} {
 		if got := string(cust.do(r.method, "/api/servers/"+srv.UUID+r.path, r.body, 403)); !strings.Contains(got, "suspended") {
 			t.Errorf("%s %s: %s", r.method, r.path, got)

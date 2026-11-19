@@ -17,8 +17,10 @@ type activityIn struct {
 type activityOut struct{ Body []store.AuditEntry }
 
 func (a *App) registerActivity(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "serverActivity", Method: "GET", Path: "/servers/{uuid}/activity",
-		Summary: "What happened on a server, and who did it", Description: "Addresses are shown to the owner and admins only."},
+	huma.Register(api, huma.Operation{
+		OperationID: "serverActivity", Method: "GET", Path: "/servers/{uuid}/activity",
+		Summary: "What happened on a server, and who did it", Description: "Addresses are shown to the owner and admins only.",
+	},
 		func(ctx context.Context, in *activityIn) (*activityOut, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermActivityRead)
 			if err != nil {

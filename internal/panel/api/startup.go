@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"slices"
 	"sort"
@@ -189,8 +188,10 @@ func crashRestartChange(u store.User, perms []string, v *bool) error {
 }
 
 func (a *App) registerStartup(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "getStartup", Method: "GET", Path: "/servers/{uuid}/startup",
-		Summary: "Startup command, Docker image and variables"},
+	huma.Register(api, huma.Operation{
+		OperationID: "getStartup", Method: "GET", Path: "/servers/{uuid}/startup",
+		Summary: "Startup command, Docker image and variables",
+	},
 		func(ctx context.Context, in *uuidIn) (*startupOut, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermStartupRead)
 			if err != nil {
@@ -206,9 +207,11 @@ func (a *App) registerStartup(api huma.API) {
 			return &startupOut{Body: v}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "updateStartup", Method: "PUT", Path: "/servers/{uuid}/startup",
+	huma.Register(api, huma.Operation{
+		OperationID: "updateStartup", Method: "PUT", Path: "/servers/{uuid}/startup",
 		Summary:     "Change variables, the Docker image or the startup command",
-		Description: "Applies at once to a stopped server, otherwise at its next start (`pending` in the reply)."},
+		Description: "Applies at once to a stopped server, otherwise at its next start (`pending` in the reply).",
+	},
 		func(ctx context.Context, in *startupIn) (*startupOut, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermStartupRead)
 			if err != nil {
@@ -272,7 +275,9 @@ func (a *App) applySpec(ctx context.Context, s store.Server) (pending bool, err 
 		return false, nodeErr(err)
 	}
 	var res proto.UpdateResult
-	json.Unmarshal(raw, &res)
+	if err := decodeReply(raw, &res); err != nil {
+		return false, err
+	}
 	return res.Pending, nil
 }
 

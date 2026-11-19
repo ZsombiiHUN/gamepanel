@@ -94,7 +94,7 @@ func (c *diskCache) reserve(extra, limit int64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.bytes+extra > limit {
-		return ErrDiskFull{c.bytes, limit}
+		return DiskFullError{c.bytes, limit}
 	}
 	if extra < 0 { // a write that frees space first (an upload over a truncated file)
 		c.credit(-extra)
@@ -253,10 +253,9 @@ func (d *Daemon) walkUsage(uuid string) (int64, error) {
 	return dir.Usage()
 }
 
-// diskUsage returns the data directory size, measuring (and waiting for the
-// walk) if the figure is older than maxAge.
-func (d *Daemon) diskUsage(uuid string, maxAge time.Duration) (int64, error) {
-	return d.usage(uuid, maxAge, true)
+// diskUsage measures the data directory size now, waiting for the walk.
+func (d *Daemon) diskUsage(uuid string) (int64, error) {
+	return d.usage(uuid, 0, true)
 }
 
 // diskEstimate returns the current figure without waiting for a walk, unless
@@ -300,14 +299,14 @@ func (d *Daemon) diskLimitBytes(uuid string) int64 {
 	return spec.DiskMB << 20
 }
 
-// ErrDiskFull is returned when a write would exceed the server's disk limit.
-type ErrDiskFull struct{ Used, Limit int64 }
+// DiskFullError is returned when a write would exceed the server's disk limit.
+type DiskFullError struct{ Used, Limit int64 }
 
-func (e ErrDiskFull) Error() string {
+func (e DiskFullError) Error() string {
 	return fmt.Sprintf("disk limit exceeded (%d MB used of %d MB)", e.Used>>20, e.Limit>>20)
 }
 
-func (ErrDiskFull) ErrCode() string { return proto.CodeDiskFull }
+func (DiskFullError) ErrCode() string { return proto.CodeDiskFull }
 
 // reserveDisk fails if writing extra more bytes would pass the server's disk
 // limit, and otherwise counts them as used until the next measurement.
@@ -364,7 +363,7 @@ func (d *Daemon) enforceDisk(ctx context.Context, uuid string, running bool) (in
 		}
 		d.mu.Unlock()
 		if !already {
-			msg := fmt.Sprintf("\x1b[31m[gamepanel] %s - stopping the server. Free space or raise the limit, then start it again.\x1b[0m", ErrDiskFull{used, limit})
+			msg := fmt.Sprintf("\x1b[31m[gamepanel] %s - stopping the server. Free space or raise the limit, then start it again.\x1b[0m", DiskFullError{used, limit})
 			d.sendConsole(uuid, msg)
 			if _, err := d.spec(uuid); err == nil {
 				go func() {

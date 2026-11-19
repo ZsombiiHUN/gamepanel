@@ -46,15 +46,19 @@ type SSOProvider struct {
 }
 
 func GitHubSSO(clientID, secret string) *SSOProvider {
-	return &SSOProvider{ID: "github", Name: "GitHub", kind: "github", ClientID: clientID, ClientSecret: secret,
+	return &SSOProvider{ //nolint:gosec // G101: public OAuth endpoint URLs, the secret comes from the caller
+		ID: "github", Name: "GitHub", kind: "github", ClientID: clientID, ClientSecret: secret,
 		AuthURL: "https://github.com/login/oauth/authorize", TokenURL: "https://github.com/login/oauth/access_token",
-		UserURL: "https://api.github.com/user", Scopes: []string{"read:user", "user:email"}}
+		UserURL: "https://api.github.com/user", Scopes: []string{"read:user", "user:email"},
+	}
 }
 
 func DiscordSSO(clientID, secret string) *SSOProvider {
-	return &SSOProvider{ID: "discord", Name: "Discord", kind: "discord", ClientID: clientID, ClientSecret: secret,
+	return &SSOProvider{ //nolint:gosec // G101: public OAuth endpoint URLs, the secret comes from the caller
+		ID: "discord", Name: "Discord", kind: "discord", ClientID: clientID, ClientSecret: secret,
 		AuthURL: "https://discord.com/oauth2/authorize", TokenURL: "https://discord.com/api/oauth2/token",
-		UserURL: "https://discord.com/api/users/@me", Scopes: []string{"identify", "email"}}
+		UserURL: "https://discord.com/api/users/@me", Scopes: []string{"identify", "email"},
+	}
 }
 
 // OIDCSSO is any OpenID Connect provider; name is what the button says.
@@ -62,8 +66,10 @@ func OIDCSSO(name, issuer, clientID, secret string) *SSOProvider {
 	if name == "" {
 		name = "single sign-on"
 	}
-	return &SSOProvider{ID: "oidc", Name: name, kind: "oidc", Issuer: strings.TrimRight(issuer, "/"), ClientID: clientID, ClientSecret: secret,
-		Scopes: []string{"openid", "email", "profile"}}
+	return &SSOProvider{
+		ID: "oidc", Name: name, kind: "oidc", Issuer: strings.TrimRight(issuer, "/"), ClientID: clientID, ClientSecret: secret,
+		Scopes: []string{"openid", "email", "profile"},
+	}
 }
 
 var ssoHTTP = &http.Client{Timeout: 15 * time.Second}
@@ -78,7 +84,7 @@ func (p *SSOProvider) discover(ctx context.Context) error {
 	if p.discovered {
 		return nil
 	}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, p.Issuer+"/.well-known/openid-configuration", nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, p.Issuer+"/.well-known/openid-configuration", http.NoBody)
 	resp, err := ssoHTTP.Do(req)
 	if err != nil {
 		return err
@@ -109,8 +115,10 @@ type ssoUser struct {
 
 // exchange trades the code for an access token and asks who it belongs to.
 func (p *SSOProvider) exchange(ctx context.Context, code, verifier, redirect string) (ssoUser, error) {
-	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect},
-		"client_id": {p.ClientID}, "client_secret": {p.ClientSecret}, "code_verifier": {verifier}}
+	form := url.Values{
+		"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect},
+		"client_id": {p.ClientID}, "client_secret": {p.ClientSecret}, "code_verifier": {verifier},
+	}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, p.TokenURL, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
@@ -127,7 +135,7 @@ func (p *SSOProvider) exchange(ctx context.Context, code, verifier, redirect str
 		return ssoUser{}, fmt.Errorf("token exchange failed: %s %s", resp.Status, tok.Error)
 	}
 	get := func(u string, v any) error {
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 		req.Header.Set("Authorization", "Bearer "+tok.AccessToken)
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("User-Agent", "GamePanel") // GitHub refuses requests without one
@@ -148,7 +156,7 @@ func (p *SSOProvider) exchange(ctx context.Context, code, verifier, redirect str
 			ID int64 `json:"id"`
 		}
 		if err := get(p.UserURL, &me); err != nil || me.ID == 0 {
-			return u, fmt.Errorf("github user: %v", err)
+			return u, fmt.Errorf("github user: %w", err)
 		}
 		u.Subject = strconv.FormatInt(me.ID, 10)
 		var emails []struct {
@@ -170,7 +178,7 @@ func (p *SSOProvider) exchange(ctx context.Context, code, verifier, redirect str
 			Verified bool   `json:"verified"`
 		}
 		if err := get(p.UserURL, &me); err != nil || me.ID == "" {
-			return u, fmt.Errorf("discord user: %v", err)
+			return u, fmt.Errorf("discord user: %w", err)
 		}
 		u.Subject, u.Email, u.EmailVerified = me.ID, me.Email, me.Verified
 	default:
@@ -180,7 +188,7 @@ func (p *SSOProvider) exchange(ctx context.Context, code, verifier, redirect str
 			Verified flexBool `json:"email_verified"`
 		}
 		if err := get(p.UserURL, &me); err != nil || me.Sub == "" {
-			return u, fmt.Errorf("oidc userinfo: %v", err)
+			return u, fmt.Errorf("oidc userinfo: %w", err)
 		}
 		u.Subject, u.Email, u.EmailVerified = me.Sub, me.Email, bool(me.Verified)
 	}
@@ -292,9 +300,11 @@ func (a *App) ssoStart(w http.ResponseWriter, r *http.Request) {
 	time.AfterFunc(ssoStateTTL, func() { a.ssoStates.Delete(state) })
 	http.SetCookie(w, shortCookie(r, ssoCookie, state, "/api/auth/sso/", ssoStateTTL))
 	sum := sha256.Sum256([]byte(st.verifier))
-	q := url.Values{"response_type": {"code"}, "client_id": {p.ClientID}, "redirect_uri": {a.ssoRedirect(p.ID)},
+	q := url.Values{
+		"response_type": {"code"}, "client_id": {p.ClientID}, "redirect_uri": {a.ssoRedirect(p.ID)},
 		"scope": {strings.Join(p.Scopes, " ")}, "state": {state},
-		"code_challenge": {base64.RawURLEncoding.EncodeToString(sum[:])}, "code_challenge_method": {"S256"}}
+		"code_challenge": {base64.RawURLEncoding.EncodeToString(sum[:])}, "code_challenge_method": {"S256"},
+	}
 	target := p.AuthURL
 	if strings.Contains(target, "?") {
 		target += "&" + q.Encode()
@@ -314,12 +324,12 @@ func (a *App) ssoCallback(w http.ResponseWriter, r *http.Request) {
 	state := q.Get("state")
 	c, err := r.Cookie(ssoCookie)
 	v, ok := a.ssoStates.LoadAndDelete(state)
-	if state == "" || err != nil || c.Value != state || !ok {
+	st, isState := v.(ssoState)
+	if state == "" || err != nil || c.Value != state || !ok || !isState {
 		// Started in another browser, already used, or forged.
 		fail("/login", "expired")
 		return
 	}
-	st := v.(ssoState)
 	back := "/login"
 	if st.mode == "link" {
 		back = "/account"
@@ -444,8 +454,10 @@ type ssoVerifyOut struct {
 }
 
 func (a *App) registerSSO(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "ssoVerify", Method: "POST", Path: "/auth/sso/verify",
-		Summary: "Finish a single sign-on with the account's two-factor code"},
+	huma.Register(api, huma.Operation{
+		OperationID: "ssoVerify", Method: "POST", Path: "/auth/sso/verify",
+		Summary: "Finish a single sign-on with the account's two-factor code",
+	},
 		func(ctx context.Context, in *ssoVerifyIn) (*ssoVerifyOut, error) {
 			v, ok := a.ssoMFA.Load(in.Pending)
 			p, _ := v.(ssoPending)
@@ -465,8 +477,10 @@ func (a *App) registerSSO(api huma.API) {
 				return nil, huma.Error500InternalServerError("could not create session")
 			}
 			a.audit(ctx, u, "login.ok", u.Email, "single sign-on with "+p.provider+" and a second factor")
-			clear := http.Cookie{Name: ssoMFACookie, Value: "", Path: "/api/auth/", MaxAge: -1, HttpOnly: true}
-			return &ssoVerifyOut{Body: a.loginUser(u, store.MethodSSOTOTP), SetCookie: append(sessionCookies(ctx, tok, a.Store.SessionMax), clear)}, nil
+			pending := http.Cookie{ //nolint:gosec // G124: Secure follows the request's scheme, as for the session cookie
+				Name: ssoMFACookie, Value: "", Path: "/api/auth/", MaxAge: -1, HttpOnly: true, Secure: secureFrom(ctx), SameSite: http.SameSiteLaxMode,
+			}
+			return &ssoVerifyOut{Body: a.loginUser(u, store.MethodSSOTOTP), SetCookie: append(sessionCookies(ctx, tok, a.Store.SessionMax), pending)}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "listIdentities", Method: "GET", Path: "/auth/identities", Summary: "Your single sign-on links"},
@@ -479,8 +493,12 @@ func (a *App) registerSSO(api huma.API) {
 			if err != nil {
 				return nil, huma.Error500InternalServerError("db error", err)
 			}
+			hasPw, err := a.Store.HasPassword(ctx, u.ID)
+			if err != nil {
+				return nil, huma.Error500InternalServerError("db error", err)
+			}
 			out := &identitiesOut{}
-			out.Body.Identities, out.Body.Providers, out.Body.HasPassword = ids, a.ssoList(), a.Store.HasPassword(ctx, u.ID)
+			out.Body.Identities, out.Body.Providers, out.Body.HasPassword = ids, a.ssoList(), hasPw
 			return out, nil
 		})
 
@@ -500,8 +518,10 @@ func (a *App) registerSSO(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "setFirstPassword", Method: "POST", Path: "/auth/password/first",
-		Summary: "Give a single sign-on account a password", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "setFirstPassword", Method: "POST", Path: "/auth/password/first",
+		Summary: "Give a single sign-on account a password", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *firstPasswordIn) (*struct{}, error) {
 			u, err := requireSession(ctx)
 			if err != nil {

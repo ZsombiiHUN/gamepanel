@@ -1,0 +1,145 @@
+# golangci-lint v2. Run with `make lint`; CI runs the same version (see ci.yml).
+# Every rule here is meant to catch bugs or keep the code consistent. Rules that
+# mostly produce churn (wrapcheck, funlen, varnamelen, exhaustruct, ...) are off.
+# A //nolint needs the linter name and a reason (nolintlint enforces both).
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    # Correctness
+    - bodyclose
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errorlint
+    - govet
+    - ineffassign
+    - makezero
+    - nilerr
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - unused
+    - wastedassign
+    # Security
+    - gosec
+    # Style and simplification
+    - copyloopvar
+    - errname
+    - gocritic
+    - gocyclo
+    - intrange
+    - misspell
+    - nakedret
+    - nolintlint
+    - predeclared
+    - revive
+    - thelper
+    - unconvert
+    - unparam
+    - usestdlibvars
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      exclude-functions:
+        # Rollback after Commit returns sql.ErrTxDone; the deferred call is a safety net.
+        - (*database/sql.Tx).Rollback
+        # rows.Err() (enforced by rowserrcheck) reports iteration errors; Close adds nothing.
+        - (*database/sql.Rows).Close
+        # Closing a pool after use: every query already reported its own error.
+        - (*database/sql.DB).Close
+        # Closing a directory handle or a network endpoint cannot lose data;
+        # file writes are different and must check Close.
+        - (*github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx.Dir).Close
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (golang.org/x/crypto/ssh.Conn).Close
+        - (golang.org/x/crypto/ssh.Channel).Close
+        # Response bodies are only read; a close error cannot lose data.
+        - (io.ReadCloser).Close
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # memory layout over readability; not worth it here
+        - shadow # `err` shadowing is idiomatic Go
+    gocritic:
+      enabled-tags: [diagnostic, performance, style]
+      disabled-checks:
+        - hugeParam # store models are passed by value on purpose; they are small and immutable
+        - rangeValCopy # same: copying a model per iteration is cheaper than the aliasing bugs pointers invite
+        - typeDefFirst # method order follows the request flow, not the type declaration
+        - unnamedResult
+        - whyNoLint # nolintlint covers this
+        - commentedOutCode
+    gocyclo:
+      min-complexity: 30
+    gosec:
+      excludes:
+        - G104 # duplicate of errcheck
+        - G304 # file paths are confined by internal/daemon/fsx (os.Root), not by string checks
+    thelper:
+      # Helpers that take testing.TB keep calling it t, like the tests they serve.
+      tb:
+        name: false
+    nakedret:
+      max-func-lines: 0
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+          arguments: [{allowTypesBefore: "*testing.T,testing.TB"}]
+        - name: context-keys-type
+        - name: dot-imports
+        - name: early-return
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: unused-parameter
+          arguments: [{allowRegex: "^_"}]
+        - name: var-declaration
+    staticcheck:
+      checks: ["all"]
+
+  exclusions:
+    generated: lax
+    rules:
+      # Tests may ignore errors from cleanup and use fixed paths, plain HTTP and
+      # weak randomness; the code under test may not.
+      - path: _test\.go
+        linters: [bodyclose, errcheck, errchkjson, gosec, noctx]
+      # End-to-end tests read as one scenario, top to bottom; splitting them to
+      # please a complexity count would make them harder to follow.
+      - path: _test\.go
+        linters: [gocyclo]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes: [github.com/ZsombiiHUN/gamepanel]

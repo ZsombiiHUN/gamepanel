@@ -21,8 +21,9 @@ const bobEmail, bobPW = "bob@example.com", "another-long-password"
 
 // enrolTOTP turns two-factor on for the signed-in client and returns the
 // secret and recovery codes. Enrolment uses the current step.
-func enrolTOTP(t *testing.T, c *cl, pw string) (string, []string) {
+func enrolTOTP(t *testing.T, c *cl) (string, []string) {
 	t.Helper()
+	pw := bobPW
 	var setup struct{ Secret string }
 	_, body := c.do("POST", "/api/auth/totp/setup", map[string]string{"password": pw}, nil)
 	json.Unmarshal(body, &setup)
@@ -52,7 +53,7 @@ func TestSecondFactorLockoutSurvivesRestart(t *testing.T) {
 	e := newEnv(t, "127.0.0.1")
 	a := e.client()
 	a.login(bobEmail, bobPW)
-	secret, recovery := enrolTOTP(t, a, bobPW)
+	secret, recovery := enrolTOTP(t, a)
 
 	try := func(e *env, code string, ip string) int {
 		c, _ := e.client().do("POST", "/api/auth/login",
@@ -126,7 +127,7 @@ func TestAPIKeyNeedsSecondFactor(t *testing.T) {
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)
-	secret, _ := enrolTOTP(t, a, bobPW)
+	secret, _ := enrolTOTP(t, a)
 	if code, body := a.do("POST", "/api/auth/keys", map[string]any{"name": "ci", "password": bobPW}, nil); code != 403 || !strings.Contains(string(body), "totp_required") {
 		t.Fatalf("no code: %d %s", code, body)
 	}
@@ -209,7 +210,7 @@ func TestCookieAndHeaderHardening(t *testing.T) {
 		t.Fatalf("Cache-Control %q on an API answer", got)
 	}
 	auth := map[string]string{"Cookie": c.Name + "=" + c.Value, "X-Forwarded-Proto": "https"}
-	if r := raw(t, e, "GET", "/api/auth/me", nil, auth); r.StatusCode != 200 {
+	if r := raw(t, e, "GET", "/api/auth/me", nil, auth); r.StatusCode != http.StatusOK {
 		t.Fatalf("__Host- cookie not accepted: %d", r.StatusCode)
 	}
 	// Signing out revokes it on the server and clears it under the same name.
@@ -217,7 +218,7 @@ func TestCookieAndHeaderHardening(t *testing.T) {
 	if oc := sessionSetCookie(t, out); oc.Name != "__Host-gp_session" || oc.MaxAge >= 0 {
 		t.Fatalf("logout cookie: %+v", oc)
 	}
-	if r := raw(t, e, "GET", "/api/auth/me", nil, auth); r.StatusCode != 401 {
+	if r := raw(t, e, "GET", "/api/auth/me", nil, auth); r.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("session still valid after logout: %d", r.StatusCode)
 	}
 
@@ -268,7 +269,7 @@ func TestLegacyCookieMigration(t *testing.T) {
 	fresh := sessionSetCookie(t, raw(t, e, "POST", "/api/auth/login", login, nil)).Value
 
 	resp := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session="+old))
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("pre-upgrade session over HTTPS: %d", resp.StatusCode)
 	}
 	hc := cookieNamed(resp, "__Host-gp_session")
@@ -279,26 +280,26 @@ func TestLegacyCookieMigration(t *testing.T) {
 		t.Fatalf("old cookie not removed: %+v", lc)
 	}
 	// The old name works once; the session lives on under __Host-.
-	if r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session="+old)); r.StatusCode != 401 {
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session="+old)); r.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("old name accepted twice: %d", r.StatusCode)
 	}
-	if r := raw(t, e, "GET", "/api/auth/me", nil, https("__Host-gp_session="+old)); r.StatusCode != 200 {
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("__Host-gp_session="+old)); r.StatusCode != http.StatusOK {
 		t.Fatalf("migrated session: %d", r.StatusCode)
 	}
 	// A post-upgrade session is never accepted under the old name over HTTPS.
 	r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session="+fresh))
-	if r.StatusCode != 401 {
+	if r.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("new session under the old name over HTTPS: %d", r.StatusCode)
 	}
 	if lc := cookieNamed(r, "gp_session"); lc == nil || lc.MaxAge >= 0 {
 		t.Fatalf("refused old cookie not removed: %+v", lc)
 	}
 	// ...but plain HTTP (local development) still uses it.
-	if r := raw(t, e, "GET", "/api/auth/me", nil, map[string]string{"Cookie": "gp_session=" + fresh}); r.StatusCode != 200 {
+	if r := raw(t, e, "GET", "/api/auth/me", nil, map[string]string{"Cookie": "gp_session=" + fresh}); r.StatusCode != http.StatusOK {
 		t.Fatalf("plain HTTP session: %d", r.StatusCode)
 	}
 	// __Host- wins when both are sent; the other one is ignored.
-	if r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session=planted; __Host-gp_session="+old)); r.StatusCode != 200 {
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("gp_session=planted; __Host-gp_session="+old)); r.StatusCode != http.StatusOK {
 		t.Fatalf("secure cookie not preferred: %d", r.StatusCode)
 	}
 	// Signing out over HTTPS clears both names.
@@ -308,7 +309,7 @@ func TestLegacyCookieMigration(t *testing.T) {
 			t.Fatalf("logout did not clear %s: %+v", n, c)
 		}
 	}
-	if r := raw(t, e, "GET", "/api/auth/me", nil, https("__Host-gp_session="+old)); r.StatusCode != 401 {
+	if r := raw(t, e, "GET", "/api/auth/me", nil, https("__Host-gp_session="+old)); r.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("session valid after logout: %d", r.StatusCode)
 	}
 }
@@ -324,7 +325,7 @@ func TestPasswordChangeNeedsSecondFactor(t *testing.T) {
 	a, b := e.client(), e.client()
 	a.login(bobEmail, bobPW)
 	b.login(bobEmail, bobPW)
-	secret, recovery := enrolTOTP(t, a, bobPW)
+	secret, recovery := enrolTOTP(t, a)
 	const next = "a-brand-new-passphrase"
 	change := func(cur, nw, code string) (int, string) {
 		body := map[string]string{"current_password": cur, "new_password": nw}

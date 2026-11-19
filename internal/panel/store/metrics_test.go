@@ -12,11 +12,11 @@ func TestMetricsSaveRollupAndRead(t *testing.T) {
 	ctx := context.Background()
 	s, srv := testServer(t)
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
-	min := func(ago time.Duration) int64 { t := now.Add(-ago).Unix(); return t - t%60 }
+	minuteAgo := func(ago time.Duration) int64 { t := now.Add(-ago).Unix(); return t - t%60 }
 
 	// Two halves of the same minute merge into one bucket with a fair average.
-	s.SaveMetrics(ctx, []MetricBucket{{Server: srv, At: min(time.Minute), CPUSum: 30, CPUMax: 20, MemSum: 300, MemMax: 200, Disk: 5, Samples: 3}})
-	s.SaveMetrics(ctx, []MetricBucket{{Server: srv, At: min(time.Minute), CPUSum: 90, CPUMax: 90, MemSum: 100, MemMax: 100, Disk: 6, Samples: 1}})
+	s.SaveMetrics(ctx, []MetricBucket{{Server: srv, At: minuteAgo(time.Minute), CPUSum: 30, CPUMax: 20, MemSum: 300, MemMax: 200, Disk: 5, Samples: 3}})
+	s.SaveMetrics(ctx, []MetricBucket{{Server: srv, At: minuteAgo(time.Minute), CPUSum: 90, CPUMax: 90, MemSum: 100, MemMax: 100, Disk: 6, Samples: 1}})
 	pts, err := s.Metrics(ctx, srv, now.Add(-time.Hour), 60)
 	if err != nil || len(pts) != 1 {
 		t.Fatalf("%v %+v", err, pts)
@@ -26,20 +26,20 @@ func TestMetricsSaveRollupAndRead(t *testing.T) {
 		t.Fatalf("merged %+v", p)
 	}
 	// A minute with no readings (server stopped) is not running and does not drag averages.
-	s.SaveMetrics(ctx, []MetricBucket{{Server: srv, At: min(2 * time.Minute), Disk: 6}})
+	s.SaveMetrics(ctx, []MetricBucket{{Server: srv, At: minuteAgo(2 * time.Minute), Disk: 6}})
 	pts, _ = s.Metrics(ctx, srv, now.Add(-time.Hour), 600)
 	if len(pts) != 1 || pts[0].CPUAvg != 30 {
 		t.Fatalf("stopped minute counted: %+v", pts)
 	}
 	// Unknown servers are ignored rather than failing the batch.
-	if err := s.SaveMetrics(ctx, []MetricBucket{{Server: "nope", At: min(0), Samples: 1}}); err != nil {
+	if err := s.SaveMetrics(ctx, []MetricBucket{{Server: "nope", At: minuteAgo(0), Samples: 1}}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Three days of one reading every hour: the old part rolls up into quarters.
 	var bs []MetricBucket
 	for h := 1; h <= 72; h++ {
-		bs = append(bs, MetricBucket{Server: srv, At: min(time.Duration(h) * time.Hour), CPUSum: float64(h), CPUMax: float64(h), MemSum: 1, MemMax: 1, Samples: 1})
+		bs = append(bs, MetricBucket{Server: srv, At: minuteAgo(time.Duration(h) * time.Hour), CPUSum: float64(h), CPUMax: float64(h), MemSum: 1, MemMax: 1, Samples: 1})
 	}
 	s.SaveMetrics(ctx, bs)
 	if err := s.RollupMetrics(ctx, now); err != nil {

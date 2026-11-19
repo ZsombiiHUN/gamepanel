@@ -18,13 +18,14 @@ type AuditEntry struct {
 	Detail     string `json:"detail"`
 }
 
-func (s *Store) Audit(ctx context.Context, e AuditEntry) {
+func (s *Store) Audit(ctx context.Context, e AuditEntry) error {
 	var actor any
 	if e.ActorID != 0 {
 		actor = e.ActorID
 	}
-	s.exec(ctx, `INSERT INTO audit_log(at,actor_id,actor_email,action,target,ip,detail) VALUES(?,?,?,?,?,?,?)`,
+	_, err := s.exec(ctx, `INSERT INTO audit_log(at,actor_id,actor_email,action,target,ip,detail) VALUES(?,?,?,?,?,?,?)`,
 		now(), actor, e.ActorEmail, e.Action, e.Target, e.IP, e.Detail)
+	return err
 }
 
 // ListServerActivity returns a server's audit entries, newest first,

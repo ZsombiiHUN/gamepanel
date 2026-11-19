@@ -88,7 +88,7 @@ func TestPorts(t *testing.T) {
 	}
 
 	// Without network.manage: read only.
-	s.admin.do("PUT", srv+"/users/"+userID(t, s, "bob@example.com"), map[string]any{"permissions": []string{"network.read"}}, 204)
+	s.admin.do("PUT", srv+"/users/"+bobID(t, s), map[string]any{"permissions": []string{"network.read"}}, 204)
 	json.Unmarshal(bob.do("GET", srv+"/network", nil, 200), &n)
 	if n.CanManage {
 		t.Fatal("read-only subuser can manage")

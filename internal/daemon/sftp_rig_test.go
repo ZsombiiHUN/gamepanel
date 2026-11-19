@@ -45,6 +45,7 @@ type fakePanel struct {
 }
 
 func newFakePanel(t testing.TB) *fakePanel {
+	t.Helper()
 	p := &fakePanel{logins: map[string]proto.SFTPAuthResp{}}
 	p.srv = httptest.NewServer(http.HandlerFunc(p.serve))
 	t.Cleanup(p.srv.Close)
@@ -153,8 +154,10 @@ func newSFTPRig(t testing.TB, diskMB int64, cfg func(*Config)) *sftpRig {
 func newSFTPRigWith(t testing.TB, diskMB int64, o rigOpts) *sftpRig {
 	t.Helper()
 	p := newFakePanel(t)
-	c := Config{PanelURL: "ws" + strings.TrimPrefix(p.srv.URL, "http") + "/daemon/connect", Token: rigToken,
-		DataDir: t.TempDir(), DiskCacheTTL: time.Hour, SFTPRecheck: time.Hour, SFTPKeepAlive: time.Hour}
+	c := Config{
+		PanelURL: "ws" + strings.TrimPrefix(p.srv.URL, "http") + "/daemon/connect", Token: rigToken,
+		DataDir: t.TempDir(), DiskCacheTTL: time.Hour, SFTPRecheck: time.Hour, SFTPKeepAlive: time.Hour,
+	}
 	if o.cfg != nil {
 		o.cfg(&c)
 	}
@@ -183,8 +186,10 @@ func newSFTPRigWith(t testing.TB, diskMB int64, o rigOpts) *sftpRig {
 }
 
 func (r *sftpRig) sshConfig(user, pw string) *ssh.ClientConfig {
-	return &ssh.ClientConfig{User: user, Auth: []ssh.AuthMethod{ssh.Password(pw)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second}
+	return &ssh.ClientConfig{
+		User: user, Auth: []ssh.AuthMethod{ssh.Password(pw)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second,
+	}
 }
 
 // sshDial opens an SSH connection, closed when the test ends.
@@ -197,22 +202,23 @@ func (r *sftpRig) sshDial(cfg *ssh.ClientConfig) (*ssh.Client, error) {
 	return conn, nil
 }
 
-func (r *sftpRig) dial(user, pw string, opts ...sftp.ClientOption) (*sftp.Client, *ssh.Client, error) {
+// dial logs in over SFTP. The SSH connection is closed at cleanup (sshDial).
+func (r *sftpRig) dial(user, pw string, opts ...sftp.ClientOption) (*sftp.Client, error) {
 	conn, err := r.sshDial(r.sshConfig(user, pw))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	c, err := sftp.NewClient(conn, opts...)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	r.t.Cleanup(func() { c.Close() })
-	return c, conn, nil
+	return c, nil
 }
 
 func (r *sftpRig) login(user, pw string, opts ...sftp.ClientOption) *sftp.Client {
 	r.t.Helper()
-	c, _, err := r.dial(user, pw, opts...)
+	c, err := r.dial(user, pw, opts...)
 	if err != nil {
 		r.t.Fatalf("login as %s: %v", user, err)
 	}
@@ -302,15 +308,6 @@ func eventually(within time.Duration, cond func() bool) bool {
 
 func isNotExist(err error) bool   { return errors.Is(err, os.ErrNotExist) }
 func isPermission(err error) bool { return errors.Is(err, os.ErrPermission) }
-
-// statusCode is the SFTP status a request failed with (0 if not a status).
-func statusCode(err error) uint32 {
-	var se *sftp.StatusError
-	if errors.As(err, &se) {
-		return uint32(se.FxCode())
-	}
-	return 0
-}
 
 var _ = net.Dial
 

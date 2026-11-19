@@ -40,7 +40,8 @@ describe("sign-in gate", () => {
 
   it("says the panel is not responding when a proxy answers instead, without showing its page", async () => {
     const api = new FakeApi({
-      "GET /api/auth/me": () => new Response("<html><h1>502 Bad Gateway</h1>nginx/1.27.0</html>", { status: 502, headers: { "content-type": "text/html" } }),
+      "GET /api/auth/me": () =>
+        new Response("<html><h1>502 Bad Gateway</h1>nginx/1.27.0</html>", { status: 502, headers: { "content-type": "text/html" } }),
     });
     renderApp(api, "/");
     expect(await screen.findByText(/not responding/i, {}, { timeout: 8000 })).toBeInTheDocument();
@@ -112,7 +113,8 @@ describe("state in the address", () => {
     const api = new FakeApi({
       ...base(),
       [`GET /api/servers/${uuid}`]: sampleServers()[0]!,
-      [`GET /api/servers/${uuid}/files`]: (c: { query: URLSearchParams }) => (c.query.get("path") === "/plugins" ? [{ name: "Essentials.jar", dir: false, size: 5, mod_unix: 1 }] : []),
+      [`GET /api/servers/${uuid}/files`]: (c: { query: URLSearchParams }) =>
+        c.query.get("path") === "/plugins" ? [{ name: "Essentials.jar", dir: false, size: 5, mod_unix: 1 }] : [],
     });
     renderApp(api, `/servers/${uuid}?tab=files&dir=/plugins`);
     expect(await screen.findByText("Essentials.jar")).toBeInTheDocument();

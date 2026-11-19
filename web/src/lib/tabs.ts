@@ -1,4 +1,16 @@
-export const TABS = ["console", "files", "mods", "backups", "schedules", "startup", "network", "databases", "activity", "users", "settings"] as const;
+export const TABS = [
+  "console",
+  "files",
+  "mods",
+  "backups",
+  "schedules",
+  "startup",
+  "network",
+  "databases",
+  "activity",
+  "users",
+  "settings",
+] as const;
 export type Tab = (typeof TABS)[number];
 
 /**

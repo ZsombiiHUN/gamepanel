@@ -82,7 +82,7 @@ func TestSFTPRefusedLogins(t *testing.T) {
 		"no server id":                 {"empty", "gp_empty"},
 		"refused with permissions set": {"notok", "gp_notok"},
 	} {
-		if _, _, err := r.dial(login[0], login[1]); err == nil {
+		if _, err := r.dial(login[0], login[1]); err == nil {
 			t.Errorf("%s: logged in", name)
 		}
 	}
@@ -98,7 +98,7 @@ func TestSFTPPanelFailuresDenyLogin(t *testing.T) {
 	r := newSFTPRig(t, 0, nil)
 	for _, mode := range []string{"hangup", "garbage", "500", "502", "401", "404"} {
 		r.p.setMode(mode)
-		if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+		if _, err := r.dial(ownerUser, ownerKey); err == nil {
 			t.Errorf("panel %s: logged in", mode)
 		}
 	}
@@ -192,12 +192,12 @@ func TestSFTPFailedLoginsLockOutTheAddress(t *testing.T) {
 	r.owner()
 
 	for range sftpAuthMaxFail {
-		if _, _, err := r.dial(ownerUser, "gp_guess"); err == nil {
+		if _, err := r.dial(ownerUser, "gp_guess"); err == nil {
 			t.Fatal("a wrong key logged in")
 		}
 	}
 	before := len(r.p.requests())
-	if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+	if _, err := r.dial(ownerUser, ownerKey); err == nil {
 		t.Fatal("an address that kept guessing could still log in")
 	}
 	if len(r.p.requests()) != before {
@@ -212,10 +212,10 @@ func TestSFTPOversizedCredentials(t *testing.T) {
 	t.Parallel()
 	r := newSFTPRig(t, 0, nil)
 	long := "gp_" + strings.Repeat("a", 64<<10)
-	if _, _, err := r.dial(ownerUser, long); err == nil {
+	if _, err := r.dial(ownerUser, long); err == nil {
 		t.Fatal("logged in with a 64 KB password")
 	}
-	if _, _, err := r.dial(strings.Repeat("u", 64<<10), ownerKey); err == nil {
+	if _, err := r.dial(strings.Repeat("u", 64<<10), ownerKey); err == nil {
 		t.Fatal("logged in with a 64 KB user name")
 	}
 	for _, q := range r.p.requests() {
@@ -251,11 +251,11 @@ func TestSFTPConnectionsPerAddressAreCapped(t *testing.T) {
 	}) {
 		t.Fatal("connections were not all admitted")
 	}
-	if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+	if _, err := r.dial(ownerUser, ownerKey); err == nil {
 		t.Fatal("a connection past the per-address cap was served")
 	}
 	raw[0].Close()
-	if !eventually(2*time.Second, func() bool { _, _, err := r.dial(ownerUser, ownerKey); return err == nil }) {
+	if !eventually(2*time.Second, func() bool { _, err := r.dial(ownerUser, ownerKey); return err == nil }) {
 		t.Fatal("a freed slot was never given back")
 	}
 	for _, c := range raw[1:] {
@@ -421,7 +421,7 @@ func TestSFTPDeletingAServerEndsOnlyItsSessions(t *testing.T) {
 	if _, err := survivor.Stat("/"); err != nil {
 		t.Fatalf("another server's session was closed: %v", err)
 	}
-	if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+	if _, err := r.dial(ownerUser, ownerKey); err == nil {
 		t.Fatal("logged in to a deleted server")
 	}
 }
@@ -474,14 +474,13 @@ func TestSFTPErrorsDoNotLeakHostPaths(t *testing.T) {
 	_, err := c.Open("/missing")
 	errs = append(errs, err)
 	_, err = c.ReadDir("/missing/dir")
-	errs = append(errs, err)
-	errs = append(errs, c.Mkdir("/missing/a/b"))
-	errs = append(errs, c.Rename("/missing", "/x"))
-	errs = append(errs, c.Remove("/missing"))
-	errs = append(errs, c.Mkdir("/file.txt/sub"))
+	errs = append(errs, err,
+		c.Mkdir("/missing/a/b"),
+		c.Rename("/missing", "/x"),
+		c.Remove("/missing"),
+		c.Mkdir("/file.txt/sub"))
 	_, err = c.Open("/out/passwd")
-	errs = append(errs, err)
-	errs = append(errs, c.Chmod("/out/passwd", 0o777))
+	errs = append(errs, err, c.Chmod("/out/passwd", 0o777))
 	for _, err := range errs {
 		if err == nil {
 			t.Fatal("an impossible request succeeded")

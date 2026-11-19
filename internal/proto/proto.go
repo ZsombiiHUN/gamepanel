@@ -7,6 +7,7 @@ package proto
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 )
 
@@ -281,7 +282,7 @@ type State struct {
 	State string `json:"state"` // offline | starting | running | stopping | crashed
 }
 
-// StateCrashed: the server crashed and was not restarted (restarts are off,
+// StateCrashed means the server crashed and was not restarted (restarts are off,
 // or it crashed again too soon). It is stopped.
 const StateCrashed = "crashed"
 
@@ -308,8 +309,14 @@ type StatsBatch struct {
 	Stats []Stats `json:"stats"`
 }
 
+// Marshal encodes a protocol message. Every message type here is plain data
+// that always encodes, so a failure is a programming error (a channel or func
+// in a payload) and panics, like regexp.MustCompile, rather than sending null.
 func Marshal(v any) json.RawMessage {
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("proto: cannot encode %T: %v", v, err))
+	}
 	return b
 }
 

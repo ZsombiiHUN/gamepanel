@@ -25,10 +25,18 @@ func mustUser(ctx context.Context) store.User {
 
 // audit records a security event with the caller's IP. It never fails the request.
 func (a *App) audit(ctx context.Context, actor store.User, action, target, detail string) {
-	a.Store.Audit(ctx, store.AuditEntry{
+	a.auditEntry(ctx, store.AuditEntry{
 		ActorID: actor.ID, ActorEmail: actor.Email,
 		Action: action, Target: target, IP: ipFrom(ctx), Detail: detail,
 	})
+}
+
+// auditEntry records e. A failed write does not fail the request (the action
+// already happened), but it is logged so the gap in the audit log is visible.
+func (a *App) auditEntry(ctx context.Context, e store.AuditEntry) {
+	if err := a.Store.Audit(ctx, e); err != nil {
+		a.Log.ErrorContext(ctx, "audit log write failed", "action", e.Action, "target", e.Target, "err", err)
+	}
 }
 
 // ParseTrustedProxies parses a comma-separated list of IPs and CIDRs.

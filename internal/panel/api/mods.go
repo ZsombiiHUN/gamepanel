@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 
@@ -25,22 +24,27 @@ type modSearchIn struct {
 	Version string `query:"version" maxLength:"32" doc:"game version, e.g. 1.21.1"`
 	Offset  int    `query:"offset" minimum:"0" maximum:"1000"`
 }
-type modSearchOut struct{ Body modrinth.SearchResult }
-type modVersionsIn struct {
-	UUID    string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
-	Project string `path:"project" maxLength:"64"`
-	Loader  string `query:"loader" maxLength:"32"`
-	Version string `query:"version" maxLength:"32"`
-}
-type modVersionsOut struct{ Body []modrinth.Version }
-type modInstallIn struct {
-	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
-	Body struct {
-		VersionID string `json:"version_id" pattern:"^[A-Za-z0-9]{1,32}$"`
-		Type      string `json:"type" enum:"mod,plugin,datapack" doc:"decides the folder unless one is given"`
-		Folder    string `json:"folder,omitempty" maxLength:"4096"`
+type (
+	modSearchOut  struct{ Body modrinth.SearchResult }
+	modVersionsIn struct {
+		UUID    string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+		Project string `path:"project" maxLength:"64"`
+		Loader  string `query:"loader" maxLength:"32"`
+		Version string `query:"version" maxLength:"32"`
 	}
-}
+)
+
+type (
+	modVersionsOut struct{ Body []modrinth.Version }
+	modInstallIn   struct {
+		UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+		Body struct {
+			VersionID string `json:"version_id" pattern:"^[A-Za-z0-9]{1,32}$"`
+			Type      string `json:"type" enum:"mod,plugin,datapack" doc:"decides the folder unless one is given"`
+			Folder    string `json:"folder,omitempty" maxLength:"4096"`
+		}
+	}
+)
 
 func (a *App) modrinth() *modrinth.Client {
 	if a.Modrinth != nil {
@@ -107,12 +111,15 @@ func (a *App) registerMods(api huma.API) {
 			c, cancel := context.WithTimeout(ctx, pullRequestTimeout)
 			defer cancel()
 			raw, err := a.Hub.Request(c, s.NodeID, proto.ReqFilesPull, proto.Transfer{
-				UUID: s.UUID, URL: f.URL, Path: strings.TrimRight(folder, "/") + "/" + name, SHA512: f.Hashes.SHA512})
+				UUID: s.UUID, URL: f.URL, Path: strings.TrimRight(folder, "/") + "/" + name, SHA512: f.Hashes.SHA512,
+			})
 			if err != nil {
 				return nil, nodeErr(err)
 			}
 			out := &transferOut{}
-			json.Unmarshal(raw, &out.Body)
+			if err := decodeReply(raw, &out.Body); err != nil {
+				return nil, err
+			}
 			a.audit(ctx, u, "mod.install", s.UUID, v.ProjectID+" "+v.Number+" -> "+out.Body.Path)
 			return out, nil
 		})

@@ -81,14 +81,15 @@ func TestOperationsThatConflictAreRefused(t *testing.T) {
 			}
 		}
 		endB, err := d.begin(id, opBackup)
-		if held == opRestore || held == opDelete {
+		switch {
+		case held == opRestore || held == opDelete:
 			if err == nil {
 				t.Errorf("a backup was allowed during %s", held)
 				endB()
 			}
-		} else if err != nil {
+		case err != nil:
 			t.Errorf("a backup was refused during %s: %v", held, err)
-		} else {
+		default:
 			endB()
 		}
 		end()
@@ -218,7 +219,7 @@ func TestDiskReservationsCannotShareHeadroom(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := d.reserveDisk(id, 700<<10)
-	var full ErrDiskFull
+	var full DiskFullError
 	if !errors.As(err, &full) || proto.CodeOf(err) != proto.CodeDiskFull {
 		t.Fatalf("second 700 KB reservation should fail with disk_full, got %v", err)
 	}

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -56,13 +57,13 @@ func TestSessionListIsPerUserAndSkipsDeadSessions(t *testing.T) {
 	}
 	var theirID string
 	s.DB.QueryRow(`SELECT public_id FROM sessions WHERE token_hash=?`, HashToken(theirs)).Scan(&theirID)
-	if err := s.DeleteSessionByID(ctx, a.ID, theirID, mine); err != ErrNotFound {
+	if err := s.DeleteSessionByID(ctx, a.ID, theirID, mine); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleting another user's session: %v", err)
 	}
-	if err := s.DeleteSessionByID(ctx, a.ID, "", mine); err != ErrNotFound {
+	if err := s.DeleteSessionByID(ctx, a.ID, "", mine); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("empty id must not match: %v", err)
 	}
-	if err := s.DeleteSessionByID(ctx, a.ID, l[0].ID, mine); err != ErrCurrentSession {
+	if err := s.DeleteSessionByID(ctx, a.ID, l[0].ID, mine); !errors.Is(err, ErrCurrentSession) {
 		t.Fatalf("deleting own session: %v", err)
 	}
 	if err := s.DeleteSessionByID(ctx, a.ID, l[1].ID, mine); err != nil {

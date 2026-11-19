@@ -125,7 +125,7 @@ func TestFullFlow(t *testing.T) {
 
 	// console websocket
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/servers/" + srv.UUID + "/ws"
-	u, _ := http.NewRequest("GET", ts.URL, nil)
+	u, _ := http.NewRequest(http.MethodGet, ts.URL, http.NoBody)
 	var cookie string
 	for _, c := range jar.Cookies(u.URL) {
 		cookie += c.Name + "=" + c.Value
@@ -168,7 +168,7 @@ func TestDaemonRejectsBadToken(t *testing.T) {
 	defer ts.Close()
 	_, resp, err := websocket.Dial(context.Background(), "ws"+strings.TrimPrefix(ts.URL, "http")+"/daemon/connect",
 		&websocket.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer wrong"}}})
-	if err == nil || resp == nil || resp.StatusCode != 401 {
+	if err == nil || resp == nil || resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %v %v", resp, err)
 	}
 }
@@ -213,7 +213,7 @@ func TestCrossOriginConsoleBlocked(t *testing.T) {
 
 func waitFor(t *testing.T, what string, f func() bool) {
 	t.Helper()
-	for i := 0; i < 400; i++ {
+	for range 400 {
 		if f() {
 			return
 		}

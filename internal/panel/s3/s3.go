@@ -93,7 +93,7 @@ func sha(b []byte) string {
 // escape is RFC 3986 percent-encoding as SigV4 wants it ("/" kept in paths).
 func escape(s string, path bool) string {
 	var b strings.Builder
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		ch := s[i]
 		switch {
 		case 'A' <= ch && ch <= 'Z', 'a' <= ch && ch <= 'z', '0' <= ch && ch <= '9', ch == '-', ch == '_', ch == '.', ch == '~':
@@ -200,7 +200,8 @@ func (c *Client) request(ctx context.Context, method string, u *url.URL, q url.V
 			Code    string `xml:"Code"`
 			Message string `xml:"Message"`
 		}
-		xml.Unmarshal(out, &e)
+		// Not every error has an S3 XML body (proxies, 5xx pages); the status alone is still reported.
+		_ = xml.Unmarshal(out, &e)
 		return nil, &Error{Status: resp.StatusCode, Code: e.Code, Message: e.Message}
 	}
 	return out, nil

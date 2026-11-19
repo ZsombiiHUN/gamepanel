@@ -22,7 +22,7 @@ func (s *stack) sftpAuth(token string, req proto.SFTPAuthReq) (proto.SFTPAuthRes
 
 func (s *stack) sftpAuthRaw(token string, body []byte) (proto.SFTPAuthResp, int) {
 	s.t.Helper()
-	hr, _ := http.NewRequest("POST", s.admin.base+"/daemon/sftp-auth", bytes.NewReader(body))
+	hr, _ := http.NewRequest(http.MethodPost, s.admin.base+"/daemon/sftp-auth", bytes.NewReader(body))
 	if token != "" {
 		hr.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -32,7 +32,7 @@ func (s *stack) sftpAuthRaw(token string, body []byte) (proto.SFTPAuthResp, int)
 	}
 	defer resp.Body.Close()
 	var r proto.SFTPAuthResp
-	if resp.StatusCode == 200 {
+	if resp.StatusCode == http.StatusOK {
 		json.NewDecoder(resp.Body).Decode(&r)
 	}
 	return r, resp.StatusCode

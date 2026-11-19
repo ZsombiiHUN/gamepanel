@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -60,6 +61,7 @@ func clientData(typ, challenge, origin string) []byte {
 
 // create answers navigator.credentials.create() with "none" attestation.
 func (a *authenticator) create(t *testing.T, options json.RawMessage) json.RawMessage {
+	t.Helper()
 	var opts struct {
 		PublicKey struct {
 			Challenge string `json:"challenge"`
@@ -68,13 +70,15 @@ func (a *authenticator) create(t *testing.T, options json.RawMessage) json.RawMe
 			} `json:"user"`
 		} `json:"publicKey"`
 	}
-	json.Unmarshal(options, &opts)
+	if err := json.Unmarshal(options, &opts); err != nil {
+		t.Fatal(err)
+	}
 	a.handle, _ = b64.DecodeString(opts.PublicKey.User.ID)
 	cose, _ := cbor.Marshal(map[int]any{1: 2, 3: -7, -1: 1, -2: a.key.X.FillBytes(make([]byte, 32)), -3: a.key.Y.FillBytes(make([]byte, 32))})
-	attested := make([]byte, 16) // AAGUID
-	attested = binary.BigEndian.AppendUint16(attested, uint16(len(a.credID)))
-	attested = append(attested, a.credID...)
-	attested = append(attested, cose...)
+	attested := slices.Concat(
+		make([]byte, 16), // AAGUID
+		binary.BigEndian.AppendUint16(nil, uint16(len(a.credID))),
+		a.credID, cose)
 	// flags: user present, user verified, attested credential data
 	att, _ := cbor.Marshal(map[string]any{"fmt": "none", "attStmt": map[string]any{}, "authData": a.authData(0x01|0x04|0x40, attested)})
 	resp, _ := json.Marshal(map[string]any{
@@ -86,12 +90,15 @@ func (a *authenticator) create(t *testing.T, options json.RawMessage) json.RawMe
 
 // get answers navigator.credentials.get(); verified=false leaves out user verification.
 func (a *authenticator) get(t *testing.T, options json.RawMessage, verified bool, origin string) json.RawMessage {
+	t.Helper()
 	var opts struct {
 		PublicKey struct {
 			Challenge string `json:"challenge"`
 		} `json:"publicKey"`
 	}
-	json.Unmarshal(options, &opts)
+	if err := json.Unmarshal(options, &opts); err != nil {
+		t.Fatal(err)
+	}
 	a.count++
 	flags := byte(0x01)
 	if verified {
@@ -104,15 +111,21 @@ func (a *authenticator) get(t *testing.T, options json.RawMessage, verified bool
 	sig, _ := ecdsa.SignASN1(rand.Reader, a.key, digest[:])
 	resp, _ := json.Marshal(map[string]any{
 		"id": b64.EncodeToString(a.credID), "rawId": b64.EncodeToString(a.credID), "type": "public-key",
-		"response": map[string]string{"authenticatorData": b64.EncodeToString(ad), "clientDataJSON": b64.EncodeToString(cd),
-			"signature": b64.EncodeToString(sig), "userHandle": b64.EncodeToString(a.handle)},
+		"response": map[string]string{
+			"authenticatorData": b64.EncodeToString(ad), "clientDataJSON": b64.EncodeToString(cd),
+			"signature": b64.EncodeToString(sig), "userHandle": b64.EncodeToString(a.handle),
+		},
 	})
 	return resp
 }
 
 func passkeyPanel(t *testing.T) (string, *client) {
+	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, _ := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { st.Close() })
 	st.CreateUser(context.Background(), "admin@example.com", "correct-horse-battery", true)
 	ts := httptest.NewUnstartedServer(nil)

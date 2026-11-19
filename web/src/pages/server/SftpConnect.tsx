@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type SubmitEvent, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Copy, ExternalLink, KeyRound, Loader2, Plug } from "lucide-react";
@@ -7,6 +7,7 @@ import { invalidates, keys, meQuery, sftpQuery } from "../../api/queries";
 import { Modal } from "../../components/Modal";
 import { ErrorBox, Field, Pill, Spinner } from "../../components/ui";
 import { sftpHost, sftpLink } from "../../lib/sftp";
+import { copyText } from "../../lib/clipboard";
 
 /**
  * Everything needed to open a server in an SFTP client: one button that hands
@@ -49,20 +50,58 @@ export function SftpConnect({ uuid, serverName }: { uuid: string; serverName: st
           {ready && <CopyIcon text={sftpLink(host, i.port, i.username)} label="Copy link" wide />}
         </div>
         <p className="mt-2.5 text-[13px] text-zinc-500">
-          {ready
-            ? key
-              ? "Your new key goes along in the link, so the client signs straight in. It may offer to save it."
-              : <>Opens WinSCP, FileZilla, Cyberduck or whichever SFTP client you have installed. When it asks for a password, use an API key. Need a client? <a className={ext} href="https://winscp.net/eng/download.php" target="_blank" rel="noreferrer">WinSCP<ExternalLink className="ml-0.5 inline h-3 w-3 align-[-1px]" aria-hidden /></a> for Windows, <a className={ext} href="https://cyberduck.io/download/" target="_blank" rel="noreferrer">Cyberduck<ExternalLink className="ml-0.5 inline h-3 w-3 align-[-1px]" aria-hidden /></a> for Mac.</>
-            : i.status === "off"
-              ? isAdmin
-                ? "The daemon on this server's node runs with SFTP turned off (GAMEPANEL_SFTP_ADDR=off), or its port was taken when it started."
-                : "SFTP is turned off on the machine this server runs on. Ask an administrator to turn it on."
-              : "The node this server runs on is offline. SFTP works again once it reconnects."}
+          {ready ? (
+            key ? (
+              "Your new key goes along in the link, so the client signs straight in. It may offer to save it."
+            ) : (
+              <>
+                Opens WinSCP, FileZilla, Cyberduck or whichever SFTP client you have installed. When it asks for a password, use an API key.
+                Need a client?{" "}
+                <a className={ext} href="https://winscp.net/eng/download.php" target="_blank" rel="noreferrer">
+                  WinSCP
+                  <ExternalLink className="ml-0.5 inline h-3 w-3 align-[-1px]" aria-hidden />
+                </a>{" "}
+                for Windows,{" "}
+                <a className={ext} href="https://cyberduck.io/download/" target="_blank" rel="noreferrer">
+                  Cyberduck
+                  <ExternalLink className="ml-0.5 inline h-3 w-3 align-[-1px]" aria-hidden />
+                </a>{" "}
+                for Mac.
+              </>
+            )
+          ) : i.status === "off" ? (
+            isAdmin ? (
+              "The daemon on this server's node runs with SFTP turned off (GAMEPANEL_SFTP_ADDR=off), or its port was taken when it started."
+            ) : (
+              "SFTP is turned off on the machine this server runs on. Ask an administrator to turn it on."
+            )
+          ) : (
+            "The node this server runs on is offline. SFTP works again once it reconnects."
+          )}
         </p>
       </div>
 
       <dl className="divide-y divide-zinc-800 text-sm">
-        <Row label="Host" value={host} copy={host} note={guessed ? (isAdmin ? <>Same as this panel. <Link to="/nodes" className="underline underline-offset-2 hover:text-zinc-300">Set the node's address</Link> if it differs.</> : "Same as this panel.") : undefined} />
+        <Row
+          label="Host"
+          value={host}
+          copy={host}
+          note={
+            guessed ? (
+              isAdmin ? (
+                <>
+                  Same as this panel.{" "}
+                  <Link to="/nodes" className="underline underline-offset-2 hover:text-zinc-300">
+                    Set the node's address
+                  </Link>{" "}
+                  if it differs.
+                </>
+              ) : (
+                "Same as this panel."
+              )
+            ) : undefined
+          }
+        />
         <Row label="Port" value={i.port ? String(i.port) : "unknown while offline"} copy={i.port ? String(i.port) : undefined} />
         <Row label="Username" value={i.username} copy={i.username} />
         <Row
@@ -71,18 +110,40 @@ export function SftpConnect({ uuid, serverName }: { uuid: string; serverName: st
           value={key ? <code className="font-mono text-[13px] text-emerald-300">{key.slice(0, 10)}…</code> : "An API key"}
           note={key ? undefined : "Not your account password."}
           copy={key ?? undefined}
-          action={!key && !making ? <button type="button" className="btn !py-1 text-xs" onClick={() => setMaking(true)}><KeyRound className="h-3.5 w-3.5" aria-hidden /> Create one</button> : undefined}
+          action={
+            !key && !making ? (
+              <button type="button" className="btn !py-1 text-xs" onClick={() => setMaking(true)}>
+                <KeyRound className="h-3.5 w-3.5" aria-hidden /> Create one
+              </button>
+            ) : undefined
+          }
         />
       </dl>
 
       {key && (
         <div role="status" className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-950/20 p-4">
-          <p className="text-sm text-amber-200">Copy this key now. It is not shown again. You can revoke it on your <Link to="/account" className="underline underline-offset-2">Account page</Link>.</p>
+          <p className="text-sm text-amber-200">
+            Copy this key now. It is not shown again. You can revoke it on your{" "}
+            <Link to="/account" className="underline underline-offset-2">
+              Account page
+            </Link>
+            .
+          </p>
           <code className="block break-all rounded-lg bg-well p-3 font-mono text-[13px] text-emerald-300 select-all">{key}</code>
           <CopyIcon text={key} label="Copy key" wide />
         </div>
       )}
-      {making && !key && <MakeKey name={`SFTP: ${serverName}`.slice(0, 64)} mfa={!!me.data?.totp_enabled} onMade={(k) => { setKey(k); setMaking(false); }} onCancel={() => setMaking(false)} />}
+      {making && !key && (
+        <MakeKey
+          name={`SFTP: ${serverName}`.slice(0, 64)}
+          mfa={!!me.data?.totp_enabled}
+          onMade={(k) => {
+            setKey(k);
+            setMaking(false);
+          }}
+          onCancel={() => setMaking(false)}
+        />
+      )}
     </div>
   );
 }
@@ -100,7 +161,11 @@ export function SftpDialog({ open, uuid, serverName, onClose }: { open: boolean;
 
 function Status({ status }: { status: string }) {
   const [dot, text] =
-    status === "ready" ? ["bg-good", "Ready"] : status === "off" ? ["bg-warn", "SFTP is off on this node"] : ["bg-bad-text", "Node offline"];
+    status === "ready"
+      ? ["bg-good", "Ready"]
+      : status === "off"
+        ? ["bg-warn", "SFTP is off on this node"]
+        : ["bg-bad-text", "Node offline"];
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs font-medium text-zinc-200">
       <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden /> {text}
@@ -108,7 +173,21 @@ function Status({ status }: { status: string }) {
   );
 }
 
-function Row({ label, value, copy, note, action, plain = false }: { label: string; value: ReactNode; copy?: string; note?: ReactNode; action?: ReactNode; plain?: boolean }) {
+function Row({
+  label,
+  value,
+  copy,
+  note,
+  action,
+  plain = false,
+}: {
+  label: string;
+  value: ReactNode;
+  copy?: string;
+  note?: ReactNode;
+  action?: ReactNode;
+  plain?: boolean;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-2.5 first:pt-0 last:pb-0">
       <dt className="text-zinc-500">{label}</dt>
@@ -129,7 +208,7 @@ function CopyIcon({ text, label, wide = false }: { text: string; label: string; 
   const [err, setErr] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       setDone(true);
       setErr(false);
       setTimeout(() => setDone(false), 1500);
@@ -139,10 +218,20 @@ function CopyIcon({ text, label, wide = false }: { text: string; label: string; 
   };
   const icon = done ? <Check className="h-3.5 w-3.5 text-good-text" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />;
   if (wide) {
-    return <button type="button" className="btn" onClick={copy}>{icon} {done ? "Copied" : err ? "Copy failed - select it" : label}</button>;
+    return (
+      <button type="button" className="btn" onClick={() => void copy()}>
+        {icon} {done ? "Copied" : err ? "Copy failed - select it" : label}
+      </button>
+    );
   }
   return (
-    <button type="button" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500" aria-label={done ? "Copied" : label} title={err ? "Copy failed - select it" : label} onClick={copy}>
+    <button
+      type="button"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
+      aria-label={done ? "Copied" : label}
+      title={err ? "Copy failed - select it" : label}
+      onClick={() => void copy()}
+    >
       {icon}
     </button>
   );
@@ -157,31 +246,57 @@ function MakeKey({ name, mfa, onMade, onCancel }: { name: string; mfa: boolean; 
     meta: invalidates(keys.apiKeys),
     onSuccess: (r) => onMade(r.token),
   });
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     create.mutate();
   };
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-zinc-800 p-4">
       <p className="text-sm text-zinc-300">
-        Creates an API key named <span className="font-medium text-zinc-100">&ldquo;{name}&rdquo;</span> that lasts a year. It can do what you can on the panel, so treat it like a password.
+        Creates an API key named <span className="font-medium text-zinc-100">&ldquo;{name}&rdquo;</span> that lasts a year. It can do what
+        you can on the panel, so treat it like a password.
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Your account password">
-          {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required autoFocus maxLength={256} value={password} onChange={(e) => setPassword(e.target.value)} />}
+          {(id) => (
+            <input
+              id={id}
+              className="input"
+              type="password"
+              autoComplete="current-password"
+              required
+              autoFocus
+              maxLength={256}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          )}
         </Field>
         {mfa && (
           <Field label="Authenticator or recovery code">
-            {(id) => <input id={id} className="input w-48 font-mono" autoComplete="one-time-code" required maxLength={64} value={code} onChange={(e) => setCode(e.target.value)} />}
+            {(id) => (
+              <input
+                id={id}
+                className="input w-48 font-mono"
+                autoComplete="one-time-code"
+                required
+                maxLength={64}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            )}
           </Field>
         )}
       </div>
       <ErrorBox error={create.error} />
       <div className="flex gap-2">
         <button type="submit" className="btn btn-primary" disabled={create.isPending || !password}>
-          {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <KeyRound className="h-4 w-4" aria-hidden />} Create key
+          {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <KeyRound className="h-4 w-4" aria-hidden />}{" "}
+          Create key
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </form>
   );
