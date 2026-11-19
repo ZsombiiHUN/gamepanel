@@ -19,9 +19,9 @@ func TestModManager(t *testing.T) {
 	t.Parallel()
 	jar := []byte("PK fake LuckPerms jar")
 	sum := sha512.Sum512(jar)
-	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(jar) }))
+	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write(jar) }))
 	defer cdn.Close()
-	evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("malware")) }))
+	evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("malware")) }))
 	defer evil.Close()
 	var lastSearch url.Values
 	file := func(u, hash string) map[string]any {

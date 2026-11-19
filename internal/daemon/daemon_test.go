@@ -81,14 +81,15 @@ func TestOperationsThatConflictAreRefused(t *testing.T) {
 			}
 		}
 		endB, err := d.begin(id, opBackup)
-		if held == opRestore || held == opDelete {
+		switch {
+		case held == opRestore || held == opDelete:
 			if err == nil {
 				t.Errorf("a backup was allowed during %s", held)
 				endB()
 			}
-		} else if err != nil {
+		case err != nil:
 			t.Errorf("a backup was refused during %s: %v", held, err)
-		} else {
+		default:
 			endB()
 		}
 		end()

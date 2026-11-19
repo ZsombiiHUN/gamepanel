@@ -133,6 +133,11 @@ func (a *App) registerAccounts(api huma.API) {
 			return &accountOut{Body: acct}, nil
 		})
 
+	a.registerAccountChanges(api)
+}
+
+// registerAccountChanges registers updating and deleting accounts.
+func (a *App) registerAccountChanges(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "updateAccount", Method: "PATCH", Path: "/users/{id}", Summary: "Change an account's email, external id or password (admin)",
 		Description: "Fields left out stay as they are. The email and password of admin accounts can only be changed from their own account settings.",

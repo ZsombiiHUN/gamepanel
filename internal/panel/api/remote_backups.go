@@ -55,21 +55,21 @@ func (a *App) removeRemoteBackups(ctx context.Context, server string) {
 
 // nodeBackup checks that a node's request is about a running S3 backup of a
 // server on that node.
-func (a *App) nodeBackup(r *http.Request, server, backup string) (store.Backup, bool) {
+func (a *App) nodeBackup(r *http.Request, server, backup string) bool {
 	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	node, err := a.Store.NodeByToken(r.Context(), tok)
 	if tok == "" || err != nil {
-		return store.Backup{}, false
+		return false
 	}
 	s, err := a.Store.GetServer(r.Context(), server)
 	if err != nil || s.NodeID != node.ID {
-		return store.Backup{}, false
+		return false
 	}
 	b, err := a.Store.GetBackup(r.Context(), server, backup)
 	if err != nil || b.Status != store.BackupRunning || b.Disk != diskS3 {
-		return store.Backup{}, false
+		return false
 	}
-	return b, true
+	return true
 }
 
 // backupUpload starts a multipart upload and hands the node presigned URLs.
@@ -79,7 +79,7 @@ func (a *App) backupUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if _, ok := a.nodeBackup(r, in.Server, in.BackupID); !ok || a.S3 == nil {
+	if !a.nodeBackup(r, in.Server, in.BackupID) || a.S3 == nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -104,7 +104,7 @@ func (a *App) backupComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, found := a.uploads.LoadAndDelete(in.BackupID)
-	if _, ok := a.nodeBackup(r, in.Server, in.BackupID); !ok || !found || a.S3 == nil {
+	if !a.nodeBackup(r, in.Server, in.BackupID) || !found || a.S3 == nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}

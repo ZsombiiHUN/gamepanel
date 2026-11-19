@@ -83,7 +83,7 @@ func TestSFTPOpenFilesPerConnectionAreCapped(t *testing.T) {
 		if err != nil {
 			t.Fatalf("after failed opens, open %d: %v", i+1, err)
 		}
-		defer f.Close()
+		t.Cleanup(func() { f.Close() }) // held open to the end: the test fills every handle
 	}
 }
 
@@ -178,7 +178,7 @@ func TestSFTPStatVFS(t *testing.T) {
 		t.Errorf("over the limit: %d blocks free", v.Bfree)
 	}
 
-	// unlimited: the real filesystem
+	// unlimited: the onDisk filesystem
 	u := newSFTPRig(t, 0, nil)
 	v, err = u.owner().StatVFS("/")
 	if err != nil {
@@ -186,7 +186,7 @@ func TestSFTPStatVFS(t *testing.T) {
 	}
 	var st syscall.Statfs_t
 	syscall.Statfs(u.d.serverDir(u.id), &st)
-	if v.Blocks != uint64(st.Blocks) {
+	if v.Blocks != st.Blocks {
 		t.Errorf("unlimited: %d blocks, the filesystem has %d", v.Blocks, st.Blocks)
 	}
 }
@@ -206,7 +206,7 @@ func TestSFTPUnreadablePanelAnswer(t *testing.T) {
 		t.Fatalf("an unreadable recheck answer closed the session: %v", err)
 	}
 	// and a sign-in it answers that way is refused, not counted as a guess
-	if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+	if _, err := r.dial(ownerUser, ownerKey); err == nil {
 		t.Fatal("logged in on an unreadable answer")
 	}
 	if n := r.failCount("127.0.0.1"); n != 0 {
@@ -229,7 +229,7 @@ func TestSFTPSlowPanel(t *testing.T) {
 	c := r.owner()
 	r.p.setDelay(2 * time.Second)
 	start := time.Now()
-	if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+	if _, err := r.dial(ownerUser, ownerKey); err == nil {
 		t.Fatal("logged in although the panel never answered")
 	}
 	if d := time.Since(start); d > 1500*time.Millisecond {
@@ -290,7 +290,7 @@ func TestSFTPLockoutExpires(t *testing.T) {
 	for range sftpAuthMaxFail {
 		r.dial(ownerUser, "gp_guess")
 	}
-	if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+	if _, err := r.dial(ownerUser, ownerKey); err == nil {
 		t.Fatal("not locked out")
 	}
 	r.d.sftp.mu.Lock()
@@ -298,7 +298,7 @@ func TestSFTPLockoutExpires(t *testing.T) {
 		r.d.sftp.fails["127.0.0.1"][i] = r.d.sftp.fails["127.0.0.1"][i].Add(-sftpAuthWindow - time.Second)
 	}
 	r.d.sftp.mu.Unlock()
-	if _, _, err := r.dial(ownerUser, ownerKey); err != nil {
+	if _, err := r.dial(ownerUser, ownerKey); err != nil {
 		t.Fatalf("still locked out after the window: %v", err)
 	}
 	r.d.sftp.mu.Lock()
@@ -328,7 +328,7 @@ func TestSFTPIPv6(t *testing.T) {
 	if n := r.failCount("::1"); n != sftpAuthMaxFail {
 		t.Fatalf("%d failures counted for ::1", n)
 	}
-	if _, _, err := r.dial(ownerUser, ownerKey); err == nil {
+	if _, err := r.dial(ownerUser, ownerKey); err == nil {
 		t.Fatal("an IPv6 address that kept guessing could log in")
 	}
 }
@@ -426,9 +426,9 @@ func TestSFTPReinstallKeepsSessionsAndRemeasures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	real, _ := r.d.walkUsage(id)
-	if got != real {
-		t.Fatalf("figure %d after reinstall, disk %d", got, real)
+	onDisk, _ := r.d.walkUsage(id)
+	if got != onDisk {
+		t.Fatalf("figure %d after reinstall, disk %d", got, onDisk)
 	}
 }
 
@@ -444,8 +444,8 @@ func TestSFTPGameHardLinks(t *testing.T) {
 	if err := c.Remove("/b.bin"); err != nil {
 		t.Fatal(err)
 	}
-	if used, real := usedBytes(r.d, r.id), r.realUsage(); used != real {
-		t.Fatalf("figure %d, disk %d after removing one of two names", used, real)
+	if used, onDisk := usedBytes(r.d, r.id), r.realUsage(); used != onDisk {
+		t.Fatalf("figure %d, disk %d after removing one of two names", used, onDisk)
 	}
 	if got, err := download(c, "/a.bin"); err != nil || len(got) != 1<<20 {
 		t.Fatal("removing one name lost the other")

@@ -34,11 +34,12 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/web"
 )
 
+// Fixed test accounts on a throwaway panel; the browser tests sign in with them.
 const (
 	adminEmail = "admin@example.com"
-	adminPass  = "e2e-admin-password-1"
+	adminPass  = "e2e-admin-password-1" //nolint:gosec // G101: see above
 	userEmail  = "bob@example.com"
-	userPass   = "e2e-user-password-1"
+	userPass   = "e2e-user-password-1" //nolint:gosec // G101: see above
 )
 
 type ready struct {
@@ -73,7 +74,7 @@ func main() {
 	}
 }
 
-func run(nServers int, dir, addr, readyFile string) error {
+func run(nServers int, dir, addr, readyFile string) (err error) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -83,25 +84,14 @@ func run(nServers int, dir, addr, readyFile string) error {
 		if err != nil {
 			return err
 		}
-		defer os.RemoveAll(d)
+		defer func() { err = errors.Join(err, os.RemoveAll(d)) }()
 		dir = d
 	}
-	st, err := store.Open(filepath.Join(dir, "panel.db"))
+	st, err := openStore(ctx, filepath.Join(dir, "panel.db"))
 	if err != nil {
 		return err
 	}
-	defer st.Close()
-	key := make([]byte, 32)
-	rand.Read(key)
-	if err := st.SetSecretKey(key); err != nil {
-		return err
-	}
-	if _, err := st.CreateUser(ctx, adminEmail, adminPass, true); err != nil {
-		return err
-	}
-	if _, err := st.CreateUser(ctx, userEmail, userPass, false); err != nil {
-		return err
-	}
+	defer func() { err = errors.Join(err, st.Close()) }()
 
 	h := hub.New(log)
 	// Passkeys need a domain: browser tests that use them open the panel on localhost.
@@ -109,14 +99,19 @@ func run(nServers int, dir, addr, readyFile string) error {
 	if _, port, err := net.SplitHostPort(addr); err == nil && port != "0" {
 		public = "http://localhost:" + port
 	}
-	handler := api.New(api.Deps{Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx, PublicURL: public, Modrinth: fakeModrinth()})
-	ln, err := net.Listen("tcp", addr)
+	modrinthAPI, err := fakeModrinth(ctx)
+	if err != nil {
+		return err
+	}
+	handler := api.New(api.Deps{Store: st, Hub: h, Log: log, Web: web.Handler(), SchedulerCtx: ctx, PublicURL: public, Modrinth: modrinthAPI})
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return err
 	}
 	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
-	go srv.Serve(ln)
-	defer srv.Close()
+	go serve(srv, ln)
+	defer func() { err = errors.Join(err, srv.Close()) }()
 	base := "http://" + ln.Addr().String()
 
 	node, token, err := st.CreateNode(ctx, "eu-west-1", 25565, 25565+nServers+20)
@@ -139,31 +134,109 @@ func run(nServers int, dir, addr, readyFile string) error {
 		return err
 	}
 
-	jar, _ := cookiejar.New(nil)
-	c := &http.Client{Jar: jar}
-	call := func(method, path string, body any, want int) ([]byte, error) {
-		var r io.Reader
-		if body != nil {
-			b, _ := json.Marshal(body)
-			r = bytes.NewReader(b)
-		}
-		req, _ := http.NewRequest(method, base+path, r)
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := c.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode != want {
-			return nil, fmt.Errorf("%s %s: got %d want %d: %s", method, path, resp.StatusCode, want, b)
-		}
-		return b, nil
-	}
-	if _, err := call("POST", "/api/auth/login", map[string]string{"email": adminEmail, "password": adminPass}, 200); err != nil {
+	out := ready{URL: base, Admin: credentials{adminEmail, adminPass}, User: credentials{userEmail, userPass}, NodeID: node.ID, DataDir: filepath.Join(dir, "daemon"), SharedTo: "Creative Plots"}
+	if out.Servers, err = seed(ctx, newClient(base), node.ID, nServers, out.SharedTo); err != nil {
 		return err
 	}
+	line, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	if readyFile != "" {
+		// Write then rename so a reader never sees half a file.
+		tmp := readyFile + ".tmp"
+		if err := os.WriteFile(tmp, line, 0o600); err != nil {
+			return err
+		}
+		if err := os.Rename(tmp, readyFile); err != nil {
+			return err
+		}
+		defer func() { err = errors.Join(err, os.Remove(readyFile)) }()
+	}
+	fmt.Println(string(line))
+	<-ctx.Done()
+	return nil
+}
 
+// serve runs srv until it is closed.
+func serve(srv *http.Server, ln net.Listener) {
+	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+		fmt.Fprintln(os.Stderr, "testpanel: serve:", err)
+	}
+}
+
+// openStore opens a fresh database with the test accounts.
+func openStore(ctx context.Context, path string) (*store.Store, error) {
+	st, err := store.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	key := make([]byte, 32)
+	rand.Read(key)
+	if err := st.SetSecretKey(key); err != nil {
+		return nil, errors.Join(err, st.Close())
+	}
+	for _, u := range []struct {
+		email, pw string
+		admin     bool
+	}{{adminEmail, adminPass, true}, {userEmail, userPass, false}} {
+		if _, err := st.CreateUser(ctx, u.email, u.pw, u.admin); err != nil {
+			return nil, errors.Join(err, st.Close())
+		}
+	}
+	return st, nil
+}
+
+// client calls the panel's API as the signed-in admin.
+type client struct {
+	base string
+	http *http.Client
+}
+
+func newClient(base string) *client {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		panic(err) // cookiejar.New never fails without options
+	}
+	return &client{base: base, http: &http.Client{Jar: jar}}
+}
+
+// post sends body as JSON, expects status want and decodes the reply into
+// out unless it is nil.
+func (c *client) post(ctx context.Context, path string, body any, want int, out any) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	reply, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != want {
+		return fmt.Errorf("POST %s: got %d want %d: %s", path, resp.StatusCode, want, reply)
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(reply, out)
+}
+
+// seed signs in as the admin and creates the eggs and nServers servers the
+// browser tests expect, sharing the one named sharedTo with the regular user.
+func seed(ctx context.Context, c *client, nodeID int64, nServers int, sharedTo string) ([]seeded, error) {
+	if err := c.post(ctx, "/api/auth/login", map[string]string{"email": adminEmail, "password": adminPass}, 200, nil); err != nil {
+		return nil, err
+	}
 	eggs := map[string]int64{}
 	for _, e := range []struct{ name, image, startup string }{
 		{"Paper Minecraft", "ghcr.io/pterodactyl/yolks:java_21", "java -Xms128M -jar server.jar"},
@@ -175,17 +248,42 @@ func run(nServers int, dir, addr, readyFile string) error {
 			"name": e.name, "docker_images": map[string]string{"default": e.image}, "startup": e.startup, "config": map[string]string{"stop": "stop"},
 			"variables": []map[string]string{{"name": "Name", "env_variable": "SRV", "default_value": "My Server"}},
 		}
-		b, err := call("POST", "/api/eggs/import", body, 201)
-		if err != nil {
-			return err
+		var egg struct{ ID int64 }
+		if err := c.post(ctx, "/api/eggs/import", body, 201, &egg); err != nil {
+			return nil, err
 		}
-		var out struct{ ID int64 }
-		json.Unmarshal(b, &out)
-		eggs[e.name] = out.ID
+		eggs[e.name] = egg.ID
 	}
+	var servers []seeded
+	for _, p := range serverPlan(nServers) {
+		var s struct {
+			UUID string `json:"uuid"`
+			Port int    `json:"port"`
+		}
+		body := map[string]any{"name": p.name, "node_id": nodeID, "egg_id": eggs[p.egg], "memory_mb": 256, "disk_mb": 1024}
+		if err := c.post(ctx, "/api/servers", body, 201, &s); err != nil {
+			return nil, err
+		}
+		servers = append(servers, seeded{UUID: s.UUID, Name: p.name, Egg: p.egg, Port: s.Port})
+	}
+	// Let the regular user see one server, with read-only console and files.
+	for _, s := range servers {
+		if s.Name == sharedTo {
+			grant := map[string]any{"email": userEmail, "permissions": []string{"console.read", "files.read"}}
+			if err := c.post(ctx, "/api/servers/"+s.UUID+"/users", grant, 201, nil); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return servers, nil
+}
 
-	// The first six are fixed so tests can rely on them; the rest pad the list out.
-	plan := []struct{ name, egg string }{
+type plannedServer struct{ name, egg string }
+
+// serverPlan names n servers. The first six are fixed so tests can rely on
+// them; the rest pad the list out.
+func serverPlan(n int) []plannedServer {
+	plan := []plannedServer{
 		{"Survival SMP", "Paper Minecraft"},
 		{"Creative Plots", "Paper Minecraft"},
 		{"Skyblock", "Paper Minecraft"},
@@ -196,71 +294,39 @@ func run(nServers int, dir, addr, readyFile string) error {
 	// Names chosen to exercise sorting ("Lobby 2" before "Lobby 10"), shared words and several games.
 	extra := []string{"Lobby 2", "Lobby 10", "Lobby 1", "Vanilla Survival", "Modded Create", "Pixelmon", "Hub Lobby", "BedWars", "SkyWars", "Factions", "Prison", "Hardcore", "Anarchy", "RPG Realm", "Tekkit", "Ark Island", "Rust Modded", "Rust Vanilla 2x", "Valheim Hardcore", "Terraria Calamity", "Creative Build", "Towny", "Kitpvp"}
 	eggNames := []string{"Paper Minecraft", "Valheim", "Rust", "Terraria"}
-	for i := 0; len(plan) < nServers; i++ {
+	for i := 0; len(plan) < n; i++ {
 		name := fmt.Sprintf("Extra %d", i)
 		if i < len(extra) {
 			name = extra[i]
 		}
-		plan = append(plan, struct{ name, egg string }{name, eggNames[i%len(eggNames)]})
+		plan = append(plan, plannedServer{name, eggNames[i%len(eggNames)]})
 	}
-	out := ready{URL: base, Admin: credentials{adminEmail, adminPass}, User: credentials{userEmail, userPass}, NodeID: node.ID, DataDir: filepath.Join(dir, "daemon"), SharedTo: "Creative Plots"}
-	for _, p := range plan {
-		b, err := call("POST", "/api/servers", map[string]any{"name": p.name, "node_id": node.ID, "egg_id": eggs[p.egg], "memory_mb": 256, "disk_mb": 1024}, 201)
-		if err != nil {
-			return err
-		}
-		var s struct {
-			UUID string `json:"uuid"`
-			Port int    `json:"port"`
-		}
-		json.Unmarshal(b, &s)
-		out.Servers = append(out.Servers, seeded{UUID: s.UUID, Name: p.name, Egg: p.egg, Port: s.Port})
-	}
-	// Let the regular user see one server, with read-only console and files.
-	for _, s := range out.Servers {
-		if s.Name == out.SharedTo {
-			if _, err := call("POST", "/api/servers/"+s.UUID+"/users", map[string]any{"email": userEmail, "permissions": []string{"console.read", "files.read"}}, 201); err != nil {
-				return err
-			}
-		}
-	}
-
-	line, _ := json.Marshal(out)
-	if readyFile != "" {
-		// Write then rename so a reader never sees half a file.
-		tmp := readyFile + ".tmp"
-		if err := os.WriteFile(tmp, line, 0o600); err != nil {
-			return err
-		}
-		if err := os.Rename(tmp, readyFile); err != nil {
-			return err
-		}
-		defer os.Remove(readyFile)
-	}
-	fmt.Println(string(line))
-	<-ctx.Done()
-	return nil
+	return plan
 }
 
 // fakeModrinth answers the mod manager with canned results, so browser tests
 // never depend on the real Modrinth.
-func fakeModrinth() *modrinth.Client {
+func fakeModrinth(ctx context.Context) (*modrinth.Client, error) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /search", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"total_hits": 2, "hits": []any{
+	reply := func(w http.ResponseWriter, v any) {
+		_ = json.NewEncoder(w).Encode(v) //nolint:errchkjson // canned data; a failed write means the test stopped
+	}
+	mux.HandleFunc("GET /search", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w, map[string]any{"total_hits": 2, "hits": []any{
 			map[string]any{"project_id": "Vebnzrzj", "slug": "luckperms", "title": "LuckPerms", "author": "Luck", "description": "A permissions plugin.", "downloads": 2400000, "project_type": "plugin"},
 			map[string]any{"project_id": "fALzjamp", "slug": "chunky", "title": "Chunky", "author": "pop4959", "description": "Pre-generates chunks.", "downloads": 870000, "project_type": "plugin"},
 		}})
 	})
 	mux.HandleFunc("GET /project/{id}/version", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode([]any{map[string]any{"id": "abc123", "project_id": r.PathValue("id"), "version_number": "5.4.0", "version_type": "release", "game_versions": []string{"1.21.1"}, "loaders": []string{"paper"}, "files": []any{}}})
+		reply(w, []any{map[string]any{"id": "abc123", "project_id": r.PathValue("id"), "version_number": "5.4.0", "version_type": "release", "game_versions": []string{"1.21.1"}, "loaders": []string{"paper"}, "files": []any{}}})
 	})
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	go http.Serve(ln, mux)
+	go serve(&http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}, ln)
 	c := modrinth.New()
 	c.BaseURL = "http://" + ln.Addr().String()
-	return c
+	return c, nil
 }

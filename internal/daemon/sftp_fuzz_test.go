@@ -83,6 +83,7 @@ func (f *fuzzRoot) outsidePaths() string {
 }
 
 func newFuzzRoot(t testing.TB) *fuzzRoot {
+	t.Helper()
 	d := newTestDaemon(t, runtime.NewFake())
 	id := uuidN(1)
 	addServer(t, d, id, 1)
@@ -129,7 +130,7 @@ func frames(in []byte) [][]byte {
 // serve runs one session over the input the way a client does: one packet
 // at a time, waiting (briefly) for each answer. A client that sends data for
 // a handle before the open is answered races inside the sftp package itself
-// (it registers the handle before opening the file); real clients always
+// (it registers the handle before opening the file); onDisk clients always
 // wait for the handle.
 func (f *fuzzRoot) serve(t testing.TB, input []byte) {
 	t.Helper()
@@ -199,12 +200,13 @@ func (f *fuzzRoot) check(t testing.TB) {
 	if now := f.outsidePaths(); now != f.before {
 		t.Fatalf("something changed outside the server's folder:\n%s\nwas:\n%s", now, f.before)
 	}
-	if used, real := usedBytes(f.d, f.id), mustWalk(t, f.d, f.id); used < real {
-		t.Fatalf("figure %d below the %d bytes on disk", used, real)
+	if used, onDisk := usedBytes(f.d, f.id), mustWalk(t, f.d, f.id); used < onDisk {
+		t.Fatalf("figure %d below the %d bytes on disk", used, onDisk)
 	}
 }
 
 func mustWalk(t testing.TB, d *Daemon, id string) int64 {
+	t.Helper()
 	n, err := d.walkUsage(id)
 	if err != nil {
 		t.Fatal(err)

@@ -16,7 +16,7 @@ import (
 // The OpenSSH sftp client, the one most people (and WinSCP's and
 // FileZilla's protocol choices) are measured against. Skipped where it is
 // not installed.
-func runOpenSSH(t *testing.T, r *sftpRig, user, key, local string, script string) string {
+func runOpenSSH(t *testing.T, r *sftpRig, user, key, local, script string) string {
 	t.Helper()
 	bin, err := exec.LookPath("sftp")
 	if err != nil {

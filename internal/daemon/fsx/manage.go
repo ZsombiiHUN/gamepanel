@@ -375,46 +375,9 @@ func (d *Dir) writeZip(w io.Writer, rels []string, strip func(string) string) er
 // past it the extraction stops with ErrArchiveTooLarge. Symlinks, hard links
 // and devices in the archive are skipped; unsafe names are refused.
 func (d *Dir) Decompress(p, dest string, maxBytes int64) error {
-	name, to := clean(p), clean(dest)
+	name := clean(p)
 	lower := strings.ToLower(name)
-	var written int64
-	put := func(entry string, mode fs.FileMode, body io.Reader) error {
-		rel, err := safeJoin(to, entry)
-		if err != nil {
-			return err
-		}
-		if err := d.mkdirAll(path.Dir(rel)); err != nil {
-			return err
-		}
-		if fi, err := d.root.Lstat(rel); err == nil && !fi.Mode().IsRegular() {
-			return &fs.PathError{Op: "extract", Path: entry, Err: fs.ErrExist}
-		}
-		f, err := d.create(rel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode.Perm()|0o600)
-		if err != nil {
-			return err
-		}
-		var w io.Writer = f
-		if maxBytes > 0 {
-			w = &capWriter{w: f, left: maxBytes - written}
-		}
-		n, err := io.Copy(w, body)
-		written += n
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		if errors.Is(err, ErrTooBig) {
-			return ErrArchiveTooLarge
-		}
-		return err
-	}
-	mkdir := func(entry string) error {
-		rel, err := safeJoin(to, entry)
-		if err != nil {
-			return err
-		}
-		return d.mkdirAll(rel)
-	}
-
+	x := &extractor{d: d, to: clean(dest), maxBytes: maxBytes}
 	src, err := d.root.Open(name)
 	if err != nil {
 		return err
@@ -422,77 +385,131 @@ func (d *Dir) Decompress(p, dest string, maxBytes int64) error {
 	defer closeQuiet(src)
 	switch {
 	case strings.HasSuffix(lower, ".zip"):
-		fi, err := src.Stat()
+		return x.zip(src)
+	case strings.HasSuffix(lower, ".tar.gz"), strings.HasSuffix(lower, ".tgz"):
+		gz, err := gzip.NewReader(src)
 		if err != nil {
-			return err
+			return fmt.Errorf("not a gzip archive: %w", err)
 		}
-		zr, err := zip.NewReader(src, fi.Size())
-		if err != nil {
-			return fmt.Errorf("damaged zip archive: %w", err)
-		}
-		for _, zf := range zr.File {
-			switch {
-			case strings.HasSuffix(zf.Name, "/"):
-				if err := mkdir(zf.Name); err != nil {
-					return err
-				}
-			case zf.Mode().IsRegular():
-				rc, err := zf.Open()
-				if err != nil {
-					return fmt.Errorf("damaged zip archive: %w", err)
-				}
-				err = put(zf.Name, zf.Mode(), rc)
-				rc.Close()
-				if err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	case strings.HasSuffix(lower, ".tar.gz"), strings.HasSuffix(lower, ".tgz"),
-		strings.HasSuffix(lower, ".tar.bz2"), strings.HasSuffix(lower, ".tbz2"), strings.HasSuffix(lower, ".tar"):
-		var r io.Reader = src
-		switch {
-		case strings.HasSuffix(lower, "gz"):
-			gz, err := gzip.NewReader(src)
-			if err != nil {
-				return fmt.Errorf("not a gzip archive: %w", err)
-			}
-			defer closeQuiet(gz)
-			r = gz
-		case strings.HasSuffix(lower, "bz2"):
-			r = bzip2.NewReader(src)
-		}
-		tr := tar.NewReader(r)
-		for {
-			h, err := tr.Next()
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("damaged archive: %w", err)
-			}
-			switch h.Typeflag {
-			case tar.TypeDir:
-				if err := mkdir(h.Name); err != nil {
-					return err
-				}
-			case tar.TypeReg:
-				// Permission bits only, as put keeps: never setuid/setgid/sticky.
-				if err := put(h.Name, fs.FileMode(h.Mode&0o777), io.LimitReader(tr, h.Size)); err != nil {
-					return err
-				}
-			}
-		}
+		defer closeQuiet(gz)
+		return x.tar(gz)
+	case strings.HasSuffix(lower, ".tar.bz2"), strings.HasSuffix(lower, ".tbz2"):
+		return x.tar(bzip2.NewReader(src))
+	case strings.HasSuffix(lower, ".tar"):
+		return x.tar(src)
 	case strings.HasSuffix(lower, ".gz"):
 		gz, err := gzip.NewReader(src)
 		if err != nil {
 			return fmt.Errorf("not a gzip file: %w", err)
 		}
 		defer closeQuiet(gz)
-		return put(strings.TrimSuffix(path.Base(name), path.Ext(name)), 0o644, gz)
+		return x.put(strings.TrimSuffix(path.Base(name), path.Ext(name)), 0o644, gz)
 	}
 	return ErrUnsupportedArchive
+}
+
+// extractor writes archive entries under to, counting the bytes against
+// maxBytes (0 = no cap).
+type extractor struct {
+	d        *Dir
+	to       string
+	maxBytes int64
+	written  int64
+}
+
+// put writes one regular file. Only permission bits of mode are kept.
+func (x *extractor) put(entry string, mode fs.FileMode, body io.Reader) error {
+	rel, err := safeJoin(x.to, entry)
+	if err != nil {
+		return err
+	}
+	if err := x.d.mkdirAll(path.Dir(rel)); err != nil {
+		return err
+	}
+	if fi, err := x.d.root.Lstat(rel); err == nil && !fi.Mode().IsRegular() {
+		return &fs.PathError{Op: "extract", Path: entry, Err: fs.ErrExist}
+	}
+	f, err := x.d.create(rel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode.Perm()|0o600)
+	if err != nil {
+		return err
+	}
+	var w io.Writer = f
+	if x.maxBytes > 0 {
+		w = &capWriter{w: f, left: x.maxBytes - x.written}
+	}
+	n, err := io.Copy(w, body)
+	x.written += n
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if errors.Is(err, ErrTooBig) {
+		return ErrArchiveTooLarge
+	}
+	return err
+}
+
+func (x *extractor) mkdir(entry string) error {
+	rel, err := safeJoin(x.to, entry)
+	if err != nil {
+		return err
+	}
+	return x.d.mkdirAll(rel)
+}
+
+// zip extracts folders and regular files; anything else is skipped.
+func (x *extractor) zip(src *os.File) error {
+	fi, err := src.Stat()
+	if err != nil {
+		return err
+	}
+	zr, err := zip.NewReader(src, fi.Size())
+	if err != nil {
+		return fmt.Errorf("damaged zip archive: %w", err)
+	}
+	for _, zf := range zr.File {
+		switch {
+		case strings.HasSuffix(zf.Name, "/"):
+			if err := x.mkdir(zf.Name); err != nil {
+				return err
+			}
+		case zf.Mode().IsRegular():
+			rc, err := zf.Open()
+			if err != nil {
+				return fmt.Errorf("damaged zip archive: %w", err)
+			}
+			err = x.put(zf.Name, zf.Mode(), rc)
+			closeQuiet(rc)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// tar extracts folders and regular files; anything else is skipped.
+func (x *extractor) tar(r io.Reader) error {
+	tr := tar.NewReader(r)
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("damaged archive: %w", err)
+		}
+		switch h.Typeflag {
+		case tar.TypeDir:
+			if err := x.mkdir(h.Name); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			// Permission bits only, as put keeps: never setuid/setgid/sticky.
+			if err := x.put(h.Name, fs.FileMode(h.Mode&0o777), io.LimitReader(tr, h.Size)); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // safeJoin places an archive entry under dest, refusing absolute names and

@@ -239,6 +239,11 @@ func (a *App) registerMFA(api huma.API) {
 			return out, nil
 		})
 
+	a.registerAPIKeys(api)
+}
+
+// registerAPIKeys registers personal API keys.
+func (a *App) registerAPIKeys(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "createApiKey", Method: "POST", Path: "/auth/keys",
 		Summary: "Create an API key (the token is shown once)", DefaultStatus: 201,

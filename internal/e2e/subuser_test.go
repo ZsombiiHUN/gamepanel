@@ -30,8 +30,8 @@ func TestSubuserPermissions(t *testing.T) {
 	}
 
 	// validation on grant
-	add := func(email string, perms []string, want int) []byte {
-		return s.admin.do("POST", srv+"/users", map[string]any{"email": email, "permissions": perms}, want)
+	add := func(email string, perms []string, want int) {
+		s.admin.do("POST", srv+"/users", map[string]any{"email": email, "permissions": perms}, want)
 	}
 	add("bob@example.com", []string{"root"}, 422)
 	add("nobody@example.com", []string{"files.read"}, 422)

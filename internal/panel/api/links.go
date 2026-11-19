@@ -212,6 +212,12 @@ func (a *App) registerLinks(api huma.API) {
 		})
 
 	// ---- admin: account invitations ----
+
+	a.registerInvites(api)
+}
+
+// registerInvites registers account invitations and invitations onto a server.
+func (a *App) registerInvites(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "createInvite", Method: "POST", Path: "/invites", Summary: "Invite someone to make an account (admin)", DefaultStatus: 201},
 		func(ctx context.Context, in *inviteCreateIn) (*invitationOut, error) {
 			u, err := requireAdmin(ctx)
