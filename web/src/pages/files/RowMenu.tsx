@@ -59,6 +59,8 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
   const cls = (danger?: boolean) => `menu-item w-full ${danger ? "!text-red-300" : ""}`;
 
   return (
+    // Arrow keys and Escape bubble up from the button and the menu items.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- see above
     <div ref={box} className="relative inline-block" onKeyDown={onKey}>
       <button
         ref={button}
@@ -69,7 +71,8 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => {
-          const r = button.current!.getBoundingClientRect();
+          const r = button.current?.getBoundingClientRect();
+          if (!r) return;
           const up = window.innerHeight - r.bottom < 320 && r.top > window.innerHeight - r.bottom;
           setPos(
             up

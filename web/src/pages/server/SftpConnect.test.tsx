@@ -47,7 +47,7 @@ describe("SFTP connect", () => {
   it("cannot connect while the node is offline or SFTP is off", async () => {
     const { unmount } = renderApp(setup({ ...ready, status: "offline", port: 0 }), `/servers/${UUID}?tab=settings`);
     expect(await screen.findByText("Node offline")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Open in SFTP client" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Open in SFTP client" }).disabled).toBe(true);
     expect(screen.queryByRole("link", { name: "Open in SFTP client" })).toBeNull();
     unmount();
     renderApp(setup({ ...ready, status: "off" }), `/servers/${UUID}?tab=settings`);

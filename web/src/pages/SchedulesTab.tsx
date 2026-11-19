@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Database, Loader2, Play, Plus, Power, Terminal, Trash2, X } from "lucide-react";
 import { api, call } from "../api/client";
@@ -6,7 +6,12 @@ import { invalidates, keys, refreshLater, schedulesQuery } from "../api/queries"
 import { ErrorBox, Field } from "../components/ui";
 
 type Action = "command" | "power" | "backup";
-type TaskDraft = { action: Action; payload: string; offset_seconds: number; continue_on_failure: boolean };
+interface TaskDraft {
+  action: Action;
+  payload: string;
+  offset_seconds: number;
+  continue_on_failure: boolean;
+}
 
 const blankTask = (): TaskDraft => ({ action: "command", payload: "", offset_seconds: 0, continue_on_failure: false });
 const when = (t: number) =>
@@ -14,10 +19,10 @@ const when = (t: number) =>
 const pad = (n: string) => n.padStart(2, "0");
 /** Plain words for the common "every day at hh:mm" shapes; anything else stays as cron. */
 function humanCron(c: string): string {
-  const m = c.trim().match(/^(\d{1,2}) (\d{1,2}) \* \* \*$/);
-  if (m) return `Every day at ${pad(m[2]!)}:${pad(m[1]!)}`;
-  const h = c.trim().match(/^(\d{1,2}) \* \* \* \*$/);
-  if (h) return `Every hour at :${pad(h[1]!)}`;
+  const m = /^(\d{1,2}) (\d{1,2}) \* \* \*$/.exec(c.trim());
+  if (m?.[1] && m[2]) return `Every day at ${pad(m[2])}:${pad(m[1])}`;
+  const h = /^(\d{1,2}) \* \* \* \*$/.exec(c.trim());
+  if (h?.[1]) return `Every hour at :${pad(h[1])}`;
   return c;
 }
 
@@ -71,7 +76,7 @@ export function SchedulesTab({ uuid }: { uuid: string }) {
     onSuccess: () => refreshLater(qc, keys.schedules(uuid), 2500),
   });
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     create.mutate();
   };

@@ -59,7 +59,10 @@ export class UploadQueue {
 
   cancel(id: number) {
     const x = this.xhrs.get(id);
-    if (x) return x.abort();
+    if (x) {
+      x.abort();
+      return;
+    }
     this.waiting = this.waiting.filter((j) => j.id !== id);
     this.patch(id, { status: "cancelled" });
   }
@@ -76,8 +79,9 @@ export class UploadQueue {
   }
 
   private pump() {
-    while (this.xhrs.size < PARALLEL && this.waiting.length > 0) {
-      const job = this.waiting.shift()!;
+    while (this.xhrs.size < PARALLEL) {
+      const job = this.waiting.shift();
+      if (!job) break;
       const xhr = new XMLHttpRequest();
       this.xhrs.set(job.id, xhr);
       const finish = (p: Partial<Upload>) => {
@@ -89,7 +93,10 @@ export class UploadQueue {
       xhr.upload.onprogress = (e) => this.patch(job.id, { sent: e.loaded });
       xhr.onload = () => {
         if (xhr.status === 401) notifyUnauthorized();
-        if (xhr.status >= 200 && xhr.status < 300) return finish({ status: "done", sent: job.file.size });
+        if (xhr.status >= 200 && xhr.status < 300) {
+          finish({ status: "done", sent: job.file.size });
+          return;
+        }
         let body: unknown;
         try {
           body = JSON.parse(xhr.responseText);

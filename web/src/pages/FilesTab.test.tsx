@@ -17,7 +17,12 @@ vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: n
 
 const UUID = "11111111-2222-4333-8444-555555555555";
 const minecraft = { ...server({ name: "Survival" }), uuid: UUID, permissions: ["files.read", "files.write", "console.read"] };
-type Entry = { name: string; dir: boolean; size: number; mod_unix: number };
+interface Entry {
+  name: string;
+  dir: boolean;
+  size: number;
+  mod_unix: number;
+}
 const f = (name: string): Entry => ({ name, dir: false, size: 12, mod_unix: 1_700_000_000 });
 const d = (name: string): Entry => ({ name, dir: true, size: 0, mod_unix: 1_700_000_000 });
 
@@ -47,7 +52,7 @@ const names = () =>
   within(screen.getByRole("table"))
     .getAllByRole("row")
     .slice(1)
-    .map((r) => within(r).getAllByRole("button")[0]!.textContent!.trim());
+    .map((r) => within(r).getAllByRole("button")[0]!.textContent.trim());
 
 async function open(tree: Record<string, Entry[] | Response> = mc, extra: Record<string, unknown> = {}, ready = "server.properties") {
   const api = fileApi(tree, extra);
@@ -210,7 +215,7 @@ describe("Files tab: managing files", () => {
     expect(screen.getByText("5 selected")).toBeInTheDocument();
   });
   it("offers extraction for archives and downloads for files", async () => {
-    await open({ ...mc, "/": [...mc["/"]!, f("world.zip")] });
+    await open({ ...mc, "/": [...mc["/"], f("world.zip")] });
     expect(screen.getByRole("link", { name: "Download world.zip" })).toHaveAttribute(
       "href",
       `/api/servers/${UUID}/files/download?path=%2Fworld.zip`,
@@ -229,7 +234,7 @@ describe("Files tab: managing files", () => {
     expect(
       within(screen.getByRole("menu", { name: "Actions for ops.json" }))
         .getAllByRole("menuitem")
-        .map((m) => m.textContent?.trim()),
+        .map((m) => m.textContent.trim()),
     ).toEqual(["Download"]);
   });
   it("creates a folder", async () => {

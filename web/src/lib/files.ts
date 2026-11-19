@@ -5,7 +5,7 @@ export const isArchive = (name: string) => ARCHIVE.test(name);
 /** "rwxr-x---" for 0o750. */
 export function modeString(mode: number) {
   const bits = "rwxrwxrwx";
-  return [...bits].map((c, i) => (mode & (1 << (8 - i)) ? c : "-")).join("");
+  return Array.from(bits, (c, i) => (mode & (1 << (8 - i)) ? c : "-")).join("");
 }
 
 /** "750" for 0o750. */
@@ -45,7 +45,10 @@ interface FsEntry {
 
 async function readEntry(entry: FsEntry, prefix: string, out: DroppedFile[]) {
   if (entry.isFile && entry.file) {
-    const file = await new Promise<File>((ok, err) => entry.file!(ok, err));
+    const read = entry.file.bind(entry);
+    const file = await new Promise<File>((ok, err) => {
+      read(ok, err);
+    });
     out.push({ file, rel: prefix + entry.name });
   } else if (entry.isDirectory && entry.createReader) {
     const reader = entry.createReader();
@@ -63,7 +66,7 @@ export async function droppedFiles(dt: DataTransfer): Promise<DroppedFile[]> {
   const out: DroppedFile[] = [];
   const entries: FsEntry[] = [];
   for (const i of dt.items) {
-    const e = i.kind === "file" ? (i.webkitGetAsEntry?.() as unknown as FsEntry | null) : null;
+    const e = i.kind === "file" ? (i.webkitGetAsEntry() as unknown as FsEntry | null) : null;
     if (e) entries.push(e);
   }
   if (entries.length === 0) {

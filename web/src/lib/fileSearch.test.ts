@@ -93,7 +93,7 @@ describe("searchFiles", () => {
     const ctl = new AbortController();
     const list = vi.fn(async (dir: string) => {
       ctl.abort();
-      return mc[dir as keyof typeof mc] ?? [];
+      return (mc as Record<string, Entry[] | undefined>)[dir] ?? [];
     });
     await searchFiles(list, "/", "config", { signal: ctl.signal, concurrency: 1 });
     expect(list.mock.calls.length).toBeLessThan(7);

@@ -104,7 +104,7 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                       {shown[d.id] ? (
                         <>
                           <span className="break-all">{shown[d.id]}</span>
-                          <CopyButton text={shown[d.id]!} label="Copy" />
+                          <CopyButton text={shown[d.id] ?? ""} label="Copy" />
                         </>
                       ) : (
                         "••••••••"

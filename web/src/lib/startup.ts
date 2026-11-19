@@ -1,6 +1,6 @@
 /** Fill {{VAR}} placeholders the way the node does; unknown ones stay as they are. */
 export function fillCommand(command: string, values: Record<string, string>) {
-  return command.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (all, name: string) => (name in values ? values[name]! : all));
+  return command.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (all, name: string) => values[name] ?? all);
 }
 
 /** Rule names and arguments, e.g. "required|in:a,b" -> [["required",""],["in","a,b"]]. Regexes are skipped. */

@@ -12,7 +12,7 @@ export function useFileSearch(uuid: string, dir: string, term: string) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: [...keys.files(uuid), "search", dir, term] as const,
-    queryFn: ({ signal }) => searchFiles((d) => qc.fetchQuery({ ...dirQuery(uuid, d), staleTime: FRESH_MS }), dir, term, { signal }),
+    queryFn: ({ signal }) => searchFiles((d) => qc.query({ ...dirQuery(uuid, d), staleTime: FRESH_MS }), dir, term, { signal }),
     enabled: term !== "",
     staleTime: FRESH_MS,
     retry: false,

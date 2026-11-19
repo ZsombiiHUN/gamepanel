@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link2, Loader2 } from "lucide-react";
@@ -81,7 +81,7 @@ export function FirstPassword() {
   });
   return (
     <form
-      onSubmit={(e: FormEvent) => {
+      onSubmit={(e: SubmitEvent) => {
         e.preventDefault();
         if (pw === again) set.mutate();
       }}

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Clock, Crown, Loader2, Mail, Trash2, UserPlus } from "lucide-react";
 import { api, call } from "../api/client";
@@ -61,7 +61,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
     onSuccess: () => setToRemove(null),
   });
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     add.mutate();
   };
@@ -96,7 +96,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
             {people.map((u) => {
               const open = editing?.id === u.user_id;
               const changed =
-                open && editing && (editing.perms.length !== u.permissions.length || editing.perms.some((p) => !u.permissions.includes(p)));
+                open && (editing.perms.length !== u.permissions.length || editing.perms.some((p) => !u.permissions.includes(p)));
               return (
                 <li key={u.user_id} className={open ? "bg-zinc-950/40" : undefined}>
                   <div className="flex flex-wrap items-center gap-3 p-3.5">
@@ -130,7 +130,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                       </button>
                     </div>
                   </div>
-                  {open && editing && (
+                  {open && (
                     <div className="space-y-4 border-t border-zinc-800 p-3.5 sm:p-4">
                       <AccessChooser all={all} value={editing.perms} onChange={(v) => setEditing({ id: u.user_id, perms: v })} />
                       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 pt-4">

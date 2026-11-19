@@ -1,6 +1,9 @@
 /** Subuser permissions as people think about them: areas, roles and what each tick implies. */
 
-export type Perm = { id: string; description: string };
+export interface Perm {
+  id: string;
+  description: string;
+}
 
 /** Friendly area names, in the order the picker shows them. Unknown prefixes go last under their own name. */
 export const AREAS: { id: string; label: string }[] = [
@@ -107,7 +110,12 @@ export function setArea(value: string[], area: string, on: boolean, known: strin
   return known.filter((p) => has.has(p));
 }
 
-export type Role = { id: string; label: string; desc: string; perms: (known: string[]) => string[] };
+export interface Role {
+  id: string;
+  label: string;
+  desc: string;
+  perms: (known: string[]) => string[];
+}
 
 const pick = (ids: string[]) => (known: string[]) => known.filter((p) => ids.includes(p));
 

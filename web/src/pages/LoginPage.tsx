@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Fingerprint, Loader2, LogIn } from "lucide-react";
@@ -62,7 +62,7 @@ export function LoginPage() {
       }
       return call(
         api.POST("/auth/passkeys/login/finish", {
-          body: { ticket: begin.ticket, credential: credential as unknown as Record<string, unknown> },
+          body: { ticket: begin.ticket, credential: credential },
         }),
       );
     },
@@ -79,7 +79,7 @@ export function LoginPage() {
         <form
           className="space-y-6"
           aria-labelledby="auth-title"
-          onSubmit={(e: FormEvent) => {
+          onSubmit={(e: SubmitEvent) => {
             e.preventDefault();
             verify.mutate();
           }}
@@ -110,7 +110,7 @@ export function LoginPage() {
     );
   }
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     login.mutate();
   };

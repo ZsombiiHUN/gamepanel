@@ -16,7 +16,7 @@ test.describe("audit log search", () => {
     expect(egg.status()).toBe(201);
     for (let i = 0; i < 105; i++) {
       const n = await api.post("/api/nodes", { data: { name: `filler-${i}`, port_start: 30000, port_end: 30001 } });
-      await api.delete(`/api/nodes/${(await n.json()).node.id}`);
+      await api.delete(`/api/nodes/${((await n.json()) as { node: { id: number } }).node.id}`);
     }
     await api.dispose();
   });

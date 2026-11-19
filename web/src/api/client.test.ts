@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, call } from "./client";
 
 const reply = (status: number, body: string, type = "application/problem+json") => ({
-  error: type.includes("json") ? JSON.parse(body) : body,
+  error: type.includes("json") ? (JSON.parse(body) as unknown) : body,
   response: new Response(body, { status, headers: { "content-type": type } }),
 });
 

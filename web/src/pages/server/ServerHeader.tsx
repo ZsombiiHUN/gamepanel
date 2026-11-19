@@ -6,6 +6,7 @@ import { invalidates, keys } from "../../api/queries";
 import type { WsStatus } from "../../api/ws";
 import { ErrorBox, OnlineDot, ServerIcon, StateBadge } from "../../components/ui";
 import { shownState } from "../../lib/servers";
+import { copyText } from "../../lib/clipboard";
 
 type ServerView = components["schemas"]["ServerView"];
 type PowerAction = "start" | "stop" | "restart" | "kill";
@@ -153,8 +154,7 @@ function CopyChip({ text, label }: { text: string; label: string }) {
       title="Copy"
       className="inline-flex min-h-8 items-center gap-2 rounded-lg border border-zinc-800 bg-thead px-2.5 font-mono text-[13px] text-zinc-200 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500"
       onClick={() => {
-        void navigator.clipboard
-          ?.writeText(text)
+        void copyText(text)
           .then(() => {
             setDone(true);
             setTimeout(() => setDone(false), 1800);

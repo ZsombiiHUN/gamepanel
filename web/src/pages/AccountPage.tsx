@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { api, call } from "../api/client";
@@ -33,7 +33,7 @@ export function AccountPage() {
     },
   });
 
-  const submit = (e: FormEvent) => {
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
     if (!mismatch) change.mutate();
   };

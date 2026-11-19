@@ -79,7 +79,7 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
       }
       return call(
         api.POST("/auth/passkeys/register/finish", {
-          body: { name: name.trim(), credential: credential as unknown as Record<string, unknown> },
+          body: { name: name.trim(), credential: credential },
         }),
       );
     },
@@ -127,8 +127,8 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
 function guessDevice() {
   const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
   if (/iPhone|iPad/.test(ua)) return "iPhone or iPad";
-  if (/Android/.test(ua)) return "Android phone";
-  if (/Mac/.test(ua)) return "Mac";
-  if (/Windows/.test(ua)) return "Windows PC";
+  if (ua.includes("Android")) return "Android phone";
+  if (ua.includes("Mac")) return "Mac";
+  if (ua.includes("Windows")) return "Windows PC";
   return "Passkey";
 }

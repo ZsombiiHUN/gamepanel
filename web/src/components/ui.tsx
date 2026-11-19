@@ -3,6 +3,7 @@ import { AlertCircle, Check, Copy, Loader2 } from "lucide-react";
 import { blockIcon } from "../lib/icon";
 import { errorText } from "../lib/problem";
 import { stateLabel } from "../lib/servers";
+import { copyText } from "../lib/clipboard";
 
 export function Spinner({ label = "Loading" }: { label?: string }) {
   return (
@@ -119,15 +120,17 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
     <button
       type="button"
       className="btn"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setDone(true);
-          setErr(false);
-          setTimeout(() => setDone(false), 2000);
-        } catch {
-          setErr(true);
-        }
+      onClick={() => {
+        void (async () => {
+          try {
+            await copyText(text);
+            setDone(true);
+            setErr(false);
+            setTimeout(() => setDone(false), 2000);
+          } catch {
+            setErr(true);
+          }
+        })();
       }}
     >
       {done ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}

@@ -16,7 +16,7 @@ async function signIn(slot: number) {
     if (i > 600) throw new Error(`test panel ${slot} never finished seeding`);
     await new Promise((r) => setTimeout(r, 100));
   }
-  const ready: Ready = JSON.parse(fs.readFileSync(file, "utf8"));
+  const ready = JSON.parse(fs.readFileSync(file, "utf8")) as Ready;
   for (const [name, who] of [
     ["admin", ready.admin],
     ["user", ready.user],

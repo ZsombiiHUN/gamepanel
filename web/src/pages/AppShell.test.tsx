@@ -19,7 +19,7 @@ const palette = () => document.querySelector<HTMLDialogElement>('dialog[aria-lab
 const options = () =>
   within(screen.getByRole("listbox", { name: "Results", hidden: true }))
     .getAllByRole("option", { hidden: true })
-    .map((o) => o.querySelector(".flex-1")!.textContent!.trim());
+    .map((o) => o.querySelector(".flex-1")!.textContent.trim());
 
 describe("sidebar", () => {
   it("scrolls only the server list, so admin links and the account stay reachable with many servers", async () => {
@@ -43,7 +43,7 @@ describe("sidebar", () => {
     await open();
     const names = within(screen.getByRole("navigation", { name: "Servers" }))
       .getAllByRole("link")
-      .map((l) => l.textContent!.trim())
+      .map((l) => l.textContent.trim())
       .filter((t) => !/All servers|New server/.test(t));
     expect(names).toEqual(["Creative Plots", "Rust Wipe Friday", "Server 2", "Server 10", "Skyblock", "Survival SMP", "Valheim Friends"]);
   });

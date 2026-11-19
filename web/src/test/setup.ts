@@ -18,7 +18,7 @@ if (typeof document !== "undefined") {
     this.dispatchEvent(new Event("close"));
   };
   Element.prototype.scrollIntoView ??= () => {};
-  window.scrollTo = (() => {}) as typeof window.scrollTo;
+  window.scrollTo = () => {};
   globalThis.ResizeObserver ??= class {
     observe() {}
     unobserve() {}
@@ -52,6 +52,6 @@ if (typeof document !== "undefined") {
     constructor(input: RequestInfo | URL, init?: RequestInit) {
       super(typeof input === "string" && input.startsWith("/") ? "http://localhost" + input : input, init);
     }
-  } as typeof Request;
-  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => impl(input, init)) as typeof fetch;
+  };
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => impl(input, init);
 }

@@ -8,7 +8,12 @@ import { fillCommand, inputKind } from "../lib/startup";
 
 type StartupView = components["schemas"]["StartupView"];
 type StartupVar = components["schemas"]["StartupVar"];
-type Change = { env?: Record<string, string>; image?: string; startup?: string; crash_restart?: boolean };
+interface Change {
+  env?: Record<string, string>;
+  image?: string;
+  startup?: string;
+  crash_restart?: boolean;
+}
 
 export function StartupTab({ uuid }: { uuid: string }) {
   const startup = useQuery(startupQuery(uuid));
@@ -77,7 +82,7 @@ function CrashSection({ uuid, s }: { uuid: string; s: StartupView }) {
 }
 
 function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
-  const values = Object.fromEntries([...Object.entries(s.builtins ?? {}), ...s.variables.map((v) => [v.env, v.value] as const)]);
+  const values = Object.fromEntries([...Object.entries(s.builtins), ...s.variables.map((v) => [v.env, v.value] as const)]);
   const preview = fillCommand(s.command, values);
   const [raw, setRaw] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
@@ -154,7 +159,7 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
             <button type="button" className="btn" onClick={() => setDraft(null)}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={save.isPending || !draft?.trim()}>
+            <button type="submit" className="btn btn-primary" disabled={save.isPending || !draft.trim()}>
               Save command
             </button>
           </div>
@@ -210,7 +215,10 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
         value={selectValue}
         disabled={save.isPending}
         onChange={(e) => {
-          if (e.target.value === "__custom") return setCustom(listed ? "" : s.image);
+          if (e.target.value === "__custom") {
+            setCustom(listed ? "" : s.image);
+            return;
+          }
           setCustom(null);
           save.mutate({ image: e.target.value });
         }}

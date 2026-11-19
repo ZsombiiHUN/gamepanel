@@ -23,7 +23,7 @@ function useFileMutation<T>(uuid: string, fn: (v: T) => Promise<unknown>, onDone
   return useMutation({ mutationFn: fn, onSuccess: onDone, meta: invalidatesAlways(keys.files(uuid)) });
 }
 
-const names = (items: FileItem[]) => (items.length === 1 ? `“${items[0]!.name}”` : `${items.length} items`);
+const names = (items: FileItem[]) => (items.length === 1 ? `“${items[0]?.name ?? ""}”` : `${items.length} items`);
 
 export function FileDialogs({
   uuid,
@@ -101,7 +101,7 @@ function RenameDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; o
 }
 
 function MoveDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[]; onClose: () => void }) {
-  const [folder, setFolder] = useState(parentPath(items[0]!.path));
+  const [folder, setFolder] = useState(parentPath(items[0]?.path ?? "/"));
   const moves = items.map((i) => ({ from: i.path, to: moveTarget(i.path, folder) })).filter((m) => m.from !== m.to);
   const m = useFileMutation(
     uuid,
@@ -206,7 +206,7 @@ function ChmodDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; on
 
 function CompressDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[]; onClose: () => void }) {
   const [format, setFormat] = useState<"tar.gz" | "zip">("zip");
-  const root = parentPath(items[0]!.path);
+  const root = parentPath(items[0]?.path ?? "/");
   const m = useFileMutation(
     uuid,
     () =>
