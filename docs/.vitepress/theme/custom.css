@@ -1,0 +1,625 @@
+/*
+ * GamePanel docs theme. The tokens are the panel's own (web/src/index.css,
+ * design v2): warm graphite neutrals, Geist, and colour kept for state only.
+ * The accent is the text colour itself, so there is no brand hue to spread.
+ */
+
+/* Light */
+:root {
+  --gp-side: #f4f3ef;
+  --gp-panel: #ffffff;
+  --gp-well: #f7f6f3;
+  --gp-chip: #f1f0ec;
+  --gp-line: #e7e5df;
+  --gp-line-strong: #d9d7d0;
+  --gp-text: #171716;
+  --gp-muted: #55534e;
+  --gp-faint: #65635d;
+  --gp-good: #1f7a45;
+  --gp-warn: #a35a00;
+  --gp-bad: #b42318;
+  --gp-info: #55534e;
+
+  --vp-font-family-base: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --vp-font-family-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --vp-c-bg: var(--gp-panel);
+  --vp-c-bg-alt: var(--gp-side);
+  --vp-c-bg-elv: var(--gp-panel);
+  --vp-c-bg-soft: var(--gp-chip);
+  --vp-c-border: var(--gp-line-strong);
+  --vp-c-divider: var(--gp-line);
+  --vp-c-gutter: var(--gp-line);
+  --vp-c-text-1: var(--gp-text);
+  --vp-c-text-2: var(--gp-muted);
+  --vp-c-text-3: var(--gp-faint);
+
+  --vp-c-brand-1: var(--gp-text);
+  --vp-c-brand-2: var(--gp-muted);
+  --vp-c-brand-3: var(--gp-text);
+  --vp-c-brand-soft: var(--gp-chip);
+
+  --vp-c-default-1: var(--gp-faint);
+  --vp-c-default-2: var(--gp-line-strong);
+  --vp-c-default-3: var(--gp-line);
+  --vp-c-default-soft: var(--gp-chip);
+
+  --vp-c-tip-1: var(--gp-good);
+  --vp-c-warning-1: var(--gp-warn);
+  --vp-c-danger-1: var(--gp-bad);
+
+  --vp-nav-height: 56px;
+  --vp-nav-bg-color: var(--gp-panel);
+  --vp-sidebar-bg-color: var(--gp-side);
+  --vp-sidebar-width: 280px;
+
+  --vp-code-font-size: 0.875em;
+  --vp-code-color: var(--gp-text);
+  --vp-code-bg: var(--gp-chip);
+  --vp-code-block-bg: var(--gp-well);
+  --vp-code-block-color: var(--gp-text);
+  --vp-code-copy-code-bg: var(--gp-panel);
+  --vp-code-copy-code-hover-bg: var(--gp-chip);
+  --vp-code-copy-code-border-color: var(--gp-line-strong);
+  --vp-code-copy-code-hover-border-color: var(--gp-line-strong);
+  --vp-code-lang-color: var(--gp-faint);
+  --vp-code-line-highlight-color: var(--gp-chip);
+
+  --vp-button-brand-bg: var(--gp-text);
+  --vp-button-brand-text: var(--gp-panel);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-hover-bg: var(--gp-muted);
+  --vp-button-brand-hover-text: var(--gp-panel);
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-active-bg: var(--gp-text);
+  --vp-button-brand-active-text: var(--gp-panel);
+  --vp-button-brand-active-border: transparent;
+
+  --vp-local-search-bg: var(--gp-side);
+  --vp-local-search-result-bg: var(--gp-panel);
+  --vp-local-search-result-border: var(--gp-line);
+  --vp-local-search-result-selected-bg: var(--gp-panel);
+  --vp-local-search-result-selected-border: var(--gp-text);
+  --vp-local-search-highlight-bg: var(--gp-chip);
+  --vp-local-search-highlight-text: var(--gp-text);
+
+  --vp-shadow-3: 0 12px 32px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+/* Dark: the panel's default look. */
+.dark {
+  --gp-side: #0b0b0a;
+  --gp-panel: #121211;
+  --gp-well: #0d0d0c;
+  --gp-chip: #1c1c1a;
+  --gp-line: #242422;
+  --gp-line-strong: #2f2f2c;
+  --gp-text: #f2f1ed;
+  --gp-muted: #aaa8a1;
+  --gp-faint: #8e8c86;
+  --gp-good: #7bdb9c;
+  --gp-warn: #f0b35a;
+  --gp-bad: #ff8f81;
+  --gp-info: #aaa8a1;
+
+  --vp-shadow-3: 0 16px 40px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--gp-text) 18%, transparent);
+}
+
+body {
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gp-text);
+  outline-offset: 2px;
+}
+
+/* ---------- Nav ---------- */
+
+.VPNavBar .title {
+  border-bottom: 0 !important;
+}
+
+.VPNavBarTitle .title {
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* "GamePanel / Docs", like the panel's breadcrumb. */
+.VPNavBarTitle .title::after {
+  content: 'Docs';
+  padding-left: 12px;
+  border-left: 1px solid var(--gp-line-strong);
+  color: var(--gp-faint);
+  font-weight: 450;
+  line-height: 16px;
+}
+
+.VPNavBarMenuLink {
+  font-size: 13.5px !important;
+  font-weight: 450 !important;
+  color: var(--gp-muted) !important;
+}
+
+.VPNavBarMenuLink:hover,
+.VPNavBarMenuLink.active {
+  color: var(--gp-text) !important;
+}
+
+@media (min-width: 960px) {
+  .VPNavBar.has-sidebar .content-body,
+  .VPNavBar:not(.home.top) .content-body {
+    background-color: color-mix(in srgb, var(--gp-panel) 88%, transparent) !important;
+    backdrop-filter: saturate(1.2) blur(8px);
+  }
+
+  .VPNavBar .divider-line {
+    background-color: var(--gp-line) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .DocSearch-Button,
+  .VPNavBarSearchButton {
+    border: 1px solid var(--gp-line) !important;
+    background: var(--gp-side) !important;
+    border-radius: 8px !important;
+  }
+}
+
+/* ---------- Sidebar ---------- */
+
+@media (min-width: 960px) {
+  .VPSidebar {
+    border-right: 1px solid var(--gp-line);
+    padding-top: var(--vp-nav-height) !important;
+  }
+}
+
+.VPSidebar .group + .group {
+  border-top: 0 !important;
+  padding-top: 6px !important;
+}
+
+.VPSidebarItem.level-0 > .item > .text,
+.VPSidebarItem.level-0 > .item > .link > .text {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--gp-faint);
+}
+
+.VPSidebarItem.level-1 .text {
+  font-size: 14px;
+  font-weight: 450;
+  color: var(--gp-muted);
+}
+
+.VPSidebarItem.level-1 > .item {
+  margin: 0 -10px;
+  padding: 0 10px !important;
+  border-radius: 7px;
+}
+
+.VPSidebarItem.level-1 > .item:hover {
+  background: var(--gp-chip);
+}
+
+.VPSidebarItem.level-1 > .item:hover .text {
+  color: var(--gp-text);
+}
+
+.VPSidebarItem.level-1.is-active > .item {
+  background: var(--gp-chip);
+  box-shadow: inset 0 0 0 1px var(--gp-line);
+}
+
+.VPSidebarItem.level-1.is-active > .item .text {
+  color: var(--gp-text);
+  font-weight: 500;
+}
+
+.VPSidebarItem .indicator {
+  display: none;
+}
+
+/* ---------- Page ---------- */
+
+.VPDoc .content-container {
+  max-width: 720px !important;
+}
+
+.vp-doc {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--gp-text);
+}
+
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.7;
+}
+
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4 {
+  font-weight: 600;
+  color: var(--gp-text);
+}
+
+.vp-doc h1 {
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  margin-bottom: 4px;
+}
+
+.vp-doc h1 + p {
+  font-size: 17px;
+  color: var(--gp-muted);
+  line-height: 1.6;
+}
+
+.vp-doc h2 {
+  margin-top: 56px;
+  padding-top: 0;
+  border-top: 0;
+  font-size: 22px;
+  letter-spacing: -0.018em;
+}
+
+.vp-doc h3 {
+  margin-top: 36px;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.vp-doc .header-anchor {
+  color: var(--gp-faint);
+  font-weight: 400;
+}
+
+.vp-doc a {
+  color: var(--gp-text);
+  font-weight: 450;
+  text-decoration: underline;
+  text-decoration-color: var(--gp-line-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s;
+}
+
+.vp-doc a:hover {
+  color: var(--gp-text);
+  text-decoration-color: currentColor;
+}
+
+.vp-doc strong {
+  font-weight: 600;
+}
+
+.vp-doc hr {
+  border-top-color: var(--gp-line);
+  margin: 40px 0;
+}
+
+.vp-doc ul > li::marker {
+  color: var(--gp-faint);
+}
+
+.vp-doc ol > li::marker {
+  color: var(--gp-faint);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.875em;
+}
+
+/* Inline code: a quiet chip, like the panel's port badge. */
+.vp-doc :not(pre) > code {
+  padding: 2px 6px;
+  border: 1px solid var(--gp-line);
+  border-radius: 5px;
+  font-size: 0.84em;
+  color: var(--gp-text);
+}
+
+.vp-doc a > code {
+  color: inherit;
+}
+
+/* Code blocks */
+.vp-doc div[class*='language-'] {
+  border: 1px solid var(--gp-line);
+  border-radius: 10px !important;
+  margin: 20px 0 !important;
+}
+
+.vp-doc div[class*='language-'] code {
+  font-size: 13.5px;
+}
+
+.vp-doc div[class*='language-'] > span.lang {
+  top: 8px;
+  right: 14px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 450;
+  letter-spacing: 0.02em;
+}
+
+/* Tables: hairlines, no stripes, like the panel's .tbl */
+.vp-doc table {
+  margin: 24px 0;
+  font-size: 14px;
+  border-collapse: collapse;
+}
+
+.vp-doc tr {
+  background: transparent !important;
+  border-top: 0;
+  border-bottom: 1px solid var(--gp-line);
+}
+
+.vp-doc th,
+.vp-doc td {
+  border: 0;
+  padding: 10px 16px 10px 0;
+  line-height: 1.55;
+  vertical-align: top;
+}
+
+.vp-doc th {
+  background: transparent;
+  color: var(--gp-faint);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  border-bottom: 1px solid var(--gp-line-strong);
+}
+
+.vp-doc td:last-child,
+.vp-doc th:last-child {
+  padding-right: 0;
+}
+
+/* Checklists ("- [ ] item"): an empty box in place of the bullet. */
+.vp-doc li.task-item {
+  list-style: none;
+  position: relative;
+}
+
+.vp-doc .task {
+  position: absolute;
+  left: -26px;
+  top: 0.38em;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--gp-line-strong);
+  border-radius: 4px;
+}
+
+.vp-doc .task.done {
+  border-color: var(--gp-good);
+  background: var(--gp-good);
+}
+
+/*
+ * Callouts: an outlined box whose label carries a status dot, the same
+ * dot the panel puts in front of "Running" or "Node: online".
+ */
+.vp-doc .custom-block {
+  border: 1px solid var(--gp-line);
+  border-radius: 10px;
+  background: var(--gp-well);
+  color: var(--gp-text);
+  padding: 14px 18px;
+  margin: 24px 0;
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.vp-doc .custom-block p {
+  line-height: 1.65;
+}
+
+.vp-doc .custom-block .custom-block-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--gp-text);
+}
+
+.vp-doc .custom-block .custom-block-title::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--dot, var(--gp-faint));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--gp-faint)) 18%, transparent);
+}
+
+.vp-doc .custom-block.tip { --dot: var(--gp-good); }
+.vp-doc .custom-block.warning { --dot: var(--gp-warn); }
+.vp-doc .custom-block.danger {
+  --dot: var(--gp-bad);
+  border-color: color-mix(in srgb, var(--gp-bad) 35%, var(--gp-line));
+}
+.vp-doc .custom-block.info { --dot: var(--gp-info); }
+
+.vp-doc .custom-block a {
+  color: var(--gp-text);
+}
+
+.vp-doc .custom-block code {
+  background: var(--gp-chip);
+}
+
+/* ---------- Outline, footer, prev/next ---------- */
+
+.VPDocAsideOutline .outline-title {
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: var(--gp-faint);
+}
+
+.VPDocAsideOutline .outline-link {
+  font-size: 13px !important;
+  color: var(--gp-muted) !important;
+}
+
+.VPDocAsideOutline .outline-link:hover,
+.VPDocAsideOutline .outline-link.active {
+  color: var(--gp-text) !important;
+}
+
+.VPDocAsideOutline .outline-marker {
+  background-color: var(--gp-text) !important;
+}
+
+.VPDocAsideOutline .content {
+  border-left-color: var(--gp-line) !important;
+}
+
+.VPDocFooter .pager-link {
+  border: 1px solid var(--gp-line) !important;
+  border-radius: 10px !important;
+}
+
+.VPDocFooter .pager-link:hover {
+  border-color: var(--gp-line-strong) !important;
+}
+
+.VPDocFooter .pager-link .desc {
+  color: var(--gp-faint) !important;
+  font-weight: 450 !important;
+}
+
+.VPDocFooter .pager-link .title {
+  color: var(--gp-text) !important;
+}
+
+.VPDocFooter .edit-link-button {
+  color: var(--gp-muted) !important;
+  font-weight: 450 !important;
+}
+
+.VPFooter {
+  border-top: 1px solid var(--gp-line) !important;
+  background: var(--gp-side) !important;
+}
+
+.VPFooter .message {
+  font-size: 13px;
+  color: var(--gp-faint);
+}
+
+/* ---------- API reference (Scalar) ---------- */
+/* Scalar draws /api/reference with its own layout; these give it the panel's
+   colours and type. Method colours reuse the state colours. */
+.api-ref,
+.api-ref .light-mode,
+.api-ref .dark-mode,
+.api-ref .scalar-app {
+  --scalar-font: var(--vp-font-family-base);
+  --scalar-font-code: var(--vp-font-family-mono);
+  --scalar-background-1: var(--gp-panel);
+  --scalar-background-2: var(--gp-well);
+  --scalar-background-3: var(--gp-chip);
+  --scalar-background-accent: var(--gp-chip);
+  --scalar-color-1: var(--gp-text);
+  --scalar-color-2: var(--gp-muted);
+  --scalar-color-3: var(--gp-faint);
+  --scalar-color-accent: var(--gp-text);
+  --scalar-link-color: var(--gp-text);
+  --scalar-border-color: var(--gp-line);
+  --scalar-focus-color: var(--gp-text);
+  --scalar-button-1: var(--gp-text);
+  --scalar-button-1-color: var(--gp-panel);
+  --scalar-button-1-hover: var(--gp-muted);
+  --scalar-color-green: var(--gp-good);
+  --scalar-color-red: var(--gp-bad);
+  --scalar-color-danger: var(--gp-bad);
+  --scalar-color-orange: var(--gp-warn);
+  --scalar-color-yellow: var(--gp-warn);
+  --scalar-color-blue: var(--gp-muted);
+  --scalar-color-purple: var(--gp-muted);
+  --scalar-sidebar-background-1: var(--gp-side);
+  --scalar-sidebar-color-1: var(--gp-text);
+  --scalar-sidebar-color-2: var(--gp-muted);
+  --scalar-sidebar-color-active: var(--gp-text);
+  --scalar-sidebar-item-active-background: var(--gp-chip);
+  --scalar-sidebar-item-hover-background: var(--gp-chip);
+  --scalar-sidebar-item-hover-color: var(--gp-text);
+  --scalar-sidebar-border-color: var(--gp-line);
+  --scalar-sidebar-search-background: var(--gp-panel);
+  --scalar-sidebar-search-border-color: var(--gp-line);
+  --scalar-sidebar-search-color: var(--gp-faint);
+  --scalar-radius: 6px;
+  --scalar-radius-lg: 10px;
+  --scalar-radius-xl: 12px;
+  --scalar-shadow-1: none;
+  --scalar-shadow-2: 0 8px 24px rgb(0 0 0 / 0.12);
+  --scalar-scrollbar-color: var(--gp-line-strong);
+  --scalar-custom-header-height: var(--vp-nav-height);
+  --scalar-heading-1: 32px;
+  --scalar-heading-2: 22px;
+  --scalar-heading-3: 17px;
+  --scalar-paragraph: 15px;
+  --scalar-text-decoration: underline;
+  --scalar-text-decoration-hover: underline;
+}
+
+.api-reference-page .VPPage,
+.api-reference-page .VPContent.is-home,
+.api-reference-page .VPContent {
+  padding: 0 !important;
+  max-width: none;
+}
+
+.api-ref {
+  min-height: calc(100vh - var(--vp-nav-height));
+  background: var(--gp-panel);
+}
+
+.api-ref .api-loading {
+  padding: 48px 32px;
+  color: var(--gp-faint);
+  font-size: 14px;
+}
+
+/* Scalar's own styles sit in a cascade layer, so VitePress's unlayered
+   heading reset (16px, weight 400) wins over them; restate the sizes. */
+.api-ref h1.section-header-label {
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.api-ref h2.section-header-label {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.api-ref h3.section-header-label {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.api-ref h4.section-header-label {
+  font-size: 15px;
+  font-weight: 600;
+}

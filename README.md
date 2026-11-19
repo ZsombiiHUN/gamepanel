@@ -84,6 +84,10 @@ Then import a Pterodactyl egg under **Eggs** and choose **New server**.
 > [!TIP]
 > Locked out of two-factor? Run `bin/panel reset-2fa you@example.com` on the panel host. Forgot a password on a panel without email? `bin/panel reset-link you@example.com` prints a one-time reset link.
 
+## Documentation
+
+The full documentation is in [`docs/`](docs/): installing the panel and nodes behind HTTPS, every setting, eggs, backups, the API, troubleshooting and the security model. Read it as a site with `cd docs && pnpm install && pnpm dev`. Start with the [introduction](docs/getting-started/introduction.md) or the [production checklist](docs/getting-started/production-checklist.md).
+
 ## Configuration
 
 All settings are environment variables.
