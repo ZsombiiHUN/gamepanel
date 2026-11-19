@@ -31,7 +31,12 @@ export interface SearchOptions {
  * `list` fetches one directory. A directory that fails to list is skipped, so one
  * unreadable folder does not hide matches elsewhere. Results are shallow-first.
  */
-export async function searchFiles(list: (dir: string) => Promise<Entry[]>, root: string, query: string, opts: SearchOptions = {}): Promise<SearchResult> {
+export async function searchFiles(
+  list: (dir: string) => Promise<Entry[]>,
+  root: string,
+  query: string,
+  opts: SearchOptions = {},
+): Promise<SearchResult> {
   const { maxDirs = 200, maxHits = 200, concurrency = 4, signal } = opts;
   const needle = query.trim().toLowerCase();
   const result: SearchResult = { hits: [], scanned: 0, truncated: false };

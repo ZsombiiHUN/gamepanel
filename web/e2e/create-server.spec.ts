@@ -44,6 +44,9 @@ test("choosing an egg shows its variables with their defaults", async ({ page })
 test("the server list counts it, and Cancel returns to where you were", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "New server" }).first().click();
-  await page.getByRole("link", { name: "Cancel" }).or(page.getByRole("button", { name: "Cancel" })).click();
+  await page
+    .getByRole("link", { name: "Cancel" })
+    .or(page.getByRole("button", { name: "Cancel" }))
+    .click();
   await expect(page).toHaveURL(/\/$/);
 });

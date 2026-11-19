@@ -81,7 +81,10 @@ test("leaving with unsaved changes asks first, and Cancel keeps you in the edito
   await page.locator(".cm-content").click();
   await page.keyboard.type("x");
   const asked: string[] = [];
-  page.once("dialog", (d) => { asked.push(d.message()); void d.dismiss(); });
+  page.once("dialog", (d) => {
+    asked.push(d.message());
+    void d.dismiss();
+  });
   await page.getByRole("button", { name: "Back" }).click();
   expect(asked.join()).toMatch(/unsaved/i);
   await expect(page.getByRole("heading", { name: "/ops.json" })).toBeVisible();
@@ -106,7 +109,10 @@ test("deleting a search result removes that file only, after confirming", async 
   expect(await panel.readFile(s.uuid, "plugins/WorldEdit/config.yml")).toContain("worldedit");
 
   await del();
-  await page.getByRole("dialog", { name: /^Delete/ }).getByRole("button", { name: "Delete", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: /^Delete/ })
+    .getByRole("button", { name: "Delete", exact: true })
+    .click();
   await expect(page.getByText(/1 match\b/)).toBeVisible();
   expect(await panel.readFile(s.uuid, "plugins/Essentials/config.yml")).toContain("essentials");
 });

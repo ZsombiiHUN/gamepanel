@@ -17,8 +17,12 @@ export default defineConfig({
         changeOrigin: false,
         ws: true,
         configure: (proxy) => {
-          proxy.on("proxyReq", (proxyReq, req) => { if (req.headers.host) proxyReq.setHeader("host", req.headers.host); });
-          proxy.on("proxyReqWs", (proxyReq, req) => { if (req.headers.host) proxyReq.setHeader("host", req.headers.host); });
+          proxy.on("proxyReq", (proxyReq, req) => {
+            if (req.headers.host) proxyReq.setHeader("host", req.headers.host);
+          });
+          proxy.on("proxyReqWs", (proxyReq, req) => {
+            if (req.headers.host) proxyReq.setHeader("host", req.headers.host);
+          });
         },
       },
     },

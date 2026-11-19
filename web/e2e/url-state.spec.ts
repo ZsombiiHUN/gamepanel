@@ -9,7 +9,12 @@ test("a server filter survives a reload and can be shared as a link", async ({ p
   await expect(page).toHaveURL(/[?&]q=lobby(\+|%20)1/);
   await page.reload();
   await expect(box).toHaveValue("lobby 1");
-  await expect(page.getByRole("main").getByRole("link", { name: /^Lobby 1/ }).first()).toBeVisible();
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("link", { name: /^Lobby 1/ })
+      .first(),
+  ).toBeVisible();
   await expect(page.getByRole("main").getByRole("link", { name: "Skyblock" })).toHaveCount(0);
 });
 

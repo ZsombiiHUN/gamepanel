@@ -55,19 +55,34 @@ export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; p
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="btn" onClick={close}><ArrowLeft className="h-4 w-4" aria-hidden /> Back</button>
-        <h2 className="break-all font-mono text-sm">{path}{dirty && <span className="ml-2 text-amber-400" title="Unsaved changes">(modified)</span>}</h2>
+        <button type="button" className="btn" onClick={close}>
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Back
+        </button>
+        <h2 className="break-all font-mono text-sm">
+          {path}
+          {dirty && (
+            <span className="ml-2 text-amber-400" title="Unsaved changes">
+              (modified)
+            </span>
+          )}
+        </h2>
         <div className="ml-auto flex gap-2">
           <button type="button" className="btn btn-primary" onClick={() => save.mutate()} disabled={!file.data || !dirty || save.isPending}>
             {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />} Save
           </button>
-          <button type="button" className="btn btn-danger" onClick={() => setConfirm(true)}><Trash2 className="h-4 w-4" aria-hidden /> Delete</button>
+          <button type="button" className="btn btn-danger" onClick={() => setConfirm(true)}>
+            <Trash2 className="h-4 w-4" aria-hidden /> Delete
+          </button>
         </div>
       </div>
       {file.isPending && <Spinner />}
       <ErrorBox error={friendly(file.error)} />
       <ErrorBox error={save.error} />
-      {save.isSuccess && !dirty && <p role="status" className="text-sm text-emerald-400">Saved.</p>}
+      {save.isSuccess && !dirty && (
+        <p role="status" className="text-sm text-emerald-400">
+          Saved.
+        </p>
+      )}
       {file.data && (
         <div role="group" aria-label={`Editor for ${path}`} className="overflow-hidden rounded-md border border-zinc-800">
           <CodeMirror value={text} onChange={setEdited} theme={oneDark} extensions={langFor(path)} height="60vh" />
@@ -81,7 +96,10 @@ export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; p
         pending={del.isPending}
         error={del.error}
         onConfirm={() => del.mutate()}
-        onCancel={() => { setConfirm(false); del.reset(); }}
+        onCancel={() => {
+          setConfirm(false);
+          del.reset();
+        }}
       />
     </div>
   );

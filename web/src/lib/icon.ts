@@ -1,5 +1,13 @@
-export interface Block { key: string; x: number; y: number; fill: string }
-export interface BlockIcon { hue: number; blocks: Block[] }
+export interface Block {
+  key: string;
+  x: number;
+  y: number;
+  fill: string;
+}
+export interface BlockIcon {
+  hue: number;
+  blocks: Block[];
+}
 
 /** The same name always gives the same icon: a hash seeds a small generator that fills a mirrored 5x5 grid. */
 export function blockIcon(name: string): BlockIcon {

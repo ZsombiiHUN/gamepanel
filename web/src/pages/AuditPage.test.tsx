@@ -5,7 +5,17 @@ import userEvent from "@testing-library/user-event";
 import { FakeApi, renderApp } from "../test/harness";
 import { bob, sampleServers } from "../test/fixtures";
 
-const ev = (id: number, action: string, extra: Record<string, unknown> = {}) => ({ id, at: 1_700_000_000 + id, actor_id: 1, actor_email: "admin@example.com", action, target: "t", ip: "10.0.0.1", detail: "", ...extra });
+const ev = (id: number, action: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  at: 1_700_000_000 + id,
+  actor_id: 1,
+  actor_email: "admin@example.com",
+  action,
+  target: "t",
+  ip: "10.0.0.1",
+  detail: "",
+  ...extra,
+});
 
 function auditApi(rows: (q: string, offset: number) => unknown[]) {
   return new FakeApi({
@@ -36,7 +46,9 @@ describe("Audit log", () => {
   });
 
   it("searches the whole log on the server, not just the loaded page", async () => {
-    const api = auditApi((q) => (q === "bob" ? [ev(7, "login.fail", { actor_email: "bob@example.com" })] : [ev(9, "login.ok"), ev(8, "login.ok")]));
+    const api = auditApi((q) =>
+      q === "bob" ? [ev(7, "login.fail", { actor_email: "bob@example.com" })] : [ev(9, "login.ok"), ev(8, "login.ok")],
+    );
     renderApp(api, "/audit");
     await screen.findByRole("table");
     await userEvent.type(search(), "bob");
@@ -75,7 +87,10 @@ describe("Audit log", () => {
   });
 
   it("shows the friendly empty state only when there is no log at all", async () => {
-    renderApp(auditApi(() => []), "/audit");
+    renderApp(
+      auditApi(() => []),
+      "/audit",
+    );
     expect(await screen.findByText("No events yet")).toBeInTheDocument();
   });
 
@@ -105,7 +120,10 @@ describe("Audit log", () => {
   });
 
   it("disables Older when the page is not full, and Newer on the first page", async () => {
-    renderApp(auditApi(() => [ev(1, "login.ok")]), "/audit");
+    renderApp(
+      auditApi(() => [ev(1, "login.ok")]),
+      "/audit",
+    );
     await screen.findByRole("table");
     expect(screen.getByRole("button", { name: /Older/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Newer/ })).toBeDisabled();

@@ -44,9 +44,7 @@ const detailOf = (body: unknown) =>
  * people on failure. A request that never got an answer (offline, panel down)
  * is an ApiError with status 0.
  */
-export async function call<T>(
-  p: Promise<{ data?: T; error?: unknown; response: Response }>,
-): Promise<T> {
+export async function call<T>(p: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   let r: { data?: T; error?: unknown; response: Response };
   try {
     r = await p;

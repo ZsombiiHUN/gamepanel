@@ -23,9 +23,16 @@ export function statusMessage(status: number): string {
 
 /** "body.limits.memory_mb" -> "Memory mb"; "" when there is no field. */
 function fieldName(location: string): string {
-  const last = location.split(".").pop()?.replace(/\[\d+\]$/, "") ?? "";
+  const last =
+    location
+      .split(".")
+      .pop()
+      ?.replace(/\[\d+\]$/, "") ?? "";
   if (!last || ["body", "query", "path", "header"].includes(last)) return "";
-  const words = last.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  const words = last
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 

@@ -25,7 +25,15 @@ export function ErrorBox({ error }: { error: unknown }) {
 
 type Tone = "ok" | "warn" | "off" | "bad";
 const stateTone: Record<string, Tone> = {
-  running: "ok", starting: "warn", stopping: "warn", installing: "warn", install_failed: "bad", crashed: "bad", offline: "off", unknown: "off", suspended: "bad",
+  running: "ok",
+  starting: "warn",
+  stopping: "warn",
+  installing: "warn",
+  install_failed: "bad",
+  crashed: "bad",
+  offline: "off",
+  unknown: "off",
+  suspended: "bad",
 };
 const toneCls: Record<Tone, string> = {
   ok: "bg-good-bg text-good-text",
@@ -39,7 +47,10 @@ export function StateMark({ state }: { state: string }) {
   const tone = stateTone[state] ?? "off";
   if (tone === "ok") return <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-good" aria-hidden />;
   if (tone === "warn") return <span className="inline-block h-2 w-2 shrink-0 rounded-[2px] bg-warn" aria-hidden />;
-  if (tone === "bad") return <span className="inline-block h-0 w-0 shrink-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-bad-text" aria-hidden />;
+  if (tone === "bad")
+    return (
+      <span className="inline-block h-0 w-0 shrink-0 border-x-[4.5px] border-b-[8px] border-x-transparent border-b-bad-text" aria-hidden />
+    );
   return <span className="inline-block h-2 w-2 shrink-0 rounded-full border-[1.5px] border-zinc-500" aria-hidden />;
 }
 
@@ -60,10 +71,20 @@ export function ServerIcon({ name, size = 44 }: { name: string; size?: number })
     <span
       aria-hidden
       className="inline-block shrink-0"
-      style={{ width: size, height: size, padding: size * 0.14, borderRadius: size * 0.24, boxSizing: "border-box", background: `hsl(${hue} 38% 15%)`, boxShadow: `inset 0 0 0 1px hsl(${hue} 50% 60% / .22)` }}
+      style={{
+        width: size,
+        height: size,
+        padding: size * 0.14,
+        borderRadius: size * 0.24,
+        boxSizing: "border-box",
+        background: `hsl(${hue} 38% 15%)`,
+        boxShadow: `inset 0 0 0 1px hsl(${hue} 50% 60% / .22)`,
+      }}
     >
       <svg viewBox="0 0 38 38" width="100%" height="100%">
-        {blocks.map((b) => <rect key={b.key} x={b.x} y={b.y} width={6} height={6} rx={1.2} fill={b.fill} />)}
+        {blocks.map((b) => (
+          <rect key={b.key} x={b.x} y={b.y} width={6} height={6} rx={1.2} fill={b.fill} />
+        ))}
       </svg>
     </span>
   );
@@ -82,7 +103,9 @@ export function Field({ label, children, hint }: { label: string; children: (id:
   const id = useId();
   return (
     <div>
-      <label htmlFor={id} className="label">{label}</label>
+      <label htmlFor={id} className="label">
+        {label}
+      </label>
       {children(id)}
       {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>}
     </div>
@@ -146,11 +169,19 @@ export function ConfirmDialog({
       aria-labelledby="confirm-title"
       className="m-auto w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/70"
     >
-      <h2 id="confirm-title" className="text-lg font-semibold">{title}</h2>
+      <h2 id="confirm-title" className="text-lg font-semibold">
+        {title}
+      </h2>
       <div className="mt-2 text-sm text-zinc-300">{body}</div>
-      {error ? <div className="mt-3"><ErrorBox error={error} /></div> : null}
+      {error ? (
+        <div className="mt-3">
+          <ErrorBox error={error} />
+        </div>
+      ) : null}
       <div className="mt-5 flex justify-end gap-2">
-        <button type="button" className="btn" onClick={onCancel} autoFocus>Cancel</button>
+        <button type="button" className="btn" onClick={onCancel} autoFocus>
+          Cancel
+        </button>
         <button type="button" className="btn btn-danger" onClick={onConfirm} disabled={pending}>
           {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
           {confirmLabel}
@@ -165,7 +196,16 @@ export function ConfirmDialog({
  * Esc and Cancel close. The dialog element gives focus trapping for free.
  */
 export function FormDialog({
-  open, title, children, submitLabel, pending, error, disabled, danger, onSubmit, onClose,
+  open,
+  title,
+  children,
+  submitLabel,
+  pending,
+  error,
+  disabled,
+  danger,
+  onSubmit,
+  onClose,
 }: {
   open: boolean;
   title: string;
@@ -200,11 +240,19 @@ export function FormDialog({
             if (!disabled && !pending) onSubmit();
           }}
         >
-          <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
+          <h2 id={titleId} className="text-lg font-semibold">
+            {title}
+          </h2>
           <div className="mt-3 space-y-3 text-sm text-zinc-300">{children}</div>
-          {error ? <div className="mt-3"><ErrorBox error={error} /></div> : null}
+          {error ? (
+            <div className="mt-3">
+              <ErrorBox error={error} />
+            </div>
+          ) : null}
           <div className="mt-5 flex justify-end gap-2">
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn" onClick={onClose}>
+              Cancel
+            </button>
             <button type="submit" className={`btn ${danger ? "btn-danger" : "btn-primary"}`} disabled={pending || disabled}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
               {submitLabel}
@@ -250,18 +298,39 @@ export function PageHeader({ title, sub, actions }: { title: string; sub?: React
  * A titled block: heading and description on top, content, then an optional footer
  * (a hint on the left, the save button on the right). `danger` tints the border.
  */
-export function Section({ title, desc, children, footer, danger = false, id }: {
-  title: string; desc?: ReactNode; children?: ReactNode; footer?: ReactNode; danger?: boolean; id?: string;
+export function Section({
+  title,
+  desc,
+  children,
+  footer,
+  danger = false,
+  id,
+}: {
+  title: string;
+  desc?: ReactNode;
+  children?: ReactNode;
+  footer?: ReactNode;
+  danger?: boolean;
+  id?: string;
 }) {
   const hid = id ?? `s-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
-    <section aria-labelledby={hid} className={`overflow-hidden rounded-2xl border bg-zinc-900 ${danger ? "border-red-900/70" : "border-zinc-800"}`}>
+    <section
+      aria-labelledby={hid}
+      className={`overflow-hidden rounded-2xl border bg-zinc-900 ${danger ? "border-red-900/70" : "border-zinc-800"}`}
+    >
       <div className="p-5">
-        <h2 id={hid} className={`text-[15px] font-semibold ${danger ? "text-red-300" : "text-zinc-100"}`}>{title}</h2>
+        <h2 id={hid} className={`text-[15px] font-semibold ${danger ? "text-red-300" : "text-zinc-100"}`}>
+          {title}
+        </h2>
         {desc && <p className="mt-1 max-w-2xl text-sm text-zinc-400">{desc}</p>}
         {children && <div className="mt-4">{children}</div>}
       </div>
-      {footer && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-thead px-5 py-3 text-sm text-zinc-500">{footer}</div>}
+      {footer && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-thead px-5 py-3 text-sm text-zinc-500">
+          {footer}
+        </div>
+      )}
     </section>
   );
 }
@@ -282,7 +351,12 @@ export function InfoList({ rows }: { rows: { label: string; value: ReactNode; pl
 
 /** Small rounded tag for roles, counts and states that have no dot. */
 export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" | "bad" }) {
-  const c = { neutral: "bg-zinc-800 text-zinc-300", good: "bg-emerald-500/10 text-emerald-300", warn: "bg-amber-500/10 text-amber-300", bad: "bg-red-500/10 text-red-300" }[tone];
+  const c = {
+    neutral: "bg-zinc-800 text-zinc-300",
+    good: "bg-emerald-500/10 text-emerald-300",
+    warn: "bg-amber-500/10 text-amber-300",
+    bad: "bg-red-500/10 text-red-300",
+  }[tone];
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${c}`}>{children}</span>;
 }
 
@@ -299,7 +373,11 @@ export function Empty({ icon, title, children }: { icon: ReactNode; title: strin
 
 export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
   return (
-    <span aria-hidden className="grid shrink-0 place-content-center rounded-full bg-zinc-800 text-xs font-semibold uppercase text-zinc-300" style={{ width: size, height: size }}>
+    <span
+      aria-hidden
+      className="grid shrink-0 place-content-center rounded-full bg-zinc-800 text-xs font-semibold uppercase text-zinc-300"
+      style={{ width: size, height: size }}
+    >
       {name.slice(0, 1)}
     </span>
   );

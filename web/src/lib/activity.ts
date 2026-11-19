@@ -50,7 +50,10 @@ export function describeAction(action: string, detail?: string) {
   const w = WORDS[action];
   if (!w) return action;
   // Power actions read better with the action itself: "sent a power action: restart" -> "restarted".
-  if (action === "server.power" && detail) return { start: "started the server", stop: "stopped the server", restart: "restarted the server", kill: "killed the server" }[detail] ?? w;
+  if (action === "server.power" && detail)
+    return (
+      { start: "started the server", stop: "stopped the server", restart: "restarted the server", kill: "killed the server" }[detail] ?? w
+    );
   return w;
 }
 
@@ -76,8 +79,18 @@ export function activityKind(action: string): ActivityKind {
   if (action === "server.command") return "console";
   const prefix = action.split(".")[0];
   return (
-    ({ file: "files", mod: "files", sftp: "files", backup: "backups", schedule: "schedules", subuser: "access", invite: "access", database: "databases" } as Record<string, ActivityKind>)[prefix ?? ""] ??
-    "server"
+    (
+      {
+        file: "files",
+        mod: "files",
+        sftp: "files",
+        backup: "backups",
+        schedule: "schedules",
+        subuser: "access",
+        invite: "access",
+        database: "databases",
+      } as Record<string, ActivityKind>
+    )[prefix ?? ""] ?? "server"
   );
 }
 
@@ -105,7 +118,12 @@ export function dayLabel(unix: number, now = Date.now()) {
   yesterday.setDate(today.getDate() - 1);
   if (dayKey(d) === dayKey(today)) return "Today";
   if (dayKey(d) === dayKey(yesterday)) return "Yesterday";
-  return d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", ...(d.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}) });
+  return d.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    ...(d.getFullYear() !== today.getFullYear() ? { year: "numeric" } : {}),
+  });
 }
 
 /** Split newest-first entries into runs that share a day label. */

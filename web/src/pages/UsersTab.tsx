@@ -37,7 +37,8 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
   // Adds an existing account at once, or invites the email (link to pass on, and emailed when the panel can).
   const [sent, setSent] = useState<{ email: string; link: string; emailed: boolean; added: boolean } | null>(null);
   const add = useMutation({
-    mutationFn: () => call(api.POST("/servers/{uuid}/invites", { params: { path: { uuid } }, body: { email: email.trim(), permissions: picked } })),
+    mutationFn: () =>
+      call(api.POST("/servers/{uuid}/invites", { params: { path: { uuid } }, body: { email: email.trim(), permissions: picked } })),
     meta: invalidates(keys.subusers(uuid), keys.invites(uuid)),
     onSuccess: (r) => {
       setSent({ email: email.trim(), link: r.link ? absolute(r.link) : "", emailed: r.emailed, added: r.added });
@@ -86,12 +87,16 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                   <div className="truncate text-sm font-medium text-zinc-100">{ownerEmail}</div>
                   <div className="text-xs text-zinc-500">Can do everything, including managing access</div>
                 </div>
-                <Pill tone="warn"><Crown className="mr-1 h-3 w-3" aria-hidden />Owner</Pill>
+                <Pill tone="warn">
+                  <Crown className="mr-1 h-3 w-3" aria-hidden />
+                  Owner
+                </Pill>
               </li>
             )}
             {people.map((u) => {
               const open = editing?.id === u.user_id;
-              const changed = open && editing && (editing.perms.length !== u.permissions.length || editing.perms.some((p) => !u.permissions.includes(p)));
+              const changed =
+                open && editing && (editing.perms.length !== u.permissions.length || editing.perms.some((p) => !u.permissions.includes(p)));
               return (
                 <li key={u.user_id} className={open ? "bg-zinc-950/40" : undefined}>
                   <div className="flex flex-wrap items-center gap-3 p-3.5">
@@ -104,10 +109,23 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                       <div className="mt-0.5 truncate text-xs text-zinc-500">{areaSummary(u.permissions) || "No permissions"}</div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button type="button" className="btn" aria-expanded={open} onClick={() => { save.reset(); setEditing(open ? null : { id: u.user_id, perms: u.permissions }); }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        aria-expanded={open}
+                        onClick={() => {
+                          save.reset();
+                          setEditing(open ? null : { id: u.user_id, perms: u.permissions });
+                        }}
+                      >
                         {open ? "Close" : "Edit"} <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} aria-hidden />
                       </button>
-                      <button type="button" className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300" aria-label={`Remove ${u.email}`} onClick={() => setToRemove({ id: u.user_id, email: u.email })}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300"
+                        aria-label={`Remove ${u.email}`}
+                        onClick={() => setToRemove({ id: u.user_id, email: u.email })}
+                      >
                         <Trash2 className="h-4 w-4" aria-hidden />
                       </button>
                     </div>
@@ -116,9 +134,18 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                     <div className="space-y-4 border-t border-zinc-800 p-3.5 sm:p-4">
                       <AccessChooser all={all} value={editing.perms} onChange={(v) => setEditing({ id: u.user_id, perms: v })} />
                       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-zinc-800 pt-4">
-                        {editing.perms.length === 0 && <span className="mr-auto text-sm text-warn-text">Pick at least one permission, or remove them instead.</span>}
-                        <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>Cancel</button>
-                        <button type="button" className="btn btn-primary" disabled={save.isPending || !changed || editing.perms.length === 0} onClick={() => save.mutate(editing)}>
+                        {editing.perms.length === 0 && (
+                          <span className="mr-auto text-sm text-warn-text">Pick at least one permission, or remove them instead.</span>
+                        )}
+                        <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={save.isPending || !changed || editing.perms.length === 0}
+                          onClick={() => save.mutate(editing)}
+                        >
                           {save.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Save permissions
                         </button>
                       </div>
@@ -129,20 +156,26 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
             })}
             {pending.map((i) => (
               <li key={`invite-${i.id}`} className="flex flex-wrap items-center gap-3 p-3.5">
-                <span aria-hidden className="grid h-8 w-8 shrink-0 place-content-center rounded-full border border-dashed border-zinc-600 text-zinc-500">
+                <span
+                  aria-hidden
+                  className="grid h-8 w-8 shrink-0 place-content-center rounded-full border border-dashed border-zinc-600 text-zinc-500"
+                >
                   <Mail className="h-3.5 w-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium text-zinc-300">{i.email}</span>
-                    <Pill tone="warn"><Clock className="mr-1 h-3 w-3" aria-hidden />Invited</Pill>
+                    <Pill tone="warn">
+                      <Clock className="mr-1 h-3 w-3" aria-hidden />
+                      Invited
+                    </Pill>
                     <RoleTag perms={i.permissions} known={known} />
                   </div>
-                  <div className="mt-0.5 text-xs text-zinc-500">
-                    Waiting for them to sign up, {daysLeft(i.expires_at)}
-                  </div>
+                  <div className="mt-0.5 text-xs text-zinc-500">Waiting for them to sign up, {daysLeft(i.expires_at)}</div>
                 </div>
-                <button type="button" className="btn btn-ghost" disabled={withdraw.isPending} onClick={() => withdraw.mutate(i.id)}>Withdraw</button>
+                <button type="button" className="btn btn-ghost" disabled={withdraw.isPending} onClick={() => withdraw.mutate(i.id)}>
+                  Withdraw
+                </button>
               </li>
             ))}
           </ul>
@@ -162,9 +195,14 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
           desc="If they already have an account here they get access at once. If not, they get an invitation to sign up, and the access comes with it."
           footer={
             <>
-              <span>{picked.length === 0 ? "Choose a role or some permissions." : `${roleOf(picked, known)?.label ?? "Custom"} · ${picked.length} permission${picked.length === 1 ? "" : "s"}`}</span>
+              <span>
+                {picked.length === 0
+                  ? "Choose a role or some permissions."
+                  : `${roleOf(picked, known)?.label ?? "Custom"} · ${picked.length} permission${picked.length === 1 ? "" : "s"}`}
+              </span>
               <button type="submit" className="btn btn-primary" disabled={add.isPending || picked.length === 0 || !email.trim()}>
-                {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserPlus className="h-4 w-4" aria-hidden />} Add person
+                {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserPlus className="h-4 w-4" aria-hidden />}{" "}
+                Add person
               </button>
             </>
           }
@@ -173,7 +211,9 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
             {sent && (
               <div role="status" className="space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-sm text-zinc-200">
                 {sent.added || !sent.link ? (
-                  <p className="flex items-center gap-2"><Check className="h-4 w-4 text-good-text" aria-hidden /> {sent.email} now has access.</p>
+                  <p className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-good-text" aria-hidden /> {sent.email} now has access.
+                  </p>
                 ) : (
                   <>
                     <p>
@@ -190,7 +230,19 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
             )}
             <Field label="Their email">
               {(id) => (
-                <input id={id} className="input max-w-md" type="email" required autoComplete="off" placeholder="friend@example.com" value={email} onChange={(e) => { setEmail(e.target.value); if (sent) setSent(null); }} />
+                <input
+                  id={id}
+                  className="input max-w-md"
+                  type="email"
+                  required
+                  autoComplete="off"
+                  placeholder="friend@example.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (sent) setSent(null);
+                  }}
+                />
               )}
             </Field>
             <div>
@@ -210,7 +262,10 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
         pending={remove.isPending}
         error={remove.error}
         onConfirm={() => toRemove && remove.mutate(toRemove.id)}
-        onCancel={() => { setToRemove(null); remove.reset(); }}
+        onCancel={() => {
+          setToRemove(null);
+          remove.reset();
+        }}
       />
     </div>
   );

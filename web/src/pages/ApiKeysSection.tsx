@@ -42,7 +42,12 @@ export function ApiKeysSection() {
     <Section
       title="API keys"
       id="keys-h"
-      desc={<>Keys act as you. Send one as <code className="rounded bg-zinc-800 px-1 py-0.5 text-xs">Authorization: Bearer &lt;key&gt;</code>. They cannot change your password, two-factor settings or create other keys.</>}
+      desc={
+        <>
+          Keys act as you. Send one as <code className="rounded bg-zinc-800 px-1 py-0.5 text-xs">Authorization: Bearer &lt;key&gt;</code>.
+          They cannot change your password, two-factor settings or create other keys.
+        </>
+      }
     >
       <div className="space-y-4">
         {secret && (
@@ -57,7 +62,15 @@ export function ApiKeysSection() {
           <div className="relative overflow-x-auto rounded-xl border border-zinc-800" tabIndex={0} role="region" aria-label="API keys">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-500">
-                <tr><th className="px-3.5 py-2.5 font-medium">Name</th><th className="px-3.5 py-2.5 font-medium">Key</th><th className="px-3.5 py-2.5 font-medium">Last used</th><th className="px-3.5 py-2.5 font-medium">Expires</th><th><span className="sr-only">Actions</span></th></tr>
+                <tr>
+                  <th className="px-3.5 py-2.5 font-medium">Name</th>
+                  <th className="px-3.5 py-2.5 font-medium">Key</th>
+                  <th className="px-3.5 py-2.5 font-medium">Last used</th>
+                  <th className="px-3.5 py-2.5 font-medium">Expires</th>
+                  <th>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/70">
                 {list.data.map((k) => (
@@ -67,7 +80,13 @@ export function ApiKeysSection() {
                     <td className="px-3.5 py-2.5 text-zinc-400">{when(k.last_used_at)}</td>
                     <td className="px-3.5 py-2.5 text-zinc-400">{when(k.expires_at)}</td>
                     <td className="px-2 text-right">
-                      <button type="button" className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300" aria-label={`Revoke ${k.name}`} disabled={del.isPending} onClick={() => del.mutate(k.id)}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300"
+                        aria-label={`Revoke ${k.name}`}
+                        disabled={del.isPending}
+                        onClick={() => del.mutate(k.id)}
+                      >
                         <Trash2 className="h-4 w-4" aria-hidden />
                       </button>
                     </td>
@@ -94,11 +113,32 @@ export function ApiKeysSection() {
             )}
           </Field>
           <Field label="Your password">
-            {(id) => <input id={id} className="input" type="password" autoComplete="current-password" required maxLength={256} value={password} onChange={(e) => setPassword(e.target.value)} />}
+            {(id) => (
+              <input
+                id={id}
+                className="input"
+                type="password"
+                autoComplete="current-password"
+                required
+                maxLength={256}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            )}
           </Field>
           {mfa && (
             <Field label="Authenticator or recovery code">
-              {(id) => <input id={id} className="input w-48 font-mono" autoComplete="one-time-code" required maxLength={64} value={code} onChange={(e) => setCode(e.target.value)} />}
+              {(id) => (
+                <input
+                  id={id}
+                  className="input w-48 font-mono"
+                  autoComplete="one-time-code"
+                  required
+                  maxLength={64}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              )}
             </Field>
           )}
           <button type="submit" className="btn btn-primary" disabled={create.isPending}>

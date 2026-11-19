@@ -130,10 +130,21 @@ export const ROLES: Role[] = [
     label: "Manager",
     desc: "Also edits files, mods, schedules and startup settings.",
     perms: pick([
-      "console.read", "console.send", "power", "activity.read",
-      "files.read", "files.write",
-      "backups.read", "backups.create", "backups.restore", "backups.download",
-      "schedules.manage", "startup.read", "startup.update", "network.read", "databases.read",
+      "console.read",
+      "console.send",
+      "power",
+      "activity.read",
+      "files.read",
+      "files.write",
+      "backups.read",
+      "backups.create",
+      "backups.restore",
+      "backups.download",
+      "schedules.manage",
+      "startup.read",
+      "startup.update",
+      "network.read",
+      "databases.read",
     ]),
   },
   {
@@ -159,5 +170,8 @@ export function areaSummary(value: string[]): string {
     const i = AREAS.findIndex((x) => x.id === a);
     return i < 0 ? AREAS.length : i;
   };
-  return areas.sort((a, b) => rank(a) - rank(b)).map(areaLabel).join(", ");
+  return areas
+    .sort((a, b) => rank(a) - rank(b))
+    .map(areaLabel)
+    .join(", ");
 }

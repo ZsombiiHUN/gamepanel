@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, call } from "./client";
 
-const reply = (status: number, body: string, type = "application/problem+json") =>
-  ({ error: type.includes("json") ? JSON.parse(body) : body, response: new Response(body, { status, headers: { "content-type": type } }) });
+const reply = (status: number, body: string, type = "application/problem+json") => ({
+  error: type.includes("json") ? JSON.parse(body) : body,
+  response: new Response(body, { status, headers: { "content-type": type } }),
+});
 
 /** The ApiError call() throws for p. */
 async function failure(p: Parameters<typeof call>[0]): Promise<ApiError> {

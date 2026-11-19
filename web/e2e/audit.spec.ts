@@ -10,7 +10,9 @@ test.describe("audit log search", () => {
   test.beforeAll(async ({ playwright, baseURL }) => {
     const api = await playwright.request.newContext({ baseURL, storageState: path.join(STATE, "admin.json") });
     needle = unique("needle-egg").replace(/\s/g, "-");
-    const egg = await api.post("/api/eggs/import", { data: { name: needle, docker_images: { d: "img" }, startup: "run", config: { stop: "stop" } } });
+    const egg = await api.post("/api/eggs/import", {
+      data: { name: needle, docker_images: { d: "img" }, startup: "run", config: { stop: "stop" } },
+    });
     expect(egg.status()).toBe(201);
     for (let i = 0; i < 105; i++) {
       const n = await api.post("/api/nodes", { data: { name: `filler-${i}`, port_start: 30000, port_end: 30001 } });

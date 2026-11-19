@@ -29,7 +29,11 @@ describe("activity grouping", () => {
     const now = new Date(2026, 0, 10, 12).getTime();
     const at = (h: number) => now / 1000 - h * 3600;
     const g = groupByDay([{ at: at(1) }, { at: at(2) }, { at: at(20) }, { at: at(60) }], now);
-    expect(g.map((x) => [x.label, x.rows.length])).toEqual([["Today", 2], ["Yesterday", 1], [dayLabel(at(60), now), 1]]);
+    expect(g.map((x) => [x.label, x.rows.length])).toEqual([
+      ["Today", 2],
+      ["Yesterday", 1],
+      [dayLabel(at(60), now), 1],
+    ]);
     expect(dayLabel(at(60), now)).not.toMatch(/Today|Yesterday/);
   });
 });

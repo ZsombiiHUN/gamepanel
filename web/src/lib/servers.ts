@@ -4,7 +4,14 @@ type ServerView = components["schemas"]["ServerView"];
 export type SearchableServer = Pick<ServerView, "name" | "state" | "port"> & { egg_name?: string; node_name?: string };
 
 export const stateLabel: Record<string, string> = {
-  running: "Running", starting: "Starting", stopping: "Stopping", installing: "Installing", install_failed: "Install failed", crashed: "Crashed", offline: "Stopped", unknown: "Unknown",
+  running: "Running",
+  starting: "Starting",
+  stopping: "Stopping",
+  installing: "Installing",
+  install_failed: "Install failed",
+  crashed: "Crashed",
+  offline: "Stopped",
+  unknown: "Unknown",
   suspended: "Suspended",
 };
 
@@ -15,7 +22,12 @@ export function shownState(s: { state: string; suspended?: boolean }, live?: str
 
 export const GROUPS = ["running", "busy", "problem", "stopped"] as const;
 export type Group = (typeof GROUPS)[number];
-export const groupLabel: Record<Group, string> = { running: "Running", stopped: "Stopped", busy: "Starting or installing", problem: "Needs attention" };
+export const groupLabel: Record<Group, string> = {
+  running: "Running",
+  stopped: "Stopped",
+  busy: "Starting or installing",
+  problem: "Needs attention",
+};
 
 /** Coarse bucket for the status filter chips. */
 export function groupOf(state: string): Group {

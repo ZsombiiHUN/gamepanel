@@ -16,7 +16,10 @@ async function open(path = "/", over: Record<string, unknown> = {}) {
 // A closed <dialog> has no accessible name, so find it directly.
 const palette = () => document.querySelector<HTMLDialogElement>('dialog[aria-label="Quick switcher"]')!;
 /** Titles of the visible options, in order. */
-const options = () => within(screen.getByRole("listbox", { name: "Results", hidden: true })).getAllByRole("option", { hidden: true }).map((o) => o.querySelector(".flex-1")!.textContent!.trim());
+const options = () =>
+  within(screen.getByRole("listbox", { name: "Results", hidden: true }))
+    .getAllByRole("option", { hidden: true })
+    .map((o) => o.querySelector(".flex-1")!.textContent!.trim());
 
 describe("sidebar", () => {
   it("scrolls only the server list, so admin links and the account stay reachable with many servers", async () => {
@@ -38,7 +41,10 @@ describe("sidebar", () => {
 
   it("lists servers alphabetically", async () => {
     await open();
-    const names = within(screen.getByRole("navigation", { name: "Servers" })).getAllByRole("link").map((l) => l.textContent!.trim()).filter((t) => !/All servers|New server/.test(t));
+    const names = within(screen.getByRole("navigation", { name: "Servers" }))
+      .getAllByRole("link")
+      .map((l) => l.textContent!.trim())
+      .filter((t) => !/All servers|New server/.test(t));
     expect(names).toEqual(["Creative Plots", "Rust Wipe Friday", "Server 2", "Server 10", "Skyblock", "Survival SMP", "Valheim Friends"]);
   });
 
@@ -100,7 +106,22 @@ describe("quick switcher", () => {
   it("lists every server alphabetically, then the pages", async () => {
     await opened();
     const o = options();
-    expect(o).toEqual(["Creative Plots", "Rust Wipe Friday", "Server 2", "Server 10", "Skyblock", "Survival SMP", "Valheim Friends", "All servers", "Account", "New server", "Nodes", "Eggs", "Database hosts", "Audit log"]);
+    expect(o).toEqual([
+      "Creative Plots",
+      "Rust Wipe Friday",
+      "Server 2",
+      "Server 10",
+      "Skyblock",
+      "Survival SMP",
+      "Valheim Friends",
+      "All servers",
+      "Account",
+      "New server",
+      "Nodes",
+      "Eggs",
+      "Database hosts",
+      "Audit log",
+    ]);
   });
   it("narrows as you type and matches game, node and port", async () => {
     await opened();
@@ -159,7 +180,11 @@ describe("quick switcher", () => {
   it("offers the current server's tabs first when on a server", async () => {
     const servers = sampleServers();
     const sky = servers.find((s) => s.name === "Skyblock")!;
-    const api = new FakeApi({ "GET /api/servers": servers, [`GET /api/servers/${sky.uuid}`]: sky, [`GET /api/servers/${sky.uuid}/files`]: [] });
+    const api = new FakeApi({
+      "GET /api/servers": servers,
+      [`GET /api/servers/${sky.uuid}`]: sky,
+      [`GET /api/servers/${sky.uuid}/files`]: [],
+    });
     renderApp(api, `/servers/${sky.uuid}?tab=settings`);
     await screen.findByRole("navigation", { name: "Servers" });
     await userEvent.keyboard("{Control>}k{/Control}");

@@ -20,10 +20,10 @@ TypeScript is pinned to 6.0.x because openapi-typescript 7 does not work with Ty
 
 ## Tests
 
-| Command | What it covers |
-|---|---|
+| Command     | What it covers                                                                                                                                                                                                                                                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm test` | Pure logic in `src/lib` and `src/hooks` (search, ranking, sorting, file crawl, usage charts, URL state), routing (sign-in gate, admin pages, state in the address) and whole pages rendered in jsdom against a fake API (`src/test/harness.tsx`): filtering, empty states, keyboard shortcuts, the quick switcher, audit paging, file search. |
-| `pnpm e2e` | A real browser (Chromium) against `internal/e2e/testpanel`: sign-in, searching, console, files, audit, creating servers, a regular user's permissions, accessibility (axe), and layout at 1440x900, 1366x768 and 390x844. |
+| `pnpm e2e`  | A real browser (Chromium) against `internal/e2e/testpanel`: sign-in, searching, console, files, audit, creating servers, a regular user's permissions, accessibility (axe), and layout at 1440x900, 1366x768 and 390x844.                                                                                                                     |
 
 First time: `pnpm e2e:install` downloads the browser. Playwright is pinned to 1.58.2; set `PW_CHROMIUM` to use a browser you already have.
 

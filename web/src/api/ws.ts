@@ -8,7 +8,11 @@ export type WsStatus = "connecting" | "open" | "reconnecting" | "closed";
 export const CLOSE_UNAUTHORIZED = 4401;
 export const CLOSE_FORBIDDEN = 4403;
 export const CLOSE_NOT_FOUND = 4404;
-export interface LiveStats { cpu_pct: number; mem_bytes: number; disk_bytes: number }
+export interface LiveStats {
+  cpu_pct: number;
+  mem_bytes: number;
+  disk_bytes: number;
+}
 
 interface Handlers {
   onConsole: (line: string) => void;
@@ -50,7 +54,11 @@ export function useServerSocket(uuid: string, handlers: Handlers) {
         }
         let data = frame.data;
         if (typeof data === "string") {
-          try { data = JSON.parse(data); } catch { /* keep string */ }
+          try {
+            data = JSON.parse(data);
+          } catch {
+            /* keep string */
+          }
         }
         if (!data || typeof data !== "object") return;
         const d = data as Record<string, unknown>;
@@ -59,10 +67,11 @@ export function useServerSocket(uuid: string, handlers: Handlers) {
           if (Array.isArray(d.lines)) {
             for (const l of d.lines) if (typeof l === "string") onConsole(l);
           } else if (typeof d.line === "string") onConsole(d.line);
-        }
-        else if (frame.type === "state" && typeof d.state === "string") onLive({ state: d.state });
+        } else if (frame.type === "state" && typeof d.state === "string") onLive({ state: d.state });
         else if (frame.type === "stats" && typeof d.cpu_pct === "number" && typeof d.mem_bytes === "number")
-          onLive({ stats: { cpu_pct: d.cpu_pct, mem_bytes: d.mem_bytes, disk_bytes: typeof d.disk_bytes === "number" ? d.disk_bytes : 0 } });
+          onLive({
+            stats: { cpu_pct: d.cpu_pct, mem_bytes: d.mem_bytes, disk_bytes: typeof d.disk_bytes === "number" ? d.disk_bytes : 0 },
+          });
       };
       ws.onclose = (ev) => {
         if (stopped) return;
