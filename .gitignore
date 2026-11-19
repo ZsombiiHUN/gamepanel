@@ -10,3 +10,6 @@ web/node_modules/
 web/e2e/.state/
 web/e2e/.results/
 web/e2e/.report/
+
+# Go coverage profile (make cover)
+/coverage.out
