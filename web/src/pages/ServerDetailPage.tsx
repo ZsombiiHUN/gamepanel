@@ -18,6 +18,7 @@ import { NetworkTab } from "./NetworkTab";
 import { StartupTab } from "./StartupTab";
 import { UsageRow } from "./server/UsageRow";
 import { UsersTab } from "./UsersTab";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 
 const FilesTab = lazy(() => import("./FilesTab").then((m) => ({ default: m.FilesTab })));
 
@@ -38,6 +39,8 @@ export function ServerDetailPage() {
     },
   });
   const ready = !server.isPending && !server.error;
+  // On wide screens the charts sit in a narrow column beside the console.
+  const wide = useMediaQuery("(min-width: 1280px)");
   useEffect(() => {
     if (!ready || !term.current) return;
     for (const l of early.current) term.current.writeln(l);
@@ -52,26 +55,28 @@ export function ServerDetailPage() {
 
   const can = (need?: string) => !need || (need === "owner" ? s.owner : s.permissions.includes(need));
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="space-y-5">
         <ServerHeader server={s} state={state} wsStatus={ws.status} can={can} />
         <ServerTabs uuid={uuid} tab={tab} can={can} />
       </div>
 
-      {/* The console comes first on small screens (it is what people came for) and below the charts on large ones. */}
-      <div className={tab === "console" ? "flex flex-col gap-6" : undefined}>
+      {/* The console comes first on small screens (it is what people came for), below the charts on
+          medium ones, and beside a narrow column of charts on wide ones. */}
+      <div className={tab === "console" ? "flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start" : undefined}>
         {tab === "console" && (
-          <div className="order-2 lg:order-1">
+          <div className="order-2 lg:order-1 xl:order-2">
             <UsageRow
               uuid={uuid}
               running={state === "running" ? stats : null}
               latest={stats}
               limits={{ memoryMb: s.memory_mb, diskMb: s.disk_mb, cpuPct: s.cpu_pct }}
+              rail={wide}
             />
           </div>
         )}
         {/* Console stays mounted so the buffer survives tab switches */}
-        <div hidden={tab !== "console"} className="order-1 lg:order-2">
+        <div hidden={tab !== "console"} className="order-1 min-w-0 lg:order-2 xl:order-1">
           <ConsolePanel uuid={uuid} termRef={term} active={tab === "console"} canSend={can("console.send")} status={ws.status} />
         </div>
       </div>

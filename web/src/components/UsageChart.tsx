@@ -17,6 +17,7 @@ export function UsageChart({
   color,
   action,
   since = "earlier",
+  compact = false,
 }: {
   title: string;
   value: string;
@@ -31,6 +32,8 @@ export function UsageChart({
   action?: React.ReactNode;
   /** Left end of the time axis ("earlier" for live readings, "24 h ago" for history). */
   since?: string;
+  /** Smaller variant for the console's side rail: title and value on one line, a short chart, no card of its own. */
+  compact?: boolean;
 }) {
   const gid = useId();
   const n = values.length;
@@ -39,22 +42,39 @@ export function UsageChart({
   const area = n ? `M0,${H} L${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" L")} L${W},${H} Z` : "";
   const y = (v: number) => H - (v / max) * H;
   return (
-    <section className="min-w-0 rounded-[14px] border border-zinc-800 bg-zinc-900 px-5 pb-4 pt-[18px]" aria-label={title}>
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="text-[15px] font-semibold">{title}</h2>
-        {action}
-      </div>
-      <p className={`h-display mt-2.5 text-[32px] font-bold leading-none ${noteWarn ? "text-warn-text" : ""}`}>
-        {value}
-        <span className="ml-2 font-sans text-sm font-normal tracking-normal text-zinc-400">{unit}</span>
+    <section
+      className={compact ? "min-w-0 px-4 py-3.5" : "min-w-0 rounded-xl border border-line bg-zinc-900 px-5 pb-4 pt-[18px]"}
+      aria-label={title}
+    >
+      {compact ? (
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-[13px] font-medium text-zinc-400">{title}</h2>
+          <p className={`text-right ${noteWarn ? "text-warn-text" : ""}`}>
+            <span className="text-[17px] font-semibold tracking-tight">{value}</span>
+            <span className="ml-1 text-[12px] text-zinc-500">{unit}</span>
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-[13.5px] font-medium text-zinc-400">{title}</h2>
+            {action}
+          </div>
+          <p className={`h-display mt-2 text-[28px] leading-none ${noteWarn ? "text-warn-text" : ""}`}>
+            {value}
+            <span className="ml-1.5 font-sans text-[13px] font-normal tracking-normal text-zinc-500">{unit}</span>
+          </p>
+        </>
+      )}
+      <p className={`${compact ? "mt-0.5 text-right text-[12px]" : "mt-1.5 text-[13px]"} ${noteWarn ? "text-warn-text" : "text-zinc-500"}`}>
+        {note}
       </p>
-      <p className={`mt-1.5 text-[13px] ${noteWarn ? "text-warn-text" : "text-zinc-500"}`}>{note}</p>
-      <div className="mt-3.5 flex gap-2.5">
-        <div className="relative h-[120px] w-12 shrink-0" aria-hidden>
+      <div className={`${compact ? "mt-2" : "mt-3.5"} flex gap-2.5`}>
+        <div className={`relative ${compact ? "h-16 w-10" : "h-[120px] w-12"} shrink-0`} aria-hidden>
           {ticks.map((t) => (
             <span
               key={t.label}
-              className="absolute right-0 translate-y-1/2 whitespace-nowrap font-mono text-[11.5px] text-zinc-500"
+              className={`absolute right-0 translate-y-1/2 whitespace-nowrap font-mono ${compact ? "text-[10.5px]" : "text-[11.5px]"} text-zinc-500`}
               style={{ bottom: `${(t.at / max) * 100}%` }}
             >
               {t.label}
@@ -65,7 +85,7 @@ export function UsageChart({
           <svg
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
-            className="block h-[120px] w-full overflow-visible"
+            className={`block ${compact ? "h-16" : "h-[120px]"} w-full overflow-visible`}
             role="img"
             aria-label={`${title} over the last readings`}
           >
@@ -111,7 +131,7 @@ export function UsageChart({
               />
             )}
           </svg>
-          <div className="mt-2 flex justify-between font-mono text-[11.5px] text-zinc-500" aria-hidden>
+          <div className={`mt-1.5 flex justify-between font-mono ${compact ? "text-[10.5px]" : "text-[11.5px]"} text-zinc-500`} aria-hidden>
             <span>{since}</span>
             <span>now</span>
           </div>

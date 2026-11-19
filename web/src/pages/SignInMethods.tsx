@@ -27,16 +27,16 @@ export function SignInMethods() {
       desc="Sign in with an account you already have elsewhere. Linking happens here, while you are signed in, so nobody can attach their sign-in to your account."
     >
       {msg && (
-        <p role="alert" className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">
+        <p role="alert" className="mb-3 rounded-lg border border-warn/30 bg-warn-bg px-3 py-2.5 text-sm text-warn-text">
           {msg}
         </p>
       )}
       {justLinked && (
-        <p role="status" className="mb-3 text-sm text-emerald-400">
+        <p role="status" className="mb-3 text-sm text-good-text">
           {justLinked} is linked. You can now sign in with it.
         </p>
       )}
-      <ul className="divide-y divide-zinc-800 rounded-xl border border-zinc-800">
+      <ul className="divide-y divide-line rounded-xl border border-line">
         {providers.map((p) => {
           const id = linked.get(p.id);
           return (

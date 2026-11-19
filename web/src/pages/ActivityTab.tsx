@@ -76,13 +76,8 @@ export function ActivityTab({ uuid }: { uuid: string }) {
     setKind(k);
     setPage(0);
   };
-  const chipCls = (on: boolean) =>
-    `inline-flex min-h-8 shrink-0 items-center rounded-full border px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-indigo-500 ${
-      on ? "border-zinc-100 bg-zinc-100 text-zinc-950" : "border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-    }`;
-
   return (
-    <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900" aria-labelledby="activity-title">
+    <section className="overflow-hidden rounded-xl border border-line bg-zinc-900" aria-labelledby="activity-title">
       <div className="space-y-3 px-5 pb-3 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -101,18 +96,12 @@ export function ActivityTab({ uuid }: { uuid: string }) {
             }}
           />
         </div>
-        <div role="group" aria-label="Show only" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          <button type="button" className={chipCls(kind === null)} aria-pressed={kind === null} onClick={() => choose(null)}>
+        <div role="group" aria-label="Show only" className="seg">
+          <button type="button" aria-pressed={kind === null} onClick={() => choose(null)}>
             All
           </button>
           {ACTIVITY_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className={chipCls(kind === f.id)}
-              aria-pressed={kind === f.id}
-              onClick={() => choose(kind === f.id ? null : f.id)}
-            >
+            <button key={f.id} type="button" aria-pressed={kind === f.id} onClick={() => choose(kind === f.id ? null : f.id)}>
               {f.label}
             </button>
           ))}

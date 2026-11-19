@@ -2,13 +2,16 @@ import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { HardDrive, Loader2, Plus, Settings2, Trash2, X } from "lucide-react";
 import { api, call, type components } from "../api/client";
-import { invalidates, keys, nodesQuery } from "../api/queries";
-import { ConfirmDialog, CopyButton, Empty, ErrorBox, Field, Meter, OnlineDot, PageHeader, Section, Spinner } from "../components/ui";
+import { invalidates, keys, nodesQuery, serversQuery } from "../api/queries";
+import { ConfirmDialog, CopyButton, Empty, ErrorBox, Field, Meter, PageHeader, Pill, Section, ServerIcon, Spinner } from "../components/ui";
 
 type NodeView = components["schemas"]["NodeView"];
 
 export function NodesPage() {
   const nodes = useQuery(nodesQuery);
+  const servers = useQuery(serversQuery);
+  const byNode = new Map<number, { uuid: string; name: string }[]>();
+  for (const sv of servers.data ?? []) byNode.set(sv.node_id, [...(byNode.get(sv.node_id) ?? []), sv]);
   const [name, setName] = useState("");
   const [start, setStart] = useState(25565);
   const [end, setEnd] = useState(25665);
@@ -82,7 +85,7 @@ export function NodesPage() {
   const fmt = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 ? 1 : 0)} GB` : `${mb} MB`);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
       <PageHeader
         title="Nodes"
         sub="Machines that run your game servers. Each one runs the daemon, which connects out to this panel."
@@ -95,16 +98,16 @@ export function NodesPage() {
 
       <div className="space-y-5">
         {created && (
-          <section role="alert" aria-labelledby="token-h" className="rounded-2xl border border-amber-500/60 bg-amber-950/30 p-5">
-            <h2 id="token-h" className="text-[15px] font-semibold text-amber-200">
+          <section role="alert" aria-labelledby="token-h" className="rounded-xl border border-warn/30 bg-warn-bg p-5">
+            <h2 id="token-h" className="text-[15px] font-semibold text-warn-text">
               Node &quot;{created.name}&quot; created. Save its token now.
             </h2>
-            <p className="mt-1 text-sm text-amber-100/70">It is shown only once. Set it on the daemon as an environment variable:</p>
+            <p className="mt-1 text-sm text-warn-text">It is shown only once. Set it on the daemon as an environment variable:</p>
             <pre
               tabIndex={0}
               role="region"
               aria-label="Daemon environment"
-              className="mt-3 overflow-x-auto rounded-lg border border-zinc-800 bg-well p-3 font-mono text-[13px] text-emerald-300 select-all"
+              className="mt-3 overflow-x-auto rounded-lg border border-line bg-well p-3 font-mono text-[13px] text-good-text select-all"
             >
               <code>{envLine}</code>
             </pre>
@@ -217,26 +220,33 @@ export function NodesPage() {
           </Empty>
         )}
 
-        <ul className="grid gap-4 lg:grid-cols-2">
+        <ul className="grid gap-3 lg:grid-cols-2">
           {nodes.data?.map((n) => {
             const open = editing?.id === n.id;
             return (
-              <li key={n.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+              <li key={n.id} className={`flex flex-col rounded-xl border bg-zinc-900 p-4 ${n.online ? "border-line" : "border-bad/30"}`}>
                 <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-content-center rounded-xl bg-zinc-800 text-zinc-400">
-                    <HardDrive className="h-5 w-5" aria-hidden />
+                  <div className="grid h-9 w-9 shrink-0 place-content-center rounded-lg border border-line bg-thead text-zinc-400">
+                    <HardDrive className="h-4 w-4" aria-hidden />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h2 className="truncate text-[15px] font-semibold text-zinc-100">
-                      {n.name} <span className="font-normal text-zinc-500">#{n.id}</span>
+                    <h2 className="flex items-center gap-2.5 truncate text-[14.5px] font-semibold text-zinc-100">
+                      <span className="truncate">
+                        {n.name} <span className="font-normal text-zinc-500">#{n.id}</span>
+                      </span>
+                      <Pill tone={n.online ? "good" : "bad"}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${n.online ? "bg-good" : "bg-bad"}`} aria-hidden />
+                        {n.online ? "Online" : "Offline"}
+                        <span className="sr-only"> daemon</span>
+                      </Pill>
                     </h2>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[13px] text-zinc-400">
-                      <OnlineDot online={n.online} label="Daemon" />
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[12px] text-zinc-500">
                       <span className="font-mono">
                         ports {n.port_start}-{n.port_end}
                       </span>
+                      <span aria-hidden>·</span>
                       <span title="Where SFTP clients connect">
-                        SFTP:{" "}
+                        sftp{" "}
                         <span className="font-mono">
                           {n.sftp_host || "panel's host"}
                           {n.sftp_port ? `:${n.sftp_port}` : ""}
@@ -246,7 +256,7 @@ export function NodesPage() {
                   </div>
                   <button
                     type="button"
-                    className="btn btn-ghost !px-2.5"
+                    className="btn btn-ghost !min-h-8 !px-2"
                     aria-expanded={open}
                     aria-label={`Settings of ${n.name}`}
                     title="Capacity and SFTP address"
@@ -271,14 +281,14 @@ export function NodesPage() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-red-300"
+                    className="btn btn-ghost !min-h-8 !px-2 hover:[&_svg]:text-bad-text"
                     onClick={() => setToDelete(n)}
                     aria-label={`Delete node ${n.name}`}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 space-y-3">
                   <Meter
                     label="Memory allocated"
                     text={n.memory_mb ? `${fmt(n.allocated_memory_mb)} / ${fmt(n.memory_mb)}` : `${fmt(n.allocated_memory_mb)} (no cap)`}
@@ -290,13 +300,26 @@ export function NodesPage() {
                     pct={pct(n.allocated_disk_mb, n.disk_mb)}
                   />
                 </div>
+                <div className="mt-4 flex items-center gap-2 border-t border-line pt-3 text-[12.5px] text-zinc-500">
+                  {(byNode.get(n.id) ?? []).slice(0, 6).map((sv) => (
+                    <span key={sv.uuid} title={sv.name}>
+                      <ServerIcon name={sv.name} size={20} />
+                    </span>
+                  ))}
+                  <span className={(byNode.get(n.id)?.length ?? 0) > 0 ? "ml-1" : undefined}>
+                    {(() => {
+                      const c = byNode.get(n.id)?.length ?? 0;
+                      return c === 0 ? "No servers" : `${c} ${c === 1 ? "server" : "servers"}`;
+                    })()}
+                  </span>
+                </div>
                 {n.unknown_servers.length > 0 && (
-                  <div role="status" className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                  <div role="status" className="mt-5 rounded-xl border border-warn/30 bg-warn-bg p-4 text-sm text-warn-text">
                     <p className="font-medium">
                       This node has {n.unknown_servers.length === 1 ? "a server" : `${n.unknown_servers.length} servers`} the panel does not
                       know
                     </p>
-                    <p className="mt-1 text-amber-200/80">
+                    <p className="mt-1 text-warn-text">
                       Left behind by a delete that did not finish, or from a panel database restored from an older backup. Nothing is
                       deleted unless you remove it here.
                     </p>
@@ -332,7 +355,7 @@ export function NodesPage() {
                       e.preventDefault();
                       saveCap.mutate(editing);
                     }}
-                    className="mt-5 space-y-3 border-t border-zinc-800 pt-4"
+                    className="mt-5 space-y-3 border-t border-line pt-4"
                   >
                     <div className="grid gap-3 sm:grid-cols-3">
                       <Field label="Memory (MB)">
@@ -386,7 +409,7 @@ export function NodesPage() {
                       e.preventDefault();
                       saveSftp.mutate(editing);
                     }}
-                    className="mt-5 space-y-3 border-t border-zinc-800 pt-4"
+                    className="mt-5 space-y-3 border-t border-line pt-4"
                   >
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="sm:col-span-2">

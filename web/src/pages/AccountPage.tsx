@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { api, call } from "../api/client";
 import { identitiesQuery, invalidates, keys, meQuery } from "../api/queries";
-import { Avatar, ErrorBox, Field, PageHeader, Pill, Section } from "../components/ui";
+import { Avatar, ErrorBox, Field, PageHeader, Pill, Section, SectionsWithNav } from "../components/ui";
 import { ApiKeysSection } from "./ApiKeysSection";
 import { PasskeysSection } from "./PasskeysSection";
 import { SessionsSection } from "./SessionsSection";
@@ -39,7 +39,7 @@ export function AccountPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-[1088px]">
       <PageHeader
         title="Account"
         sub={
@@ -49,9 +49,9 @@ export function AccountPage() {
           </span>
         }
       />
-      <div className="space-y-5">
+      <SectionsWithNav>
         {me.data?.mfa_required && (
-          <div role="alert" className="flex gap-3 rounded-2xl border border-amber-500/40 bg-amber-950/20 p-4 text-sm text-amber-200">
+          <div role="alert" className="flex gap-3 rounded-xl border border-warn/30 bg-warn-bg p-4 text-sm text-warn-text">
             <ShieldAlert className="h-5 w-5 shrink-0" aria-hidden />
             <p>
               This panel requires two-factor authentication. Set up an authenticator app or add a passkey below to continue. Until then,
@@ -68,7 +68,7 @@ export function AccountPage() {
               desc="12 to 256 characters. Other browsers are signed out when you change it."
               footer={
                 <>
-                  <span className={change.isSuccess ? "text-emerald-400" : ""} role={change.isSuccess ? "status" : undefined}>
+                  <span className={change.isSuccess ? "text-good-text" : ""} role={change.isSuccess ? "status" : undefined}>
                     {change.isSuccess ? "Password changed. Your other sessions were signed out." : ""}
                   </span>
                   <button type="submit" className="btn btn-primary" disabled={change.isPending || mismatch}>
@@ -136,7 +136,7 @@ export function AccountPage() {
                   </Field>
                 )}
                 {mismatch && (
-                  <p role="alert" className="text-sm text-red-400">
+                  <p role="alert" className="text-sm text-bad-text">
                     The passwords do not match.
                   </p>
                 )}
@@ -153,7 +153,7 @@ export function AccountPage() {
         {!me.data?.mfa_required && <ApiKeysSection />}
 
         <SessionsSection />
-      </div>
+      </SectionsWithNav>
     </div>
   );
 }

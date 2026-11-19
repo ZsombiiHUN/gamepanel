@@ -56,7 +56,7 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
       all[(i - 1 + all.length) % all.length]?.focus();
     }
   };
-  const cls = (danger?: boolean) => `menu-item w-full ${danger ? "!text-red-300" : ""}`;
+  const cls = (danger?: boolean) => `menu-item w-full ${danger ? "!text-bad-text" : ""}`;
 
   return (
     // Arrow keys and Escape bubble up from the button and the menu items.
@@ -65,7 +65,7 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
       <button
         ref={button}
         type="button"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}

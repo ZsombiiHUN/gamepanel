@@ -1,10 +1,10 @@
 import { useMemo, useState, type SubmitEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { eggsQuery, invalidates, keys, nodesQuery } from "../api/queries";
-import { ErrorBox, Field, PageHeader, Section, ServerIcon, Spinner } from "../components/ui";
+import { ErrorBox, Field, InfoList, Meter, PageHeader, Section, ServerIcon, Spinner } from "../components/ui";
 import { LimitsFields, defaultLimitsForm, formToLimits, type LimitsForm } from "../components/LimitsFields";
 
 export function CreateServerPage() {
@@ -58,31 +58,70 @@ export function CreateServerPage() {
   const nodeList = nodes.data ?? [];
   const eggList = eggs.data ?? [];
 
+  const node = nodeList.find((n) => String(n.id) === nodeId);
+  const mem = Number(limits.memory_mb) || 0;
+  const disk = Number(limits.disk_mb) || 0;
+  const gb = (mb: number) => (mb >= 1024 ? `${+(mb / 1024).toFixed(1)} GB` : `${mb} MB`);
+
   return (
-    <form onSubmit={submit} className="mx-auto max-w-3xl" aria-label="Create server">
-      <PageHeader title="New server" sub="Pick a node and an egg, set its limits, and it is installed in the background." />
-      <div className="space-y-5">
-        <Section title="Basics" desc="The name is only for you. The icon is generated from it.">
-          <div className="flex items-start gap-4">
-            <div className="pt-6">
-              <ServerIcon name={name || "new server"} size={52} />
-            </div>
-            <div className="grid flex-1 gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Field label="Name">
-                  {(id) => (
+    <form onSubmit={submit} aria-label="Create server" className="xl:grid xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start xl:gap-8">
+      <div className="min-w-0 max-w-[880px]">
+        <PageHeader title="New server" sub="Pick a game and a node, set its limits, and it is installed in the background." />
+        <div className="space-y-5">
+          <fieldset className="min-w-0">
+            <legend className="mb-2.5 flex w-full items-baseline justify-between text-[13.5px] font-semibold">Game</legend>
+            {eggList.length === 0 ? (
+              <p className="text-[13px] text-zinc-500">Import an egg first.</p>
+            ) : (
+              <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr))]">
+                {eggList.map((x) => (
+                  <label
+                    key={x.id}
+                    className="relative flex cursor-pointer flex-col gap-2.5 rounded-xl border border-line bg-zinc-900 p-3.5 hover:border-line-strong has-[:checked]:border-zinc-400 has-[:checked]:bg-row-active has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-indigo-500"
+                  >
                     <input
-                      id={id}
-                      className="input"
+                      type="radio"
+                      name="egg"
+                      value={x.id}
                       required
-                      autoFocus
-                      maxLength={64}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      checked={eggId === String(x.id)}
+                      onChange={(e) => setEggId(e.target.value)}
+                      className="peer absolute inset-0 cursor-pointer appearance-none rounded-xl opacity-0"
+                      aria-describedby={`egg-${x.id}-d`}
                     />
-                  )}
-                </Field>
+                    <ServerIcon name={x.name} size={32} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13.5px] font-semibold">{x.name}</span>
+                      <span id={`egg-${x.id}-d`} className="block truncate font-mono text-[11.5px] text-zinc-500">
+                        {x.docker_image.split("/").pop()}
+                      </span>
+                    </span>
+                    <Check
+                      className="absolute right-3 top-3 hidden h-[18px] w-[18px] rounded-full bg-zinc-100 p-[3px] text-zinc-950 peer-checked:block"
+                      aria-hidden
+                    />
+                  </label>
+                ))}
               </div>
+            )}
+            {egg?.description && <p className="mt-2 text-[12.5px] text-zinc-500">{egg.description}</p>}
+          </fieldset>
+
+          <Section title="Details" desc="The name is only for you. The icon is generated from it.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Name">
+                {(id) => (
+                  <input
+                    id={id}
+                    className="input"
+                    required
+                    autoFocus
+                    maxLength={64}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                )}
+              </Field>
               <Field label="Node" hint={nodeList.length === 0 ? "Create a node first." : undefined}>
                 {(id) => (
                   <select id={id} className="input" required value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
@@ -98,74 +137,101 @@ export function CreateServerPage() {
                   </select>
                 )}
               </Field>
-              <Field label="Egg" hint={eggList.length === 0 ? "Import an egg first." : egg?.description || undefined}>
-                {(id) => (
-                  <select id={id} className="input" required value={eggId} onChange={(e) => setEggId(e.target.value)}>
-                    <option value="" disabled>
-                      Select an egg
-                    </option>
-                    {eggList.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </Field>
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Resources" desc="Hard limits for this server. Zero usually means unlimited.">
-          <LimitsFields value={limits} onChange={setLimits} />
-        </Section>
-
-        <Section title="Network">
-          <Field label="Port" hint="Leave empty to take the next free port in the node's range.">
-            {(id) => (
-              <input
-                id={id}
-                className="input w-40 font-mono"
-                type="number"
-                min={1}
-                max={65535}
-                placeholder="auto"
-                value={port}
-                onChange={(e) => setPort(e.target.value)}
-              />
-            )}
-          </Field>
-        </Section>
-
-        {egg && (egg.variables ?? []).length > 0 && (
-          <Section title="Environment variables" desc={`Defaults come from ${egg.name}.`}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {(egg.variables ?? []).map((v) => (
-                <Field key={v.env} label={v.name} hint={v.description || v.env}>
-                  {(id) => (
-                    <input
-                      id={id}
-                      className="input font-mono text-[13px]"
-                      value={env[v.env] ?? ""}
-                      onChange={(e) => setTyped({ egg: eggId, values: { ...env, [v.env]: e.target.value } })}
-                    />
-                  )}
-                </Field>
-              ))}
             </div>
           </Section>
-        )}
 
-        <ErrorBox error={create.error} />
-        <div className="flex justify-end gap-2 pb-4">
-          <button type="button" className="btn" onClick={() => void navigate({ to: "/" })}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={create.isPending}>
-            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create server
-          </button>
+          <Section title="Resources" desc="Hard limits for this server. Zero usually means unlimited.">
+            <LimitsFields value={limits} onChange={setLimits} />
+          </Section>
+
+          <Section title="Network">
+            <Field label="Port" hint="Leave empty to take the next free port in the node's range.">
+              {(id) => (
+                <input
+                  id={id}
+                  className="input w-40 font-mono"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  placeholder="auto"
+                  value={port}
+                  onChange={(e) => setPort(e.target.value)}
+                />
+              )}
+            </Field>
+          </Section>
+
+          {egg && (egg.variables ?? []).length > 0 && (
+            <Section title="Environment variables" desc={`Defaults come from ${egg.name}.`}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {(egg.variables ?? []).map((v) => (
+                  <Field key={v.env} label={v.name} hint={v.description || v.env}>
+                    {(id) => (
+                      <input
+                        id={id}
+                        className="input font-mono text-[13px]"
+                        value={env[v.env] ?? ""}
+                        onChange={(e) => setTyped({ egg: eggId, values: { ...env, [v.env]: e.target.value } })}
+                      />
+                    )}
+                  </Field>
+                ))}
+              </div>
+            </Section>
+          )}
         </div>
       </div>
+
+      <aside aria-label="Summary" className="mt-6 xl:sticky xl:top-[76px] xl:mt-0">
+        <div className="rounded-xl border border-line bg-zinc-900 p-4">
+          <div className="flex items-center gap-3">
+            <ServerIcon name={name || "new server"} size={40} />
+            <div className="min-w-0">
+              <p className="truncate text-[14.5px] font-semibold">{name || "New server"}</p>
+              <p className="truncate text-[12.5px] text-zinc-500">{egg?.name ?? "No game picked"}</p>
+            </div>
+          </div>
+          <div className="mt-4 border-t border-line pt-3">
+            <InfoList
+              rows={[
+                { label: "Node", value: node?.name ?? "-", plain: true },
+                { label: "Port", value: port || "next free" },
+                { label: "Memory", value: mem ? gb(mem) : "no limit" },
+                { label: "Disk", value: disk ? gb(disk) : "no limit" },
+                { label: "Backups kept", value: limits.backup_limit || "0" },
+              ]}
+            />
+          </div>
+          {node && (node.memory_mb > 0 || node.disk_mb > 0) && (
+            <div className="mt-4 space-y-3 border-t border-line pt-3">
+              <p className="text-[12.5px] text-zinc-500">{node.name} after this server</p>
+              {node.memory_mb > 0 && (
+                <Meter
+                  label="Memory"
+                  text={`${gb(node.allocated_memory_mb + mem)} / ${gb(node.memory_mb)}`}
+                  pct={((node.allocated_memory_mb + mem) / node.memory_mb) * 100}
+                />
+              )}
+              {node.disk_mb > 0 && (
+                <Meter
+                  label="Disk"
+                  text={`${gb(node.allocated_disk_mb + disk)} / ${gb(node.disk_mb)}`}
+                  pct={((node.allocated_disk_mb + disk) / node.disk_mb) * 100}
+                />
+              )}
+            </div>
+          )}
+        </div>
+        <div className="mt-3 space-y-2">
+          <ErrorBox error={create.error} />
+          <button type="submit" className="btn btn-primary w-full !min-h-10" disabled={create.isPending}>
+            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create server
+          </button>
+          <button type="button" className="btn btn-ghost w-full" onClick={() => void navigate({ to: "/" })}>
+            Cancel
+          </button>
+        </div>
+      </aside>
     </form>
   );
 }
