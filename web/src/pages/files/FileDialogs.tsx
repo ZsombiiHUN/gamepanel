@@ -264,7 +264,7 @@ function DeleteDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[
         {folders > 0 ? "Folders are deleted with everything in them. " : ""}This cannot be undone, so take a backup first if you are unsure.
       </p>
       {items.length > 1 && (
-        <ul className="max-h-40 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 p-2 font-mono text-xs text-zinc-400">
+        <ul className="max-h-40 overflow-y-auto rounded-lg border border-line bg-zinc-950 p-2 font-mono text-xs text-zinc-400">
           {items.map((i) => (
             <li key={i.path}>{i.path}</li>
           ))}

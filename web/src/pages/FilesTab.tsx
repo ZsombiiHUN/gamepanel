@@ -43,7 +43,7 @@ type Row = FileInfo & { path: string; parent: string };
 
 const downloadUrl = (uuid: string, path: string) => `/api/servers/${uuid}/files/download?path=${encodeURIComponent(path)}`;
 const iconBtn =
-  "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
+  "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
 
 export function FilesTab({ uuid }: { uuid: string }) {
   // The folder and the search live in the address, so a folder can be linked to and Back goes up.
@@ -171,13 +171,13 @@ export function FilesTab({ uuid }: { uuid: string }) {
       <div className="flex flex-wrap items-center gap-2">
         {canWrite && (
           <>
-            <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
+            <button type="button" className="btn btn-primary" onClick={() => fileInput.current?.click()}>
               <Upload className="h-4 w-4" aria-hidden /> Upload files
             </button>
             {/* Secondary actions keep their names for screen readers but show only icons on phones. */}
             <button
               type="button"
-              className="btn btn-ghost !px-3 sm:!px-4"
+              className="btn !px-3"
               aria-label="Upload folder"
               title="Upload folder"
               onClick={() => folderInput.current?.click()}
@@ -187,7 +187,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
             </button>
             <button
               type="button"
-              className="btn btn-ghost !px-3 sm:!px-4"
+              className="btn !px-3"
               aria-label="New folder"
               title="New folder"
               onClick={() => setAction({ kind: "newFolder", dir })}
@@ -197,7 +197,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
             </button>
             <button
               type="button"
-              className="btn btn-ghost !px-3 sm:!px-4"
+              className="btn !px-3"
               aria-label="New file"
               title="New file"
               onClick={() => setAction({ kind: "newFile", dir })}
@@ -207,7 +207,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
             </button>
             <button
               type="button"
-              className="btn btn-ghost !px-3 sm:!px-4"
+              className="btn !px-3"
               aria-label="From URL"
               title="Download from a URL"
               onClick={() => setAction({ kind: "pull", dir })}
@@ -255,7 +255,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
       <UploadPanel items={uploads.items} onCancel={uploads.cancel} onClear={uploads.clear} />
 
       <section
-        className={`relative overflow-hidden rounded-2xl border bg-zinc-900 ${dragging ? "border-indigo-500" : "border-zinc-800"}`}
+        className={`relative overflow-hidden rounded-xl border bg-zinc-900 ${dragging ? "border-indigo-500" : "border-line"}`}
         onDragOver={(e) => {
           if (canWrite && hasFiles(e)) {
             e.preventDefault();
@@ -276,7 +276,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
           <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm">
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-200 hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-indigo-500"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-200 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-indigo-500"
               onClick={() => setDir("/")}
               aria-label="Root folder"
             >
@@ -312,7 +312,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
           <div
             role="toolbar"
             aria-label="Selected items"
-            className="flex flex-wrap items-center gap-2 border-t border-zinc-800 bg-indigo-500/5 px-3.5 py-2 text-sm"
+            className="flex flex-wrap items-center gap-2 border-t border-line bg-indigo-500/5 px-3.5 py-2 text-sm"
           >
             <span className="mr-1 font-medium">{chosen.length} selected</span>
             {canWrite && (
@@ -443,7 +443,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
                         {f.dir ? (
                           <Folder className="h-[17px] w-[17px] shrink-0 text-indigo-400" aria-hidden />
                         ) : isArchive(f.name) ? (
-                          <FileArchive className="h-[17px] w-[17px] shrink-0 text-amber-400/80" aria-hidden />
+                          <FileArchive className="h-[17px] w-[17px] shrink-0 text-warn-text" aria-hidden />
                         ) : (
                           <FileIcon className="h-[17px] w-[17px] shrink-0 text-zinc-500" aria-hidden />
                         )}

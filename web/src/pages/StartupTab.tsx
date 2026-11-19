@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Lock, RotateCcw } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { keys, startupQuery } from "../api/queries";
-import { CopyButton, ErrorBox, Pill, Section, Spinner } from "../components/ui";
+import { CopyButton, ErrorBox, Pill, Section, SectionsWithNav, Spinner } from "../components/ui";
 import { fillCommand, inputKind } from "../lib/startup";
 
 type StartupView = components["schemas"]["StartupView"];
@@ -33,9 +33,9 @@ function useSave(uuid: string) {
 
 function StartupForms({ uuid, s }: { uuid: string; s: StartupView }) {
   return (
-    <div className="space-y-5">
+    <SectionsWithNav>
       {s.pending && (
-        <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <p role="status" className="rounded-xl border border-warn/30 bg-warn-bg px-4 py-3 text-sm text-warn-text">
           Your changes are saved. They take effect the next time the server starts, so restart it when it suits you.
         </p>
       )}
@@ -43,7 +43,7 @@ function StartupForms({ uuid, s }: { uuid: string; s: StartupView }) {
       <ImageSection uuid={uuid} s={s} />
       <VariablesSection uuid={uuid} s={s} />
       <CrashSection uuid={uuid} s={s} />
-    </div>
+    </SectionsWithNav>
   );
 }
 
@@ -165,7 +165,7 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
           </div>
         </form>
       ) : (
-        <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 font-mono text-[13px] text-zinc-200">
+        <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg border border-line bg-zinc-950 px-3 py-2.5 font-mono text-[13px] text-zinc-200">
           {raw ? s.command : preview}
         </pre>
       )}

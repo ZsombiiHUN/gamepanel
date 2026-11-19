@@ -80,7 +80,7 @@ describe("BackupsTab downloads", () => {
   });
   it("offers no download without the permission", async () => {
     setup([backup({ name: "nightly" })]);
-    await screen.findByText("nightly");
+    await screen.findByRole("button", { name: "Restore nightly" });
     expect(screen.queryByRole("link", { name: "Download nightly" })).toBeNull();
   });
 });

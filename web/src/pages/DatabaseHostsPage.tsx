@@ -32,7 +32,7 @@ export function DatabaseHostsPage() {
         </Empty>
       )}
       {hosts.data && hosts.data.length > 0 && (
-        <ul className="divide-y divide-zinc-800 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-zinc-900">
           {hosts.data.map((h) => (
             <li key={h.id} className="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-4">
               <div className="min-w-0 flex-1 basis-60">
@@ -50,7 +50,7 @@ export function DatabaseHostsPage() {
               </span>
               <button
                 type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300 disabled:opacity-40"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-bad-text disabled:opacity-40"
                 aria-label={`Remove ${h.name}`}
                 title={h.databases ? "Delete its databases first" : "Remove"}
                 disabled={h.databases > 0 || remove.isPending}

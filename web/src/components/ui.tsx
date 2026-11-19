@@ -326,12 +326,15 @@ export function Section({
 }) {
   const hid = id ?? `s-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
-    <section aria-labelledby={hid} className={`overflow-hidden rounded-xl border bg-zinc-900 ${danger ? "border-bad/30" : "border-line"}`}>
+    <section
+      aria-labelledby={hid}
+      className={`scroll-mt-20 overflow-hidden rounded-xl border bg-zinc-900 ${danger ? "border-bad/30" : "border-line"}`}
+    >
       <div className="p-5">
-        <h2 id={hid} className={`text-[14.5px] font-semibold tracking-tight ${danger ? "text-bad-text" : "text-zinc-100"}`}>
+        <h2 id={hid} className={`text-[15px] font-semibold tracking-tight ${danger ? "text-bad-text" : "text-zinc-100"}`}>
           {title}
         </h2>
-        {desc && <p className="mt-1 max-w-2xl text-[13px] text-zinc-400">{desc}</p>}
+        {desc && <p className="mt-1 max-w-2xl text-[13.5px] text-zinc-400">{desc}</p>}
         {children && <div className="mt-4">{children}</div>}
       </div>
       {footer && (
@@ -365,7 +368,11 @@ export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone
     warn: "border-warn/25 bg-warn-bg text-warn-text",
     bad: "border-bad/30 bg-bad-bg text-bad-text",
   }[tone];
-  return <span className={`inline-flex h-[22px] items-center rounded-full border px-2 text-xs font-medium ${c}`}>{children}</span>;
+  return (
+    <span className={`inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full border px-2 text-xs font-medium ${c}`}>
+      {children}
+    </span>
+  );
 }
 
 /** Empty state for lists. */
@@ -390,5 +397,119 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
     >
       {name.slice(0, 1)}
     </span>
+  );
+}
+
+/**
+ * A column of <Section>s with an "On this page" list beside it on wide screens. The list is read from
+ * the sections themselves, so it follows whatever the page shows (sections can depend on permissions).
+ */
+export function SectionsWithNav({ children, label = "On this page" }: { children: ReactNode; label?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [items, setItems] = useState<{ id: string; title: string }[]>([]);
+  const [active, setActive] = useState<string | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => {
+      // Only the outermost sections; a section inside another one is part of it.
+      const secs = [...el.querySelectorAll<HTMLElement>("section[aria-labelledby]")].filter((s) => {
+        const outer = s.parentElement?.closest("section");
+        return !outer || !el.contains(outer);
+      });
+      const next = secs.flatMap((s) => {
+        const id = s.getAttribute("aria-labelledby") ?? "";
+        const title = document.getElementById(id)?.textContent.trim() ?? "";
+        return id && title ? [{ id, title }] : [];
+      });
+      setItems((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    };
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => mo.disconnect();
+  }, []);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined" || items.length === 0) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (top) setActive(top.target.getAttribute("aria-labelledby"));
+      },
+      { rootMargin: "-80px 0px -55% 0px" },
+    );
+    for (const it of items) {
+      const sec = document.getElementById(it.id)?.closest("section");
+      if (sec) io.observe(sec);
+    }
+    return () => io.disconnect();
+  }, [items]);
+  const showNav = items.length >= 3;
+  return (
+    <div className={showNav ? "xl:grid xl:grid-cols-[176px_minmax(0,1fr)] xl:gap-8" : undefined}>
+      {showNav && (
+        <nav aria-label={label} className="hidden xl:block">
+          <ul className="sticky top-[76px] space-y-0.5">
+            {items.map((it) => (
+              <li key={it.id}>
+                <a
+                  href={`#${it.id}`}
+                  aria-current={active === it.id ? "location" : undefined}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById(it.id)?.closest("section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    setActive(it.id);
+                  }}
+                  className="flex min-h-8 items-center rounded-md px-2.5 text-[13px] text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500 aria-[current=location]:bg-row-active aria-[current=location]:font-medium aria-[current=location]:text-zinc-100"
+                >
+                  {it.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+      <div ref={ref} className="min-w-0 max-w-[880px] space-y-5">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** A labelled figure in a small card; tiles sit in a row (see StatRow). */
+export function Stat({
+  label,
+  value,
+  unit,
+  hint,
+  children,
+  tone,
+}: {
+  label: string;
+  value: ReactNode;
+  unit?: ReactNode;
+  hint?: ReactNode;
+  children?: ReactNode;
+  tone?: "warn" | "bad";
+}) {
+  const t = tone === "warn" ? "text-warn-text" : tone === "bad" ? "text-bad-text" : "";
+  return (
+    <div className="min-w-0 rounded-xl border border-line bg-zinc-900 px-4 py-3.5">
+      <dt className="text-[13px] text-zinc-400">{label}</dt>
+      <dd className="mt-1.5">
+        <span className={`text-[22px] font-semibold leading-none tracking-tight ${t}`}>{value}</span>
+        {unit && <span className="ml-1.5 text-[13px] text-zinc-500">{unit}</span>}
+        {children && <div className="mt-3">{children}</div>}
+        {hint && <p className={`mt-2 truncate text-[12.5px] ${t || "text-zinc-500"}`}>{hint}</p>}
+      </dd>
+    </div>
+  );
+}
+
+export function StatRow({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <dl aria-label={label} className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))]">
+      {children}
+    </dl>
   );
 }

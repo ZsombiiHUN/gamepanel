@@ -86,12 +86,13 @@ test.describe("console", () => {
     expect(consoleTop).toBeLessThan(chartsTop);
   });
 
-  test("on a wide screen the charts stay above the console", async ({ page, panel }) => {
+  test("on a wide screen the charts sit in a column beside the console", async ({ page, panel }) => {
     test.skip(isDrawer(page), "wide screens only");
     await page.goto(`/servers/${panel.seeded("Survival SMP").uuid}?tab=console`);
-    const consoleTop = (await page.getByRole("region", { name: "Console" }).boundingBox())!.y;
-    const chartsTop = (await page.getByRole("region", { name: "Usage" }).boundingBox())!.y;
-    expect(chartsTop).toBeLessThan(consoleTop);
+    const term = (await page.getByRole("region", { name: "Console" }).boundingBox())!;
+    const charts = (await page.getByRole("region", { name: "Usage" }).boundingBox())!;
+    expect(charts.x).toBeGreaterThanOrEqual(term.x + term.width);
+    expect(Math.abs(charts.y - term.y)).toBeLessThan(4);
   });
 });
 
