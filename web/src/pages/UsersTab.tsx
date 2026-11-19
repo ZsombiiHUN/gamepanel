@@ -209,7 +209,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
         >
           <div className="space-y-5">
             {sent && (
-              <div role="status" className="space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-sm text-zinc-200">
+              <div role="status" className="space-y-2 rounded-xl border border-line-strong bg-row-active p-4 text-sm text-zinc-200">
                 {sent.added || !sent.link ? (
                   <p className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-good-text" aria-hidden /> {sent.email} now has access.

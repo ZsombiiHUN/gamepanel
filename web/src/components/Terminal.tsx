@@ -47,9 +47,9 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
       cursorBlink: false,
       scrollback: 5000,
       fontSize: 13,
-      fontFamily: '"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      fontFamily: '"Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
       lineHeight: 1.5,
-      theme: { background: "#090b0d", foreground: "#d5d9dd" },
+      theme: { background: "#0d0d0c", foreground: "#dddbd4" },
     });
     const f = new FitAddon();
     t.loadAddon(f);
