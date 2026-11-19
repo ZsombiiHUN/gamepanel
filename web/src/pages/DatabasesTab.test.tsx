@@ -9,7 +9,16 @@ vi.mock("../api/ws", () => ({ useServerSocket: () => ({ status: "open", state: n
 
 const UUID = "11111111-2222-4333-8444-555555555555";
 const srv = { ...server({ name: "Paper" }), uuid: UUID, permissions: ["databases.read", "databases.manage"] };
-const db = { id: 7, host_id: 1, name: "s11111111_luckperms", username: "u11111111_ab12cd34", remote: "%", host: "10.0.0.5", port: 3306, created_at: 1_700_000_000 };
+const db = {
+  id: 7,
+  host_id: 1,
+  name: "s11111111_luckperms",
+  username: "u11111111_ab12cd34",
+  remote: "%",
+  host: "10.0.0.5",
+  port: 3306,
+  created_at: 1_700_000_000,
+};
 const view = (over = {}) => ({ databases: [db], limit: 2, can_manage: true, available: true, ...over });
 
 function open(v: ReturnType<typeof view>, extra: Record<string, unknown> = {}) {

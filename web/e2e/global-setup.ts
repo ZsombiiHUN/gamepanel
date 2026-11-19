@@ -17,7 +17,10 @@ async function signIn(slot: number) {
     await new Promise((r) => setTimeout(r, 100));
   }
   const ready: Ready = JSON.parse(fs.readFileSync(file, "utf8"));
-  for (const [name, who] of [["admin", ready.admin], ["user", ready.user]] as const) {
+  for (const [name, who] of [
+    ["admin", ready.admin],
+    ["user", ready.user],
+  ] as const) {
     const ctx = await request.newContext({ baseURL: panelURL(slot) });
     const res = await ctx.post("/api/auth/login", { data: { email: who.email, password: who.password } });
     if (!res.ok()) throw new Error(`sign in as ${name} on panel ${slot} failed: ${res.status()} ${await res.text()}`);

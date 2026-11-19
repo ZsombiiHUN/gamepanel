@@ -54,10 +54,22 @@ export function SessionsSection() {
                   </div>
                   <div className="mt-0.5 text-xs text-zinc-500">
                     {[
-                      where && <span key="ip" className="font-mono">{where}</span>,
-                      s.ip && s.last_ip && s.ip !== s.last_ip && <span key="from">signed in from <span className="font-mono">{s.ip}</span></span>,
+                      where && (
+                        <span key="ip" className="font-mono">
+                          {where}
+                        </span>
+                      ),
+                      s.ip && s.last_ip && s.ip !== s.last_ip && (
+                        <span key="from">
+                          signed in from <span className="font-mono">{s.ip}</span>
+                        </span>
+                      ),
                       s.current ? "active now" : `active ${relativeTime(s.last_seen_at)}`,
-                      s.created_at > 0 && <span key="at" title={new Date(s.created_at * 1000).toLocaleString()}>signed in {relativeTime(s.created_at)}</span>,
+                      s.created_at > 0 && (
+                        <span key="at" title={new Date(s.created_at * 1000).toLocaleString()}>
+                          signed in {relativeTime(s.created_at)}
+                        </span>
+                      ),
                       s.method && describeSignIn(s.method),
                     ]
                       .filter(Boolean)
@@ -78,7 +90,11 @@ export function SessionsSection() {
                     disabled={revoke.isPending && revoke.variables === s.id}
                     onClick={() => revoke.mutate(s.id)}
                   >
-                    {revoke.isPending && revoke.variables === s.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
+                    {revoke.isPending && revoke.variables === s.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      <LogOut className="h-4 w-4" aria-hidden />
+                    )}
                   </button>
                 )}
               </li>

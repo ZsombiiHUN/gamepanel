@@ -23,7 +23,10 @@ export const unique = (prefix: string) => `${prefix} ${Date.now().toString(36)}$
 
 export class Panel {
   private created: string[] = [];
-  constructor(readonly api: APIRequestContext, readonly ready: Ready) {}
+  constructor(
+    readonly api: APIRequestContext,
+    readonly ready: Ready,
+  ) {}
 
   /** Registers a server created some other way (e.g. through the UI) for cleanup. */
   track(uuid: string) {
@@ -34,7 +37,10 @@ export class Panel {
   async cleanup() {
     for (const uuid of this.created.splice(0)) {
       await this.api.post(`/api/servers/${uuid}/power`, { data: { action: "kill" } }).catch(() => undefined);
-      await expect.poll(() => this.state(uuid), { timeout: 10_000 }).not.toMatch(/^(running|starting|stopping)$/).catch(() => undefined);
+      await expect
+        .poll(() => this.state(uuid), { timeout: 10_000 })
+        .not.toMatch(/^(running|starting|stopping)$/)
+        .catch(() => undefined);
       await this.api.delete(`/api/servers/${uuid}`).catch(() => undefined);
     }
   }
@@ -52,7 +58,9 @@ export class Panel {
 
   /** Creates a throwaway server, so a test can start, edit or delete it without disturbing the shared ones. */
   async createServer(name = unique("Test server"), opts: { egg?: string; memory_mb?: number } = {}) {
-    const res = await this.api.post("/api/servers", { data: { name, node_id: this.ready.node_id, egg_id: await this.eggId(opts.egg), memory_mb: opts.memory_mb ?? 256, disk_mb: 1024 } });
+    const res = await this.api.post("/api/servers", {
+      data: { name, node_id: this.ready.node_id, egg_id: await this.eggId(opts.egg), memory_mb: opts.memory_mb ?? 256, disk_mb: 1024 },
+    });
     expect(res.status(), await res.text()).toBe(201);
     const s = await res.json();
     this.created.push(s.uuid);

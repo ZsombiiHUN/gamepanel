@@ -8,7 +8,13 @@ describe("formatProblem", () => {
   });
   it("names fields in plain words instead of request paths", () => {
     const msg = formatProblem(
-      { detail: "validation failed", errors: [{ location: "body.limits.memory_mb", message: "expected number >= 64" }, { location: "body", message: "unexpected property" }] },
+      {
+        detail: "validation failed",
+        errors: [
+          { location: "body.limits.memory_mb", message: "expected number >= 64" },
+          { location: "body", message: "unexpected property" },
+        ],
+      },
       422,
     );
     expect(msg).toBe("Memory mb: expected number >= 64; Unexpected property");

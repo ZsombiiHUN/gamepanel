@@ -38,7 +38,12 @@ describe("Settings tab: name", () => {
 describe("Settings tab: delete", () => {
   it("asks for the server's name before deleting", async () => {
     const srv = { ...server({ name: "Survival" }), uuid: UUID, owner: true };
-    const api = new FakeApi({ "GET /api/auth/me": admin, "GET /api/servers": [srv], [`GET /api/servers/${UUID}`]: srv, [`DELETE /api/servers/${UUID}`]: null });
+    const api = new FakeApi({
+      "GET /api/auth/me": admin,
+      "GET /api/servers": [srv],
+      [`GET /api/servers/${UUID}`]: srv,
+      [`DELETE /api/servers/${UUID}`]: null,
+    });
     renderApp(api, `/servers/${UUID}?tab=settings`);
     await userEvent.click(await screen.findByRole("button", { name: "Delete server" }));
     const dialog = screen.getByRole("dialog");
@@ -50,7 +55,12 @@ describe("Settings tab: delete", () => {
   });
   it("forces the delete when the node is offline, and says what happens", async () => {
     const srv = { ...server({ name: "Survival" }), uuid: UUID, owner: true, node_online: false };
-    const api = new FakeApi({ "GET /api/auth/me": admin, "GET /api/servers": [srv], [`GET /api/servers/${UUID}`]: srv, [`DELETE /api/servers/${UUID}`]: null });
+    const api = new FakeApi({
+      "GET /api/auth/me": admin,
+      "GET /api/servers": [srv],
+      [`GET /api/servers/${UUID}`]: srv,
+      [`DELETE /api/servers/${UUID}`]: null,
+    });
     renderApp(api, `/servers/${UUID}?tab=settings`);
     await userEvent.click(await screen.findByRole("button", { name: "Delete server" }));
     const dialog = screen.getByRole("dialog");

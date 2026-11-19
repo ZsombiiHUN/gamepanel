@@ -1,6 +1,14 @@
-export interface Reading { cpu_pct: number; mem_bytes: number; disk_bytes: number }
+export interface Reading {
+  cpu_pct: number;
+  mem_bytes: number;
+  disk_bytes: number;
+}
 
-export interface Limits { memoryMb: number; diskMb: number; cpuPct: number }
+export interface Limits {
+  memoryMb: number;
+  diskMb: number;
+  cpuPct: number;
+}
 
 export interface ChartSpec {
   title: string;
@@ -30,16 +38,19 @@ const ticksOf = (max: number, label: (n: number) => string) => [0, max / 2, max]
 
 /** MB for scales under a gigabyte (a 128 MB server is not "0.1 GB"), GB from there. */
 export function sizeUnit(scaleBytes: number) {
-  return scaleBytes < GB
-    ? { name: "MB", per: MB, fmt: (n: number) => n.toFixed(0) }
-    : { name: "GB", per: GB, fmt: gb };
+  return scaleBytes < GB ? { name: "MB", per: MB, fmt: (n: number) => n.toFixed(0) } : { name: "GB", per: GB, fmt: gb };
 }
 
 /**
  * What the three usage charts show. `cpuHistory` only sets the CPU axis, which grows with the
  * readings so a quiet server does not draw a flat line at the bottom of a 400% scale.
  */
-export function describeUsage(running: Reading | null, disk: Reading | null, limits: Limits, cpuHistory: readonly number[]): [cpu: ChartSpec, memory: ChartSpec, storage: ChartSpec] {
+export function describeUsage(
+  running: Reading | null,
+  disk: Reading | null,
+  limits: Limits,
+  cpuHistory: readonly number[],
+): [cpu: ChartSpec, memory: ChartSpec, storage: ChartSpec] {
   const cpuNow = running?.cpu_pct ?? null;
   const cpuMax = Math.max(20, Math.ceil(Math.max(0, ...cpuHistory) / 20) * 20 + 20);
   const cpu: ChartSpec = {
@@ -64,7 +75,8 @@ export function describeUsage(running: Reading | null, disk: Reading | null, lim
     title: "Memory",
     value: memNowBytes === null ? "-" : mu.fmt(memNowBytes / mu.per),
     unit: memLimitBytes ? `${mu.name} of ${mu.fmt(memLimitBytes / mu.per)} ${mu.name}` : `${mu.name}, no limit`,
-    note: memNowBytes === null ? "Not running" : memLimitBytes ? `${Math.round((memNowBytes / memLimitBytes) * 100)}% used` : "No limit set",
+    note:
+      memNowBytes === null ? "Not running" : memLimitBytes ? `${Math.round((memNowBytes / memLimitBytes) * 100)}% used` : "No limit set",
     noteWarn: memWarn,
     max: memMaxBytes / mu.per,
     limit: memLimitBytes ? memLimitBytes / mu.per : undefined,
@@ -82,7 +94,11 @@ export function describeUsage(running: Reading | null, disk: Reading | null, lim
     title: "Storage",
     value: diskNowBytes === null ? "-" : du.fmt(diskNowBytes / du.per),
     unit: diskLimitBytes ? `${du.name} of ${du.fmt(diskLimitBytes / du.per)} ${du.name}` : `${du.name}, no limit`,
-    note: diskFull ? "Almost full. The server stops at its limit." : diskLimitBytes ? `${Math.round(((diskNowBytes ?? 0) / diskLimitBytes) * 100)}% used` : "No quota set",
+    note: diskFull
+      ? "Almost full. The server stops at its limit."
+      : diskLimitBytes
+        ? `${Math.round(((diskNowBytes ?? 0) / diskLimitBytes) * 100)}% used`
+        : "No quota set",
     noteWarn: diskFull,
     max: diskMaxBytes / du.per,
     limit: diskLimitBytes ? diskLimitBytes / du.per : undefined,

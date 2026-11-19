@@ -6,7 +6,12 @@ const item = (label: string, keywords = "", group = "Servers"): PaletteItem => (
 const labels = (xs: PaletteItem[]) => xs.map((x) => x.label);
 
 describe("rankItems", () => {
-  const items = [item("Creative Plots", "Paper Minecraft eu-west-1 25566"), item("Survival SMP", "Paper Minecraft eu-west-1 25565"), item("Rust Wipe Friday", "Rust us-east-1 25569"), item("Nodes", "machines daemon", "Pages")];
+  const items = [
+    item("Creative Plots", "Paper Minecraft eu-west-1 25566"),
+    item("Survival SMP", "Paper Minecraft eu-west-1 25565"),
+    item("Rust Wipe Friday", "Rust us-east-1 25569"),
+    item("Nodes", "machines daemon", "Pages"),
+  ];
 
   it("keeps the original order for an empty query", () => {
     expect(labels(rankItems(items, ""))).toEqual(labels(items));
@@ -41,7 +46,13 @@ describe("rankItems", () => {
 
 describe("isTypingTarget", () => {
   it("is true for form fields and editors", () => {
-    for (const html of ["<input>", "<textarea></textarea>", "<select></select>", '<div contenteditable="true"></div>', '<div class="cm-editor"><div class="cm-content" id="inner"></div></div>']) {
+    for (const html of [
+      "<input>",
+      "<textarea></textarea>",
+      "<select></select>",
+      '<div contenteditable="true"></div>',
+      '<div class="cm-editor"><div class="cm-content" id="inner"></div></div>',
+    ]) {
       document.body.innerHTML = html;
       const el = (document.getElementById("inner") ?? document.body.firstElementChild) as HTMLElement;
       // jsdom does not implement isContentEditable; emulate it.

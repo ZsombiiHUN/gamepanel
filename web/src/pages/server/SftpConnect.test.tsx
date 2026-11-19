@@ -60,7 +60,13 @@ describe("SFTP connect", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Create one" }));
     await userEvent.type(screen.getByLabelText("Your account password"), "another-long-password");
     await userEvent.click(screen.getByRole("button", { name: "Create key" }));
-    await waitFor(() => expect(api.callsTo("POST /api/auth/keys")[0]?.body).toEqual({ name: "SFTP: Survival", expires_in_days: 365, password: "another-long-password" }));
+    await waitFor(() =>
+      expect(api.callsTo("POST /api/auth/keys")[0]?.body).toEqual({
+        name: "SFTP: Survival",
+        expires_in_days: 365,
+        password: "another-long-password",
+      }),
+    );
     const open = await screen.findByRole("link", { name: "Open and sign in" });
     expect(open.getAttribute("href")).toBe("sftp://bob%40example.com.abcdef12:gp_secret%2F1@node1.example.com:2022/");
     expect(within(screen.getByRole("status")).getByText("gp_secret/1")).toBeTruthy();

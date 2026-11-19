@@ -20,11 +20,13 @@ function Ports({ uuid, n }: { uuid: string; n: NetworkView }) {
   // Every change answers with the new list; the server's own port (in its header) may change too.
   const done = (data: NetworkView) => qc.setQueryData(keys.network(uuid), data);
   const add = useMutation({
-    mutationFn: (body: { port?: number; notes?: string }) => call(api.POST("/servers/{uuid}/network", { params: { path: { uuid } }, body })),
+    mutationFn: (body: { port?: number; notes?: string }) =>
+      call(api.POST("/servers/{uuid}/network", { params: { path: { uuid } }, body })),
     onSuccess: done,
   });
   const update = useMutation({
-    mutationFn: ({ port, ...body }: { port: number; notes?: string; primary?: boolean }) => call(api.PUT("/servers/{uuid}/network/{port}", { params: { path: { uuid, port } }, body })),
+    mutationFn: ({ port, ...body }: { port: number; notes?: string; primary?: boolean }) =>
+      call(api.PUT("/servers/{uuid}/network/{port}", { params: { path: { uuid, port } }, body })),
     onSuccess: done,
     meta: invalidates(keys.server(uuid), keys.servers),
   });
@@ -50,8 +52,18 @@ function Ports({ uuid, n }: { uuid: string; n: NetworkView }) {
         footer={
           n.can_manage ? (
             <>
-              <span>{n.can_pick ? `As an administrator you can add any free port from ${n.range_from} to ${n.range_to}.` : `${extra} of ${n.limit} extra ${n.limit === 1 ? "port" : "ports"} used.`}{full && n.limit === 0 ? " Ask an administrator if you need more." : ""}</span>
-              <button type="button" className="btn btn-primary" disabled={full || add.isPending} onClick={() => (n.can_pick ? setAdding(true) : add.mutate({}))}>
+              <span>
+                {n.can_pick
+                  ? `As an administrator you can add any free port from ${n.range_from} to ${n.range_to}.`
+                  : `${extra} of ${n.limit} extra ${n.limit === 1 ? "port" : "ports"} used.`}
+                {full && n.limit === 0 ? " Ask an administrator if you need more." : ""}
+              </span>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={full || add.isPending}
+                onClick={() => (n.can_pick ? setAdding(true) : add.mutate({}))}
+              >
                 <Plus className="h-4 w-4" aria-hidden /> Add port
               </button>
             </>
@@ -62,22 +74,55 @@ function Ports({ uuid, n }: { uuid: string; n: NetworkView }) {
       >
         <ul className="divide-y divide-zinc-800">
           {n.ports.map((p) => (
-            <PortRow key={p.port} p={p} canManage={n.can_manage} pending={update.isPending || remove.isPending}
+            <PortRow
+              key={p.port}
+              p={p}
+              canManage={n.can_manage}
+              pending={update.isPending || remove.isPending}
               onNotes={(notes) => update.mutate({ port: p.port, notes })}
               onPrimary={() => update.mutate({ port: p.port, primary: true })}
-              onRemove={() => { if (window.confirm(`Remove port ${p.port}? Anything using it stops working.`)) remove.mutate(p.port); }}
+              onRemove={() => {
+                if (window.confirm(`Remove port ${p.port}? Anything using it stops working.`)) remove.mutate(p.port);
+              }}
             />
           ))}
         </ul>
-        {error ? <div className="mt-3"><ErrorBox error={error} /></div> : null}
+        {error ? (
+          <div className="mt-3">
+            <ErrorBox error={error} />
+          </div>
+        ) : null}
       </Section>
-      {adding && <AddPortDialog n={n} pending={add.isPending} error={add.error} onAdd={(body) => add.mutate(body, { onSuccess: () => setAdding(false) })} onClose={() => { setAdding(false); add.reset(); }} />}
+      {adding && (
+        <AddPortDialog
+          n={n}
+          pending={add.isPending}
+          error={add.error}
+          onAdd={(body) => add.mutate(body, { onSuccess: () => setAdding(false) })}
+          onClose={() => {
+            setAdding(false);
+            add.reset();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function PortRow({ p, canManage, pending, onNotes, onPrimary, onRemove }: {
-  p: ServerPort; canManage: boolean; pending: boolean; onNotes: (n: string) => void; onPrimary: () => void; onRemove: () => void;
+function PortRow({
+  p,
+  canManage,
+  pending,
+  onNotes,
+  onPrimary,
+  onRemove,
+}: {
+  p: ServerPort;
+  canManage: boolean;
+  pending: boolean;
+  onNotes: (n: string) => void;
+  onPrimary: () => void;
+  onRemove: () => void;
 }) {
   const [notes, setNotes] = useState<string | null>(null);
   const shown = notes ?? p.notes;
@@ -86,8 +131,17 @@ function PortRow({ p, canManage, pending, onNotes, onPrimary, onRemove }: {
       <span className="w-20 shrink-0 font-mono text-[15px] text-zinc-100">{p.port}</span>
       <span className="w-20 shrink-0">{p.primary ? <Pill tone="good">Primary</Pill> : <Pill>Extra</Pill>}</span>
       {canManage ? (
-        <form className="min-w-40 flex-1" onSubmit={(e) => { e.preventDefault(); onNotes(shown.trim()); setNotes(null); }}>
-          <label htmlFor={`notes-${p.port}`} className="sr-only">Notes for port {p.port}</label>
+        <form
+          className="min-w-40 flex-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onNotes(shown.trim());
+            setNotes(null);
+          }}
+        >
+          <label htmlFor={`notes-${p.port}`} className="sr-only">
+            Notes for port {p.port}
+          </label>
           <input
             id={`notes-${p.port}`}
             className="input !min-h-9"
@@ -95,7 +149,10 @@ function PortRow({ p, canManage, pending, onNotes, onPrimary, onRemove }: {
             maxLength={255}
             value={shown}
             onChange={(e) => setNotes(e.target.value)}
-            onBlur={() => { if (notes !== null && notes.trim() !== p.notes) onNotes(notes.trim()); setNotes(null); }}
+            onBlur={() => {
+              if (notes !== null && notes.trim() !== p.notes) onNotes(notes.trim());
+              setNotes(null);
+            }}
           />
         </form>
       ) : (
@@ -103,8 +160,16 @@ function PortRow({ p, canManage, pending, onNotes, onPrimary, onRemove }: {
       )}
       {canManage && !p.primary && (
         <span className="flex gap-1">
-          <button type="button" className="btn btn-ghost !min-h-9 !px-3" disabled={pending} onClick={onPrimary}><Star className="h-4 w-4" aria-hidden /> Make primary</button>
-          <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-indigo-500" disabled={pending} onClick={onRemove} aria-label={`Remove port ${p.port}`}>
+          <button type="button" className="btn btn-ghost !min-h-9 !px-3" disabled={pending} onClick={onPrimary}>
+            <Star className="h-4 w-4" aria-hidden /> Make primary
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-800 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-indigo-500"
+            disabled={pending}
+            onClick={onRemove}
+            aria-label={`Remove port ${p.port}`}
+          >
             <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         </span>
@@ -113,18 +178,51 @@ function PortRow({ p, canManage, pending, onNotes, onPrimary, onRemove }: {
   );
 }
 
-function AddPortDialog({ n, pending, error, onAdd, onClose }: { n: NetworkView; pending: boolean; error: unknown; onAdd: (b: { port?: number; notes?: string }) => void; onClose: () => void }) {
+function AddPortDialog({
+  n,
+  pending,
+  error,
+  onAdd,
+  onClose,
+}: {
+  n: NetworkView;
+  pending: boolean;
+  error: unknown;
+  onAdd: (b: { port?: number; notes?: string }) => void;
+  onClose: () => void;
+}) {
   const [port, setPort] = useState("");
   const [notes, setNotes] = useState("");
   const num = Number(port);
   const bad = port !== "" && (!Number.isInteger(num) || num < n.range_from || num > n.range_to);
   return (
-    <FormDialog open title="Add a port" submitLabel="Add port" pending={pending} error={error} disabled={bad} onSubmit={() => onAdd({ port: port ? num : undefined, notes: notes.trim() || undefined })} onClose={onClose}>
+    <FormDialog
+      open
+      title="Add a port"
+      submitLabel="Add port"
+      pending={pending}
+      error={error}
+      disabled={bad}
+      onSubmit={() => onAdd({ port: port ? num : undefined, notes: notes.trim() || undefined })}
+      onClose={onClose}
+    >
       <Field label="Port" hint={bad ? `Choose a port from ${n.range_from} to ${n.range_to}.` : "Leave empty for the next free one."}>
-        {(id) => <input id={id} className="input font-mono" inputMode="numeric" value={port} onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))} autoFocus placeholder={`${n.range_from}-${n.range_to}`} />}
+        {(id) => (
+          <input
+            id={id}
+            className="input font-mono"
+            inputMode="numeric"
+            value={port}
+            onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))}
+            autoFocus
+            placeholder={`${n.range_from}-${n.range_to}`}
+          />
+        )}
       </Field>
       <Field label="Notes (optional)">
-        {(id) => <input id={id} className="input" maxLength={255} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dynmap" />}
+        {(id) => (
+          <input id={id} className="input" maxLength={255} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dynmap" />
+        )}
       </Field>
     </FormDialog>
   );

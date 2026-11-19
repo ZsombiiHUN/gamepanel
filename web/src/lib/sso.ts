@@ -11,7 +11,7 @@ export const SSO_ERRORS: Record<string, string> = {
   failed: "The sign-in did not work. Try again or use your password.",
 };
 
-export const ssoError = (code?: string) => (code ? SSO_ERRORS[code] ?? SSO_ERRORS.failed! : null);
+export const ssoError = (code?: string) => (code ? (SSO_ERRORS[code] ?? SSO_ERRORS.failed!) : null);
 
 export const ssoStart = (id: string, q: Record<string, string> = {}) => {
   const qs = new URLSearchParams(q).toString();

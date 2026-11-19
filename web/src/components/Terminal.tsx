@@ -17,7 +17,11 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
   const fit = () => {
     const el = host.current;
     if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) return; // hidden tab
-    try { fitAddon.current?.fit(); } catch { /* not ready */ }
+    try {
+      fitAddon.current?.fit();
+    } catch {
+      /* not ready */
+    }
   };
 
   useImperativeHandle(ref, () => ({
@@ -41,7 +45,7 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
       cursorBlink: false,
       scrollback: 5000,
       fontSize: 13,
-      fontFamily: "\"JetBrains Mono Variable\", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      fontFamily: '"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
       lineHeight: 1.5,
       theme: { background: "#090b0d", foreground: "#d5d9dd" },
     });

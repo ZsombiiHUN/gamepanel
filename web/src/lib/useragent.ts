@@ -7,24 +7,36 @@
  */
 export function describeUserAgent(ua: string): string {
   if (!ua.trim()) return "Unknown device";
-  const browser =
-    /Edg(e|A|iOS)?\//.test(ua) ? "Edge"
-    : /OPR\/|Opera/.test(ua) ? "Opera"
-    : /SamsungBrowser\//.test(ua) ? "Samsung Internet"
-    : /Firefox\/|FxiOS\//.test(ua) ? "Firefox"
-    : /Chrome\/|CriOS\/|Chromium\//.test(ua) ? "Chrome"
-    : /Safari\//.test(ua) && /Version\//.test(ua) ? "Safari"
-    : /^curl\//.test(ua) ? "curl"
-    : null;
-  const os =
-    /iPhone|iPod/.test(ua) ? "iPhone"
-    : /iPad/.test(ua) ? "iPad"
-    : /Android/.test(ua) ? "Android"
-    : /CrOS/.test(ua) ? "ChromeOS"
-    : /Windows/.test(ua) ? "Windows"
-    : /Mac OS X|Macintosh/.test(ua) ? "macOS"
-    : /Linux/.test(ua) ? "Linux"
-    : null;
+  const browser = /Edg(e|A|iOS)?\//.test(ua)
+    ? "Edge"
+    : /OPR\/|Opera/.test(ua)
+      ? "Opera"
+      : /SamsungBrowser\//.test(ua)
+        ? "Samsung Internet"
+        : /Firefox\/|FxiOS\//.test(ua)
+          ? "Firefox"
+          : /Chrome\/|CriOS\/|Chromium\//.test(ua)
+            ? "Chrome"
+            : /Safari\//.test(ua) && /Version\//.test(ua)
+              ? "Safari"
+              : /^curl\//.test(ua)
+                ? "curl"
+                : null;
+  const os = /iPhone|iPod/.test(ua)
+    ? "iPhone"
+    : /iPad/.test(ua)
+      ? "iPad"
+      : /Android/.test(ua)
+        ? "Android"
+        : /CrOS/.test(ua)
+          ? "ChromeOS"
+          : /Windows/.test(ua)
+            ? "Windows"
+            : /Mac OS X|Macintosh/.test(ua)
+              ? "macOS"
+              : /Linux/.test(ua)
+                ? "Linux"
+                : null;
   if (browser && os) return `${browser} on ${os}`;
   if (browser) return browser;
   if (os) return `Browser on ${os}`;
@@ -38,13 +50,21 @@ export function describeSignIn(method: string): string {
   const [kind, provider] = method.split(":", 2);
   const via = provider || "single sign-on";
   switch (kind) {
-    case "password": return "Password";
-    case "password+totp": return "Password and authenticator code";
-    case "password+recovery": return "Password and recovery code";
-    case "passkey": return "Passkey";
-    case "sso": return via;
-    case "sso+totp": return `${via} and authenticator code`;
-    case "register": return "New account";
-    default: return "Unknown";
+    case "password":
+      return "Password";
+    case "password+totp":
+      return "Password and authenticator code";
+    case "password+recovery":
+      return "Password and recovery code";
+    case "passkey":
+      return "Passkey";
+    case "sso":
+      return via;
+    case "sso+totp":
+      return `${via} and authenticator code`;
+    case "register":
+      return "New account";
+    default:
+      return "Unknown";
   }
 }

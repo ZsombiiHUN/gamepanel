@@ -1,6 +1,18 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Archive, CalendarClock, ChevronLeft, ChevronRight, Database, FileText, History, Power, Server, SquareTerminal, Users } from "lucide-react";
+import {
+  Archive,
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  FileText,
+  History,
+  Power,
+  Server,
+  SquareTerminal,
+  Users,
+} from "lucide-react";
 import { ACTIVITY_PAGE_SIZE as PAGE, activityQuery } from "../api/queries";
 import type { components } from "../api/client";
 import { SearchInput } from "../components/SearchInput";
@@ -23,7 +35,8 @@ const ICONS: Record<ActivityKind, ReactNode> = {
 
 /** Removals and kills read red, power and access changes stand out; the rest stays quiet. */
 function tone(e: Entry) {
-  if (/\.(delete|remove)$/.test(e.action) || e.action === "server.crash" || (e.action === "server.power" && e.detail === "kill")) return "bg-bad-bg text-bad-text";
+  if (/\.(delete|remove)$/.test(e.action) || e.action === "server.crash" || (e.action === "server.power" && e.detail === "kill"))
+    return "bg-bad-bg text-bad-text";
   const k = activityKind(e.action);
   if (k === "power") return "bg-warn-bg text-warn-text";
   if (k === "access") return "bg-indigo-500/15 text-indigo-300";
@@ -36,7 +49,8 @@ function Detail({ e }: { e: Entry }) {
   if (e.action === "server.command")
     return (
       <code className="mt-1 inline-block max-w-full break-all rounded-md bg-well px-2 py-1 font-mono text-xs text-zinc-300">
-        <span className="select-none text-zinc-500">&gt; </span>{e.detail}
+        <span className="select-none text-zinc-500">&gt; </span>
+        {e.detail}
       </code>
     );
   return <p className="mt-1 break-all font-mono text-xs text-zinc-500">{e.detail}</p>;
@@ -58,7 +72,10 @@ export function ActivityTab({ uuid }: { uuid: string }) {
   const more = raw.length === PAGE;
   const narrowed = !!typed || !!kind;
 
-  const choose = (k: ActivityKind | null) => { setKind(k); setPage(0); };
+  const choose = (k: ActivityKind | null) => {
+    setKind(k);
+    setPage(0);
+  };
   const chipCls = (on: boolean) =>
     `inline-flex min-h-8 shrink-0 items-center rounded-full border px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-indigo-500 ${
       on ? "border-zinc-100 bg-zinc-100 text-zinc-950" : "border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
@@ -69,30 +86,65 @@ export function ActivityTab({ uuid }: { uuid: string }) {
       <div className="space-y-3 px-5 pb-3 pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 id="activity-title" className="text-[15px] font-semibold">Activity</h2>
+            <h2 id="activity-title" className="text-[15px] font-semibold">
+              Activity
+            </h2>
             <p className="mt-0.5 text-sm text-zinc-400">Everything people did on this server, newest first.</p>
           </div>
-          <SearchInput label="Search activity" placeholder="Search action, person or file" value={filter} onChange={(v) => { setFilter(v); setPage(0); }} />
+          <SearchInput
+            label="Search activity"
+            placeholder="Search action, person or file"
+            value={filter}
+            onChange={(v) => {
+              setFilter(v);
+              setPage(0);
+            }}
+          />
         </div>
         <div role="group" aria-label="Show only" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          <button type="button" className={chipCls(kind === null)} aria-pressed={kind === null} onClick={() => choose(null)}>All</button>
+          <button type="button" className={chipCls(kind === null)} aria-pressed={kind === null} onClick={() => choose(null)}>
+            All
+          </button>
           {ACTIVITY_FILTERS.map((f) => (
-            <button key={f.id} type="button" className={chipCls(kind === f.id)} aria-pressed={kind === f.id} onClick={() => choose(kind === f.id ? null : f.id)}>
+            <button
+              key={f.id}
+              type="button"
+              className={chipCls(kind === f.id)}
+              aria-pressed={kind === f.id}
+              onClick={() => choose(kind === f.id ? null : f.id)}
+            >
               {f.label}
             </button>
           ))}
         </div>
       </div>
 
-      {q.isPending && <div className="px-5 pb-5"><Spinner /></div>}
-      {q.error ? <div className="px-5 pb-4"><ErrorBox error={q.error} /></div> : null}
+      {q.isPending && (
+        <div className="px-5 pb-5">
+          <Spinner />
+        </div>
+      )}
+      {q.error ? (
+        <div className="px-5 pb-4">
+          <ErrorBox error={q.error} />
+        </div>
+      ) : null}
       {q.data && rows.length === 0 && (
         <div className="px-5 pb-5">
           <Empty icon={<History className="h-5 w-5" aria-hidden />} title={narrowed ? "Nothing matches" : "Nothing yet"}>
             {narrowed ? (
               <>
                 Try other words or another filter.{" "}
-                <button type="button" className="link" onClick={() => { setFilter(""); choose(null); }}>Show everything</button>
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => {
+                    setFilter("");
+                    choose(null);
+                  }}
+                >
+                  Show everything
+                </button>
               </>
             ) : (
               "Power actions, console commands, file changes, backups and access changes show up here."
@@ -104,15 +156,27 @@ export function ActivityTab({ uuid }: { uuid: string }) {
       <div className={q.isPlaceholderData ? "opacity-60 transition-opacity" : undefined}>
         {groupByDay(rows).map((g) => (
           <div key={g.label + g.rows[0]?.id}>
-            <h3 className="border-y border-line bg-thead px-5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{g.label}</h3>
+            <h3 className="border-y border-line bg-thead px-5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+              {g.label}
+            </h3>
             <ol>
               {g.rows.map((e) => (
                 <li key={e.id} className="flex items-start gap-3 border-b border-line px-5 py-3 last:border-b-0 hover:bg-row-hover">
-                  <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-content-center rounded-lg ${tone(e)}`}>{ICONS[activityKind(e.action)]}</span>
+                  <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-content-center rounded-lg ${tone(e)}`}>
+                    {ICONS[activityKind(e.action)]}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-zinc-300">
                       {e.actor_email ? (
-                        <button type="button" className="font-medium text-zinc-100 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500" title={`Only show ${e.actor_email}`} onClick={() => { setFilter(e.actor_email); setPage(0); }}>
+                        <button
+                          type="button"
+                          className="font-medium text-zinc-100 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500"
+                          title={`Only show ${e.actor_email}`}
+                          onClick={() => {
+                            setFilter(e.actor_email);
+                            setPage(0);
+                          }}
+                        >
                           {e.actor_email}
                         </button>
                       ) : (
@@ -123,11 +187,19 @@ export function ActivityTab({ uuid }: { uuid: string }) {
                     <Detail e={e} />
                   </div>
                   <div className="shrink-0 text-right text-xs text-zinc-500">
-                    <time className="font-mono text-zinc-400" dateTime={new Date(e.at * 1000).toISOString()} title={new Date(e.at * 1000).toLocaleString()}>
+                    <time
+                      className="font-mono text-zinc-400"
+                      dateTime={new Date(e.at * 1000).toISOString()}
+                      title={new Date(e.at * 1000).toLocaleString()}
+                    >
                       {clock(e.at)}
                     </time>
                     <div className="hidden sm:block">{relativeTime(e.at)}</div>
-                    {e.ip && <div className="hidden font-mono sm:block" title="IP address">{e.ip}</div>}
+                    {e.ip && (
+                      <div className="hidden font-mono sm:block" title="IP address">
+                        {e.ip}
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}

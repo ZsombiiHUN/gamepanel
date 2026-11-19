@@ -5,7 +5,12 @@
  */
 
 const fromB64 = (s: string) => {
-  const b = atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "="));
+  const b = atob(
+    s
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(s.length / 4) * 4, "="),
+  );
   return Uint8Array.from(b, (c) => c.charCodeAt(0)).buffer;
 };
 const toB64 = (buf: ArrayBuffer | null) => {
@@ -27,7 +32,10 @@ function creationOptions(o: Json): CredentialCreationOptions {
       ...(pk as unknown as PublicKeyCredentialCreationOptions),
       challenge: fromB64(pk.challenge as string),
       user: { ...(user as unknown as PublicKeyCredentialUserEntity), id: fromB64(user.id as string) },
-      excludeCredentials: ((pk.excludeCredentials as Json[] | undefined) ?? []).map((c) => ({ ...(c as unknown as PublicKeyCredentialDescriptor), id: fromB64(c.id as string) })),
+      excludeCredentials: ((pk.excludeCredentials as Json[] | undefined) ?? []).map((c) => ({
+        ...(c as unknown as PublicKeyCredentialDescriptor),
+        id: fromB64(c.id as string),
+      })),
     },
   };
 }
@@ -38,7 +46,10 @@ function requestOptions(o: Json): CredentialRequestOptions {
     publicKey: {
       ...(pk as unknown as PublicKeyCredentialRequestOptions),
       challenge: fromB64(pk.challenge as string),
-      allowCredentials: ((pk.allowCredentials as Json[] | undefined) ?? []).map((c) => ({ ...(c as unknown as PublicKeyCredentialDescriptor), id: fromB64(c.id as string) })),
+      allowCredentials: ((pk.allowCredentials as Json[] | undefined) ?? []).map((c) => ({
+        ...(c as unknown as PublicKeyCredentialDescriptor),
+        id: fromB64(c.id as string),
+      })),
     },
   };
 }
@@ -74,7 +85,9 @@ export async function getPasskey(options: unknown) {
 
 /** The browser's own words for a cancelled or refused prompt, in ours. */
 export function passkeyError(err: unknown) {
-  if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return new Error("The passkey prompt was closed or timed out.");
-  if (err instanceof DOMException && err.name === "InvalidStateError") return new Error("This device already has a passkey for your account.");
+  if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError"))
+    return new Error("The passkey prompt was closed or timed out.");
+  if (err instanceof DOMException && err.name === "InvalidStateError")
+    return new Error("This device already has a passkey for your account.");
   return err;
 }

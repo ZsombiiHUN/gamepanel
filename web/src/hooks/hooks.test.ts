@@ -57,7 +57,8 @@ describe("useSearchText", () => {
 describe("useRollingSamples", () => {
   const pick = (s: { n: number }) => s.n;
   it("collects one value per new sample, ignoring a repeat of the same one", () => {
-    const a = { n: 1 }, b = { n: 2 };
+    const a = { n: 1 },
+      b = { n: 2 };
     const { result, rerender } = renderHook(({ s }) => useRollingSamples(s, pick, 5), { initialProps: { s: a as { n: number } | null } });
     rerender({ s: a });
     rerender({ s: b });
@@ -65,12 +66,16 @@ describe("useRollingSamples", () => {
     expect(result.current).toEqual([1, 2]);
   });
   it("keeps only the newest `size` values", () => {
-    const { result, rerender } = renderHook(({ s }) => useRollingSamples(s, pick, 3), { initialProps: { s: { n: 0 } as { n: number } | null } });
+    const { result, rerender } = renderHook(({ s }) => useRollingSamples(s, pick, 3), {
+      initialProps: { s: { n: 0 } as { n: number } | null },
+    });
     for (let n = 1; n <= 5; n++) rerender({ s: { n } });
     expect(result.current).toEqual([3, 4, 5]);
   });
   it("skips gaps where nothing is reported", () => {
-    const { result, rerender } = renderHook(({ s }) => useRollingSamples(s, pick, 5), { initialProps: { s: { n: 1 } as { n: number } | null } });
+    const { result, rerender } = renderHook(({ s }) => useRollingSamples(s, pick, 5), {
+      initialProps: { s: { n: 1 } as { n: number } | null },
+    });
     rerender({ s: null });
     rerender({ s: { n: 2 } });
     expect(result.current).toEqual([1, 2]);

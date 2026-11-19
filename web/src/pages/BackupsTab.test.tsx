@@ -12,8 +12,18 @@ const srv = server({ name: "Survival SMP" });
 
 function backup(over: Partial<Backup> & { name: string }): Backup {
   return {
-    uuid: `b-${over.name}`, server_uuid: srv.uuid, status: "ok", size: 2048, sha256: "a".repeat(64), ignore: "", locked: false,
-    created_at: 1_700_000_000, completed_at: 1_700_000_100, restore_status: "", restored_at: 0, ...over,
+    uuid: `b-${over.name}`,
+    server_uuid: srv.uuid,
+    status: "ok",
+    size: 2048,
+    sha256: "a".repeat(64),
+    ignore: "",
+    locked: false,
+    created_at: 1_700_000_000,
+    completed_at: 1_700_000_100,
+    restore_status: "",
+    restored_at: 0,
+    ...over,
   } as Backup;
 }
 
@@ -60,7 +70,10 @@ describe("BackupsTab downloads", () => {
   it("links finished backups for people who may download them, and marks S3 ones", async () => {
     srv.permissions = [...srv.permissions, "backups.download"];
     setup([backup({ name: "nightly", disk: "s3" }), backup({ name: "running", status: "running" })]);
-    expect(await screen.findByRole("link", { name: "Download nightly" })).toHaveAttribute("href", `/api/servers/${srv.uuid}/backups/b-nightly/download`);
+    expect(await screen.findByRole("link", { name: "Download nightly" })).toHaveAttribute(
+      "href",
+      `/api/servers/${srv.uuid}/backups/b-nightly/download`,
+    );
     expect(screen.queryByRole("link", { name: "Download running" })).toBeNull();
     expect(screen.getByText("S3")).toBeInTheDocument();
     srv.permissions = srv.permissions.filter((p) => p !== "backups.download");

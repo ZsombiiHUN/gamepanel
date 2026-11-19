@@ -28,7 +28,10 @@ export class UploadQueue {
   private listeners = new Set<() => void>();
   private seq = 0;
 
-  constructor(private uuid: string, private onFinished: () => void) {}
+  constructor(
+    private uuid: string,
+    private onFinished: () => void,
+  ) {}
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -110,5 +113,10 @@ export function useUploads(uuid: string) {
   const [queue] = useState(() => new UploadQueue(uuid, () => refreshNow(qc, keys.files(uuid))));
   useEffect(() => () => queue.stop(), [queue]);
   const items = useSyncExternalStore(queue.subscribe, queue.snapshot);
-  return { items, add: (dir: string, files: DroppedFile[]) => queue.add(dir, files), cancel: (id: number) => queue.cancel(id), clear: () => queue.clear() };
+  return {
+    items,
+    add: (dir: string, files: DroppedFile[]) => queue.add(dir, files),
+    cancel: (id: number) => queue.cancel(id),
+    clear: () => queue.clear(),
+  };
 }

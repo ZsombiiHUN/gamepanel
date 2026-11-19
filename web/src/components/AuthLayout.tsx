@@ -13,7 +13,9 @@ export function AuthLayout({ title, sub, children }: { title: string; sub: React
             <span className="h-display text-lg">GamePanel</span>
           </div>
           <div>
-            <h1 id="auth-title" className="h-display text-3xl">{title}</h1>
+            <h1 id="auth-title" className="h-display text-3xl">
+              {title}
+            </h1>
             {sub && <p className="mt-1.5 text-sm text-zinc-400">{sub}</p>}
           </div>
           {children}
@@ -23,7 +25,9 @@ export function AuthLayout({ title, sub, children }: { title: string; sub: React
         <div className="absolute inset-0 grid place-content-center gap-5 p-12">
           <div className="grid grid-cols-4 gap-5">
             {ICONS.map((n) => (
-              <div key={n} className="opacity-90"><ServerIcon name={n} size={84} /></div>
+              <div key={n} className="opacity-90">
+                <ServerIcon name={n} size={84} />
+              </div>
             ))}
           </div>
         </div>
@@ -35,7 +39,20 @@ export function AuthLayout({ title, sub, children }: { title: string; sub: React
   );
 }
 
-const ICONS = ["survival-smp", "creative-build", "valheim-co-op", "rust-weekly", "ark-ascended", "terraria-hub", "cs2-comp", "factorio-main", "vanilla-1.21", "skyblock", "mini-games", "modded-pack"];
+const ICONS = [
+  "survival-smp",
+  "creative-build",
+  "valheim-co-op",
+  "rust-weekly",
+  "ark-ascended",
+  "terraria-hub",
+  "cs2-comp",
+  "factorio-main",
+  "vanilla-1.21",
+  "skyblock",
+  "mini-games",
+  "modded-pack",
+];
 
 /** The token from a link's fragment (#token=...), which never reaches any server log. */
 export function tokenFromHash(hash = window.location.hash) {

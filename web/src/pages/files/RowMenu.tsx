@@ -71,19 +71,43 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
         onClick={() => {
           const r = button.current!.getBoundingClientRect();
           const up = window.innerHeight - r.bottom < 320 && r.top > window.innerHeight - r.bottom;
-          setPos(up ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right } : { top: r.bottom + 4, right: window.innerWidth - r.right });
+          setPos(
+            up
+              ? { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right }
+              : { top: r.bottom + 4, right: window.innerWidth - r.right },
+          );
           setOpen(!open);
         }}
       >
         <MoreHorizontal className="h-4 w-4" aria-hidden />
       </button>
       {open && (
-        <div id={id} role="menu" aria-label={label} style={pos} className="fixed z-40 flex min-w-44 flex-col rounded-xl border border-zinc-700 bg-zinc-900 p-1 text-left shadow-xl">
+        <div
+          id={id}
+          role="menu"
+          aria-label={label}
+          style={pos}
+          className="fixed z-40 flex min-w-44 flex-col rounded-xl border border-zinc-700 bg-zinc-900 p-1 text-left shadow-xl"
+        >
           {items.map((it) =>
             it.href ? (
-              <a key={it.label} role="menuitem" tabIndex={-1} className={cls(it.danger)} href={it.href} download onClick={close}>{it.icon} {it.label}</a>
+              <a key={it.label} role="menuitem" tabIndex={-1} className={cls(it.danger)} href={it.href} download onClick={close}>
+                {it.icon} {it.label}
+              </a>
             ) : (
-              <button key={it.label} type="button" role="menuitem" tabIndex={-1} className={cls(it.danger)} onClick={() => { setOpen(false); it.onSelect?.(); }}>{it.icon} {it.label}</button>
+              <button
+                key={it.label}
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                className={cls(it.danger)}
+                onClick={() => {
+                  setOpen(false);
+                  it.onSelect?.();
+                }}
+              >
+                {it.icon} {it.label}
+              </button>
             ),
           )}
         </div>
