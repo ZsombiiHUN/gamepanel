@@ -114,11 +114,14 @@ type passkeyFinishIn struct {
 		Credential json.RawMessage `json:"credential" doc:"the PublicKeyCredential, JSON-encoded"`
 	}
 }
-type passkeyOut struct{ Body store.Passkey }
-type passkeysOut struct{ Body []store.Passkey }
-type passkeyIDIn struct {
-	ID string `path:"id" maxLength:"512"`
-}
+type (
+	passkeyOut  struct{ Body store.Passkey }
+	passkeysOut struct{ Body []store.Passkey }
+	passkeyIDIn struct {
+		ID string `path:"id" maxLength:"512"`
+	}
+)
+
 type passkeyRenameIn struct {
 	ID   string `path:"id" maxLength:"512"`
 	Body struct {

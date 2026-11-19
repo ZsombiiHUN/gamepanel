@@ -65,7 +65,7 @@ func TestSecretsEncryptedAtRest(t *testing.T) {
 		t.Fatalf("secret not encrypted: %q", raw)
 	}
 	got, _, _, err := s.totpSecret(ctx, u.ID)
-	if err != nil || string(got) == "" {
+	if err != nil || len(got) == 0 {
 		t.Fatal(err)
 	}
 	// wrong key must not decrypt

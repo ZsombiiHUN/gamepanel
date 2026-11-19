@@ -38,8 +38,10 @@ const (
 	EvPing                = "ping" // sent only by the test button
 )
 
-var webhookEvents = []string{EvServerCreated, EvServerInstalled, EvServerInstallFailed, EvServerSuspended,
-	EvServerUnsuspended, EvServerDeleted, EvUserCreated, EvUserDeleted}
+var webhookEvents = []string{
+	EvServerCreated, EvServerInstalled, EvServerInstallFailed, EvServerSuspended,
+	EvServerUnsuspended, EvServerDeleted, EvUserCreated, EvUserDeleted,
+}
 
 const (
 	webhookTimeout     = 10 * time.Second
@@ -264,27 +266,33 @@ type webhookBody struct {
 	Events      []string `json:"events" minItems:"1" maxItems:"20" doc:"server.created, server.installed, server.install_failed, server.suspended, server.unsuspended, server.deleted, user.created, user.deleted, or * for all"`
 	Enabled     *bool    `json:"enabled,omitempty" doc:"default true"`
 }
-type webhookCreateIn struct{ Body webhookBody }
-type webhookUpdateIn struct {
-	ID   int64 `path:"id"`
-	Body struct {
-		webhookBody
-		RotateSecret bool `json:"rotate_secret,omitempty" doc:"make a new signing secret (the old one stops working at once)"`
+type (
+	webhookCreateIn struct{ Body webhookBody }
+	webhookUpdateIn struct {
+		ID   int64 `path:"id"`
+		Body struct {
+			webhookBody
+			RotateSecret bool `json:"rotate_secret,omitempty" doc:"make a new signing secret (the old one stops working at once)"`
+		}
 	}
-}
+)
+
 type webhookWithSecret struct {
 	store.Webhook
 	// Secret signs deliveries. It is shown when the webhook is made and when
 	// it is rotated, and never again.
 	Secret string `json:"secret,omitempty"`
 }
-type webhookOut struct{ Body webhookWithSecret }
-type webhookListOut struct{ Body []store.Webhook }
-type deliveryListOut struct{ Body []store.Delivery }
-type deliveryIn struct {
-	ID         int64 `path:"id"`
-	DeliveryID int64 `path:"delivery"`
-}
+type (
+	webhookOut      struct{ Body webhookWithSecret }
+	webhookListOut  struct{ Body []store.Webhook }
+	deliveryListOut struct{ Body []store.Delivery }
+	deliveryIn      struct {
+		ID         int64 `path:"id"`
+		DeliveryID int64 `path:"delivery"`
+	}
+)
+
 type pingOut struct {
 	Body struct {
 		Queued bool `json:"queued"`
@@ -315,9 +323,11 @@ func checkWebhook(b *webhookBody) error {
 }
 
 func (a *App) registerWebhooks(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "createWebhook", Method: "POST", Path: "/webhooks", Summary: "Send events to an address (admin)", DefaultStatus: 201,
+	huma.Register(api, huma.Operation{
+		OperationID: "createWebhook", Method: "POST", Path: "/webhooks", Summary: "Send events to an address (admin)", DefaultStatus: 201,
 		Description: "Each event is POSTed as JSON with an `X-GamePanel-Signature: t=<unix time>,v1=<hex>` header, where v1 is HMAC-SHA256 of `<t>.<body>` keyed with the secret returned here (shown once). " +
-			"Answer 2xx; anything else, or no answer within 10 s, is retried with growing gaps (30 s up to 6 h) for about a day."},
+			"Answer 2xx; anything else, or no answer within 10 s, is retried with growing gaps (30 s up to 6 h) for about a day.",
+	},
 		func(ctx context.Context, in *webhookCreateIn) (*webhookOut, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
@@ -392,8 +402,10 @@ func (a *App) registerWebhooks(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "pingWebhook", Method: "POST", Path: "/webhooks/{id}/ping", Summary: "Send a test event (admin)", DefaultStatus: 202,
-		Description: "Queues a `ping` event to this webhook, also when it is turned off. Its result shows in the delivery log."},
+	huma.Register(api, huma.Operation{
+		OperationID: "pingWebhook", Method: "POST", Path: "/webhooks/{id}/ping", Summary: "Send a test event (admin)", DefaultStatus: 202,
+		Description: "Queues a `ping` event to this webhook, also when it is turned off. Its result shows in the delivery log.",
+	},
 		func(ctx context.Context, in *idIn) (*pingOut, error) {
 			if _, err := requireAdmin(ctx); err != nil {
 				return nil, err
@@ -421,8 +433,10 @@ func (a *App) registerWebhooks(api huma.API) {
 			return &deliveryListOut{Body: l}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "retryWebhookDelivery", Method: "POST", Path: "/webhooks/{id}/deliveries/{delivery}/retry",
-		Summary: "Send a delivered or given-up delivery again now (admin)", DefaultStatus: 202},
+	huma.Register(api, huma.Operation{
+		OperationID: "retryWebhookDelivery", Method: "POST", Path: "/webhooks/{id}/deliveries/{delivery}/retry",
+		Summary: "Send a delivered or given-up delivery again now (admin)", DefaultStatus: 202,
+	},
 		func(ctx context.Context, in *deliveryIn) (*struct{}, error) {
 			if _, err := requireAdmin(ctx); err != nil {
 				return nil, err

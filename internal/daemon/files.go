@@ -251,7 +251,7 @@ func (d *Daemon) pull(ctx context.Context, t proto.Transfer) (proto.TransferResu
 	}
 	ctx, cancel := context.WithTimeout(ctx, pullTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return proto.TransferResult{}, proto.Invalid("use a full http:// or https:// address")
 	}

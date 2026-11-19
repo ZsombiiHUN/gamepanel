@@ -130,8 +130,10 @@ func main() {
 	publicURL := strings.TrimRight(os.Getenv("GAMEPANEL_PUBLIC_URL"), "/")
 	if h := os.Getenv("GAMEPANEL_SMTP_HOST"); h != "" {
 		port, _ := strconv.Atoi(os.Getenv("GAMEPANEL_SMTP_PORT"))
-		mailer, err = mail.New(mail.Config{Host: h, Port: port, Username: os.Getenv("GAMEPANEL_SMTP_USERNAME"), Password: os.Getenv("GAMEPANEL_SMTP_PASSWORD"),
-			From: os.Getenv("GAMEPANEL_SMTP_FROM"), TLS: os.Getenv("GAMEPANEL_SMTP_TLS")})
+		mailer, err = mail.New(mail.Config{
+			Host: h, Port: port, Username: os.Getenv("GAMEPANEL_SMTP_USERNAME"), Password: os.Getenv("GAMEPANEL_SMTP_PASSWORD"),
+			From: os.Getenv("GAMEPANEL_SMTP_FROM"), TLS: os.Getenv("GAMEPANEL_SMTP_TLS"),
+		})
 		if err != nil {
 			log.Error("invalid SMTP settings", "err", err)
 			os.Exit(1)

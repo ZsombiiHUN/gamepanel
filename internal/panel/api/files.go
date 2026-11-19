@@ -170,9 +170,11 @@ func (a *App) registerFiles(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "pullFile", Method: "POST", Path: "/servers/{uuid}/files/pull",
+	huma.Register(api, huma.Operation{
+		OperationID: "pullFile", Method: "POST", Path: "/servers/{uuid}/files/pull",
 		Summary:     "Download a file from the internet into the server",
-		Description: "The node fetches the URL itself. Private and local addresses are refused unless the node allows them.", DefaultStatus: 201},
+		Description: "The node fetches the URL itself. Private and local addresses are refused unless the node allows them.", DefaultStatus: 201,
+	},
 		func(ctx context.Context, in *filePullIn) (*transferOut, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermFilesWrite)
 			if err != nil {

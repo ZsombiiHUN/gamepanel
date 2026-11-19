@@ -138,9 +138,11 @@ func (f *fuzzRoot) serve(t testing.TB, input []byte) {
 		t.Fatal(err)
 	}
 	defer dir.Close()
-	h := &sftpFS{dir: dir, read: true, write: true, maxOpen: 16, disk: f.d.cacheFor(f.id),
+	h := &sftpFS{
+		dir: dir, read: true, write: true, maxOpen: 16, disk: f.d.cacheFor(f.id),
 		check:  func(n int64) error { return f.d.reserveDisk(f.id, n) },
-		statfs: func() (*sftp.StatVFS, error) { return f.d.sftpStatVFS(f.id) }}
+		statfs: func() (*sftp.StatVFS, error) { return f.d.sftpStatVFS(f.id) },
+	}
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 	srv := sftp.NewRequestServer(rwc{inR, outW}, sftp.Handlers{FileGet: h, FilePut: h, FileCmd: h, FileList: h})
@@ -210,8 +212,10 @@ func mustWalk(t testing.TB, d *Daemon, id string) int64 {
 	return n
 }
 
-var fuzzPaths = []string{"/a.txt", "a.txt", "/d", "/d/x", "/new", "../../outside.txt", "/out", "/updir/outside.txt",
-	"/updir", "/", "", ".", "..", "/../..", "/d/../../x", "\x00", "/a.txt\x00.png", strings.Repeat("a/", 300), "//d//x"}
+var fuzzPaths = []string{
+	"/a.txt", "a.txt", "/d", "/d/x", "/new", "../../outside.txt", "/out", "/updir/outside.txt",
+	"/updir", "/", "", ".", "..", "/../..", "/d/../../x", "\x00", "/a.txt\x00.png", strings.Repeat("a/", 300), "//d//x",
+}
 
 // randomPacket builds a well-formed-ish packet: random type, plausible fields.
 func randomPacket(rnd *rand.Rand, handles []string) []byte {
@@ -223,8 +227,10 @@ func randomPacket(rnd *rand.Rand, handles []string) []byte {
 		return string(rune('0' + rnd.Intn(10)))
 	}
 	p := &pkt{}
-	types := []byte{pOpen, pClose, pRead, pWrite, pLstat, pFstat, pSetstat, pFsetstat, pOpendir, pReaddir,
-		pRemove, pMkdir, pRmdir, pRealpath, pStat, pRename, pReadlink, pSymlink, pExtended, 99, 0}
+	types := []byte{
+		pOpen, pClose, pRead, pWrite, pLstat, pFstat, pSetstat, pFsetstat, pOpendir, pReaddir,
+		pRemove, pMkdir, pRmdir, pRealpath, pStat, pRename, pReadlink, pSymlink, pExtended, 99, 0,
+	}
 	typ := types[rnd.Intn(len(types))]
 	p.u8(typ).u32(rnd.Uint32())
 	attrs := func() {

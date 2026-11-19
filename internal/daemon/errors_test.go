@@ -32,7 +32,7 @@ func TestCommonFailuresAreDescribedForPeople(t *testing.T) {
 			t.Errorf("%v: internal detail kept: %q", c.err, got)
 		}
 	}
-	if err := proto.Conflict("x"); forPeople(err) != err {
+	if err := proto.Conflict("x"); !errors.Is(forPeople(err), err) {
 		t.Fatal("an already coded error was changed")
 	}
 }

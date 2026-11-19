@@ -98,7 +98,7 @@ func (d *Daemon) uploadBackup(ctx context.Context, b proto.BackupReq) (err error
 // should not fail a two-hour backup.
 func (d *Daemon) putPart(ctx context.Context, target string, r *io.SectionReader, n int64) (string, error) {
 	var last error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := range 3 {
 		if attempt > 0 && !sleep(ctx, time.Duration(attempt)*2*time.Second) {
 			return "", ctx.Err()
 		}
@@ -138,7 +138,7 @@ func (d *Daemon) fetchBackup(ctx context.Context, b proto.BackupReq) (string, er
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.URL, http.NoBody)
 	if err == nil {
 		var resp *http.Response
 		resp, err = d.relayClient.Do(req)

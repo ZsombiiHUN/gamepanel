@@ -171,8 +171,10 @@ func run(nServers int, dir, addr, readyFile string) error {
 		{"Rust", "ghcr.io/parkervcp/games:rust", "./RustDedicated"},
 		{"Terraria", "ghcr.io/parkervcp/yolks:dotnet_6", "./TerrariaServer"},
 	} {
-		body := map[string]any{"name": e.name, "docker_images": map[string]string{"default": e.image}, "startup": e.startup, "config": map[string]string{"stop": "stop"},
-			"variables": []map[string]string{{"name": "Name", "env_variable": "SRV", "default_value": "My Server"}}}
+		body := map[string]any{
+			"name": e.name, "docker_images": map[string]string{"default": e.image}, "startup": e.startup, "config": map[string]string{"stop": "stop"},
+			"variables": []map[string]string{{"name": "Name", "env_variable": "SRV", "default_value": "My Server"}},
+		}
 		b, err := call("POST", "/api/eggs/import", body, 201)
 		if err != nil {
 			return err
@@ -184,8 +186,12 @@ func run(nServers int, dir, addr, readyFile string) error {
 
 	// The first six are fixed so tests can rely on them; the rest pad the list out.
 	plan := []struct{ name, egg string }{
-		{"Survival SMP", "Paper Minecraft"}, {"Creative Plots", "Paper Minecraft"}, {"Skyblock", "Paper Minecraft"},
-		{"Valheim Friends", "Valheim"}, {"Rust Wipe Friday", "Rust"}, {"Terraria Hardmode", "Terraria"},
+		{"Survival SMP", "Paper Minecraft"},
+		{"Creative Plots", "Paper Minecraft"},
+		{"Skyblock", "Paper Minecraft"},
+		{"Valheim Friends", "Valheim"},
+		{"Rust Wipe Friday", "Rust"},
+		{"Terraria Hardmode", "Terraria"},
 	}
 	// Names chosen to exercise sorting ("Lobby 2" before "Lobby 10"), shared words and several games.
 	extra := []string{"Lobby 2", "Lobby 10", "Lobby 1", "Vanilla Survival", "Modded Create", "Pixelmon", "Hub Lobby", "BedWars", "SkyWars", "Factions", "Prison", "Hardcore", "Anarchy", "RPG Realm", "Tekkit", "Ark Island", "Rust Modded", "Rust Vanilla 2x", "Valheim Hardcore", "Terraria Calamity", "Creative Build", "Towny", "Kitpvp"}

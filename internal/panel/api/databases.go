@@ -20,19 +20,22 @@ const dbTimeout = 30 * time.Second
 
 var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_]{1,48}$`)
 
-type hostListOut struct{ Body []store.DatabaseHost }
-type hostOut struct{ Body store.DatabaseHost }
-type hostCreateIn struct {
-	Body struct {
-		Name         string `json:"name" minLength:"1" maxLength:"64"`
-		Host         string `json:"host" minLength:"1" maxLength:"255" doc:"address the panel and the game servers reach it on"`
-		Port         int    `json:"port,omitempty" minimum:"1" maximum:"65535" default:"3306"`
-		Username     string `json:"username" minLength:"1" maxLength:"64" doc:"an account that may create databases and users"`
-		Password     string `json:"password" maxLength:"256"`
-		MaxDatabases int64  `json:"max_databases,omitempty" minimum:"0" doc:"0 = no limit"`
-		NodeID       int64  `json:"node_id,omitempty" doc:"prefer this host for servers on that node"`
+type (
+	hostListOut  struct{ Body []store.DatabaseHost }
+	hostOut      struct{ Body store.DatabaseHost }
+	hostCreateIn struct {
+		Body struct {
+			Name         string `json:"name" minLength:"1" maxLength:"64"`
+			Host         string `json:"host" minLength:"1" maxLength:"255" doc:"address the panel and the game servers reach it on"`
+			Port         int    `json:"port,omitempty" minimum:"1" maximum:"65535" default:"3306"`
+			Username     string `json:"username" minLength:"1" maxLength:"64" doc:"an account that may create databases and users"`
+			Password     string `json:"password" maxLength:"256"`
+			MaxDatabases int64  `json:"max_databases,omitempty" minimum:"0" doc:"0 = no limit"`
+			NodeID       int64  `json:"node_id,omitempty" doc:"prefer this host for servers on that node"`
+		}
 	}
-}
+)
+
 type hostIDIn struct {
 	ID int64 `path:"id"`
 }
@@ -44,14 +47,17 @@ type databasesView struct {
 	// Available: at least one database host exists.
 	Available bool `json:"available"`
 }
-type databasesOut struct{ Body databasesView }
-type databaseCreateIn struct {
-	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
-	Body struct {
-		Name   string `json:"name" pattern:"^[A-Za-z0-9_]{1,48}$" doc:"letters, digits and _; the server's prefix is added"`
-		Remote string `json:"remote,omitempty" maxLength:"60" default:"%" doc:"where connections may come from: % = anywhere, or an address"`
+type (
+	databasesOut     struct{ Body databasesView }
+	databaseCreateIn struct {
+		UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
+		Body struct {
+			Name   string `json:"name" pattern:"^[A-Za-z0-9_]{1,48}$" doc:"letters, digits and _; the server's prefix is added"`
+			Remote string `json:"remote,omitempty" maxLength:"60" default:"%" doc:"where connections may come from: % = anywhere, or an address"`
+		}
 	}
-}
+)
+
 type databaseIn struct {
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	ID   int64  `path:"id"`
@@ -86,8 +92,10 @@ func (a *App) registerDatabases(api huma.API) {
 			return &hostListOut{Body: hs}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "createDatabaseHost", Method: "POST", Path: "/database-hosts",
-		Summary: "Add a database host (admin; the connection is tested first)", DefaultStatus: 201},
+	huma.Register(api, huma.Operation{
+		OperationID: "createDatabaseHost", Method: "POST", Path: "/database-hosts",
+		Summary: "Add a database host (admin; the connection is tested first)", DefaultStatus: 201,
+	},
 		func(ctx context.Context, in *hostCreateIn) (*hostOut, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
@@ -102,8 +110,10 @@ func (a *App) registerDatabases(api huma.API) {
 			if _, err := dbhost.Check(c, dbhost.Host{Host: b.Host, Port: b.Port, Username: b.Username, Password: b.Password}); err != nil {
 				return nil, huma.Error422UnprocessableEntity("could not connect: " + dbhost.Friendly(err))
 			}
-			h, err := a.Store.CreateDatabaseHost(ctx, store.DatabaseHost{Name: strings.TrimSpace(b.Name), Host: b.Host, Port: b.Port,
-				Username: b.Username, MaxDatabases: b.MaxDatabases, NodeID: b.NodeID}, b.Password)
+			h, err := a.Store.CreateDatabaseHost(ctx, store.DatabaseHost{
+				Name: strings.TrimSpace(b.Name), Host: b.Host, Port: b.Port,
+				Username: b.Username, MaxDatabases: b.MaxDatabases, NodeID: b.NodeID,
+			}, b.Password)
 			if err != nil {
 				return nil, userErr(http.StatusConflict, err)
 			}
@@ -137,8 +147,10 @@ func (a *App) registerDatabases(api huma.API) {
 			return a.databasesFor(ctx, u, s)
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "createDatabase", Method: "POST", Path: "/servers/{uuid}/databases",
-		Summary: "Create a database and its user", Description: "The reply holds the password; it can be shown again later.", DefaultStatus: 201},
+	huma.Register(api, huma.Operation{
+		OperationID: "createDatabase", Method: "POST", Path: "/servers/{uuid}/databases",
+		Summary: "Create a database and its user", Description: "The reply holds the password; it can be shown again later.", DefaultStatus: 201,
+	},
 		func(ctx context.Context, in *databaseCreateIn) (*databaseSecretOut, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermDatabasesManage)
 			if err != nil {

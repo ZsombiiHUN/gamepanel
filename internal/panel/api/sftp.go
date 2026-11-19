@@ -70,7 +70,7 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, err := a.Store.UserByAPIKey(r.Context(), req.Password)
-	if err != nil || strings.ToLower(u.Email) != email {
+	if err != nil || !strings.EqualFold(u.Email, email) {
 		fail()
 		return
 	}
@@ -120,8 +120,10 @@ type nodeSFTPIn struct {
 }
 
 func (a *App) registerSFTP(api huma.API) {
-	huma.Register(api, huma.Operation{OperationID: "getServerSFTP", Method: "GET", Path: "/servers/{uuid}/sftp",
-		Summary: "How to connect to this server with an SFTP client"},
+	huma.Register(api, huma.Operation{
+		OperationID: "getServerSFTP", Method: "GET", Path: "/servers/{uuid}/sftp",
+		Summary: "How to connect to this server with an SFTP client",
+	},
 		func(ctx context.Context, in *uuidIn) (*sftpInfoOut, error) {
 			u, s, err := a.authorize(ctx, in.UUID)
 			if err != nil {
@@ -155,8 +157,10 @@ func (a *App) registerSFTP(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "setNodeSFTP", Method: "PUT", Path: "/nodes/{id}/sftp",
-		Summary: "Set the address SFTP clients use to reach a node", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "setNodeSFTP", Method: "PUT", Path: "/nodes/{id}/sftp",
+		Summary: "Set the address SFTP clients use to reach a node", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *nodeSFTPIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {

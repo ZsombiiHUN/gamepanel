@@ -9,8 +9,10 @@ import (
 // The presigned URL example from the AWS documentation ("Authenticating
 // Requests: Using Query Parameters"), which fixes every input.
 func TestPresignMatchesAWSExample(t *testing.T) {
-	c, err := New(Config{Endpoint: "https://s3.amazonaws.com", Region: "us-east-1", Bucket: "examplebucket",
-		AccessKey: "AKIAIOSFODNN7EXAMPLE", SecretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"})
+	c, err := New(Config{
+		Endpoint: "https://s3.amazonaws.com", Region: "us-east-1", Bucket: "examplebucket",
+		AccessKey: "AKIAIOSFODNN7EXAMPLE", SecretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

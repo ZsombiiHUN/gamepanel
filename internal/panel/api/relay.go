@@ -108,7 +108,8 @@ func writeErr(w http.ResponseWriter, err error) {
 	var se huma.StatusError
 	if errors.As(err, &se) {
 		msg := err.Error()
-		if m, ok := err.(*huma.ErrorModel); ok {
+		m := &huma.ErrorModel{}
+		if errors.As(err, &m) {
 			msg = m.Detail
 		}
 		writeProblem(w, se.GetStatus(), msg)

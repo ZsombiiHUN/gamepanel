@@ -23,7 +23,7 @@ func TestCreateServerChecksItsInput(t *testing.T) {
 	}
 	count := func() (n int) {
 		s.st.DB.QueryRow(`SELECT COUNT(*) FROM servers`).Scan(&n)
-		return
+		return n
 	}
 	before := count()
 	refused := func(extra map[string]any, want string) {

@@ -51,8 +51,10 @@ func (a *App) networkFor(ctx context.Context, u store.User, s store.Server, pend
 		return nil, huma.Error500InternalServerError("db error", err)
 	}
 	perms, _, _ := a.access(ctx, u, s)
-	v := networkView{Ports: ports, Limit: s.PortLimit, CanManage: has(perms, PermNetworkManage), CanPick: u.IsAdmin,
-		Pending: pending || a.pendingStartup(s.UUID)}
+	v := networkView{
+		Ports: ports, Limit: s.PortLimit, CanManage: has(perms, PermNetworkManage), CanPick: u.IsAdmin,
+		Pending: pending || a.pendingStartup(s.UUID),
+	}
 	if n, err := a.Store.GetNode(ctx, s.NodeID); err == nil {
 		v.RangeFrom, v.RangeTo = n.PortStart, n.PortEnd
 	}

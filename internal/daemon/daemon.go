@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -195,14 +196,17 @@ func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
 			return nil, err
 		}
 	}
-	d := &Daemon{cfg: cfg, rt: rt, log: log, servers: map[string]*managed{},
+	d := &Daemon{
+		cfg: cfg, rt: rt, log: log, servers: map[string]*managed{},
 		// No overall timeout: a large download runs as long as bytes flow.
-		relayClient: &http.Client{Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute}}}
+		relayClient: &http.Client{Transport: &http.Transport{ResponseHeaderTimeout: 2 * time.Minute}},
+	}
 	d.loadState()
 	return d, nil
 }
 
 func (d *Daemon) serverDir(uuid string) string { return filepath.Join(d.cfg.DataDir, "servers", uuid) }
+
 func (d *Daemon) statePath(uuid string) string {
 	return filepath.Join(d.cfg.DataDir, "state", uuid+".json")
 }
@@ -1293,7 +1297,7 @@ func sameContainer(a, b proto.ServerSpec) bool {
 	a.StartOnCompletion, b.StartOnCompletion = false, false
 	ja, _ := json.Marshal(a)
 	jb, _ := json.Marshal(b)
-	return string(ja) == string(jb)
+	return bytes.Equal(ja, jb)
 }
 
 func (d *Daemon) isStale(uuid string) bool {

@@ -50,14 +50,17 @@ type tokenIn struct {
 		Token string `json:"token" minLength:"20" maxLength:"100"`
 	}
 }
-type inviteOut struct{ Body store.Invite }
-type registerIn struct {
-	Body struct {
-		Token    string `json:"token,omitempty" maxLength:"100" doc:"invitation token; required unless sign-up is open"`
-		Email    string `json:"email,omitempty" maxLength:"254" doc:"ignored with a token: the invited address is used"`
-		Password string `json:"password" minLength:"1" maxLength:"256"`
+type (
+	inviteOut  struct{ Body store.Invite }
+	registerIn struct {
+		Body struct {
+			Token    string `json:"token,omitempty" maxLength:"100" doc:"invitation token; required unless sign-up is open"`
+			Email    string `json:"email,omitempty" maxLength:"254" doc:"ignored with a token: the invited address is used"`
+			Password string `json:"password" minLength:"1" maxLength:"256"`
+		}
 	}
-}
+)
+
 type inviteCreateIn struct {
 	Body struct {
 		Email string `json:"email" format:"email" maxLength:"254"`
@@ -80,11 +83,14 @@ type invitationResult struct {
 	Link    string `json:"link,omitempty"`
 	Emailed bool   `json:"emailed"`
 }
-type invitationOut struct{ Body invitationResult }
-type invitesOut struct{ Body []store.Invite }
-type inviteIDIn struct {
-	ID int64 `path:"id"`
-}
+type (
+	invitationOut struct{ Body invitationResult }
+	invitesOut    struct{ Body []store.Invite }
+	inviteIDIn    struct {
+		ID int64 `path:"id"`
+	}
+)
+
 type serverInviteIDIn struct {
 	UUID string `path:"uuid" pattern:"^[0-9a-f-]{36}$"`
 	ID   int64  `path:"id"`
@@ -123,8 +129,10 @@ func (a *App) registerLinks(api huma.API) {
 			return out, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "forgotPassword", Method: "POST", Path: "/auth/forgot",
-		Summary: "Email a password reset link", Description: "Always answers the same, whether or not the email has an account.", DefaultStatus: 202},
+	huma.Register(api, huma.Operation{
+		OperationID: "forgotPassword", Method: "POST", Path: "/auth/forgot",
+		Summary: "Email a password reset link", Description: "Always answers the same, whether or not the email has an account.", DefaultStatus: 202,
+	},
 		func(ctx context.Context, in *forgotIn) (*struct{}, error) {
 			if !a.mailOn() {
 				return nil, huma.Error404NotFound("password reset by email is not set up on this panel; ask an administrator")
@@ -149,8 +157,10 @@ func (a *App) registerLinks(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "resetPassword", Method: "POST", Path: "/auth/reset",
-		Summary: "Set a new password with a reset link (signs out everywhere)", DefaultStatus: 204},
+	huma.Register(api, huma.Operation{
+		OperationID: "resetPassword", Method: "POST", Path: "/auth/reset",
+		Summary: "Set a new password with a reset link (signs out everywhere)", DefaultStatus: 204,
+	},
 		func(ctx context.Context, in *resetIn) (*struct{}, error) {
 			if !a.mailLimit.allow("ip:" + ipFrom(ctx)) {
 				return nil, huma.Error429TooManyRequests("too many attempts, try again later")
@@ -239,9 +249,11 @@ func (a *App) registerLinks(api huma.API) {
 		})
 
 	// ---- owners: invite onto a server ----
-	huma.Register(api, huma.Operation{OperationID: "inviteToServer", Method: "POST", Path: "/servers/{uuid}/invites",
+	huma.Register(api, huma.Operation{
+		OperationID: "inviteToServer", Method: "POST", Path: "/servers/{uuid}/invites",
 		Summary:     "Give someone access by email, inviting them if they have no account",
-		Description: "If the email has an account it is added as a subuser at once (added: true). Otherwise an invitation is made: on sign-up the account gets these permissions."},
+		Description: "If the email has an account it is added as a subuser at once (added: true). Otherwise an invitation is made: on sign-up the account gets these permissions.",
+	},
 		func(ctx context.Context, in *serverInviteIn) (*invitationOut, error) {
 			u, s, err := a.authorizeOwner(ctx, in.UUID)
 			if err != nil {

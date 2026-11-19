@@ -140,7 +140,7 @@ func TestSessionUpgradeMigration(t *testing.T) {
 	defer s.Close()
 	exp := func(tok string) (e, legacy int64) {
 		s.DB.QueryRow(`SELECT expires_at, legacy_cookie FROM sessions WHERE token_hash=?`, HashToken(tok)).Scan(&e, &legacy)
-		return
+		return e, legacy
 	}
 	if e, l := exp(long); e > now()+12*3600 || e < n+12*3600-5 || l != 1 {
 		t.Fatalf("10-day session: expires %d (now %d), legacy %d", e, n, l)

@@ -35,8 +35,10 @@ func TestS3Backups(t *testing.T) {
 	if ep == "" {
 		t.Skip("GAMEPANEL_TEST_S3_ENDPOINT not set")
 	}
-	cl, err := s3.New(s3.Config{Endpoint: ep, Bucket: os.Getenv("GAMEPANEL_TEST_S3_BUCKET"), AccessKey: os.Getenv("GAMEPANEL_TEST_S3_ACCESS_KEY"),
-		SecretKey: os.Getenv("GAMEPANEL_TEST_S3_SECRET_KEY"), PathStyle: true, Prefix: "test-" + time.Now().Format("150405.000") + "/"})
+	cl, err := s3.New(s3.Config{
+		Endpoint: ep, Bucket: os.Getenv("GAMEPANEL_TEST_S3_BUCKET"), AccessKey: os.Getenv("GAMEPANEL_TEST_S3_ACCESS_KEY"),
+		SecretKey: os.Getenv("GAMEPANEL_TEST_S3_SECRET_KEY"), PathStyle: true, Prefix: "test-" + time.Now().Format("150405.000") + "/",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +102,7 @@ func TestS3Backups(t *testing.T) {
 	// Download: a redirect to a presigned URL that serves the archive.
 	noRedirect := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := noRedirect.Get(ts.URL + base + "/backups/" + b.UUID + "/download")
-	if err != nil || resp.StatusCode != 302 {
+	if err != nil || resp.StatusCode != http.StatusFound {
 		t.Fatalf("download: %v %v", resp, err)
 	}
 	loc := resp.Header.Get("Location")
@@ -108,7 +110,7 @@ func TestS3Backups(t *testing.T) {
 		t.Fatal("the secret key is in the download URL")
 	}
 	arch, err := http.Get(loc)
-	if err != nil || arch.StatusCode != 200 {
+	if err != nil || arch.StatusCode != http.StatusOK {
 		t.Fatalf("presigned GET: %v %v", arch, err)
 	}
 	body, _ := io.ReadAll(arch.Body)
@@ -127,7 +129,7 @@ func TestS3Backups(t *testing.T) {
 
 	// Delete removes the object.
 	admin.do("DELETE", base+"/backups/"+b.UUID, nil, 204)
-	if r, _ := http.Get(cl.Presign("GET", cl.Key(srv.UUID, b.UUID), time.Minute, nil)); r == nil || r.StatusCode != 404 {
+	if r, _ := http.Get(cl.Presign("GET", cl.Key(srv.UUID, b.UUID), time.Minute, nil)); r == nil || r.StatusCode != http.StatusNotFound {
 		t.Fatalf("object still there after delete: %v", r)
 	}
 }

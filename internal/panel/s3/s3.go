@@ -93,7 +93,7 @@ func sha(b []byte) string {
 // escape is RFC 3986 percent-encoding as SigV4 wants it ("/" kept in paths).
 func escape(s string, path bool) string {
 	var b strings.Builder
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		ch := s[i]
 		switch {
 		case 'A' <= ch && ch <= 'Z', 'a' <= ch && ch <= 'z', '0' <= ch && ch <= '9', ch == '-', ch == '_', ch == '.', ch == '~':

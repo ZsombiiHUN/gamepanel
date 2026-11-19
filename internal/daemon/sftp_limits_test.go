@@ -251,7 +251,7 @@ func TestSFTPParallelUploads(t *testing.T) {
 			}
 			got, err := download(c, fmt.Sprintf("/p%d.bin", i))
 			if err != nil || !bytes.Equal(got, data) {
-				errs <- fmt.Errorf("file %d came back different (%v)", i, err)
+				errs <- fmt.Errorf("file %d came back different (%w)", i, err)
 			}
 		}()
 	}

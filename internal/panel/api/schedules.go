@@ -50,8 +50,10 @@ type scheduleUpdateIn struct {
 	ID   int64  `path:"id"`
 	Body scheduleBody
 }
-type scheduleOut struct{ Body store.Schedule }
-type scheduleListOut struct{ Body []store.Schedule }
+type (
+	scheduleOut     struct{ Body store.Schedule }
+	scheduleListOut struct{ Body []store.Schedule }
+)
 
 func (a *App) registerSchedules(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "listSchedules", Method: "GET", Path: "/servers/{uuid}/schedules", Summary: "List schedules"},
@@ -117,8 +119,10 @@ func (a *App) registerSchedules(api huma.API) {
 			return nil, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "runSchedule", Method: "POST", Path: "/servers/{uuid}/schedules/{id}/run",
-		Summary: "Run a schedule's tasks now", DefaultStatus: 202},
+	huma.Register(api, huma.Operation{
+		OperationID: "runSchedule", Method: "POST", Path: "/servers/{uuid}/schedules/{id}/run",
+		Summary: "Run a schedule's tasks now", DefaultStatus: 202,
+	},
 		func(ctx context.Context, in *scheduleIn) (*struct{}, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermSchedulesManage)
 			if err != nil {

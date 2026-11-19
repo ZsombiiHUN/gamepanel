@@ -104,8 +104,10 @@ func (a *authenticator) get(t *testing.T, options json.RawMessage, verified bool
 	sig, _ := ecdsa.SignASN1(rand.Reader, a.key, digest[:])
 	resp, _ := json.Marshal(map[string]any{
 		"id": b64.EncodeToString(a.credID), "rawId": b64.EncodeToString(a.credID), "type": "public-key",
-		"response": map[string]string{"authenticatorData": b64.EncodeToString(ad), "clientDataJSON": b64.EncodeToString(cd),
-			"signature": b64.EncodeToString(sig), "userHandle": b64.EncodeToString(a.handle)},
+		"response": map[string]string{
+			"authenticatorData": b64.EncodeToString(ad), "clientDataJSON": b64.EncodeToString(cd),
+			"signature": b64.EncodeToString(sig), "userHandle": b64.EncodeToString(a.handle),
+		},
 	})
 	return resp
 }

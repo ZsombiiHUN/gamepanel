@@ -153,8 +153,10 @@ func newSFTPRig(t testing.TB, diskMB int64, cfg func(*Config)) *sftpRig {
 func newSFTPRigWith(t testing.TB, diskMB int64, o rigOpts) *sftpRig {
 	t.Helper()
 	p := newFakePanel(t)
-	c := Config{PanelURL: "ws" + strings.TrimPrefix(p.srv.URL, "http") + "/daemon/connect", Token: rigToken,
-		DataDir: t.TempDir(), DiskCacheTTL: time.Hour, SFTPRecheck: time.Hour, SFTPKeepAlive: time.Hour}
+	c := Config{
+		PanelURL: "ws" + strings.TrimPrefix(p.srv.URL, "http") + "/daemon/connect", Token: rigToken,
+		DataDir: t.TempDir(), DiskCacheTTL: time.Hour, SFTPRecheck: time.Hour, SFTPKeepAlive: time.Hour,
+	}
 	if o.cfg != nil {
 		o.cfg(&c)
 	}
@@ -183,8 +185,10 @@ func newSFTPRigWith(t testing.TB, diskMB int64, o rigOpts) *sftpRig {
 }
 
 func (r *sftpRig) sshConfig(user, pw string) *ssh.ClientConfig {
-	return &ssh.ClientConfig{User: user, Auth: []ssh.AuthMethod{ssh.Password(pw)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second}
+	return &ssh.ClientConfig{
+		User: user, Auth: []ssh.AuthMethod{ssh.Password(pw)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 5 * time.Second,
+	}
 }
 
 // sshDial opens an SSH connection, closed when the test ends.

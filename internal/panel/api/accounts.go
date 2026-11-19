@@ -39,22 +39,27 @@ type accountCreateOut struct {
 	Status int
 	Body   accountCreated
 }
-type accountOut struct{ Body store.Account }
-type accountListIn struct {
-	Email      string `query:"email" maxLength:"254" doc:"only the account with this email"`
-	ExternalID string `query:"external_id" maxLength:"191" doc:"only the account with this external id"`
-	Limit      int    `query:"limit" minimum:"1" maximum:"500" default:"100"`
-	Offset     int    `query:"offset" minimum:"0"`
-}
-type accountListOut struct{ Body []store.Account }
-type accountUpdateIn struct {
-	ID   int64 `path:"id"`
-	Body struct {
-		Email      *string `json:"email,omitempty" format:"email" maxLength:"254"`
-		ExternalID *string `json:"external_id,omitempty" maxLength:"191" doc:"\"\" clears it"`
-		Password   *string `json:"password,omitempty" maxLength:"256" doc:"signs the account out everywhere"`
+type (
+	accountOut    struct{ Body store.Account }
+	accountListIn struct {
+		Email      string `query:"email" maxLength:"254" doc:"only the account with this email"`
+		ExternalID string `query:"external_id" maxLength:"191" doc:"only the account with this external id"`
+		Limit      int    `query:"limit" minimum:"1" maximum:"500" default:"100"`
+		Offset     int    `query:"offset" minimum:"0"`
 	}
-}
+)
+
+type (
+	accountListOut  struct{ Body []store.Account }
+	accountUpdateIn struct {
+		ID   int64 `path:"id"`
+		Body struct {
+			Email      *string `json:"email,omitempty" format:"email" maxLength:"254"`
+			ExternalID *string `json:"external_id,omitempty" maxLength:"191" doc:"\"\" clears it"`
+			Password   *string `json:"password,omitempty" maxLength:"256" doc:"signs the account out everywhere"`
+		}
+	}
+)
 
 func (a *App) registerAccounts(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "createAccount", Method: "POST", Path: "/users", Summary: "Create an account for someone (admin)", DefaultStatus: 201},
@@ -128,8 +133,10 @@ func (a *App) registerAccounts(api huma.API) {
 			return &accountOut{Body: acct}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "updateAccount", Method: "PATCH", Path: "/users/{id}", Summary: "Change an account's email, external id or password (admin)",
-		Description: "Fields left out stay as they are. The email and password of admin accounts can only be changed from their own account settings."},
+	huma.Register(api, huma.Operation{
+		OperationID: "updateAccount", Method: "PATCH", Path: "/users/{id}", Summary: "Change an account's email, external id or password (admin)",
+		Description: "Fields left out stay as they are. The email and password of admin accounts can only be changed from their own account settings.",
+	},
 		func(ctx context.Context, in *accountUpdateIn) (*accountOut, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
@@ -170,8 +177,10 @@ func (a *App) registerAccounts(api huma.API) {
 			return &accountOut{Body: acct}, nil
 		})
 
-	huma.Register(api, huma.Operation{OperationID: "deleteAccount", Method: "DELETE", Path: "/users/{id}", Summary: "Delete an account that owns no servers (admin)", DefaultStatus: 204,
-		Description: "Its access to other people's servers goes with it, and schedules it saved there are turned off."},
+	huma.Register(api, huma.Operation{
+		OperationID: "deleteAccount", Method: "DELETE", Path: "/users/{id}", Summary: "Delete an account that owns no servers (admin)", DefaultStatus: 204,
+		Description: "Its access to other people's servers goes with it, and schedules it saved there are turned off.",
+	},
 		func(ctx context.Context, in *idIn) (*struct{}, error) {
 			u, err := requireAdmin(ctx)
 			if err != nil {
