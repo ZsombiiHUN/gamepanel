@@ -6,6 +6,18 @@ on:
 permissions:
   contents: read
 jobs:
+  lint:
+    # golangci-lint (.golangci.yml) and known vulnerabilities in reachable code.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15.0 # keep in step with GOLANGCI_LINT in the Makefile
+      - run: make vuln
   go:
     runs-on: ubuntu-latest
     steps:
@@ -24,8 +36,8 @@ jobs:
             ~/.cache/go-build
             ~/go/pkg/mod
           key: go-race-${{ runner.os }}-${{ hashFiles('go.mod', 'go.sum') }}
-      - run: go vet ./...
-      - run: go test -race -count=1 ./...
+      # Race-enabled tests with a coverage floor (COVER_MIN in the Makefile). Vet runs in the lint job.
+      - run: make cover
       # The daemon usually runs as root; files it creates must still belong to the game user.
       - name: File ownership as root
         run: sudo -E env "PATH=$PATH" go test -count=1 -run TestRootDaemon -v ./internal/daemon/fsx/
@@ -46,6 +58,7 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
