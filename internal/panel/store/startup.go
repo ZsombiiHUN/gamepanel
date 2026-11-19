@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -33,12 +34,7 @@ func ValidateVar(v EggVar, val string) error {
 	}
 	rules := splitRules(v.Rules)
 	has := func(r string) bool {
-		for _, x := range rules {
-			if x.name == r {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(rules, func(x rule) bool { return x.name == r })
 	}
 	if val == "" {
 		if has("required") {
@@ -46,9 +42,8 @@ func ValidateVar(v EggVar, val string) error {
 		}
 		return nil // empty and optional: nothing else applies (Laravel "nullable")
 	}
-	numeric := has("integer") || has("int") || has("numeric")
-	var num float64
-	if numeric {
+	vv := varValue{val: val, numeric: has("integer") || has("int") || has("numeric")}
+	if vv.numeric {
 		whole := has("integer") || has("int")
 		f, err := strconv.ParseFloat(val, 64)
 		switch {
@@ -57,85 +52,116 @@ func ValidateVar(v EggVar, val string) error {
 		case err != nil:
 			return bad("must be a number")
 		}
-		num = f
-	}
-	// size compares the number for numbers, the length for text.
-	size := func() float64 {
-		if numeric {
-			return num
-		}
-		return float64(utf8.RuneCountInString(val))
-	}
-	unit := func() string {
-		if numeric {
-			return ""
-		}
-		return " characters"
+		vv.num = f
 	}
 	for _, r := range rules {
-		switch r.name {
-		case "boolean", "bool":
-			switch strings.ToLower(val) {
-			case "1", "0", "true", "false":
-			default:
-				return bad("must be true or false (or 1 or 0)")
-			}
-		case "max":
-			if n, err := strconv.ParseFloat(r.arg, 64); err == nil && size() > n {
-				if numeric {
-					return bad("must be at most %s", r.arg)
-				}
-				return bad("must be at most %s%s", r.arg, unit())
-			}
-		case "min":
-			if n, err := strconv.ParseFloat(r.arg, 64); err == nil && size() < n {
-				if numeric {
-					return bad("must be at least %s", r.arg)
-				}
-				return bad("must be at least %s%s", r.arg, unit())
-			}
-		case "between":
-			lo, hi, ok := strings.Cut(r.arg, ",")
-			a, e1 := strconv.ParseFloat(lo, 64)
-			b, e2 := strconv.ParseFloat(hi, 64)
-			if ok && e1 == nil && e2 == nil && (size() < a || size() > b) {
-				return bad("must be between %s and %s%s", lo, hi, unit())
-			}
-		case "size":
-			if n, err := strconv.ParseFloat(r.arg, 64); err == nil && size() != n {
-				return bad("must be exactly %s%s", r.arg, unit())
-			}
-		case "in":
-			if !inList(val, r.arg) {
-				return bad("must be one of: %s", strings.ReplaceAll(r.arg, ",", ", "))
-			}
-		case "not_in":
-			if inList(val, r.arg) {
-				return bad("cannot be %s", val)
-			}
-		case "regex":
-			if re := phpRegex(r.arg); re != nil && !re.MatchString(val) {
-				return bad("is not in the expected format")
-			}
-		case "alpha":
-			if !alphaRe.MatchString(val) {
-				return bad("may only contain letters")
-			}
-		case "alpha_num":
-			if !alphaNumRe.MatchString(val) {
-				return bad("may only contain letters and numbers")
-			}
-		case "alpha_dash":
-			if !alphaDashRe.MatchString(val) {
-				return bad("may only contain letters, numbers, dashes and underscores")
-			}
-		case "url":
-			if u, err := url.Parse(val); err != nil || u.Scheme == "" || u.Host == "" {
-				return bad("must be a full URL")
-			}
+		if why := vv.check(r); why != "" {
+			return bad("%s", why)
 		}
 	}
 	return nil
+}
+
+// varValue is a non-empty value being checked against a variable's rules.
+type varValue struct {
+	val     string
+	numeric bool    // an integer or numeric rule applies
+	num     float64 // the value, when numeric
+}
+
+// size is what min, max, between and size compare: the number for numbers,
+// the length for text.
+func (v varValue) size() float64 {
+	if v.numeric {
+		return v.num
+	}
+	return float64(utf8.RuneCountInString(v.val))
+}
+
+func (v varValue) unit() string {
+	if v.numeric {
+		return ""
+	}
+	return " characters"
+}
+
+// check returns why the value breaks rule r, or "" if it does not (or the
+// rule is unknown).
+func (v varValue) check(r rule) string {
+	switch r.name {
+	case "max", "min", "between", "size":
+		return v.checkSize(r)
+	case "boolean", "bool":
+		switch strings.ToLower(v.val) {
+		case "1", "0", "true", "false":
+			return ""
+		}
+		return "must be true or false (or 1 or 0)"
+	case "in":
+		if !inList(v.val, r.arg) {
+			return "must be one of: " + strings.ReplaceAll(r.arg, ",", ", ")
+		}
+	case "not_in":
+		if inList(v.val, r.arg) {
+			return "cannot be " + v.val
+		}
+	case "regex":
+		if re := phpRegex(r.arg); re != nil && !re.MatchString(v.val) {
+			return "is not in the expected format"
+		}
+	case "url":
+		if u, err := url.Parse(v.val); err != nil || u.Scheme == "" || u.Host == "" {
+			return "must be a full URL"
+		}
+	default:
+		return v.checkCharset(r)
+	}
+	return ""
+}
+
+// checkSize applies max, min, between and size.
+func (v varValue) checkSize(r rule) string {
+	switch r.name {
+	case "max":
+		if n, err := strconv.ParseFloat(r.arg, 64); err == nil && v.size() > n {
+			return "must be at most " + r.arg + v.unit()
+		}
+	case "min":
+		if n, err := strconv.ParseFloat(r.arg, 64); err == nil && v.size() < n {
+			return "must be at least " + r.arg + v.unit()
+		}
+	case "between":
+		lo, hi, ok := strings.Cut(r.arg, ",")
+		a, e1 := strconv.ParseFloat(lo, 64)
+		b, e2 := strconv.ParseFloat(hi, 64)
+		if ok && e1 == nil && e2 == nil && (v.size() < a || v.size() > b) {
+			return "must be between " + lo + " and " + hi + v.unit()
+		}
+	case "size":
+		if n, err := strconv.ParseFloat(r.arg, 64); err == nil && v.size() != n {
+			return "must be exactly " + r.arg + v.unit()
+		}
+	}
+	return ""
+}
+
+// checkCharset applies alpha, alpha_num and alpha_dash.
+func (v varValue) checkCharset(r rule) string {
+	switch r.name {
+	case "alpha":
+		if !alphaRe.MatchString(v.val) {
+			return "may only contain letters"
+		}
+	case "alpha_num":
+		if !alphaNumRe.MatchString(v.val) {
+			return "may only contain letters and numbers"
+		}
+	case "alpha_dash":
+		if !alphaDashRe.MatchString(v.val) {
+			return "may only contain letters, numbers, dashes and underscores"
+		}
+	}
+	return ""
 }
 
 var (

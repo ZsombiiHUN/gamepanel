@@ -74,6 +74,7 @@ func linkPanel(t *testing.T, deps api.Deps) (*client, *store.Store, string) {
 }
 
 func anon(t *testing.T, base string) *client {
+	t.Helper()
 	jar, _ := cookiejar.New(nil)
 	return &client{t, base, &http.Client{Jar: jar}}
 }

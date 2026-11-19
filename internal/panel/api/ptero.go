@@ -119,14 +119,20 @@ func pteroState(st string) string {
 	return "offline"
 }
 
-func (a *App) registerPtero(mux *http.ServeMux) {
-	h := func(pattern string, fn func(w http.ResponseWriter, r *http.Request) error) {
+// pteroRoutes returns a function that registers a handler on mux whose
+// errors are answered in Pterodactyl's format.
+func pteroRoutes(mux *http.ServeMux) func(pattern string, fn func(w http.ResponseWriter, r *http.Request) error) {
+	return func(pattern string, fn func(w http.ResponseWriter, r *http.Request) error) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 			if err := fn(w, r); err != nil {
 				pteroError(w, err)
 			}
 		})
 	}
+}
+
+func (a *App) registerPtero(mux *http.ServeMux) {
+	h := pteroRoutes(mux)
 
 	h("GET /api/client/account", func(w http.ResponseWriter, r *http.Request) error {
 		u, err := requireUser(r.Context())
@@ -183,6 +189,13 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 		return nil
 	})
 
+	a.registerPteroControl(mux)
+	a.registerPteroFiles(mux)
+}
+
+// registerPteroControl registers Pterodactyl-style power and console commands.
+func (a *App) registerPteroControl(mux *http.ServeMux) {
+	h := pteroRoutes(mux)
 	h("POST /api/client/servers/{id}/power", func(w http.ResponseWriter, r *http.Request) error {
 		u, s, err := a.pteroServer(r.Context(), r.PathValue("id"), PermPower)
 		if err != nil {
@@ -227,7 +240,11 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusNoContent)
 		return nil
 	})
+}
 
+// registerPteroFiles registers Pterodactyl-style file and backup routes.
+func (a *App) registerPteroFiles(mux *http.ServeMux) {
+	h := pteroRoutes(mux)
 	h("GET /api/client/servers/{id}/files/list", func(w http.ResponseWriter, r *http.Request) error {
 		_, s, err := a.pteroServer(r.Context(), r.PathValue("id"), PermFilesRead)
 		if err != nil {

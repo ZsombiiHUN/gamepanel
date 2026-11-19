@@ -95,7 +95,7 @@ func (s *stack) write(path, content string) {
 
 func (s *stack) read(path string) (string, int) {
 	s.t.Helper()
-	req, _ := http.NewRequest(http.MethodGet, s.admin.base+"/api/servers/"+s.server+"/files/content?path="+url.QueryEscape(path), nil)
+	req, _ := http.NewRequest(http.MethodGet, s.admin.base+"/api/servers/"+s.server+"/files/content?path="+url.QueryEscape(path), http.NoBody)
 	resp, err := s.admin.c.Do(req)
 	if err != nil {
 		s.t.Fatal(err)

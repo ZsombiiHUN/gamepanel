@@ -84,6 +84,10 @@ linters:
       excludes:
         - G104 # duplicate of errcheck
         - G304 # file paths are confined by internal/daemon/fsx (os.Root), not by string checks
+    thelper:
+      # Helpers that take testing.TB keep calling it t, like the tests they serve.
+      tb:
+        name: false
     nakedret:
       max-func-lines: 0
     nolintlint:
@@ -93,6 +97,7 @@ linters:
       rules:
         - name: blank-imports
         - name: context-as-argument
+          arguments: [{allowTypesBefore: "*testing.T,testing.TB"}]
         - name: context-keys-type
         - name: dot-imports
         - name: early-return
@@ -122,6 +127,10 @@ linters:
       # weak randomness; the code under test may not.
       - path: _test\.go
         linters: [bodyclose, errcheck, errchkjson, gosec, noctx]
+      # End-to-end tests read as one scenario, top to bottom; splitting them to
+      # please a complexity count would make them harder to follow.
+      - path: _test\.go
+        linters: [gocyclo]
 
 issues:
   max-issues-per-linter: 0

@@ -125,7 +125,7 @@ func TestFullFlow(t *testing.T) {
 
 	// console websocket
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/servers/" + srv.UUID + "/ws"
-	u, _ := http.NewRequest(http.MethodGet, ts.URL, nil)
+	u, _ := http.NewRequest(http.MethodGet, ts.URL, http.NoBody)
 	var cookie string
 	for _, c := range jar.Cookies(u.URL) {
 		cookie += c.Name + "=" + c.Value

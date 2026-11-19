@@ -79,11 +79,11 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 	exposed := network.PortSet{}
 	bindings := network.PortMap{}
 	for _, p := range s.Ports {
-		proto := p.Proto
-		if proto == "" {
-			proto = "tcp"
+		transport := p.Proto
+		if transport == "" {
+			transport = "tcp"
 		}
-		port, err := network.ParsePort(strconv.Itoa(p.Container) + "/" + proto)
+		port, err := network.ParsePort(strconv.Itoa(p.Container) + "/" + transport)
 		if err != nil {
 			return err
 		}

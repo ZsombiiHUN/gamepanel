@@ -211,6 +211,11 @@ func (a *App) registerServers(api huma.API) {
 			return out, nil
 		})
 
+	a.registerServerCreate(api)
+}
+
+// registerServerCreate registers creating a server.
+func (a *App) registerServerCreate(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "createServer", Method: "POST", Path: "/servers", Summary: "Create a server", DefaultStatus: 201},
 		func(ctx context.Context, in *serverCreateIn) (*serverCreateOut, error) {
 			u, err := requireAdmin(ctx)
@@ -292,6 +297,13 @@ func (a *App) registerServers(api huma.API) {
 			return &serverOut{Body: v}, nil
 		})
 
+	a.registerServerAdmin(api)
+	a.registerServerControl(api)
+	a.registerServerFiles(api)
+}
+
+// registerServerAdmin registers deleting, resizing and reinstalling servers.
+func (a *App) registerServerAdmin(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "deleteServer", Method: "DELETE", Path: "/servers/{uuid}", Summary: "Delete a server and its data", DefaultStatus: 204,
 		Description: "The node deletes the container and files first. With `force`, a server whose node is offline is deleted from the panel at once, " +
@@ -385,7 +397,10 @@ func (a *App) registerServers(api huma.API) {
 			a.audit(ctx, u, "server.reinstall", s.UUID, s.Name)
 			return nil, nil
 		})
+}
 
+// registerServerControl registers power actions and console commands.
+func (a *App) registerServerControl(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "power", Method: "POST", Path: "/servers/{uuid}/power", Summary: "Start, stop, restart or kill", DefaultStatus: 202},
 		func(ctx context.Context, in *powerIn) (*struct{}, error) {
 			u, s, err := a.authorizeP(ctx, in.UUID, PermPower)
@@ -410,7 +425,10 @@ func (a *App) registerServers(api huma.API) {
 			a.audit(ctx, u, "server.command", s.UUID, truncate(in.Body.Command, 200))
 			return nil, nil
 		})
+}
 
+// registerServerFiles registers the basic file routes (list, read, write, delete).
+func (a *App) registerServerFiles(api huma.API) {
 	huma.Register(api, huma.Operation{OperationID: "listFiles", Method: "GET", Path: "/servers/{uuid}/files", Summary: "List a directory"},
 		func(ctx context.Context, in *filePathIn) (*fileListOut, error) {
 			_, s, err := a.authorizeP(ctx, in.UUID, PermFilesRead)

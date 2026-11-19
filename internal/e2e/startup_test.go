@@ -79,7 +79,7 @@ func TestStartupSettings(t *testing.T) {
 
 	// With startup.update and startup.docker-image: only editable variables,
 	// only the egg's images, never the command.
-	s.admin.do("PUT", srv+"/users/"+userID(t, s, "bob@example.com"), map[string]any{"permissions": []string{"startup.read", "startup.update", "startup.docker-image"}}, 204)
+	s.admin.do("PUT", srv+"/users/"+bobID(t, s), map[string]any{"permissions": []string{"startup.read", "startup.update", "startup.docker-image"}}, 204)
 	bob.do("PUT", srv+"/startup", map[string]any{"env": map[string]string{"VERSION": "1.20"}}, 403)
 	bob.do("PUT", srv+"/startup", map[string]any{"env": map[string]string{"LICENSE": "mine"}}, 422) // hidden: as if absent
 	bob.do("PUT", srv+"/startup", map[string]any{"env": map[string]string{"NOPE": "x"}}, 422)
@@ -134,9 +134,10 @@ func TestStartupSettings(t *testing.T) {
 	}
 }
 
-// userID looks up an account's id through the subuser list of the stack's admin.
-func userID(t *testing.T, s *stack, email string) string {
+// bobID looks up the id of bob@example.com, the subuser the tests share.
+func bobID(t *testing.T, s *stack) string {
 	t.Helper()
+	const email = "bob@example.com"
 	var id int64
 	if err := s.st.DB.QueryRowContext(s.ctx, `SELECT id FROM users WHERE email=?`, email).Scan(&id); err != nil {
 		t.Fatal(err)

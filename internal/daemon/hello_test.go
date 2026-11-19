@@ -19,8 +19,9 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
-// helloFrom runs a daemon against a panel that only reads the first frame.
-func helloFrom(t *testing.T, sftp bool) proto.Hello {
+// checkHello runs a daemon against a panel that only reads the first frame
+// and checks the SFTP port the hello reports.
+func checkHello(t *testing.T, sftp bool) {
 	t.Helper()
 	got := make(chan proto.Hello, 1)
 	panel := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,16 +67,14 @@ func helloFrom(t *testing.T, sftp bool) proto.Hello {
 		if h.SFTPPort != want {
 			t.Fatalf("hello reports SFTP port %d, want %d", h.SFTPPort, want)
 		}
-		return h
 	case <-time.After(5 * time.Second):
 		t.Fatal("no hello")
 	}
-	return proto.Hello{}
 }
 
 // The panel builds sftp:// links from the port the daemon reports.
 func TestHelloReportsTheSFTPPort(t *testing.T) {
 	t.Parallel()
-	helloFrom(t, true)
-	helloFrom(t, false)
+	checkHello(t, true)
+	checkHello(t, false)
 }
