@@ -149,9 +149,12 @@ func (h *Hub) Request(ctx context.Context, nodeID int64, typ string, payload any
 		nc.pmu.Unlock()
 	}()
 
-	b, _ := json.Marshal(proto.Envelope{Type: typ, ID: id, Data: proto.Marshal(payload)})
+	b, err := json.Marshal(proto.Envelope{Type: typ, ID: id, Data: proto.Marshal(payload)})
+	if err != nil {
+		return nil, err
+	}
 	nc.wmu.Lock()
-	err := nc.ws.Write(ctx, websocket.MessageText, b)
+	err = nc.ws.Write(ctx, websocket.MessageText, b)
 	nc.wmu.Unlock()
 	if err != nil {
 		return nil, err
@@ -176,7 +179,7 @@ func (h *Hub) Serve(ctx context.Context, ws *websocket.Conn, nodeID int64) {
 	nc := &nodeConn{id: nodeID, ws: ws, pending: map[string]chan proto.Envelope{}}
 	h.mu.Lock()
 	if old := h.nodes[nodeID]; old != nil {
-		old.ws.Close(websocket.StatusPolicyViolation, "replaced by a newer connection")
+		_ = old.ws.Close(websocket.StatusPolicyViolation, "replaced by a newer connection") // its read loop ends and cleans up
 	}
 	h.nodes[nodeID] = nc
 	h.mu.Unlock()
@@ -226,7 +229,10 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		}
 	case proto.EvtHello:
 		var hello proto.Hello
-		json.Unmarshal(env.Data, &hello)
+		if err := json.Unmarshal(env.Data, &hello); err != nil {
+			h.log.Warn("unreadable hello from node", "node", nc.id, "err", err)
+			return
+		}
 		h.mu.Lock()
 		if h.nodes[nc.id] == nc {
 			h.sftp[nc.id] = max(0, min(hello.SFTPPort, 65535))
@@ -322,7 +328,7 @@ func (h *Hub) Disconnect(nodeID int64) {
 	nc := h.nodes[nodeID]
 	h.mu.RUnlock()
 	if nc != nil {
-		nc.ws.Close(websocket.StatusPolicyViolation, "node deleted")
+		_ = nc.ws.Close(websocket.StatusPolicyViolation, "node deleted") // its read loop ends and cleans up
 	}
 }
 
@@ -339,7 +345,8 @@ func (h *Hub) console(c proto.Console) {
 		lines = lines[len(lines)-backlogLines:]
 	}
 	h.mu.Lock()
-	bl := append(h.backlog[c.UUID], lines...)
+	bl := h.backlog[c.UUID]
+	bl = append(bl, lines...)
 	if len(bl) > backlogLines {
 		bl = append([]string(nil), bl[len(bl)-backlogLines:]...)
 	}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -46,9 +47,10 @@ func (a *App) collect(s proto.Stats) {
 	if s.MemBytes > 0 {
 		b.Samples++
 		b.CPUSum += s.CPUPct
-		b.MemSum += int64(s.MemBytes)
+		mem := int64(min(s.MemBytes, math.MaxInt64))
+		b.MemSum += mem
 		b.CPUMax = max(b.CPUMax, s.CPUPct)
-		b.MemMax = max(b.MemMax, int64(s.MemBytes))
+		b.MemMax = max(b.MemMax, mem)
 	}
 }
 

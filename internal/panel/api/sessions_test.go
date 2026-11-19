@@ -143,7 +143,7 @@ func TestRecoveryCodesThroughTheAPI(t *testing.T) {
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)
-	_, codes := enrolTOTP(t, a, bobPW)
+	_, codes := enrolTOTP(t, a)
 	if len(codes) != 10 || len(codes[0]) != 29 {
 		t.Fatalf("codes %q", codes)
 	}

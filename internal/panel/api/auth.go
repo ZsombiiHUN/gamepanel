@@ -88,8 +88,11 @@ func (a *App) registerAuth(api huma.API) {
 		func(ctx context.Context, in *logoutIn) (*logoutOut, error) {
 			// Revoke server-side, not just in the browser, under either cookie name.
 			for _, s := range []string{in.HostSession, in.Session} {
-				if s != "" {
-					a.Store.DeleteSession(ctx, s)
+				if s == "" {
+					continue
+				}
+				if err := a.Store.DeleteSession(ctx, s); err != nil {
+					return nil, huma.Error500InternalServerError("could not sign out; try again", err)
 				}
 			}
 			if u, ok := userFrom(ctx); ok {

@@ -62,7 +62,7 @@ func TestInternalErrorsAreHiddenBehindAReference(t *testing.T) {
 				t.Errorf("%s: %q reached the client: %s", name, leak, detail)
 			}
 		}
-		ref, ok := strings.CutPrefix(detail[strings.Index(detail, "Reference: "):], "Reference: ")
+		_, ref, ok := strings.Cut(detail, "Reference: ")
 		ref = strings.TrimSuffix(ref, ".")
 		if !ok || len(ref) != 8 || !strings.Contains(log.String(), "ref="+ref) {
 			t.Errorf("%s: reference %q missing from the reply or the log\nreply: %s\nlog: %s", name, ref, detail, log)
@@ -88,7 +88,7 @@ func TestMessagesWrittenForPeoplePassThrough(t *testing.T) {
 		want   string
 	}{
 		{userErr(http.StatusUnprocessableEntity, &store.UserError{Msg: "port must be within the node range 25565-25600"}), 422, "port must be within the node range 25565-25600"},
-		{userErr(http.StatusConflict, store.ErrCapacity{Msg: "this node has 512 of 4096 MB memory left"}), 409, "this node has 512 of 4096 MB memory left"},
+		{userErr(http.StatusConflict, store.CapacityError{Msg: "this node has 512 of 4096 MB memory left"}), 409, "this node has 512 of 4096 MB memory left"},
 		{userErr(http.StatusUnprocessableEntity, store.ErrNotFound), 404, "not found"},
 		{nodeErr(proto.Conflict("stop the server first")), 409, "stop the server first"},
 		{nodeErr(&proto.Error{Code: proto.CodeDiskFull, Msg: "disk limit reached"}), 507, "disk limit reached"},

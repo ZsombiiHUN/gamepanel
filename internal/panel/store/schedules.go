@@ -128,20 +128,10 @@ func (s *Store) loadTasks(ctx context.Context, list []Schedule) ([]Schedule, err
 }
 
 func (s *Store) ListSchedules(ctx context.Context, server string) ([]Schedule, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+schedCols+` FROM schedules WHERE server_uuid=? ORDER BY id`, server)
+	out, err := queryAll(ctx, s.DB, scanSchedule, `SELECT `+schedCols+` FROM schedules WHERE server_uuid=? ORDER BY id`, server)
 	if err != nil {
 		return nil, err
 	}
-	var out []Schedule
-	for rows.Next() {
-		v, err := scanSchedule(rows)
-		if err != nil {
-			rows.Close()
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	rows.Close()
 	if out == nil {
 		out = []Schedule{}
 	}
@@ -181,8 +171,10 @@ func (s *Store) SaveSchedule(ctx context.Context, v Schedule) (Schedule, error) 
 	}
 	defer tx.Rollback()
 	if v.ID == 0 {
-		var n int
-		tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM schedules WHERE server_uuid=?`, v.ServerUUID).Scan(&n)
+		n, err := count(ctx, tx, `SELECT COUNT(*) FROM schedules WHERE server_uuid=?`, v.ServerUUID)
+		if err != nil {
+			return v, err
+		}
 		if n >= MaxSchedulesPerServer {
 			return v, userErrf("at most %d schedules per server", MaxSchedulesPerServer)
 		}
@@ -240,20 +232,10 @@ func (s *Store) DeleteSchedule(ctx context.Context, server string, id int64) err
 // advances its next_run, so each firing is claimed by exactly one caller and a
 // panel that was down runs a missed schedule once, not once per missed slot.
 func (s *Store) ClaimDue(ctx context.Context, at time.Time) ([]Schedule, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+schedCols+` FROM schedules WHERE enabled=1 AND next_run>0 AND next_run<=?`, at.Unix())
+	due, err := queryAll(ctx, s.DB, scanSchedule, `SELECT `+schedCols+` FROM schedules WHERE enabled=1 AND next_run>0 AND next_run<=?`, at.Unix())
 	if err != nil {
 		return nil, err
 	}
-	var due []Schedule
-	for rows.Next() {
-		v, err := scanSchedule(rows)
-		if err != nil {
-			rows.Close()
-			return nil, err
-		}
-		due = append(due, v)
-	}
-	rows.Close()
 	var claimed []Schedule
 	for _, v := range due {
 		next := int64(0)
@@ -275,11 +257,11 @@ func (s *Store) SetScheduleStatus(ctx context.Context, id int64, status string) 
 	if len(status) > 300 {
 		status = status[:300]
 	}
-	s.exec(ctx, `UPDATE schedules SET last_status=? WHERE id=?`, status, id)
+	s.execBestEffort(ctx, "schedule status", `UPDATE schedules SET last_status=? WHERE id=?`, status, id)
 }
 
 // TouchSchedule records that a schedule ran just now (manual runs; timer runs
 // are stamped when they are claimed).
 func (s *Store) TouchSchedule(ctx context.Context, id int64) {
-	s.exec(ctx, `UPDATE schedules SET last_run=? WHERE id=?`, now(), id)
+	s.execBestEffort(ctx, "schedule last run", `UPDATE schedules SET last_run=? WHERE id=?`, now(), id)
 }

@@ -52,9 +52,9 @@ func (a *App) consoleWS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer ws.CloseNow()
+	defer ws.CloseNow() //nolint:errcheck // backstop after a clean Close; the socket is gone either way
 	if code, why := a.consoleAccess(r.Context(), uuid); code != 0 {
-		ws.Close(code, why)
+		_ = ws.Close(code, why)
 		return
 	}
 	ctx := ws.CloseRead(r.Context())
@@ -62,14 +62,19 @@ func (a *App) consoleWS(w http.ResponseWriter, r *http.Request) {
 	sub, backlog := a.Hub.Subscribe(uuid)
 	defer a.Hub.Unsubscribe(sub)
 	write := func(ev hub.Event) error {
-		b, _ := json.Marshal(ev)
+		b, err := json.Marshal(ev)
+		if err != nil {
+			return err
+		}
 		wctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		return ws.Write(wctx, websocket.MessageText, b)
 	}
-	write(hub.Event{Type: "state", Data: proto.Marshal(proto.State{UUID: uuid, State: a.Hub.State(uuid)})})
-	if len(backlog) > 0 {
-		write(hub.Event{Type: "console", Data: proto.Marshal(proto.Console{UUID: uuid, Lines: backlog})})
+	if write(hub.Event{Type: "state", Data: proto.Marshal(proto.State{UUID: uuid, State: a.Hub.State(uuid)})}) != nil {
+		return
+	}
+	if len(backlog) > 0 && write(hub.Event{Type: "console", Data: proto.Marshal(proto.Console{UUID: uuid, Lines: backlog})}) != nil {
+		return
 	}
 	recheck := time.NewTicker(a.AuthRecheck)
 	defer recheck.Stop()
@@ -79,7 +84,7 @@ func (a *App) consoleWS(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-recheck.C:
 			if code, why := a.consoleAccess(ctx, uuid); code != 0 {
-				ws.Close(code, why)
+				_ = ws.Close(code, why)
 				return
 			}
 		case ev := <-sub.C:

@@ -21,8 +21,9 @@ const bobEmail, bobPW = "bob@example.com", "another-long-password"
 
 // enrolTOTP turns two-factor on for the signed-in client and returns the
 // secret and recovery codes. Enrolment uses the current step.
-func enrolTOTP(t *testing.T, c *cl, pw string) (string, []string) {
+func enrolTOTP(t *testing.T, c *cl) (string, []string) {
 	t.Helper()
+	pw := bobPW
 	var setup struct{ Secret string }
 	_, body := c.do("POST", "/api/auth/totp/setup", map[string]string{"password": pw}, nil)
 	json.Unmarshal(body, &setup)
@@ -52,7 +53,7 @@ func TestSecondFactorLockoutSurvivesRestart(t *testing.T) {
 	e := newEnv(t, "127.0.0.1")
 	a := e.client()
 	a.login(bobEmail, bobPW)
-	secret, recovery := enrolTOTP(t, a, bobPW)
+	secret, recovery := enrolTOTP(t, a)
 
 	try := func(e *env, code string, ip string) int {
 		c, _ := e.client().do("POST", "/api/auth/login",
@@ -126,7 +127,7 @@ func TestAPIKeyNeedsSecondFactor(t *testing.T) {
 	e := newEnv(t, "")
 	a := e.client()
 	a.login(bobEmail, bobPW)
-	secret, _ := enrolTOTP(t, a, bobPW)
+	secret, _ := enrolTOTP(t, a)
 	if code, body := a.do("POST", "/api/auth/keys", map[string]any{"name": "ci", "password": bobPW}, nil); code != 403 || !strings.Contains(string(body), "totp_required") {
 		t.Fatalf("no code: %d %s", code, body)
 	}
@@ -324,7 +325,7 @@ func TestPasswordChangeNeedsSecondFactor(t *testing.T) {
 	a, b := e.client(), e.client()
 	a.login(bobEmail, bobPW)
 	b.login(bobEmail, bobPW)
-	secret, recovery := enrolTOTP(t, a, bobPW)
+	secret, recovery := enrolTOTP(t, a)
 	const next = "a-brand-new-passphrase"
 	change := func(cur, nw, code string) (int, string) {
 		body := map[string]string{"current_password": cur, "new_password": nw}

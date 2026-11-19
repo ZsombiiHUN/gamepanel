@@ -91,7 +91,14 @@ func userErr(status int, err error) error {
 func writeProblem(w http.ResponseWriter, status int, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(huma.ErrorModel{Status: status, Title: http.StatusText(status), Detail: detail})
+	writeBody(w, huma.ErrorModel{Status: status, Title: http.StatusText(status), Detail: detail})
+}
+
+// writeBody encodes v as JSON after the status line has been sent. A failure
+// here means the client went away mid-response; there is nobody left to tell,
+// so the error is dropped on purpose.
+func writeBody(w http.ResponseWriter, v any) {
+	_ = json.NewEncoder(w).Encode(v) //nolint:errchkjson // see above: the client is gone
 }
 
 // safeMessage returns err's message when it was written for people: a
@@ -99,7 +106,7 @@ func writeProblem(w http.ResponseWriter, status int, detail string) {
 // offline or slow.
 func safeMessage(err error) (string, bool) {
 	var ue *store.UserError
-	var ce store.ErrCapacity
+	var ce store.CapacityError
 	switch {
 	case err == nil:
 		return "", false

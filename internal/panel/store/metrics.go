@@ -18,10 +18,10 @@ type Metric struct {
 
 // Resolutions and how long each is kept.
 const (
-	MetricMinute  = 60
-	MetricQuarter = 900
-	keepMinutes   = 48 * time.Hour
-	keepQuarters  = 30 * 24 * time.Hour
+	MetricMinute    = 60
+	MetricQuarter   = 900
+	keepMinuteRows  = 48 * time.Hour
+	keepQuarterRows = 30 * 24 * time.Hour
 )
 
 // MetricBucket is what the panel collected for one server in one minute.
@@ -63,7 +63,7 @@ func (s *Store) SaveMetrics(ctx context.Context, bs []MetricBucket) error {
 // RollupMetrics folds minute buckets older than two days into quarter-hour
 // buckets and drops what is past its keeping time.
 func (s *Store) RollupMetrics(ctx context.Context, now time.Time) error {
-	cut := now.Add(-keepMinutes).Unix()
+	cut := now.Add(-keepMinuteRows).Unix()
 	cut -= cut % MetricQuarter // whole quarters only
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -83,7 +83,7 @@ func (s *Store) RollupMetrics(ctx context.Context, now time.Time) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM server_metrics WHERE res=? AND at<?`, MetricMinute, cut); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM server_metrics WHERE res=? AND at<?`, MetricQuarter, now.Add(-keepQuarters).Unix()); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM server_metrics WHERE res=? AND at<?`, MetricQuarter, now.Add(-keepQuarterRows).Unix()); err != nil {
 		return err
 	}
 	return tx.Commit()

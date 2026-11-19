@@ -17,8 +17,8 @@ type limiter struct {
 // sweepAbove is how many keys the map may hold before stale ones are dropped.
 const sweepAbove = 4096
 
-func newLimiter(max int, win time.Duration) *limiter {
-	return &limiter{max: max, win: win, hits: map[string][]time.Time{}}
+func newLimiter(limit int, win time.Duration) *limiter {
+	return &limiter{max: limit, win: win, hits: map[string][]time.Time{}}
 }
 
 // allow records a hit for key and reports whether it is within the limit.

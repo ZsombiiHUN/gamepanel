@@ -281,7 +281,7 @@ type State struct {
 	State string `json:"state"` // offline | starting | running | stopping | crashed
 }
 
-// StateCrashed: the server crashed and was not restarted (restarts are off,
+// StateCrashed means the server crashed and was not restarted (restarts are off,
 // or it crashed again too soon). It is stopped.
 const StateCrashed = "crashed"
 

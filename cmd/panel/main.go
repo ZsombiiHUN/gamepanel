@@ -52,6 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer st.Close()
+	st.Log = log
 
 	if err := loadSecretKey(st, dbPath); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -189,7 +190,7 @@ func main() {
 		deps.Mail = mailer
 	}
 	handler := api.New(deps)
-	if st.CountUsers(context.Background()) == 0 {
+	if n, err := st.CountUsers(context.Background()); err == nil && n == 0 {
 		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")
 	}
 	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}

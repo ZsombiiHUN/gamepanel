@@ -22,7 +22,7 @@ func (s *Store) UserByIdentity(ctx context.Context, provider, subject string) (U
 	return u, nf(err)
 }
 
-// ErrIdentityTaken: the identity is linked to another account.
+// ErrIdentityTaken means the identity is linked to another account.
 var ErrIdentityTaken = userErr("that sign-in is already linked to another account")
 
 // LinkIdentity links an identity to an account (relinking to the same
@@ -55,7 +55,7 @@ func (s *Store) ListIdentities(ctx context.Context, userID int64) ([]Identity, e
 	return out, rows.Err()
 }
 
-// ErrLastSignIn: removing this would leave the account no way to sign in.
+// ErrLastSignIn means removing this would leave the account no way to sign in.
 var ErrLastSignIn = userErr("this is your only way to sign in; set a password or link another first")
 
 // UnlinkIdentity removes a provider from an account, unless it is the
@@ -71,8 +71,10 @@ func (s *Store) UnlinkIdentity(ctx context.Context, userID int64, provider strin
 	if err := tx.QueryRowContext(ctx, `SELECT has_password,(SELECT COUNT(*) FROM user_identities WHERE user_id=users.id AND provider<>?) FROM users WHERE id=?`, provider, userID).Scan(&hasPw, &others); err != nil {
 		return nf(err)
 	}
-	var passkeys int
-	tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM passkeys WHERE user_id=?`, userID).Scan(&passkeys)
+	passkeys, err := count(ctx, tx, `SELECT COUNT(*) FROM passkeys WHERE user_id=?`, userID)
+	if err != nil {
+		return err
+	}
 	if !hasPw && others == 0 && passkeys == 0 {
 		return ErrLastSignIn
 	}
@@ -114,10 +116,10 @@ func (s *Store) CreateSSOUser(ctx context.Context, email, provider, subject, inv
 }
 
 // HasPassword reports whether an account has a password it can sign in with.
-func (s *Store) HasPassword(ctx context.Context, userID int64) bool {
+func (s *Store) HasPassword(ctx context.Context, userID int64) (bool, error) {
 	var has bool
-	s.DB.QueryRowContext(ctx, `SELECT has_password FROM users WHERE id=?`, userID).Scan(&has)
-	return has
+	err := s.DB.QueryRowContext(ctx, `SELECT has_password FROM users WHERE id=?`, userID).Scan(&has)
+	return has, nf(err)
 }
 
 // SetFirstPassword gives a password to an account that has none (made

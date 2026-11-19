@@ -29,7 +29,7 @@ type pteroObj struct {
 func pteroJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	writeBody(w, v)
 }
 
 // pteroError answers in Pterodactyl's error format.
@@ -189,7 +189,9 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return err
 		}
 		var in struct{ Signal string }
-		json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in)
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil {
+			return huma.Error422UnprocessableEntity("The request body must be JSON.")
+		}
 		switch in.Signal {
 		case "start", "stop", "restart", "kill":
 		default:
@@ -208,7 +210,9 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return err
 		}
 		var in struct{ Command string }
-		json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&in)
+		if err := json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&in); err != nil {
+			return huma.Error422UnprocessableEntity("The request body must be JSON.")
+		}
 		if in.Command == "" || len(in.Command) > 2048 || strings.ContainsAny(in.Command, "\r\n") {
 			return huma.Error422UnprocessableEntity("The command must be one line.")
 		}
@@ -238,7 +242,9 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return nodeErr(err)
 		}
 		var list []proto.FileInfo
-		json.Unmarshal(raw, &list)
+		if err := decodeReply(raw, &list); err != nil {
+			return err
+		}
 		data := []any{}
 		for _, f := range list {
 			mod := time.Unix(f.ModUnix, 0).UTC().Format(time.RFC3339)
@@ -262,7 +268,8 @@ func (a *App) registerPtero(mux *http.ServeMux) {
 			return err
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(b)
+		// text/plain with nosniff (set for every response in api.go): never rendered as HTML.
+		_, _ = w.Write(b) //nolint:gosec // G705: see above; a failed write means the client went away
 		return nil
 	})
 

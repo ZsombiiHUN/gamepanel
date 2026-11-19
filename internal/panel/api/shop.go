@@ -82,7 +82,7 @@ func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int6
 		if err == nil {
 			return s, nil
 		}
-		var ce store.ErrCapacity
+		var ce store.CapacityError
 		var ue *store.UserError
 		if errors.Is(err, store.ErrExternalIDTaken) || (!errors.As(err, &ce) && !errors.As(err, &ue)) {
 			return s, createErr(err)

@@ -28,7 +28,7 @@ import (
 func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 	deny := func() {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(proto.SFTPAuthResp{})
+		writeBody(w, proto.SFTPAuthResp{})
 	}
 	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	node, err := a.Store.NodeByToken(r.Context(), tok)
@@ -61,7 +61,7 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 		if !req.Recheck {
 			a.fails.add(acct)
 			a.fails.add(byIP)
-			a.Store.Audit(r.Context(), storeAudit(email, "sftp.fail", prefix, req.IP))
+			a.auditEntry(r.Context(), storeAudit(email, "sftp.fail", prefix, req.IP))
 		}
 		deny()
 	}
@@ -87,10 +87,10 @@ func (a *App) sftpAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	if !req.Recheck {
 		a.fails.reset(acct)
-		a.Store.Audit(r.Context(), storeAudit(email, "sftp.login", s.UUID, req.IP))
+		a.auditEntry(r.Context(), storeAudit(email, "sftp.login", s.UUID, req.IP))
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(proto.SFTPAuthResp{OK: true, ServerUUID: s.UUID, Read: read, Write: write})
+	writeBody(w, proto.SFTPAuthResp{OK: true, ServerUUID: s.UUID, Read: read, Write: write})
 }
 
 func storeAudit(email, action, target, ip string) store.AuditEntry {

@@ -93,7 +93,11 @@ func (a *App) emit(ctx context.Context, event string, data any) {
 }
 
 func (a *App) emitTo(ctx context.Context, event string, data any, hookID int64) int {
-	body, _ := json.Marshal(webhookEvent{ID: newUUID(), Event: event, CreatedAt: time.Now().Unix(), Data: data})
+	body, err := json.Marshal(webhookEvent{ID: newUUID(), Event: event, CreatedAt: time.Now().Unix(), Data: data})
+	if err != nil {
+		a.Log.Error("could not encode a webhook event", "event", event, "err", err)
+		return 0
+	}
 	n, err := a.Store.QueueEvent(context.WithoutCancel(ctx), event, string(body), hookID)
 	if err != nil {
 		a.Log.Error("could not queue a webhook event", "event", event, "err", err)
@@ -190,7 +194,8 @@ func (a *App) post(ctx context.Context, h store.Webhook, d store.Delivery) (int,
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+		// Drain so the connection can be reused; a short read only costs that.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 		return resp.StatusCode, ""
 	}
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 300))

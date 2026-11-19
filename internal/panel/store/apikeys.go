@@ -20,8 +20,10 @@ const maxKeysPerUser = 25
 
 // CreateAPIKey returns the metadata and the secret, which is shown only once.
 func (s *Store) CreateAPIKey(ctx context.Context, userID int64, name string, ttl time.Duration) (APIKey, string, error) {
-	var n int
-	s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_keys WHERE user_id=?`, userID).Scan(&n)
+	n, err := count(ctx, s.DB, `SELECT COUNT(*) FROM api_keys WHERE user_id=?`, userID)
+	if err != nil {
+		return APIKey{}, "", err
+	}
 	if n >= maxKeysPerUser {
 		return APIKey{}, "", userErr("too many API keys; delete unused ones first")
 	}
@@ -83,7 +85,7 @@ func (s *Store) UserByAPIKey(ctx context.Context, token string) (User, error) {
 		return User{}, nf(err)
 	}
 	if now()-last > 60 {
-		s.exec(ctx, `UPDATE api_keys SET last_used_at=? WHERE id=?`, now(), keyID)
+		s.execBestEffort(ctx, "api key last used", `UPDATE api_keys SET last_used_at=? WHERE id=?`, now(), keyID)
 	}
 	return u, nil
 }

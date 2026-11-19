@@ -200,7 +200,8 @@ func (c *Client) request(ctx context.Context, method string, u *url.URL, q url.V
 			Code    string `xml:"Code"`
 			Message string `xml:"Message"`
 		}
-		xml.Unmarshal(out, &e)
+		// Not every error has an S3 XML body (proxies, 5xx pages); the status alone is still reported.
+		_ = xml.Unmarshal(out, &e)
 		return nil, &Error{Status: resp.StatusCode, Code: e.Code, Message: e.Message}
 	}
 	return out, nil

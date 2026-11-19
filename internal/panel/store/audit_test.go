@@ -14,7 +14,9 @@ func seedAudit(t *testing.T, s *Store) {
 		{ActorEmail: "admin@example.com", Action: "server.create", Target: "abc-123", Detail: "Survival SMP"},
 		{ActorEmail: "admin@example.com", Action: "node.capacity", Target: "1", Detail: "mem=100% disk=_x"},
 	} {
-		s.Audit(ctx, e)
+		if err := s.Audit(ctx, e); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

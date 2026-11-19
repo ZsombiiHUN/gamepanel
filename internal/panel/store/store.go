@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,7 +21,7 @@ import (
 	"time"
 
 	"github.com/pressly/goose/v3"
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
 )
 
 //go:embed migrations/*.sql
@@ -33,6 +34,10 @@ type Store struct {
 	// SessionMax is how long a session lasts from sign-in, however busy it
 	// is; SessionIdle ends it sooner when it goes unused. Set before serving.
 	SessionMax, SessionIdle time.Duration
+
+	// Log receives failures of best-effort writes (usage stamps, schedule
+	// status) that must not fail the request that caused them.
+	Log *slog.Logger
 }
 
 // Session lifetimes (ASVS v5.0.0-7.3.1 and v5.0.0-7.3.2; values from the NIST
@@ -52,16 +57,21 @@ func Open(path string) (*Store, error) {
 			return nil, err
 		}
 	}
+	// The database holds password hashes and node tokens: create it readable
+	// by the panel's user only. SQLite gives its -wal and -shm files the same
+	// mode as the database.
+	if err := createPrivate(path); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
 	if err := migrate(db); err != nil {
-		db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
-	return &Store{DB: db, SessionMax: DefaultSessionMax, SessionIdle: DefaultSessionIdle}, nil
+	return &Store{DB: db, SessionMax: DefaultSessionMax, SessionIdle: DefaultSessionIdle, Log: slog.Default()}, nil
 }
 
 // migrator applies the embedded migrations to db. It keeps no package state
@@ -107,7 +117,7 @@ func seedFromTemplate(path string) error {
 			template.err = err
 			return
 		}
-		defer os.RemoveAll(dir)
+		defer func() { template.err = errors.Join(template.err, os.RemoveAll(dir)) }()
 		db, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "t.db")+"?_pragma=foreign_keys(1)")
 		if err != nil {
 			template.err = err
@@ -119,7 +129,7 @@ func seedFromTemplate(path string) error {
 			template.err = err
 			return
 		}
-		if _, err := db.Exec(`VACUUM INTO ?`, out); err != nil {
+		if _, err := db.ExecContext(context.Background(), `VACUUM INTO ?`, out); err != nil {
 			template.err = err
 			return
 		}
@@ -128,7 +138,21 @@ func seedFromTemplate(path string) error {
 	if template.err != nil {
 		return fmt.Errorf("store template: %w", template.err)
 	}
-	return os.WriteFile(path, template.data, 0o644)
+	return os.WriteFile(path, template.data, 0o600)
+}
+
+// createPrivate creates an empty file at path with mode 0600 unless something
+// already exists there. Existing databases keep their mode (an operator may
+// have chosen it).
+func createPrivate(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, fs.ErrExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }
 
 func (s *Store) Close() error { return s.DB.Close() }
@@ -153,4 +177,12 @@ func HashToken(t string) string {
 
 func (s *Store) exec(ctx context.Context, q string, a ...any) (sql.Result, error) {
 	return s.DB.ExecContext(ctx, q, a...)
+}
+
+// execBestEffort runs a write whose failure must not fail the caller, such as
+// a last-used timestamp. The failure is logged rather than dropped.
+func (s *Store) execBestEffort(ctx context.Context, what, q string, a ...any) {
+	if _, err := s.DB.ExecContext(ctx, q, a...); err != nil {
+		s.Log.WarnContext(ctx, "best-effort database write failed", "what", what, "err", err)
+	}
 }

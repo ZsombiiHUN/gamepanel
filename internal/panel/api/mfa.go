@@ -187,7 +187,10 @@ func (a *App) registerMFA(api huma.API) {
 			if err := a.Store.DisableTOTP(ctx, u.ID); err != nil {
 				return nil, huma.Error500InternalServerError("db error")
 			}
-			a.Store.DeleteOtherSessions(ctx, u.ID, sessionToken(ctx))
+			if err := a.Store.DeleteOtherSessions(ctx, u.ID, sessionToken(ctx)); err != nil {
+				a.audit(ctx, u, "totp.disable", u.Email, "revoking other sessions failed")
+				return nil, huma.Error500InternalServerError("two-factor sign-in is off, but signing out your other sessions failed; sign them out from the sessions list", err)
+			}
 			a.audit(ctx, u, "totp.disable", u.Email, "other sessions revoked")
 			return nil, nil
 		})

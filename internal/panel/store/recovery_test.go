@@ -35,14 +35,14 @@ func TestRecoveryCodeStrength(t *testing.T) {
 		}
 		seen[c] = true
 	}
-	var stored []string
-	rows, _ := s.DB.Query(`SELECT code_hash FROM recovery_codes WHERE user_id=?`, u.ID)
-	for rows.Next() {
+	stored, err := queryAll(context.Background(), s.DB, func(sc rowScanner) (string, error) {
 		var h string
-		rows.Scan(&h)
-		stored = append(stored, h)
+		err := sc.Scan(&h)
+		return h, err
+	}, `SELECT code_hash FROM recovery_codes WHERE user_id=?`, u.ID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	rows.Close()
 	if len(stored) != RecoveryCodeCount || strings.Contains(strings.Join(stored, ","), strings.ReplaceAll(codes[0], "-", "")) {
 		t.Fatalf("codes stored wrongly: %v", stored)
 	}

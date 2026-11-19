@@ -88,7 +88,7 @@ func verifyTOTP(secret []byte, code string, at time.Time, lastStep int64) (int64
 	var hit int64
 	for d := int64(-1); d <= 1; d++ { // no early exit: constant work per attempt
 		step := cur + d
-		if hmac.Equal([]byte(hotp(secret, uint64(step))), []byte(code)) && step > lastStep {
+		if hmac.Equal([]byte(hotp(secret, uint64(max(step, 0)))), []byte(code)) && step > lastStep {
 			hit = step
 		}
 	}
@@ -126,7 +126,7 @@ func (s *Store) BeginTOTP(ctx context.Context, userID int64) (string, error) {
 func (s *Store) totpSecret(ctx context.Context, userID int64) (secret []byte, enabled bool, last int64, err error) {
 	var enc string
 	var en int
-	if err = s.DB.QueryRowContext(ctx, `SELECT totp_secret,totp_enabled,totp_last_step FROM users WHERE id=?`, userID).Scan(&enc, &en, &last); err != nil {
+	if err := s.DB.QueryRowContext(ctx, `SELECT totp_secret,totp_enabled,totp_last_step FROM users WHERE id=?`, userID).Scan(&enc, &en, &last); err != nil {
 		return secret, enabled, last, err
 	}
 	if enc == "" {
@@ -246,7 +246,7 @@ func (s *Store) RecoveryCodeStatus(ctx context.Context, userID int64) (RecoveryS
 	return st, err
 }
 
-// ErrSecondFactorLocked: too many wrong authenticator codes in a row; the
+// ErrSecondFactorLocked means too many wrong authenticator codes in a row; the
 // account must wait (or use a recovery code) before trying another.
 var ErrSecondFactorLocked = userErr("too many wrong codes: wait before trying again, or use a recovery code")
 
@@ -293,7 +293,7 @@ func (s *Store) VerifySecondFactor(ctx context.Context, userID int64, code strin
 		return "", err
 	}
 	if n, _ := res.RowsAffected(); n == 1 {
-		s.exec(ctx, `UPDATE users SET mfa_fail_count=0, mfa_locked_until=0 WHERE id=?`, userID)
+		s.execBestEffort(ctx, "reset second-factor failures", `UPDATE users SET mfa_fail_count=0, mfa_locked_until=0 WHERE id=?`, userID)
 		return "recovery", nil
 	}
 	return "", bad
