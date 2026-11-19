@@ -132,7 +132,7 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 		hc.CpusetCpus = s.CPUSet
 	}
 	if s.IOWeight > 0 {
-		hc.BlkioWeight = uint16(s.IOWeight)
+		hc.BlkioWeight = uint16(min(s.IOWeight, 1000)) // the panel allows 10-1000
 	}
 
 	_, err = d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
@@ -314,7 +314,8 @@ func (d *Docker) Events(ctx context.Context) (<-chan Event, error) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-res.Err:
+			case err := <-res.Err:
+				_ = err // the closed channel tells the caller to subscribe again
 				return
 			case m, ok := <-res.Messages:
 				if !ok {
@@ -383,7 +384,7 @@ func (d *Docker) List(ctx context.Context) ([]string, error) {
 // hung script must not hold the server forever.
 const installTimeout = 30 * time.Minute
 
-var numericIDRe = regexp.MustCompile(`^[0-9]+(:[0-9]+)?$`)
+var numericIDRe = regexp.MustCompile(`^\d+(:\d+)?$`)
 
 // Install runs the egg's install script in a throwaway container.
 //

@@ -218,7 +218,7 @@ func TestDiskReservationsCannotShareHeadroom(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := d.reserveDisk(id, 700<<10)
-	var full ErrDiskFull
+	var full DiskFullError
 	if !errors.As(err, &full) || proto.CodeOf(err) != proto.CodeDiskFull {
 		t.Fatalf("second 700 KB reservation should fail with disk_full, got %v", err)
 	}

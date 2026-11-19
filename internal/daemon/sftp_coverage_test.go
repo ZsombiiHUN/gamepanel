@@ -408,7 +408,7 @@ func TestSFTPReinstallKeepsSessionsAndRemeasures(t *testing.T) {
 	}
 	r.p.grant("inst", "gp_inst", authOK(id, true, true))
 	c := r.login("inst", "gp_inst")
-	if _, err := r.d.diskUsage(id, 0); err != nil {
+	if _, err := r.d.diskUsage(id); err != nil {
 		t.Fatal(err)
 	}
 	// the game writes behind the figure's back; the reinstall must not keep it
@@ -524,7 +524,7 @@ func TestSFTPSetstatCombined(t *testing.T) {
 	h := sftpHandler(t, d, id)
 	p := d.serverDir(id) + "/f.txt"
 	os.WriteFile(p, []byte("0123456789"), 0o644)
-	if _, err := d.diskUsage(id, 0); err != nil {
+	if _, err := d.diskUsage(id); err != nil {
 		t.Fatal(err)
 	}
 
