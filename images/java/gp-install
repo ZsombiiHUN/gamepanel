@@ -1,0 +1,292 @@
+#!/bin/bash
+# gp-install: downloads a Minecraft server or proxy into the current directory
+# and records how gp-java should start it (.gamepanel/). It is the install
+# script of GamePanel's own Minecraft eggs; the egg runs "gp-install <kind>".
+#
+#   kinds: paper purpur folia vanilla fabric forge neoforge velocity bungeecord
+#
+# Environment (egg variables):
+#   MINECRAFT_VERSION  "latest" (default) or a version such as 1.21.11 or 26.3
+#   BUILD_NUMBER       paper/purpur/folia/velocity build, "latest" (default)
+#   LOADER_VERSION     fabric/forge/neoforge loader, "latest" (default);
+#                      forge also takes "recommended"
+#
+# Every download is checked against the checksum its source publishes, where
+# the source publishes one.
+set -euo pipefail
+
+UA="GamePanel-eggs/1 (+https://github.com/ZsombiiHUN/gamepanel)"
+META=.gamepanel
+
+say() { printf '[gp-install] %s\n' "$*"; }
+die() { say "error: $*" >&2; exit 1; }
+get() { curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 -A "$UA" "$@"; }
+json() { get "$1" || die "could not reach $1"; }
+
+# fetch URL FILE [ALGO SUM]: download to FILE, verify the checksum if given.
+fetch() {
+	local url=$1 out=$2 algo=${3:-} sum=${4:-}
+	say "downloading $url"
+	get -o "$out.part" "$url" || die "download failed: $url"
+	if [ -n "$sum" ]; then
+		echo "$sum  $out.part" | "${algo}sum" -c --quiet - || die "checksum mismatch for $out"
+	fi
+	mv -f "$out.part" "$out"
+}
+
+want() { # value: "latest" when empty
+	local v=${1:-latest}
+	[[ $v =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || die "invalid version \"$v\""
+	echo "$v"
+}
+
+# Remove the jar a previous install recorded, so a reinstall or version change
+# does not leave stale server jars behind.
+clean_previous() {
+	if [ -s "$META/jar" ]; then
+		local old
+		old=$(cat "$META/jar")
+		case $old in */* | ..*) ;; *) rm -f -- "$old" ;; esac
+	fi
+	rm -f "$META/launch" "$META/java-min" "$META/java-rec" "$META/g1-flags" "$META/jar"
+}
+
+record() { # launch-target jar java-min java-rec
+	mkdir -p "$META"
+	printf '%s\n' "$1" >"$META/launch"
+	[ -n "$2" ] && printf '%s\n' "$2" >"$META/jar"
+	[ -n "$3" ] && printf '%s\n' "$3" >"$META/java-min"
+	[ -n "$4" ] && printf '%s\n' "$4" >"$META/java-rec"
+	say "installed; started with: java ... $1"
+}
+
+# --- Mojang ---------------------------------------------------------------------
+MANIFEST=""
+manifest() { [ -n "$MANIFEST" ] || MANIFEST=$(json https://piston-meta.mojang.com/mc/game/version_manifest_v2.json); echo "$MANIFEST"; }
+mc_latest() { manifest | jq -r '.latest.release'; }
+mc_json() { # version -> its version JSON
+	local url
+	url=$(manifest | jq -r --arg v "$1" '.versions[] | select(.id == $v) | .url')
+	[ -n "$url" ] || die "Minecraft version $1 does not exist"
+	json "$url"
+}
+mc_java() { mc_json "$1" | jq -r '.javaVersion.majorVersion // 8'; } # Java Mojang ships with it
+
+# --- PaperMC (Paper, Folia, Velocity) ------------------------------------------
+FILL=https://fill.papermc.io/v3/projects
+
+# The newest STABLE (or RECOMMENDED) build of a version, or the newest build at all.
+fill_build() { # project version build -> build JSON
+	local builds
+	builds=$(json "$FILL/$1/versions/$2/builds")
+	if [ "$3" != latest ]; then
+		jq -e --argjson b "$3" '.[] | select(.id == $b)' <<<"$builds" || die "$1 $2 has no build $3"
+		return
+	fi
+	jq -e '[.[] | select(.channel == "STABLE" or .channel == "RECOMMENDED")] | max_by(.id) // empty' <<<"$builds" && return
+	say "warning: $1 $2 has no stable build yet; using the newest experimental build"
+	jq -e 'max_by(.id) // empty' <<<"$builds" || die "$1 $2 has no builds"
+}
+
+fill_version() { # project wanted -> version id
+	local versions
+	versions=$(json "$FILL/$1/versions")
+	if [ "$2" != latest ]; then
+		jq -e -r --arg v "$2" '.versions[] | select(.version.id == $v) | .version.id' <<<"$versions" >/dev/null \
+			|| die "$1 has no version $2"
+		echo "$2"
+		return
+	fi
+	# Newest release (no -SNAPSHOT/-rc/-pre suffix) that has a stable build.
+	local v
+	for v in $(jq -r '.versions[].version.id | select(test("-") | not)' <<<"$versions"); do
+		if json "$FILL/$1/versions/$v/builds" | jq -e 'any(.[]; .channel == "STABLE" or .channel == "RECOMMENDED")' >/dev/null; then
+			echo "$v"
+			return
+		fi
+	done
+	die "$1 has no stable release"
+}
+
+fill_flags() { # project version -> writes .gamepanel/g1-flags from the project's recommendation
+	local flags
+	flags=$(json "$FILL/$1/versions/$2" | jq -r '.version.java.flags.recommended // [] | .[]')
+	# Heap size and pre-touch are gp-java's call; keep only GC tuning.
+	flags=$(grep -vE '^-Xm[sx]|AlwaysPreTouch|DisableExplicitGC|PerfDisableSharedMem' <<<"$flags" || true)
+	if [ -n "$flags" ]; then
+		mkdir -p "$META"
+		printf '%s\n' "$flags" >"$META/g1-flags"
+	fi
+}
+
+install_fill() { # project
+	local project=$1 v b name url sum jmin
+	v=$(fill_version "$project" "$(want "${MINECRAFT_VERSION:-}")")
+	b=$(fill_build "$project" "$v" "$(want "${BUILD_NUMBER:-}")")
+	name=$(jq -r '.downloads["server:default"].name' <<<"$b")
+	url=$(jq -r '.downloads["server:default"].url' <<<"$b")
+	sum=$(jq -r '.downloads["server:default"].checksums.sha256' <<<"$b")
+	[[ $name =~ ^[A-Za-z0-9._+-]+\.jar$ ]] || die "unexpected file name from PaperMC: $name"
+	say "$project $v build $(jq -r .id <<<"$b") ($(jq -r .channel <<<"$b"))"
+	clean_previous
+	fetch "$url" "$name" sha256 "$sum"
+	jmin=$(json "$FILL/$project/versions/$v" | jq -r '.version.java.version.minimum // empty')
+	[ "$project" = velocity ] || fill_flags "$project" "$v"
+	local rec=""
+	[ "$project" = velocity ] || rec=$(mc_java "$v")
+	record "-jar $name" "$name" "$jmin" "$rec"
+}
+
+# --- Purpur ---------------------------------------------------------------------
+install_purpur() {
+	local v b info
+	v=$(want "${MINECRAFT_VERSION:-}")
+	[ "$v" = latest ] && v=$(json https://api.purpurmc.org/v2/purpur | jq -r '.versions[-1]')
+	b=$(want "${BUILD_NUMBER:-}")
+	info=$(json "https://api.purpurmc.org/v2/purpur/$v/$b")
+	[ "$(jq -r .result <<<"$info")" = SUCCESS ] || die "Purpur $v build $b did not build successfully"
+	b=$(jq -r .build <<<"$info")
+	say "purpur $v build $b"
+	clean_previous
+	fetch "https://api.purpurmc.org/v2/purpur/$v/$b/download" "purpur-$v-$b.jar" md5 "$(jq -r .md5 <<<"$info")"
+	fill_flags paper "$v" 2>/dev/null || true # Purpur is a Paper fork: same GC advice
+	local jr
+	jr=$(mc_java "$v")
+	record "-jar purpur-$v-$b.jar" "purpur-$v-$b.jar" "$jr" "$jr"
+}
+
+# --- Vanilla --------------------------------------------------------------------
+install_vanilla() {
+	local v vj
+	v=$(want "${MINECRAFT_VERSION:-}")
+	[ "$v" = latest ] && v=$(mc_latest)
+	vj=$(mc_json "$v")
+	jq -e '.downloads.server' <<<"$vj" >/dev/null || die "Minecraft $v has no server download"
+	say "vanilla $v"
+	clean_previous
+	fetch "$(jq -r .downloads.server.url <<<"$vj")" "minecraft-$v.jar" sha1 "$(jq -r .downloads.server.sha1 <<<"$vj")"
+	local jr
+	jr=$(jq -r '.javaVersion.majorVersion // 8' <<<"$vj")
+	record "-jar minecraft-$v.jar" "minecraft-$v.jar" "$jr" "$jr"
+}
+
+# --- Fabric ---------------------------------------------------------------------
+install_fabric() {
+	local v loader inst
+	v=$(want "${MINECRAFT_VERSION:-}")
+	[ "$v" = latest ] && v=$(json https://meta.fabricmc.net/v2/versions/game | jq -r '[.[] | select(.stable)][0].version')
+	loader=$(want "${LOADER_VERSION:-}")
+	if [ "$loader" = latest ]; then
+		loader=$(json "https://meta.fabricmc.net/v2/versions/loader/$v" | jq -r '[.[] | select(.loader.stable)][0].loader.version // empty')
+		[ -n "$loader" ] || die "Fabric does not support Minecraft $v"
+	fi
+	inst=$(json https://meta.fabricmc.net/v2/versions/installer | jq -r '[.[] | select(.stable)][0].version')
+	say "fabric $v, loader $loader"
+	clean_previous
+	fetch "https://meta.fabricmc.net/v2/versions/loader/$v/$loader/$inst/server/jar" fabric-server-launch.jar
+	local jr
+	jr=$(mc_java "$v")
+	# The launcher downloads the vanilla server on first start.
+	record "-jar fabric-server-launch.jar" fabric-server-launch.jar "$jr" "$jr"
+}
+
+# --- Forge and NeoForge -----------------------------------------------------------
+# Both ship an installer that lays out libraries/ and an argument file.
+run_installer() { # url name
+	clean_previous
+	fetch "$1" installer.jar
+	say "running the $2 installer (this takes a minute)"
+	java -jar installer.jar --installServer >installer.log 2>&1 || {
+		tail -n 30 installer.log
+		die "the $2 installer failed (full log: installer.log)"
+	}
+	rm -f installer.jar installer.jar.log
+	# The installer writes run.sh/run.bat for its own launcher; gp-java replaces them.
+	rm -f run.sh run.bat user_jvm_args.txt
+}
+
+launch_target() { # libraries-path-of-loader version -> launch target
+	local args
+	args=$(find "libraries/$1" -path "*$2*/unix_args.txt" 2>/dev/null | head -n1)
+	if [ -n "$args" ]; then
+		echo "@$args"
+		return
+	fi
+	# Before 1.17 the installer produced a runnable jar instead.
+	local jar
+	jar=$(find . -maxdepth 1 -name "*$2*.jar" ! -name '*installer*' | head -n1)
+	[ -n "$jar" ] || die "the installer produced nothing runnable"
+	echo "-jar ${jar#./}"
+}
+
+install_forge() {
+	local v fv promos
+	v=$(want "${MINECRAFT_VERSION:-}")
+	fv=$(want "${LOADER_VERSION:-}")
+	promos=$(json https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json)
+	if [ "$v" = latest ]; then
+		v=$(jq -r '.promos | keys[] | sub("-(latest|recommended)$"; "")' <<<"$promos" | sort -uV | tail -n1)
+	fi
+	case $fv in
+	recommended) fv=$(jq -r --arg v "$v" '.promos[$v + "-recommended"] // .promos[$v + "-latest"] // empty' <<<"$promos") ;;
+	latest) fv=$(jq -r --arg v "$v" '.promos[$v + "-latest"] // empty' <<<"$promos") ;;
+	esac
+	[ -n "$fv" ] || die "Forge has no build for Minecraft $v"
+	say "forge $v-$fv"
+	run_installer "https://maven.minecraftforge.net/net/minecraftforge/forge/$v-$fv/forge-$v-$fv-installer.jar" Forge
+	local jr
+	jr=$(mc_java "$v")
+	record "$(launch_target net/minecraftforge/forge "$v-$fv")" "" "$jr" "$jr"
+}
+
+install_neoforge() {
+	local v nv all prefix
+	v=$(want "${MINECRAFT_VERSION:-}")
+	nv=$(want "${LOADER_VERSION:-}")
+	all=$(json https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge | jq -r '.versions[]')
+	if [ "$nv" = latest ]; then
+		[ "$v" = latest ] && v=$(mc_latest)
+		# NeoForge numbers follow Minecraft's: 1.21.1 -> 21.1.x, 1.21 -> 21.0.x, 26.3 -> 26.3.0.x
+		case $v in
+		1.*) IFS=. read -r _ a b <<<"$v"; prefix="$a.${b:-0}." ;;
+		*.*.*) prefix="$v." ;;
+		*) prefix="$v.0." ;;
+		esac
+		local ours
+		ours=$(grep -F -- "$prefix" <<<"$all" | grep -E "^${prefix//./\\.}" || true)
+		nv=$(grep -v -- '-beta' <<<"$ours" | sort -V | tail -n1 || true) # prefer releases over betas
+		[ -n "$nv" ] || nv=$(sort -V <<<"$ours" | tail -n1)
+		[ -n "$nv" ] || die "NeoForge has no build for Minecraft $v (NeoForge starts at 1.20.2)"
+	else
+		grep -qxF "$nv" <<<"$all" || die "NeoForge has no version $nv"
+		if [ "$v" = latest ]; then # derive Minecraft's version for the Java check
+			IFS=. read -r a b c _ <<<"$nv"
+			if [ "$a" -lt 26 ]; then v="1.$a"; [ "$b" = 0 ] || v="$v.$b"; else v="$a.$b"; [ "${c%%-*}" = 0 ] || v="$v.${c%%-*}"; fi
+		fi
+	fi
+	say "neoforge $nv (Minecraft $v)"
+	run_installer "https://maven.neoforged.net/releases/net/neoforged/neoforge/$nv/neoforge-$nv-installer.jar" NeoForge
+	local jr
+	jr=$(mc_java "$v")
+	record "$(launch_target net/neoforged/neoforge "$nv")" "" "$jr" "$jr"
+}
+
+# --- BungeeCord -------------------------------------------------------------------
+install_bungeecord() {
+	clean_previous
+	# md-5's CI publishes no checksum file; the download is over HTTPS.
+	fetch https://ci.md-5.net/job/BungeeCord/lastSuccessfulBuild/artifact/bootstrap/target/BungeeCord.jar BungeeCord.jar
+	record "-jar BungeeCord.jar" BungeeCord.jar "" ""
+}
+
+kind=${1:-}
+case $kind in
+paper | folia | velocity) install_fill "$kind" ;;
+purpur) install_purpur ;;
+vanilla) install_vanilla ;;
+fabric) install_fabric ;;
+forge) install_forge ;;
+neoforge) install_neoforge ;;
+bungeecord) install_bungeecord ;;
+*) die "usage: gp-install paper|purpur|folia|vanilla|fabric|forge|neoforge|velocity|bungeecord" ;;
+esac

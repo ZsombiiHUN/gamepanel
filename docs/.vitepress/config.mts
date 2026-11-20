@@ -100,6 +100,7 @@ export default defineConfig({
         items: [
           { text: 'Nodes and capacity', link: '/admin/nodes' },
           { text: 'Eggs', link: '/admin/eggs' },
+          { text: 'Minecraft eggs', link: '/admin/minecraft-eggs' },
           { text: 'Creating servers', link: '/server-creation' },
           { text: 'Accounts and sign-up', link: '/admin/accounts' },
           { text: 'Database hosts', link: '/admin/database-hosts' },
