@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,6 +99,10 @@ type managed struct {
 	// killed: a kill landed while a restart was stopping the server, so the
 	// restart ends there instead of starting it again.
 	killed bool
+
+	// booted: this run printed one of the spec's Done lines (or the spec has
+	// none), so it reports "running" rather than "starting".
+	booted bool
 }
 
 // Operations that claim a server (begin).
@@ -328,6 +333,13 @@ func (d *Daemon) session(ctx context.Context) error {
 			continue
 		}
 		if st == runtime.StateRunning { // re-attach the console
+			d.mu.Lock()
+			if m != nil && !m.attached {
+				// It was running before this daemon started, so its Done
+				// line has long been printed.
+				m.booted = true
+			}
+			d.mu.Unlock()
 			d.attach(sctx, id)
 		}
 		d.emitState(sctx, id, st)
@@ -394,7 +406,46 @@ func (d *Daemon) emitState(ctx context.Context, uuid, st string) {
 		d.mu.Unlock()
 	}
 	d.noteState(uuid, st)
-	_ = d.send(ctx, proto.Envelope{Type: proto.EvtState, Data: proto.Marshal(proto.State{UUID: uuid, State: st})})
+	shown := st
+	if st == runtime.StateRunning {
+		// The container runs, but the game may still be loading: it says
+		// "starting" until the console prints one of the egg's Done lines.
+		d.mu.Lock()
+		if m := d.servers[uuid]; m != nil && len(m.spec.Done) > 0 && !m.booted {
+			shown = runtime.StateStarting
+		}
+		d.mu.Unlock()
+	}
+	_ = d.send(ctx, proto.Envelope{Type: proto.EvtState, Data: proto.Marshal(proto.State{UUID: uuid, State: shown})})
+}
+
+// ansiRe matches terminal escape sequences (colours), which servers mix into
+// their lines.
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+
+// sawLine checks a console line for the spec's Done text. The first match in
+// a run reports the server as running.
+func (d *Daemon) sawLine(ctx context.Context, uuid string, m *managed, line string) {
+	d.mu.Lock()
+	if m.booted || len(m.spec.Done) == 0 {
+		d.mu.Unlock()
+		return
+	}
+	plain := ansiRe.ReplaceAllString(line, "")
+	hit := false
+	for _, t := range m.spec.Done {
+		if strings.Contains(plain, t) {
+			hit = true
+			break
+		}
+	}
+	if hit {
+		m.booted = true
+	}
+	d.mu.Unlock()
+	if hit {
+		_ = d.send(ctx, proto.Envelope{Type: proto.EvtState, Data: proto.Marshal(proto.State{UUID: uuid, State: runtime.StateRunning})})
+	}
 }
 
 // sleep waits for d or until ctx ends; it reports whether the full time passed.
@@ -427,6 +478,7 @@ func (d *Daemon) noteState(uuid, st string) {
 		}
 	case runtime.StateOffline, proto.StateCrashed, StateInstalling, StateInstallFailed:
 		m.stopStats()
+		m.booted = false
 	}
 }
 
@@ -593,7 +645,9 @@ func (d *Daemon) attach(ctx context.Context, uuid string) {
 		sc := bufio.NewScanner(r)
 		sc.Buffer(make([]byte, 64<<10), 1<<20)
 		for sc.Scan() {
-			out.Line(sc.Text())
+			l := sc.Text()
+			out.Line(l)
+			d.sawLine(ctx, uuid, m, l)
 		}
 	}()
 }
@@ -668,6 +722,16 @@ func (d *Daemon) dispatch(ctx context.Context, env proto.Envelope) (json.RawMess
 			return nil, err
 		}
 		return nil, d.input(in.UUID, in.Line)
+	case proto.ReqServerPing:
+		var u proto.UUIDOnly
+		if err := json.Unmarshal(env.Data, &u); err != nil {
+			return nil, err
+		}
+		st, err := d.ping(ctx, u.UUID)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(st), nil
 	case proto.ReqServerDelete:
 		var u proto.UUIDOnly
 		if err := json.Unmarshal(env.Data, &u); err != nil {
@@ -997,7 +1061,7 @@ func (d *Daemon) startClaimed(ctx context.Context, uuid string) error {
 	}
 	d.mu.Lock()
 	if m := d.servers[uuid]; m != nil {
-		m.crashed = false
+		m.crashed, m.booted = false, false
 	}
 	d.mu.Unlock()
 	d.emitState(ctx, uuid, runtime.StateStarting)

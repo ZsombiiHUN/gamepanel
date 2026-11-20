@@ -3,6 +3,7 @@ package api
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -38,6 +39,13 @@ func TestBundledMinecraftEggs(t *testing.T) {
 			}
 			if !strings.Contains(e.InstallScript, "exec gp-install ") {
 				t.Errorf("install script %q", e.InstallScript)
+			}
+			if len(e.Done) != 1 {
+				t.Errorf("done lines %q", e.Done)
+			}
+			mc, proxy := slices.Contains(e.Features, "minecraft"), slices.Contains(e.Features, "minecraft_proxy")
+			if mc == proxy || mc != slices.Contains(e.Features, "eula") {
+				t.Errorf("features %q", e.Features)
 			}
 			profile := false
 			for _, v := range e.Variables {

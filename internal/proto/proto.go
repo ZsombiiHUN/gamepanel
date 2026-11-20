@@ -71,6 +71,9 @@ const (
 	ReqServerCreate = "server.create"
 	ReqServerPower  = "server.power"
 	ReqServerInput  = "server.input"
+	// ReqServerPing asks a running Minecraft server for its status (the
+	// Server List Ping) on its primary port; the reply is a minecraft.Status.
+	ReqServerPing   = "server.ping"
 	ReqServerDelete = "server.delete"
 	// ReqServerReinstall re-runs the egg install script for an offline server.
 	ReqServerReinstall = "server.reinstall"
@@ -185,10 +188,14 @@ type Hello struct {
 }
 
 type ServerSpec struct {
-	UUID     string            `json:"uuid"`
-	Image    string            `json:"image"`
-	Startup  string            `json:"startup"`
-	Stop     string            `json:"stop"` // console command, or "^C"
+	UUID    string `json:"uuid"`
+	Image   string `json:"image"`
+	Startup string `json:"startup"`
+	Stop    string `json:"stop"` // console command, or "^C"
+	// Done lists console text that means the server finished starting: it
+	// reports "starting" until a line contains one. Empty = running as soon
+	// as the container is.
+	Done     []string          `json:"done,omitempty"`
 	Env      map[string]string `json:"env"`
 	MemoryMB int64             `json:"memory_mb"`
 	CPUPct   int64             `json:"cpu_pct"`              // 100 = one core, 0 = unlimited

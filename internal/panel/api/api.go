@@ -24,6 +24,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/go-webauthn/webauthn/webauthn"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/minecraft"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/modrinth"
@@ -55,6 +56,9 @@ type Deps struct {
 	Signup string
 	// Modrinth overrides the mod manager's client (tests).
 	Modrinth *modrinth.Client
+	// Minecraft overrides the client for Minecraft version lists and player
+	// lookups (tests).
+	Minecraft *minecraft.Client
 	// RequireMFA is the two-factor policy: MFAOptional (or ""), MFAAdmins or MFAAll.
 	RequireMFA string
 	// HSTS is the Strict-Transport-Security value sent over HTTPS; "" means
@@ -238,6 +242,7 @@ func (a *App) register(api huma.API) {
 	a.registerPasskeys(api)
 	a.registerMetrics(api)
 	a.registerMods(api)
+	a.registerMinecraft(api)
 	a.registerWebhooks(api)
 	a.registerAccounts(api)
 	a.registerShop(api)

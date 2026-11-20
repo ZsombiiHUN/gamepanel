@@ -9,9 +9,9 @@
   "author": "eggs@gamepanel.invalid",
   "description": "The original Minecraft proxy. Prefer Velocity for new networks; use this for BungeeCord-only plugins. Reinstall to update.",
   "features": [
-    "eula",
     "java_version",
-    "pid_limit"
+    "pid_limit",
+    "minecraft_proxy"
   ],
   "docker_images": {
     "Java 25": "ghcr.io/zsombiihun/gamepanel-java:25",

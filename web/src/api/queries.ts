@@ -1,5 +1,5 @@
 import { keepPreviousData, queryOptions, type QueryClient, type QueryKey } from "@tanstack/react-query";
-import { api, call } from "./client";
+import { api, ApiError, call } from "./client";
 
 /**
  * Every query key in the app. Pages never write a key by hand; they use these
@@ -34,6 +34,8 @@ export const keys = {
   mods: (uuid: string) => ["mods", uuid] as const,
   invites: (uuid: string) => ["invites", uuid] as const,
   sftp: (uuid: string) => ["sftp", uuid] as const,
+  /** A Minecraft server's live status and version list. */
+  minecraft: (uuid: string) => ["minecraft", uuid] as const,
 };
 
 /** What a mutation refreshes on success. The query client applies it, so mutations do not repeat the plumbing. */
@@ -278,4 +280,38 @@ export const auditQuery = (term: string, page: number) =>
         api.GET("/audit", { params: { query: { limit: AUDIT_PAGE_SIZE, offset: page * AUDIT_PAGE_SIZE, ...(term ? { q: term } : {}) } } }),
       )) ?? [],
     placeholderData: keepPreviousData,
+  });
+
+/** A server file as text, for pages that read config files; a file that does not exist reads as null. */
+export const serverFileQuery = (uuid: string, path: string, enabled = true) =>
+  queryOptions({
+    queryKey: [...keys.files(uuid), "text", path] as const,
+    queryFn: async () => {
+      try {
+        const r = await call(api.GET("/servers/{uuid}/files/content", { params: { path: { uuid }, query: { path } } }));
+        return r.content;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+    enabled,
+    retry: false,
+  });
+
+/** A running Minecraft server's answer to the server list ping, refreshed every 10 seconds. */
+export const minecraftStatusQuery = (uuid: string, enabled: boolean) =>
+  queryOptions({
+    queryKey: [...keys.minecraft(uuid), "status"] as const,
+    queryFn: () => call(api.GET("/servers/{uuid}/minecraft/status", { params: { path: { uuid } } })),
+    enabled,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+
+export const minecraftVersionsQuery = (uuid: string) =>
+  queryOptions({
+    queryKey: [...keys.minecraft(uuid), "versions"] as const,
+    queryFn: () => call(api.GET("/servers/{uuid}/minecraft/versions", { params: { path: { uuid } } })),
+    staleTime: 5 * 60_000,
   });

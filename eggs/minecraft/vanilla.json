@@ -11,7 +11,8 @@
   "features": [
     "eula",
     "java_version",
-    "pid_limit"
+    "pid_limit",
+    "minecraft"
   ],
   "docker_images": {
     "Java 25": "ghcr.io/zsombiihun/gamepanel-java:25",
