@@ -60,6 +60,8 @@ profile() { # server|velocity|bungee
 }
 
 # egg FILE NAME DESCRIPTION KIND STOP DONE IMAGES VARIABLES
+# Features: "minecraft" and "minecraft_proxy" turn on GamePanel's Minecraft
+# tab; the others are Pterodactyl's names, which other panels read too.
 egg() {
 	jq -n --arg name "$2" --arg desc "$3" --arg kind "$4" --arg stop "$5" --arg ready "$6" \
 		--argjson images "$7" --argjson vars "$8" --arg installer "$IMAGE:25" '{
@@ -69,7 +71,9 @@ egg() {
 		name: $name,
 		author: "eggs@gamepanel.invalid",
 		description: $desc,
-		features: ["eula", "java_version", "pid_limit"],
+		features: (if $kind == "velocity" or $kind == "bungeecord"
+			then ["java_version", "pid_limit", "minecraft_proxy"]
+			else ["eula", "java_version", "pid_limit", "minecraft"] end),
 		docker_images: $images,
 		file_denylist: [],
 		startup: "gp-java",

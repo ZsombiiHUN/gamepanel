@@ -29,7 +29,23 @@ The newest Java is the default and is right for current Minecraft. Older version
 | 1.17 – 1.20.4 | 17 |
 | 1.16.5 and older | 8 (Paper and Purpur 1.16.5 also run on 11) |
 
-If the image is too old for the installed server, it does not start and the console says which image to pick. If the image is newer than the Java that Mojang shipped with an older version (Java 17 or earlier), the console shows a warning, because old mods often break on new Java. Change the image under **Startup**, then start again.
+If the image is too old for the installed server, it does not start: the console says which image to pick, and a banner above it offers to switch to that image and start again in one click. If the image is newer than the Java that Mojang shipped with an older version (Java 17 or earlier), the console shows a warning, because old mods often break on new Java. Change the image under **Startup**, then start again.
+
+## In the panel
+
+A server made from one of these eggs gets more than the usual tabs. The eggs declare Pterodactyl's `eula` and `java_version` features and GamePanel's own `minecraft` (or `minecraft_proxy`), so a community egg that declares `eula` gets the console banners too.
+
+- **Accurate state.** The server shows *Starting* until it prints its "Done" line, then *Running*. Without this, it would look ready while the world is still loading.
+- **Console banners.** When the server stops because the EULA is not accepted or its Java is too old, a banner above the console offers the fix: *I accept, start the server*, or *Use Java 21 and start*. These refusals end with exit code 0, as the vanilla server does for the EULA, so they are not counted as crashes and the server is not restarted for them.
+- **A Minecraft tab** with:
+  - **Status**: what players see in their server list (MOTD with colours, icon, players online, version), from a ping every 10 seconds. Operators can op, kick or ban a listed player, save the world, make it day, clear the weather, or message everyone.
+  - **Players**: the whitelist, operators, banned players and banned IPs. While the server runs, changes go through its own commands. While it is stopped, the panel edits the JSON files and looks up each player's UUID with Mojang, or derives the offline UUID in offline mode.
+  - **Server settings**: the common `server.properties` settings as a form, with a preview of the MOTD, checks on numbers, and every other key under *All settings*. Comments and unknown keys are kept. The port is locked because the panel sets it.
+  - **Version**: switch to any release the egg's project offers (Paper, Purpur, Folia, Vanilla, Fabric, Forge, NeoForge, Velocity). This reinstalls the server software and keeps worlds, plugins and configs.
+  - **World**: archive the world as a .zip (after saving it, if the server runs), or reset it with an optional new seed.
+  - **Server icon**: upload any image; it is cropped and scaled to the 64×64 `server-icon.png`.
+
+What each section can change follows the user's permissions: lists need file access (or console access while running), versions need startup and reinstall rights.
 
 ## Variables
 
@@ -72,3 +88,5 @@ The eggs run on `ghcr.io/zsombiihun/gamepanel-java:<8|11|17|21|25>`. These are E
 - `gp-java` is the startup command. It picks the JVM flags, writes the port, checks the EULA and starts the server.
 
 Each server's install uses the Java 25 image to run installers, whatever image the server itself runs on.
+
+If a node cannot pull an image (an offline node, a registry outage, or an image built on the node itself), the daemon uses the copy the node already has and logs a warning.

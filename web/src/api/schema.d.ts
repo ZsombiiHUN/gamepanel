@@ -1217,6 +1217,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/servers/{uuid}/minecraft/players/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up a Minecraft player by name
+         * @description Finds the account's UUID, for whitelists and operator lists edited while the server is stopped. A name with no Mojang account gets the UUID an offline-mode server would give it, marked offline.
+         */
+        get: operations["minecraftProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/minecraft/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ask a running Minecraft server for its status
+         * @description The node sends the Server List Ping to the server's primary port: players online, the version and the MOTD.
+         */
+        get: operations["minecraftStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/servers/{uuid}/minecraft/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Minecraft versions this server can switch to */
+        get: operations["minecraftVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/servers/{uuid}/mods": {
         parameters: {
             query?: never;
@@ -1883,6 +1940,8 @@ export interface components {
             /** @description the default image (the first of docker_images) */
             docker_image: string;
             docker_images: components["schemas"]["EggImage"][];
+            done: string[];
+            features: string[];
             /** Format: int64 */
             id: number;
             install_entrypoint: string;
@@ -2179,6 +2238,17 @@ export interface components {
             password: string;
             totp_code?: string;
         };
+        McVersionsView: {
+            current: string;
+            /** @description paper, purpur, folia, vanilla, fabric, forge, neoforge, velocity or bungeecord; "" if unknown */
+            flavor: string;
+            reset: {
+                [key: string]: string;
+            };
+            variable: string;
+            /** @description newest first; empty when only the latest can be installed */
+            versions: string[];
+        };
         Metric: {
             /**
              * Format: int64
@@ -2381,6 +2451,15 @@ export interface components {
         PingOutBody: {
             queued: boolean;
         };
+        Player: {
+            id: string;
+            name: string;
+        };
+        PlayerProfile: {
+            name: string;
+            offline: boolean;
+            uuid: string;
+        };
         PortAddInBody: {
             notes?: string;
             /**
@@ -2567,6 +2646,22 @@ export interface components {
             /** @description the port the game listens on (SERVER_PORT) */
             primary: boolean;
         };
+        ServerStatus: {
+            favicon?: string;
+            /** Format: int64 */
+            latency_ms: number;
+            /** Format: int64 */
+            max: number;
+            motd: string;
+            /** Format: int64 */
+            online: number;
+            /** @description a sample of who is online; servers send at most 12 */
+            players: components["schemas"]["Player"][];
+            /** Format: int64 */
+            protocol: number;
+            /** @description the version name the server reports, such as "Paper 1.21.11" */
+            version: string;
+        };
         ServerView: {
             /**
              * Format: int64
@@ -2604,6 +2699,7 @@ export interface components {
                 [key: string]: string;
             };
             external_id: string;
+            features: string[];
             image: string;
             /** @enum {string} */
             install_status: "installing" | "installed" | "failed";
@@ -5482,6 +5578,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    minecraftProfile: {
+        parameters: {
+            query?: {
+                /** @description give the offline-mode UUID without asking Mojang */
+                offline?: boolean;
+            };
+            header?: never;
+            path: {
+                uuid: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerProfile"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    minecraftStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    minecraftVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["McVersionsView"];
                 };
             };
             /** @description Error */

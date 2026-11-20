@@ -9,9 +9,9 @@
   "author": "eggs@gamepanel.invalid",
   "description": "Modern, fast proxy that links several Minecraft servers into one network.",
   "features": [
-    "eula",
     "java_version",
-    "pid_limit"
+    "pid_limit",
+    "minecraft_proxy"
   ],
   "docker_images": {
     "Java 25": "ghcr.io/zsombiihun/gamepanel-java:25",

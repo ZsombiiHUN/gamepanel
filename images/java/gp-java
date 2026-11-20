@@ -19,7 +19,10 @@
 set -eu
 
 say() { printf '[gamepanel] %s\n' "$*"; }
-die() { say "$*"; exit 1; }
+# A setup problem the owner has to fix (the EULA, the Java version, a setting) ends with
+# exit 0, as the vanilla server does for the EULA: it is a refusal to start, not a crash,
+# so the panel does not restart it or report a crash.
+die() { say "$*"; exit 0; }
 
 cd "${GP_HOME:-/home/container}"
 : "${SERVER_MEMORY:?SERVER_MEMORY is not set}" "${SERVER_PORT:?SERVER_PORT is not set}"

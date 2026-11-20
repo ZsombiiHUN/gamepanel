@@ -1,5 +1,8 @@
+import { minecraftKind } from "./minecraft";
+
 export const TABS = [
   "console",
+  "minecraft",
   "files",
   "mods",
   "backups",
@@ -17,8 +20,15 @@ export type Tab = (typeof TABS)[number];
  * Every server tab, in sidebar order. `need` is a permission the viewer must
  * hold, or "owner" for sections only the owner and admins see.
  */
-export const TAB_INFO: { id: Tab; label: string; need?: string; keywords?: string }[] = [
+export const TAB_INFO: { id: Tab; label: string; need?: string; keywords?: string; minecraft?: boolean }[] = [
   { id: "console", label: "Console", need: "console.read" },
+  {
+    id: "minecraft",
+    label: "Minecraft",
+    need: "files.read",
+    minecraft: true,
+    keywords: "players whitelist ops bans server.properties motd version world seed icon gamerule",
+  },
   { id: "files", label: "Files", need: "files.read" },
   { id: "mods", label: "Mods", need: "files.write", keywords: "plugins modrinth datapacks install" },
   { id: "backups", label: "Backups", need: "backups.read" },
@@ -34,4 +44,12 @@ export const TAB_INFO: { id: Tab; label: string; need?: string; keywords?: strin
 /** Whether a viewer with these rights may open a tab. */
 export function canSee(need: string | undefined, server: { owner: boolean; permissions: string[] }) {
   return !need || (need === "owner" ? server.owner : server.permissions.includes(need));
+}
+
+/** Whether a tab shows for this server: the viewer may open it, and it fits the game (the Minecraft tab). */
+export function tabShown(
+  t: { need?: string; minecraft?: boolean },
+  server: { owner: boolean; permissions: string[]; features?: readonly string[] },
+) {
+  return canSee(t.need, server) && (!t.minecraft || minecraftKind(server.features) !== null);
 }

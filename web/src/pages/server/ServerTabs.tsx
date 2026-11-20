@@ -1,9 +1,24 @@
 import { Link } from "@tanstack/react-router";
-import { Archive, Clock, Database, FolderOpen, History, Network, Package, Rocket, Settings, SquareTerminal, Users } from "lucide-react";
+import {
+  Archive,
+  Box,
+  Clock,
+  Database,
+  FolderOpen,
+  History,
+  Network,
+  Package,
+  Rocket,
+  Settings,
+  SquareTerminal,
+  Users,
+} from "lucide-react";
+import { minecraftKind } from "../../lib/minecraft";
 import { TAB_INFO, type Tab } from "../../lib/tabs";
 
 const icons: Record<Tab, typeof SquareTerminal> = {
   console: SquareTerminal,
+  minecraft: Box,
   files: FolderOpen,
   mods: Package,
   backups: Archive,
@@ -17,11 +32,22 @@ const icons: Record<Tab, typeof SquareTerminal> = {
 };
 
 /** The server's sections as a row of pill tabs. Scrolls sideways on narrow screens rather than wrapping. */
-export function ServerTabs({ uuid, tab, can }: { uuid: string; tab: Tab; can: (need?: string) => boolean }) {
+export function ServerTabs({
+  uuid,
+  tab,
+  can,
+  features,
+}: {
+  uuid: string;
+  tab: Tab;
+  can: (need?: string) => boolean;
+  features?: readonly string[];
+}) {
+  const mc = minecraftKind(features) !== null;
   return (
     <nav aria-label="Server sections" className="-mx-1 overflow-x-auto px-1 pb-1">
       <ul className="inline-flex gap-0.5 rounded-[10px] border border-line bg-well p-1">
-        {TAB_INFO.filter((t) => can(t.need)).map((t) => {
+        {TAB_INFO.filter((t) => can(t.need) && (!t.minecraft || mc)).map((t) => {
           const Icon = icons[t.id];
           const on = t.id === tab;
           return (
