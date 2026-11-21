@@ -103,3 +103,34 @@ func TestImportRejectsBadImageNames(t *testing.T) {
 		}
 	}
 }
+
+// The Done text and features are read from every shape eggs use for them.
+func TestImportDoneAndFeatures(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		startup string
+		want    []string
+	}{
+		"json string":   {`"{\"done\":\")! For help, type \"}"`, []string{`)! For help, type `}},
+		"object":        {`{"done":"Listening on "}`, []string{"Listening on "}},
+		"list":          {`{"done":["Done (","Ready"]}`, []string{"Done (", "Ready"}},
+		"regex skipped": {`{"done":["regex:^Done","ok"]}`, []string{"ok"}},
+		"none":          {`"{}"`, []string{}},
+		"missing":       {`null`, []string{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			raw := `{"name":"x","startup":"run","docker_images":{"a":"img"},"features":["EULA","eula","java_version","bad feature"],"config":{"startup":` + tc.startup + `}}`
+			e, err := importPTDL([]byte(raw))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(e.Done, "|") != strings.Join(tc.want, "|") || e.Done == nil {
+				t.Errorf("done %q, want %q", e.Done, tc.want)
+			}
+			if strings.Join(e.Features, ",") != "eula,java_version" {
+				t.Errorf("features %q", e.Features)
+			}
+		})
+	}
+}

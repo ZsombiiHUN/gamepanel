@@ -400,6 +400,12 @@ type Egg struct {
 	InstallImage      string `json:"install_image"`
 	InstallEntrypoint string `json:"install_entrypoint"`
 	InstallScript     string `json:"install_script"`
+	// Features is the egg's Pterodactyl "features" list ("eula",
+	// "java_version", ...); the UI offers game-specific help from it.
+	Features []string `json:"features" nullable:"false"`
+	// Done lists console text that means the server has started; while it
+	// is set, the server reports "starting" until one is printed.
+	Done []string `json:"done" nullable:"false"`
 }
 
 func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
@@ -412,6 +418,20 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	if e.Variables == nil {
 		e.Variables = []EggVar{}
 	}
+	if e.Features == nil {
+		e.Features = []string{}
+	}
+	if e.Done == nil {
+		e.Done = []string{}
+	}
+	feats, err := json.Marshal(e.Features)
+	if err != nil {
+		return Egg{}, err
+	}
+	done, err := json.Marshal(e.Done)
+	if err != nil {
+		return Egg{}, err
+	}
 	vars, err := json.Marshal(e.Variables)
 	if err != nil {
 		return Egg{}, err
@@ -420,8 +440,8 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	if err != nil {
 		return Egg{}, err
 	}
-	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, now())
+	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, string(feats), string(done), now())
 	if err != nil {
 		return Egg{}, err
 	}
@@ -431,9 +451,21 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 
 func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
 	var e Egg
-	var vars, imgs string
-	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript); err != nil {
+	var vars, imgs, feats, done string
+	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript, &feats, &done); err != nil {
 		return e, nf(err)
+	}
+	if err := json.Unmarshal([]byte(feats), &e.Features); err != nil {
+		return e, fmt.Errorf("egg %d features: %w", e.ID, err)
+	}
+	if err := json.Unmarshal([]byte(done), &e.Done); err != nil {
+		return e, fmt.Errorf("egg %d done: %w", e.ID, err)
+	}
+	if e.Features == nil {
+		e.Features = []string{}
+	}
+	if e.Done == nil {
+		e.Done = []string{}
 	}
 	if err := json.Unmarshal([]byte(vars), &e.Variables); err != nil {
 		return e, fmt.Errorf("egg %d variables: %w", e.ID, err)
@@ -450,7 +482,7 @@ func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
 	return e, nil
 }
 
-const eggCols = `id,name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script`
+const eggCols = `id,name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done`
 
 func (s *Store) GetEgg(ctx context.Context, id int64) (Egg, error) {
 	return scanEgg(s.DB.QueryRowContext(ctx, `SELECT `+eggCols+` FROM eggs WHERE id=?`, id))
@@ -666,6 +698,34 @@ func (s *Store) Labels(ctx context.Context) (eggs, nodes map[int64]string, err e
 		}
 	}
 	return eggs, nodes, nil
+}
+
+// EggFeatures maps every egg to its feature list.
+func (s *Store) EggFeatures(ctx context.Context) (map[int64][]string, error) {
+	type row struct {
+		id    int64
+		feats []string
+	}
+	rows, err := queryAll(ctx, s.DB, func(sc rowScanner) (row, error) {
+		var r row
+		var raw string
+		if err := sc.Scan(&r.id, &raw); err != nil {
+			return r, err
+		}
+		_ = json.Unmarshal([]byte(raw), &r.feats)
+		if r.feats == nil {
+			r.feats = []string{}
+		}
+		return r, nil
+	}, `SELECT id,features FROM eggs`)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64][]string, len(rows))
+	for _, r := range rows {
+		out[r.id] = r.feats
+	}
+	return out, nil
 }
 
 // RenameServer changes a server's name and description.

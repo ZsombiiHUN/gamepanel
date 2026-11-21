@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { serverQuery } from "../api/queries";
@@ -19,6 +19,9 @@ import { StartupTab } from "./StartupTab";
 import { UsageRow } from "./server/UsageRow";
 import { UsersTab } from "./UsersTab";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { detectProblem, minecraftKind, startsRun, type Problem } from "../lib/minecraft";
+import { MinecraftNotice } from "./server/MinecraftNotice";
+import { MinecraftTab } from "./MinecraftTab";
 
 const FilesTab = lazy(() => import("./FilesTab").then((m) => ({ default: m.FilesTab })));
 
@@ -31,11 +34,23 @@ export function ServerDetailPage() {
   const term = useRef<TerminalHandle>(null);
   // Lines can arrive before the page (and so the terminal) has rendered; hold them until it has.
   const early = useRef<string[]>([]);
+  // A console line saying why a Minecraft server could not start (the EULA, its Java), offered as a fix.
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const mc = minecraftKind(server.data?.features);
   const ws = useServerSocket(uuid, {
-    onConsole: (l) => (term.current ? term.current.writeln(l) : early.current.push(l)),
+    onConsole: (l) => {
+      if (term.current) term.current.writeln(l);
+      else early.current.push(l);
+      if (mc) {
+        const p = detectProblem(l);
+        if (p) setProblem(p);
+        else if (startsRun(l)) setProblem(null);
+      }
+    },
     onReset: () => {
       early.current = [];
       term.current?.clear();
+      setProblem(null);
     },
   });
   const ready = !server.isPending && !server.error;
@@ -58,7 +73,7 @@ export function ServerDetailPage() {
     <div className="space-y-5">
       <div className="space-y-5">
         <ServerHeader server={s} state={state} wsStatus={ws.status} can={can} />
-        <ServerTabs uuid={uuid} tab={tab} can={can} />
+        <ServerTabs uuid={uuid} tab={tab} can={can} features={s.features} />
       </div>
 
       {/* The console comes first on small screens (it is what people came for), below the charts on
@@ -76,10 +91,15 @@ export function ServerDetailPage() {
           </div>
         )}
         {/* Console stays mounted so the buffer survives tab switches */}
-        <div hidden={tab !== "console"} className="order-1 min-w-0 lg:order-2 xl:order-1">
+        <div hidden={tab !== "console"} className="order-1 min-w-0 space-y-3 lg:order-2 xl:order-1">
+          {/* Only while it is stopped: the backlog of an earlier failed run must not nag a server that now runs. */}
+          {problem && (state === "offline" || state === "crashed") && (
+            <MinecraftNotice uuid={uuid} problem={problem} can={can} onDone={() => setProblem(null)} />
+          )}
           <ConsolePanel uuid={uuid} termRef={term} active={tab === "console"} canSend={can("console.send")} status={ws.status} />
         </div>
       </div>
+      {tab === "minecraft" && mc && can("files.read") && <MinecraftTab server={s} state={state} can={can} kind={mc} />}
       {tab === "files" && (
         <Suspense fallback={<Spinner />}>
           <FilesTab uuid={uuid} />

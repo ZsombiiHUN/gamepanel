@@ -5,7 +5,7 @@ import { CornerDownLeft, Search } from "lucide-react";
 import { meQuery, serversQuery } from "../api/queries";
 import { rankItems, type PaletteItem } from "../lib/palette";
 import { sortServers, stateLabel } from "../lib/servers";
-import { canSee, TAB_INFO } from "../lib/tabs";
+import { TAB_INFO, tabShown } from "../lib/tabs";
 import { StateMark } from "./ui";
 
 type Item = PaletteItem & { go: () => void; state?: string };
@@ -40,8 +40,9 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
     const out: Item[] = [];
     const cur = (servers.data ?? []).find((s) => s.uuid === currentServer);
     if (cur) {
-      for (const { id: tab, label, need, keywords } of TAB_INFO) {
-        if (!canSee(need, cur)) continue;
+      for (const t of TAB_INFO) {
+        const { id: tab, label, keywords } = t;
+        if (!tabShown(t, cur)) continue;
         out.push({
           id: `tab:${tab}`,
           group: `This server (${cur.name})`,

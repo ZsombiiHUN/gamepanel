@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -20,8 +21,12 @@ type ptdlEgg struct {
 	Images       []string        `json:"images"`        // v1
 	DockerImage  string          `json:"docker_image"`  // v1 (older)
 	Startup      string          `json:"startup"`
+	Features     []string        `json:"features"`
 	Config       struct {
 		Stop string `json:"stop"`
+		// Startup is {"done": "..."} or {"done": ["...", ...]}, usually
+		// stored as a JSON string inside the JSON.
+		Startup json.RawMessage `json:"startup"`
 	} `json:"config"`
 	Scripts struct {
 		Installation struct {
@@ -73,6 +78,8 @@ func importPTDL(raw []byte) (store.Egg, error) {
 		}
 	}
 	e.DockerImage = e.DockerImages[0].Image
+	e.Features = eggFeatures(p.Features)
+	e.Done = doneLines(p.Config.Startup)
 	if e.Stop == "" {
 		e.Stop = "^C"
 	}
@@ -117,6 +124,52 @@ func importPTDL(raw []byte) (store.Egg, error) {
 		})
 	}
 	return e, nil
+}
+
+var featureRe = regexp.MustCompile(`^[a-z0-9_.-]{1,40}$`)
+
+// eggFeatures keeps the well-formed, distinct feature names (at most 20).
+func eggFeatures(in []string) []string {
+	out := []string{}
+	for _, f := range in {
+		f = strings.ToLower(strings.TrimSpace(f))
+		if featureRe.MatchString(f) && !slices.Contains(out, f) && len(out) < 20 {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// doneLines reads config.startup's "done" text: a string or a list, inside
+// an object that Pterodactyl stores either as is or as a JSON string.
+// Pterodactyl's "regex:" form is not supported and is skipped.
+func doneLines(raw json.RawMessage) []string {
+	out := []string{}
+	var inner string
+	if json.Unmarshal(raw, &inner) == nil {
+		raw = json.RawMessage(inner)
+	}
+	var obj struct {
+		Done json.RawMessage `json:"done"`
+	}
+	if json.Unmarshal(raw, &obj) != nil || len(obj.Done) == 0 {
+		return out
+	}
+	var list []string
+	if json.Unmarshal(obj.Done, &list) != nil {
+		var one string
+		if json.Unmarshal(obj.Done, &one) != nil {
+			return out
+		}
+		list = []string{one}
+	}
+	for _, l := range list {
+		if strings.TrimSpace(l) == "" || strings.HasPrefix(l, "regex:") || len(l) > 200 || len(out) >= 10 {
+			continue
+		}
+		out = append(out, l)
+	}
+	return out
 }
 
 var placeholderRe = regexp.MustCompile(`\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}`)

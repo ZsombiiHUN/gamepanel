@@ -19,11 +19,14 @@ import (
 
 type serverView struct {
 	store.Server
-	State      string       `json:"state" doc:"offline|starting|running|stopping|installing|install_failed|crashed|unknown"`
-	NodeOnline bool         `json:"node_online"`
-	EggName    string       `json:"egg_name"`
-	NodeName   string       `json:"node_name"`
-	Stats      *proto.Stats `json:"stats,omitempty"`
+	State      string `json:"state" doc:"offline|starting|running|stopping|installing|install_failed|crashed|unknown"`
+	NodeOnline bool   `json:"node_online"`
+	EggName    string `json:"egg_name"`
+	// Features are the egg's feature flags ("eula", "java_version", ...),
+	// which turn on game-specific help in the UI.
+	Features []string     `json:"features" nullable:"false"`
+	NodeName string       `json:"node_name"`
+	Stats    *proto.Stats `json:"stats,omitempty"`
 	// Permissions are what the caller may do here; Owner is true for the
 	// owner and admins, who can also manage who else has access.
 	Permissions []string `json:"permissions" nullable:"false"`
@@ -57,13 +60,17 @@ func (a *App) label(ctx context.Context, vs ...*serverView) {
 	if err != nil {
 		return
 	}
+	feats, _ := a.Store.EggFeatures(ctx)
 	for _, v := range vs {
 		v.EggName, v.NodeName = eggs[v.EggID], nodes[v.NodeID]
+		if f, ok := feats[v.EggID]; ok {
+			v.Features = f
+		}
 	}
 }
 
 func (a *App) view(s store.Server) serverView {
-	v := serverView{Server: s, State: a.Hub.State(s.UUID), NodeOnline: a.Hub.Online(s.NodeID)}
+	v := serverView{Server: s, State: a.Hub.State(s.UUID), NodeOnline: a.Hub.Online(s.NodeID), Features: []string{}}
 	if st, ok := a.Hub.Stats(s.UUID); ok {
 		v.Stats = &st
 	}
