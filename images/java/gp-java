@@ -1,0 +1,179 @@
+#!/bin/sh
+# gp-java: starts a Minecraft server or proxy with JVM settings sized for its
+# container. It is the startup command of GamePanel's own Minecraft eggs.
+#
+# Inputs (environment, set by the panel from the egg):
+#   SERVER_MEMORY   container memory limit in MB (the panel always sets it)
+#   SERVER_PORT     primary port (the panel always sets it)
+#   GP_PROFILE      server (default) | velocity | bungee
+#   EULA            "true" accepts the Minecraft EULA (server profile only)
+#   JVM_GC          auto (default) | g1 | zgc
+#   JVM_EXTRA_FLAGS appended last, so they override anything set here
+#   JVM_PRETOUCH    1 (default) touches the whole heap at start; 0 skips it
+#
+# Inputs (files written by gp-install into .gamepanel/):
+#   launch     what follows the JVM flags: "-jar paper.jar" or "@libraries/.../unix_args.txt"
+#   java-min   lowest Java major version the installed server runs on
+#   java-rec   the Java major version Mojang ships with this Minecraft version
+#   g1-flags   the upstream project's recommended G1 flags (Paper and its forks)
+set -eu
+
+say() { printf '[gamepanel] %s\n' "$*"; }
+# A setup problem the owner has to fix (the EULA, the Java version, a setting) ends with
+# exit 0, as the vanilla server does for the EULA: it is a refusal to start, not a crash,
+# so the panel does not restart it or report a crash.
+die() { say "$*"; exit 0; }
+
+cd "${GP_HOME:-/home/container}"
+: "${SERVER_MEMORY:?SERVER_MEMORY is not set}" "${SERVER_PORT:?SERVER_PORT is not set}"
+profile=${GP_PROFILE:-server}
+gc=${JVM_GC:-auto}
+meta=.gamepanel
+
+# --- Java version -----------------------------------------------------------
+jv=$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^ *java\.specification\.version = //p')
+jv=${jv#1.} # Java 8 reports 1.8
+case $jv in '' | *[!0-9]*) die "could not read the Java version" ;; esac
+
+if [ -s "$meta/java-min" ]; then
+	min=$(cat "$meta/java-min")
+	if [ "$jv" -lt "$min" ]; then
+		die "this server needs Java $min or newer but the image has Java $jv. Pick the Java $min image under Startup, then start again."
+	fi
+fi
+if [ -s "$meta/java-rec" ] && [ "$profile" = server ]; then
+	rec=$(cat "$meta/java-rec")
+	if [ "$jv" -gt "$rec" ] && [ "$rec" -le 17 ]; then
+		say "note: this Minecraft version ships with Java $rec; older versions and their mods can break on Java $jv. Pick the Java $rec image if the server fails to start."
+	fi
+fi
+
+# --- Heap ---------------------------------------------------------------------
+# The container limit covers the whole process, not just the heap. Leave room
+# for metaspace, the JIT code cache, thread stacks and Netty's direct buffers,
+# or the kernel kills the server when it gets busy. Measured on Paper 1.21.11
+# right after start: ~330 MB outside a 1.7 GB heap, G1's own tables alone ~5%
+# of the heap; JIT code, plugins and players add more. 400 MB + 10% leaves
+# ~1.2 GB on an 8 GB server, in line with Paper's "1000-1500 MB" advice.
+if [ "$profile" = server ]; then
+	over=$((400 + SERVER_MEMORY * 10 / 100)); floor=400
+else
+	over=$((SERVER_MEMORY * 25 / 100)); floor=192 # proxies are mostly direct buffers
+fi
+[ "$over" -lt "$floor" ] && over=$floor
+heap=$((SERVER_MEMORY - over))
+if [ "$heap" -lt 256 ]; then
+	need=768; [ "$profile" = server ] || need=448
+	die "${SERVER_MEMORY} MB is too little memory: give it at least $need MB."
+fi
+
+# --- Garbage collector --------------------------------------------------------
+# G1 tuned for Minecraft (Aikar's flags) is the best choice up to a ~12 GB heap.
+# Above that, generational ZGC keeps pauses under a millisecond at no measurable
+# throughput cost, if Java is new enough.
+if [ "$gc" = auto ]; then
+	if [ "$profile" = server ] && [ "$heap" -ge 12288 ] && [ "$jv" -ge 21 ]; then gc=zgc; else gc=g1; fi
+fi
+
+flags="-Xms${heap}M -Xmx${heap}M -XX:+DisableExplicitGC -XX:+PerfDisableSharedMem"
+[ "${JVM_PRETOUCH:-1}" = 1 ] && flags="$flags -XX:+AlwaysPreTouch"
+
+case $gc in
+g1)
+	if [ "$profile" != server ]; then
+		# Velocity's recommended flags; fine for BungeeCord too.
+		flags="$flags -XX:+UseG1GC -XX:G1HeapRegionSize=4M -XX:+UnlockExperimentalVMOptions -XX:+ParallelRefProcEnabled -XX:MaxInlineLevel=15"
+	elif [ -s "$meta/g1-flags" ] && [ "$heap" -lt 12288 ]; then
+		# Paper publishes the flags it recommends for each version; follow them.
+		up=$(tr '\n' ' ' <"$meta/g1-flags")
+		[ "${JVM_PRETOUCH:-1}" = 1 ] || up=$(printf '%s' "$up" | sed 's/-XX:+AlwaysPreTouch//g')
+		flags="$flags $up"
+	else
+		if [ "$heap" -ge 12288 ]; then
+			nsp=40 nmp=50 reg=16M res=15 ihop=20 # Aikar's set for heaps over 12 GB
+		else
+			nsp=30 nmp=40 reg=8M res=20 ihop=15
+		fi
+		flags="$flags -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions"
+		flags="$flags -XX:G1NewSizePercent=$nsp -XX:G1MaxNewSizePercent=$nmp -XX:G1HeapRegionSize=$reg"
+		flags="$flags -XX:G1ReservePercent=$res -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4"
+		flags="$flags -XX:InitiatingHeapOccupancyPercent=$ihop -XX:G1MixedGCLiveThresholdPercent=90"
+		flags="$flags -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:MaxTenuringThreshold=1"
+		flags="$flags -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true"
+	fi
+	;;
+zgc)
+	[ "$jv" -ge 21 ] || die "ZGC needs Java 21 or newer (this image has Java $jv); set JVM_GC to auto or g1."
+	flags="$flags -XX:+UseZGC"
+	[ "$jv" -lt 23 ] && flags="$flags -XX:+ZGenerational" # the default from Java 23
+	;;
+*) die "JVM_GC must be auto, g1 or zgc, not \"$gc\"." ;;
+esac
+
+# Java 25: 8-byte object headers, roughly 10-20% less heap for the same world.
+# Paper turns this on for its 26.x builds; it is safe for every server type.
+if [ "$jv" -ge 25 ]; then
+	case " $flags " in *" -XX:+UseCompactObjectHeaders "*) ;; *) flags="$flags -XX:+UseCompactObjectHeaders" ;; esac
+fi
+
+# The panel's console is not a full terminal: plain lines, but keep colours.
+# terminal.* is read by Paper and Velocity; BungeeCord uses JLine directly.
+flags="$flags -Dterminal.jline=false -Dterminal.ansi=true"
+[ "$profile" = bungee ] && flags="$flags -Djline.terminal=jline.UnsupportedTerminal -Dorg.jline.terminal.type=dumb"
+
+# --- Port and EULA ----------------------------------------------------------
+# Pterodactyl does this with egg config.files; doing it before every start
+# means the port can never drift from the one the panel assigned.
+setkey() { # file key value: set "key=value" in a .properties file
+	if grep -q "^$2=" "$1" 2>/dev/null; then
+		sed -i "s|^$2=.*|$2=$3|" "$1"
+	else
+		printf '%s=%s\n' "$2" "$3" >>"$1"
+	fi
+}
+case $profile in
+server)
+	setkey server.properties server-port "$SERVER_PORT"
+	setkey server.properties query.port "$SERVER_PORT"
+	setkey server.properties server-ip ""
+	if [ "${EULA:-false}" = true ]; then
+		printf 'eula=true\n' >eula.txt
+	elif ! grep -qx 'eula=true' eula.txt 2>/dev/null; then
+		die "accept the Minecraft EULA (https://aka.ms/MinecraftEULA) first: set \"Accept the Minecraft EULA\" to true under Startup, then start again."
+	fi
+	;;
+velocity)
+	if [ -f velocity.toml ]; then
+		sed -i "s|^bind = .*|bind = \"0.0.0.0:$SERVER_PORT\"|" velocity.toml
+	else
+		# Velocity fills in every other setting with its defaults on first start.
+		printf 'bind = "0.0.0.0:%s"\n' "$SERVER_PORT" >velocity.toml
+	fi
+	;;
+bungee)
+	if [ -f config.yml ]; then
+		sed -i -e "s|^\( *-\{0,1\} *\)host: .*:[0-9][0-9]*\$|\1host: 0.0.0.0:$SERVER_PORT|" \
+			-e "s|^\( *\)query_port: [0-9][0-9]*\$|\1query_port: $SERVER_PORT|" config.yml
+	else
+		printf 'listeners:\n- host: 0.0.0.0:%s\n  query_port: %s\n' "$SERVER_PORT" "$SERVER_PORT" >config.yml
+	fi
+	;;
+*) die "GP_PROFILE must be server, velocity or bungee." ;;
+esac
+
+# --- Launch -------------------------------------------------------------------
+if [ -s "$meta/launch" ]; then
+	target=$(cat "$meta/launch")
+else
+	target="-jar ${SERVER_JARFILE:-server.jar}"
+fi
+args=""
+[ "$profile" = server ] && args="--nogui"
+
+say "Java $jv | limit ${SERVER_MEMORY} MB | heap ${heap} MB | GC $gc"
+# Word splitting is intended: each list is a set of separate arguments. The
+# values come from the environment and files, so nothing is evaluated as code.
+# shellcheck disable=SC2086
+set -- $flags ${JVM_EXTRA_FLAGS:-} $target $args
+say "java $*"
+exec java "$@"

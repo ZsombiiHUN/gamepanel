@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/netip"
 	"os"
 	"regexp"
@@ -48,7 +49,22 @@ func (d *Docker) Ping(ctx context.Context) error {
 	return err
 }
 
+// pull fetches the newest copy of an image. When the registry cannot be reached or refuses,
+// a copy the node already has is used instead: an image built on the node, an offline node,
+// or a registry outage should not stop servers from starting.
 func (d *Docker) pull(ctx context.Context, image string) error {
+	err := d.tryPull(ctx, image)
+	if err == nil || ctx.Err() != nil {
+		return err
+	}
+	if _, ierr := d.cli.ImageInspect(ctx, image); ierr == nil {
+		slog.Warn("could not pull image; using the copy on this node", "image", image, "err", err)
+		return nil
+	}
+	return err
+}
+
+func (d *Docker) tryPull(ctx context.Context, image string) error {
 	pull, err := d.cli.ImagePull(ctx, image, client.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("pull %s: %w", image, err)

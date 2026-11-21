@@ -68,13 +68,25 @@ func newFakeDocker(t *testing.T, reply map[string]int) (*Docker, *fakeEngine) {
 // Recreating a server's container (new limits) must not delete the old one
 // when the image cannot be pulled, or the server is left with no container.
 func TestCreateKeepsTheOldContainerWhenThePullFails(t *testing.T) {
-	d, e := newFakeDocker(t, map[string]int{"POST /images/create": 500})
+	// The pull fails and the node has no copy of the image either.
+	d, e := newFakeDocker(t, map[string]int{"POST /images/create": 500, "GET /images/": 404})
 	err := d.Create(context.Background(), Spec{ServerSpec: proto.ServerSpec{UUID: "11111111-2222-4333-8444-555555555555", Image: "example/game:1"}, DataDir: t.TempDir()})
 	if err == nil || !strings.Contains(err.Error(), "engine says no") {
 		t.Fatalf("expected the pull error, got %v", err)
 	}
 	if e.called("DELETE", "/containers/") {
 		t.Fatal("the old container was removed although the new image could not be pulled")
+	}
+}
+
+// A node that already has the image (built there, or the registry is down) still starts servers.
+func TestPullFallsBackToTheImageOnTheNode(t *testing.T) {
+	d, e := newFakeDocker(t, map[string]int{"POST /images/create": 500})
+	if err := d.pull(context.Background(), "example/game:1"); err != nil {
+		t.Fatalf("the copy on the node should be used: %v", err)
+	}
+	if !e.called("GET", "/images/example/game:1/json") {
+		t.Fatal("the image on the node was not looked up")
 	}
 }
 
