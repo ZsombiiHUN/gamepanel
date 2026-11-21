@@ -2,6 +2,8 @@
 
 Everything about your own account is on the **Account** page.
 
+<Shot name="account" alt="The Account page: password, passkeys, two-factor, API keys and sessions" />
+
 ## Ways to sign in
 
 | Method | Notes |
