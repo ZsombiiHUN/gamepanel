@@ -44,20 +44,11 @@ func (s *Store) CreateAPIKey(ctx context.Context, userID int64, name string, ttl
 }
 
 func (s *Store) ListAPIKeys(ctx context.Context, userID int64) ([]APIKey, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,name,prefix,created_at,last_used_at,expires_at FROM api_keys WHERE user_id=? ORDER BY id`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []APIKey{}
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (APIKey, error) {
 		var k APIKey
-		if err := rows.Scan(&k.ID, &k.Name, &k.Prefix, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt); err != nil {
-			return nil, err
-		}
-		out = append(out, k)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&k.ID, &k.Name, &k.Prefix, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt)
+		return k, err
+	}, `SELECT id,name,prefix,created_at,last_used_at,expires_at FROM api_keys WHERE user_id=? ORDER BY id`, userID)
 }
 
 func (s *Store) DeleteAPIKey(ctx context.Context, userID, id int64) error {

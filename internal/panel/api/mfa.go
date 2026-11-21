@@ -185,7 +185,7 @@ func (a *App) registerMFA(api huma.API) {
 				return nil, err
 			}
 			if err := a.Store.DisableTOTP(ctx, u.ID); err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			if err := a.Store.DeleteOtherSessions(ctx, u.ID, sessionToken(ctx)); err != nil {
 				a.audit(ctx, u, "totp.disable", u.Email, "revoking other sessions failed")
@@ -231,7 +231,7 @@ func (a *App) registerMFA(api huma.API) {
 			}
 			codes, err := a.Store.NewRecoveryCodes(ctx, u.ID)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			a.audit(ctx, u, "totp.recovery_regenerated", u.Email, "")
 			out := &recoveryOut{}
@@ -283,7 +283,7 @@ func (a *App) registerAPIKeys(api huma.API) {
 			}
 			ks, err := a.Store.ListAPIKeys(ctx, u.ID)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			return &keyListOut{Body: ks}, nil
 		})

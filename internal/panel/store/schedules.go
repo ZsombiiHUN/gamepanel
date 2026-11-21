@@ -90,25 +90,16 @@ func ValidateTask(t Task) error {
 }
 
 func (s *Store) tasks(ctx context.Context, scheduleID int64) ([]Task, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,seq,action,payload,offset_seconds,continue_on_failure FROM schedule_tasks WHERE schedule_id=? ORDER BY seq`, scheduleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Task{}
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (Task, error) {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Seq, &t.Action, &t.Payload, &t.OffsetSeconds, &t.ContinueOnFailure); err != nil {
-			return nil, err
-		}
-		out = append(out, t)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&t.ID, &t.Seq, &t.Action, &t.Payload, &t.OffsetSeconds, &t.ContinueOnFailure)
+		return t, err
+	}, `SELECT id,seq,action,payload,offset_seconds,continue_on_failure FROM schedule_tasks WHERE schedule_id=? ORDER BY seq`, scheduleID)
 }
 
 const schedCols = `id,server_uuid,name,cron,enabled,only_when_online,next_run,last_run,last_status,COALESCE(created_by,0)`
 
-func scanSchedule(sc interface{ Scan(...any) error }) (Schedule, error) {
+func scanSchedule(sc rowScanner) (Schedule, error) {
 	var v Schedule
 	if err := sc.Scan(&v.ID, &v.ServerUUID, &v.Name, &v.Cron, &v.Enabled, &v.OnlyWhenOnline, &v.NextRun, &v.LastRun, &v.LastStatus, &v.CreatedBy); err != nil {
 		return v, nf(err)
@@ -131,9 +122,6 @@ func (s *Store) ListSchedules(ctx context.Context, server string) ([]Schedule, e
 	out, err := queryAll(ctx, s.DB, scanSchedule, `SELECT `+schedCols+` FROM schedules WHERE server_uuid=? ORDER BY id`, server)
 	if err != nil {
 		return nil, err
-	}
-	if out == nil {
-		out = []Schedule{}
 	}
 	return s.loadTasks(ctx, out)
 }

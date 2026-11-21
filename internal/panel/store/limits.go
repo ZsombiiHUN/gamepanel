@@ -26,10 +26,8 @@ type Limits struct {
 	BandwidthMbit int64  `json:"bandwidth_mbit" required:"false" minimum:"0" maximum:"100000" doc:"network limit each way in Mbit/s, 0 = unlimited"`
 }
 
-// DefaultLimits are used for fields a request leaves out.
-func DefaultLimits() Limits {
-	return Limits{MemoryMB: 1024, PidsLimit: 1024, BackupLimit: 20}
-}
+// DefaultPidsLimit applies to servers that do not set a process limit.
+const DefaultPidsLimit = 1024
 
 var cpusetRe = regexp.MustCompile(`^\d+([-,]\d+)*$`)
 
@@ -38,10 +36,10 @@ var cpusetRe = regexp.MustCompile(`^\d+([-,]\d+)*$`)
 // other caller).
 func (l *Limits) Normalize() error {
 	if l.PidsLimit == 0 {
-		l.PidsLimit = 1024
+		l.PidsLimit = DefaultPidsLimit
 	}
 	if l.BackupLimit == 0 {
-		l.BackupLimit = 20
+		l.BackupLimit = DefaultBackupLimit
 	}
 	switch {
 	case l.MemoryMB < 64 || l.MemoryMB > 1<<20:

@@ -69,7 +69,7 @@ func (d *Dir) CopyName(p string) string {
 	}
 }
 
-// Copy duplicates a file or folder to to (which must not exist). Symlinks
+// Copy duplicates the file or folder from into the path to, which must not exist. Symlinks
 // are skipped. reserve is called with each file's size before it is written,
 // so the copy cannot pass the disk limit.
 func (d *Dir) Copy(from, to string, reserve func(int64) error) error {
