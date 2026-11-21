@@ -144,6 +144,21 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   );
 }
 
+/**
+ * Opens and closes a <dialog> as a modal to follow `open`. The element gives
+ * focus trapping, Esc and the backdrop for free.
+ */
+export function useModalDialog(open: boolean) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+  return ref;
+}
+
 export function ConfirmDialog({
   open,
   title,
@@ -163,21 +178,16 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
+  const ref = useModalDialog(open);
+  const titleId = useId();
   return (
     <dialog
       ref={ref}
       onClose={onCancel}
-      aria-labelledby="confirm-title"
+      aria-labelledby={titleId}
       className="m-auto w-full max-w-md rounded-xl border border-line-strong bg-zinc-900 p-6 text-zinc-100 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-[2px]"
     >
-      <h2 id="confirm-title" className="text-lg font-semibold">
+      <h2 id={titleId} className="text-lg font-semibold">
         {title}
       </h2>
       <div className="mt-2 text-sm text-zinc-300">{body}</div>
@@ -226,14 +236,8 @@ export function FormDialog({
   onSubmit: () => void;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const ref = useModalDialog(open);
   const titleId = useId();
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
   return (
     <dialog
       ref={ref}

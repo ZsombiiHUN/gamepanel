@@ -1,6 +1,6 @@
 /** What went wrong in a single sign-on round trip, in words. */
 const FAILED = "The sign-in did not work. Try again or use your password.";
-export const SSO_ERRORS: Record<string, string> = {
+const SSO_ERRORS: Record<string, string> = {
   not_linked: "That sign-in is not linked to an account here. Sign in with your password, then link it on your Account page.",
   email_taken: "An account with that email already exists. Sign in with your password, then link this sign-in on your Account page.",
   unverified: "The provider has not verified that email address, so it cannot make an account.",

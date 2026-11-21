@@ -3,7 +3,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { api, call } from "../api/client";
 import { identitiesQuery, invalidates, keys, meQuery } from "../api/queries";
-import { Avatar, ErrorBox, Field, PageHeader, Pill, Section, SectionsWithNav } from "../components/ui";
+import { Avatar, ErrorBox, PageHeader, Pill, Section, SectionsWithNav } from "../components/ui";
+import { PasswordField, MfaCodeField } from "../components/AuthFields";
 import { ApiKeysSection } from "./ApiKeysSection";
 import { PasskeysSection } from "./PasskeysSection";
 import { SessionsSection } from "./SessionsSection";
@@ -78,63 +79,10 @@ export function AccountPage() {
               }
             >
               <div className="grid max-w-md gap-4">
-                <Field label="Current password">
-                  {(id) => (
-                    <input
-                      id={id}
-                      className="input"
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={current}
-                      onChange={(e) => setCurrent(e.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field label="New password">
-                  {(id) => (
-                    <input
-                      id={id}
-                      className="input"
-                      type="password"
-                      autoComplete="new-password"
-                      required
-                      minLength={12}
-                      maxLength={256}
-                      value={next}
-                      onChange={(e) => setNext(e.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field label="Repeat new password">
-                  {(id) => (
-                    <input
-                      id={id}
-                      className="input"
-                      type="password"
-                      autoComplete="new-password"
-                      required
-                      value={again}
-                      onChange={(e) => setAgain(e.target.value)}
-                      aria-invalid={mismatch}
-                    />
-                  )}
-                </Field>
-                {mfa && (
-                  <Field label="Authenticator or recovery code">
-                    {(id) => (
-                      <input
-                        id={id}
-                        className="input w-48 font-mono"
-                        autoComplete="one-time-code"
-                        required
-                        maxLength={64}
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                      />
-                    )}
-                  </Field>
-                )}
+                <PasswordField label="Current password" value={current} onChange={setCurrent} />
+                <PasswordField label="New password" kind="new" value={next} onChange={setNext} />
+                <PasswordField label="Repeat new password" kind="new" value={again} onChange={setAgain} invalid={mismatch} />
+                {mfa && <MfaCodeField value={code} onChange={setCode} />}
                 {mismatch && (
                   <p role="alert" className="text-sm text-bad-text">
                     The passwords do not match.

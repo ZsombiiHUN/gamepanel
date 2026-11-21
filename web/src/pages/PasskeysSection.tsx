@@ -4,6 +4,7 @@ import { Fingerprint, Loader2, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { authOptionsQuery, identitiesQuery, invalidates, keys, passkeysQuery } from "../api/queries";
 import { ErrorBox, Field, FormDialog, Section } from "../components/ui";
+import { PasswordField } from "../components/AuthFields";
 import { createPasskey, passkeyError, passkeysSupported } from "../lib/webauthn";
 
 export function PasskeysSection() {
@@ -101,19 +102,13 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
         {(id) => <input id={id} className="input" maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />}
       </Field>
       {needsPassword && (
-        <Field label="Your password" hint="Adding a way into your account needs your password.">
-          {(id) => (
-            <input
-              id={id}
-              className="input"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoFocus
-            />
-          )}
-        </Field>
+        <PasswordField
+          label="Your password"
+          value={password}
+          onChange={setPassword}
+          hint="Adding a way into your account needs your password."
+          autoFocus
+        />
       )}
       {add.isPending && (
         <p role="status" className="flex items-center gap-2 text-sm text-zinc-400">

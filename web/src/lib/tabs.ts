@@ -42,7 +42,7 @@ export const TAB_INFO: { id: Tab; label: string; need?: string; keywords?: strin
 ];
 
 /** Whether a viewer with these rights may open a tab. */
-export function canSee(need: string | undefined, server: { owner: boolean; permissions: string[] }) {
+function canSee(need: string | undefined, server: { owner: boolean; permissions: string[] }) {
   return !need || (need === "owner" ? server.owner : server.permissions.includes(need));
 }
 

@@ -5,7 +5,8 @@ import { Check, Copy, ExternalLink, KeyRound, Loader2, Plug } from "lucide-react
 import { api, call } from "../../api/client";
 import { invalidates, keys, meQuery, sftpQuery } from "../../api/queries";
 import { Modal } from "../../components/Modal";
-import { ErrorBox, Field, Pill, Spinner } from "../../components/ui";
+import { ErrorBox, Pill, Spinner } from "../../components/ui";
+import { PasswordField, MfaCodeField } from "../../components/AuthFields";
 import { sftpHost, sftpLink } from "../../lib/sftp";
 import { copyText } from "../../lib/clipboard";
 
@@ -257,36 +258,8 @@ function MakeKey({ name, mfa, onMade, onCancel }: { name: string; mfa: boolean; 
         you can on the panel, so treat it like a password.
       </p>
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Your account password">
-          {(id) => (
-            <input
-              id={id}
-              className="input"
-              type="password"
-              autoComplete="current-password"
-              required
-              autoFocus
-              maxLength={256}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          )}
-        </Field>
-        {mfa && (
-          <Field label="Authenticator or recovery code">
-            {(id) => (
-              <input
-                id={id}
-                className="input w-48 font-mono"
-                autoComplete="one-time-code"
-                required
-                maxLength={64}
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-            )}
-          </Field>
-        )}
+        <PasswordField label="Your account password" value={password} onChange={setPassword} autoFocus />
+        {mfa && <MfaCodeField value={code} onChange={setCode} />}
       </div>
       <ErrorBox error={create.error} />
       <div className="flex gap-2">
