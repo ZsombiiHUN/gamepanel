@@ -145,7 +145,7 @@ func (a *App) registerBackups(api huma.API) {
 			}
 			bs, err := a.Store.ListBackups(ctx, s.UUID)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			return &backupListOut{Body: bs}, nil
 		})
@@ -250,7 +250,7 @@ func (a *App) registerBackups(api huma.API) {
 				if errors.Is(err, store.ErrRestoreRunning) {
 					return nil, userErr(http.StatusConflict, err)
 				}
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			a.audit(ctx, u, "backup.restore", s.UUID, fmt.Sprintf("%s truncate=%v", b.Name, in.Body.Truncate))
 			return nil, nil

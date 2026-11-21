@@ -131,7 +131,7 @@ var ErrAccountExists = userErr("an account with this email already exists")
 
 const inviteCols = `t.id,t.email,COALESCE(t.server_uuid,''),COALESCE(s.name,''),t.permissions,t.is_admin,t.expires_at,t.created_at`
 
-func scanInvite(sc interface{ Scan(...any) error }) (Invite, error) {
+func scanInvite(sc rowScanner) (Invite, error) {
 	var inv Invite
 	var perms string
 	err := sc.Scan(&inv.ID, &inv.Email, &inv.ServerUUID, &inv.ServerName, &perms, &inv.IsAdmin, &inv.ExpiresAt, &inv.CreatedAt)
@@ -151,21 +151,8 @@ func (s *Store) GetInvite(ctx context.Context, token string) (Invite, error) {
 
 // ListInvites returns a server's pending invitations ("" = account invites).
 func (s *Store) ListInvites(ctx context.Context, server string) ([]Invite, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+inviteCols+` FROM user_tokens t LEFT JOIN servers s ON s.uuid=t.server_uuid
+	return queryAll(ctx, s.DB, scanInvite, `SELECT `+inviteCols+` FROM user_tokens t LEFT JOIN servers s ON s.uuid=t.server_uuid
 		WHERE t.kind='invite' AND COALESCE(t.server_uuid,'')=? AND t.expires_at>? ORDER BY t.created_at DESC`, server, now())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Invite{}
-	for rows.Next() {
-		inv, err := scanInvite(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, inv)
-	}
-	return out, rows.Err()
 }
 
 // DeleteInvite withdraws an invitation of a server ("" = account invites).

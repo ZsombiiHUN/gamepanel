@@ -131,22 +131,13 @@ func (s *Store) RemoveSubuser(ctx context.Context, server string, userID int64) 
 }
 
 func (s *Store) ListSubusers(ctx context.Context, server string) ([]Subuser, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT u.id,u.email,su.permissions,su.created_at FROM server_users su JOIN users u ON u.id=su.user_id WHERE su.server_uuid=? ORDER BY u.email`, server)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Subuser{}
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (Subuser, error) {
 		var v Subuser
 		var p string
-		if err := rows.Scan(&v.UserID, &v.Email, &p, &v.CreatedAt); err != nil {
-			return nil, err
-		}
+		err := sc.Scan(&v.UserID, &v.Email, &p, &v.CreatedAt)
 		v.Permissions = splitPerms(p)
-		out = append(out, v)
-	}
-	return out, rows.Err()
+		return v, err
+	}, `SELECT u.id,u.email,su.permissions,su.created_at FROM server_users su JOIN users u ON u.id=su.user_id WHERE su.server_uuid=? ORDER BY u.email`, server)
 }
 
 // SubuserServers returns, for every server a user is a subuser of, the

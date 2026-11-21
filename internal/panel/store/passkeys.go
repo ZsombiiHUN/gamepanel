@@ -44,20 +44,11 @@ func (s *Store) UserByWebAuthnHandle(ctx context.Context, handle []byte) (User, 
 
 // PasskeyData returns the stored credential records of an account.
 func (s *Store) PasskeyData(ctx context.Context, userID int64) ([][]byte, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT data FROM passkeys WHERE user_id=? ORDER BY created_at`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out [][]byte
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) ([]byte, error) {
 		var d []byte
-		if err := rows.Scan(&d); err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&d)
+		return d, err
+	}, `SELECT data FROM passkeys WHERE user_id=? ORDER BY created_at`, userID)
 }
 
 func passkeyID(raw []byte) string { return base64.RawURLEncoding.EncodeToString(raw) }
@@ -87,20 +78,11 @@ func (s *Store) UsePasskey(ctx context.Context, userID int64, credID, data []byt
 }
 
 func (s *Store) ListPasskeys(ctx context.Context, userID int64) ([]Passkey, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,name,created_at,last_used_at FROM passkeys WHERE user_id=? ORDER BY created_at`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Passkey{}
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (Passkey, error) {
 		var p Passkey
-		if err := rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.LastUsedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.LastUsedAt)
+		return p, err
+	}, `SELECT id,name,created_at,last_used_at FROM passkeys WHERE user_id=? ORDER BY created_at`, userID)
 }
 
 func (s *Store) RenamePasskey(ctx context.Context, userID int64, id, name string) error {

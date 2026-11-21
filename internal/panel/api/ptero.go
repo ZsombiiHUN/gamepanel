@@ -201,7 +201,9 @@ func (a *App) registerPteroControl(mux *http.ServeMux) {
 		if err != nil {
 			return err
 		}
-		var in struct{ Signal string }
+		var in struct {
+			Signal string `json:"signal"`
+		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&in); err != nil {
 			return huma.Error422UnprocessableEntity("The request body must be JSON.")
 		}
@@ -222,7 +224,9 @@ func (a *App) registerPteroControl(mux *http.ServeMux) {
 		if err != nil {
 			return err
 		}
-		var in struct{ Command string }
+		var in struct {
+			Command string `json:"command"`
+		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&in); err != nil {
 			return huma.Error422UnprocessableEntity("The request body must be JSON.")
 		}

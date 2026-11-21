@@ -300,7 +300,7 @@ const nodeCols = `id,name,port_start,port_end,memory_mb,disk_mb,overallocate_pct
 	(SELECT COALESCE(SUM(memory_mb),0) FROM servers WHERE node_id=nodes.id),
 	(SELECT COALESCE(SUM(disk_mb),0) FROM servers WHERE node_id=nodes.id)`
 
-func scanNode(sc interface{ Scan(...any) error }) (Node, error) {
+func scanNode(sc rowScanner) (Node, error) {
 	var n Node
 	err := sc.Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd, &n.MemoryMB, &n.DiskMB, &n.OverallocatePct, &n.SFTPHost, &n.SFTPPort, &n.AllocatedMemory, &n.AllocatedDisk)
 	return n, err
@@ -328,20 +328,7 @@ func (s *Store) GetNode(ctx context.Context, id int64) (Node, error) {
 }
 
 func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+nodeCols+` FROM nodes ORDER BY id`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Node{}
-	for rows.Next() {
-		n, err := scanNode(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanNode, `SELECT `+nodeCols+` FROM nodes ORDER BY id`)
 }
 
 // DeleteNode removes a node that hosts no servers (ErrNodeInUse otherwise).
@@ -449,7 +436,7 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	return e, nil
 }
 
-func scanEgg(sc interface{ Scan(...any) error }) (Egg, error) {
+func scanEgg(sc rowScanner) (Egg, error) {
 	var e Egg
 	var vars, imgs, feats, done string
 	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript, &feats, &done); err != nil {
@@ -489,20 +476,7 @@ func (s *Store) GetEgg(ctx context.Context, id int64) (Egg, error) {
 }
 
 func (s *Store) ListEggs(ctx context.Context) ([]Egg, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+eggCols+` FROM eggs ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Egg{}
-	for rows.Next() {
-		e, err := scanEgg(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanEgg, `SELECT `+eggCols+` FROM eggs ORDER BY name`)
 }
 
 // ---- servers ----
@@ -551,7 +525,7 @@ func nullable(s string) any {
 
 const srvCols = `uuid,name,owner_id,node_id,egg_id,memory_mb,cpu_pct,port,env,swap_mb,cpuset,pids_limit,io_weight,disk_mb,backup_limit,image,startup,port_limit,database_limit,description,bandwidth_mbit,crash_restart,external_id,suspended,install_status`
 
-func scanServer(sc interface{ Scan(...any) error }) (Server, error) {
+func scanServer(sc rowScanner) (Server, error) {
 	var v Server
 	var env string
 	var ext sql.NullString
@@ -578,20 +552,7 @@ func (s *Store) ListServers(ctx context.Context, u User) ([]Server, error) {
 	if !u.IsAdmin {
 		q, args = `SELECT `+srvCols+` FROM servers WHERE owner_id=? OR uuid IN (SELECT server_uuid FROM server_users WHERE user_id=?) ORDER BY name`, []any{u.ID, u.ID}
 	}
-	rows, err := s.DB.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Server{}
-	for rows.Next() {
-		v, err := scanServer(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanServer, q, args...)
 }
 
 // CreateServer allocates the first free port in the node's range.
@@ -642,20 +603,7 @@ func (s *Store) DeleteServer(ctx context.Context, uuid string) error {
 }
 
 func (s *Store) ServersOnNode(ctx context.Context, nodeID int64) ([]Server, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+srvCols+` FROM servers WHERE node_id=?`, nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Server
-	for rows.Next() {
-		v, err := scanServer(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanServer, `SELECT `+srvCols+` FROM servers WHERE node_id=?`, nodeID)
 }
 
 // ServerByPrefix finds the server on a node whose uuid starts with prefix
@@ -784,20 +732,11 @@ func (s *Store) ForceDeleteServer(ctx context.Context, v Server) error {
 
 // NodeCleanup lists the servers a node still has to remove.
 func (s *Store) NodeCleanup(ctx context.Context, nodeID int64) ([]string, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT server_uuid FROM node_cleanup WHERE node_id=? ORDER BY created_at`, nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (string, error) {
 		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&id)
+		return id, err
+	}, `SELECT server_uuid FROM node_cleanup WHERE node_id=? ORDER BY created_at`, nodeID)
 }
 
 // NodeCleanupDone drops a finished removal.

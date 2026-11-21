@@ -280,7 +280,7 @@ func (a *App) registerPasskeyLogin(api huma.API) {
 			}
 			tok, err := a.newSession(ctx, who.u.ID, store.MethodPasskey)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("could not create session")
+				return nil, huma.Error500InternalServerError("could not create session", err)
 			}
 			a.fails.reset(who.u.Email)
 			a.audit(ctx, who.u, "login.ok", who.u.Email, "passkey")

@@ -474,7 +474,7 @@ func (a *App) registerSSO(api huma.API) {
 			a.ssoMFA.Delete(in.Pending)
 			tok, err := a.newSession(ctx, u.ID, store.MethodSSOTOTP+":"+a.ssoName(p.provider))
 			if err != nil {
-				return nil, huma.Error500InternalServerError("could not create session")
+				return nil, huma.Error500InternalServerError("could not create session", err)
 			}
 			a.audit(ctx, u, "login.ok", u.Email, "single sign-on with "+p.provider+" and a second factor")
 			pending := http.Cookie{ //nolint:gosec // G124: Secure follows the request's scheme, as for the session cookie
