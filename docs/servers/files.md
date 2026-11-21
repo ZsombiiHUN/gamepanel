@@ -2,6 +2,8 @@
 
 The **Files** tab is a file manager for the server's folder. You need `files.read` to look and `files.write` to change anything. Everything here is also possible over [SFTP](/nodes/sftp).
 
+<Shot name="files" alt="The Files tab: upload, new folder, new file, pull from URL, and search" />
+
 ## What you can do
 
 - **Browse** folders; the folder you are in is part of the address, so Back works and you can link to it.

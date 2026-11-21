@@ -2,6 +2,8 @@
 
 An **egg** says how to run one kind of server: which Docker images it can use, the startup command, the stop command, the variables a user can set, and the install script that downloads the game. GamePanel reads Pterodactyl's egg format (PTDL v1 and v2), which Pelican also uses, so the large community library works.
 
+<Shot name="eggs" alt="The Eggs page: imported eggs with their Docker images and startup commands" />
+
 ## Importing an egg
 
 Open **Eggs** (admin) and import a `.json` egg file, or call `POST /api/eggs/import` with the file as the body.

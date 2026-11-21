@@ -38,6 +38,8 @@ A crash is recorded in the activity log as `server.crash`.
 
 ## The console
 
+<Shot name="console" alt="A running server: the live console beside CPU, memory and storage charts" />
+
 The console streams the server's output live and lets you type commands (`console.send` permission). When you open it you see the last **500 lines**.
 
 To keep the panel responsive:

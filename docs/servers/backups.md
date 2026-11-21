@@ -2,6 +2,8 @@
 
 The **Backups** tab makes and restores copies of the server's files.
 
+<Shot name="backups" alt="The Backups tab: stored backups, space used and the newest backup" />
+
 | Action | Needs |
 |---|---|
 | See backups | `backups.read` |
