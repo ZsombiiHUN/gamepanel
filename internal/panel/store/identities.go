@@ -39,20 +39,11 @@ func (s *Store) LinkIdentity(ctx context.Context, userID int64, provider, subjec
 }
 
 func (s *Store) ListIdentities(ctx context.Context, userID int64) ([]Identity, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT provider,email,created_at FROM user_identities WHERE user_id=? ORDER BY provider`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Identity{}
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (Identity, error) {
 		var i Identity
-		if err := rows.Scan(&i.Provider, &i.Email, &i.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, i)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&i.Provider, &i.Email, &i.CreatedAt)
+		return i, err
+	}, `SELECT provider,email,created_at FROM user_identities WHERE user_id=? ORDER BY provider`, userID)
 }
 
 // ErrLastSignIn means removing this would leave the account no way to sign in.

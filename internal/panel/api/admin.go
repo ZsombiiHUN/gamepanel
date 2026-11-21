@@ -119,7 +119,7 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			ns, err := a.Store.ListNodes(ctx)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			out := &nodeListOut{Body: []nodeView{}}
 			for _, n := range ns {
@@ -139,7 +139,7 @@ func (a *App) registerAdmin(api huma.API) {
 			case errors.Is(err, store.ErrNotFound):
 				return nil, huma.Error404NotFound("node not found")
 			case err != nil:
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			// Its token is gone; do not keep talking to it.
 			a.Hub.Disconnect(in.ID)
@@ -187,7 +187,7 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			e, err = a.Store.CreateEgg(ctx, e)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			a.audit(ctx, mustUser(ctx), "egg.import", e.Name, "")
 			return &eggOut{Body: e}, nil
@@ -200,7 +200,7 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			es, err := a.Store.ListEggs(ctx)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			return &eggListOut{Body: es}, nil
 		})

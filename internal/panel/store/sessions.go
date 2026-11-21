@@ -101,23 +101,14 @@ type Session struct {
 func (s *Store) ListSessions(ctx context.Context, userID int64, current string) ([]Session, error) {
 	cur := HashToken(current)
 	idle := int64(s.SessionIdle.Seconds())
-	rows, err := s.DB.QueryContext(ctx, `SELECT public_id,token_hash=?,created_at,last_seen_at,expires_at,ip,last_ip,user_agent,method
+	return queryAll(ctx, s.DB, func(sc rowScanner) (Session, error) {
+		var x Session
+		err := sc.Scan(&x.ID, &x.Current, &x.CreatedAt, &x.LastSeen, &x.ExpiresAt, &x.IP, &x.LastIP, &x.UserAgent, &x.Method)
+		x.IdleEnds = min(x.LastSeen+idle, x.ExpiresAt)
+		return x, err
+	}, `SELECT public_id,token_hash=?,created_at,last_seen_at,expires_at,ip,last_ip,user_agent,method
 		FROM sessions WHERE user_id=? AND expires_at>? AND last_seen_at>? ORDER BY token_hash=? DESC, last_seen_at DESC, created_at DESC`,
 		cur, userID, now(), s.idleCutoff(), cur)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Session{}
-	for rows.Next() {
-		var x Session
-		if err := rows.Scan(&x.ID, &x.Current, &x.CreatedAt, &x.LastSeen, &x.ExpiresAt, &x.IP, &x.LastIP, &x.UserAgent, &x.Method); err != nil {
-			return nil, err
-		}
-		x.IdleEnds = min(x.LastSeen+idle, x.ExpiresAt)
-		out = append(out, x)
-	}
-	return out, rows.Err()
 }
 
 // ErrCurrentSession is returned when revoking your own session by id; sign out instead.

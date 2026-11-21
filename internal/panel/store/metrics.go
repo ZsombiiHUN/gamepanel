@@ -96,27 +96,18 @@ func (s *Store) Metrics(ctx context.Context, server string, since time.Time, ste
 	if step < MetricMinute {
 		step = MetricMinute
 	}
-	rows, err := s.DB.QueryContext(ctx, `SELECT at - at % ?,
+	return queryAll(ctx, s.DB, func(sc rowScanner) (Metric, error) {
+		var m Metric
+		var mem float64
+		var samples int64
+		err := sc.Scan(&m.At, &m.CPUAvg, &m.CPUMax, &mem, &m.MemMax, &m.Disk, &samples)
+		m.MemAvg, m.Running = int64(mem), samples > 0
+		return m, err
+	}, `SELECT at - at % ?,
 		  COALESCE(SUM(cpu_avg*samples)/NULLIF(SUM(samples),0),0), MAX(cpu_max),
 		  COALESCE(SUM(mem_avg*samples)/NULLIF(SUM(samples),0),0), MAX(mem_max),
 		  MAX(disk), SUM(samples)
 		FROM server_metrics WHERE server_uuid=? AND at>=? AND (res=? OR (res=? AND ? >= ?))
 		GROUP BY at - at % ? ORDER BY 1`,
 		step, server, since.Unix(), MetricMinute, MetricQuarter, step, MetricQuarter, step)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Metric{}
-	for rows.Next() {
-		var m Metric
-		var mem float64
-		var samples int64
-		if err := rows.Scan(&m.At, &m.CPUAvg, &m.CPUMax, &mem, &m.MemMax, &m.Disk, &samples); err != nil {
-			return nil, err
-		}
-		m.MemAvg, m.Running = int64(mem), samples > 0
-		out = append(out, m)
-	}
-	return out, rows.Err()
 }

@@ -21,7 +21,7 @@ const PARALLEL = 3;
  * A queue of uploads into one server. Each file is a single streamed request
  * (XHR, so the browser reports progress), written in place only once complete.
  */
-export class UploadQueue {
+class UploadQueue {
   private items: Upload[] = [];
   private waiting: { id: number; file: File; path: string }[] = [];
   private xhrs = new Map<number, XMLHttpRequest>();

@@ -136,7 +136,7 @@ func (a *App) registerSFTP(api huma.API) {
 			}
 			n, err := a.Store.GetNode(ctx, s.NodeID)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			out := &sftpInfoOut{}
 			b := &out.Body

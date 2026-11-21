@@ -25,27 +25,14 @@ type HostSecret struct {
 
 const hostCols = `id,name,host,port,username,max_databases,COALESCE(node_id,0),(SELECT COUNT(*) FROM server_databases WHERE host_id=database_hosts.id)`
 
-func scanHost(sc interface{ Scan(...any) error }) (DatabaseHost, error) {
+func scanHost(sc rowScanner) (DatabaseHost, error) {
 	var h DatabaseHost
 	err := sc.Scan(&h.ID, &h.Name, &h.Host, &h.Port, &h.Username, &h.MaxDatabases, &h.NodeID, &h.Databases)
 	return h, nf(err)
 }
 
 func (s *Store) ListDatabaseHosts(ctx context.Context) ([]DatabaseHost, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+hostCols+` FROM database_hosts ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []DatabaseHost{}
-	for rows.Next() {
-		h, err := scanHost(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, h)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanHost, `SELECT `+hostCols+` FROM database_hosts ORDER BY name`)
 }
 
 // CreateDatabaseHost saves a host; the password is sealed.
@@ -131,27 +118,14 @@ type ServerDatabase struct {
 
 const sdbCols = `d.id,d.host_id,d.name,d.username,d.remote,h.host,h.port,d.created_at`
 
-func scanSDB(sc interface{ Scan(...any) error }) (ServerDatabase, error) {
+func scanSDB(sc rowScanner) (ServerDatabase, error) {
 	var d ServerDatabase
 	err := sc.Scan(&d.ID, &d.HostID, &d.Name, &d.Username, &d.Remote, &d.Host, &d.Port, &d.CreatedAt)
 	return d, nf(err)
 }
 
 func (s *Store) ListServerDatabases(ctx context.Context, server string) ([]ServerDatabase, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+sdbCols+` FROM server_databases d JOIN database_hosts h ON h.id=d.host_id WHERE d.server_uuid=? ORDER BY d.name`, server)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []ServerDatabase{}
-	for rows.Next() {
-		d, err := scanSDB(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanSDB, `SELECT `+sdbCols+` FROM server_databases d JOIN database_hosts h ON h.id=d.host_id WHERE d.server_uuid=? ORDER BY d.name`, server)
 }
 
 func (s *Store) GetServerDatabase(ctx context.Context, server string, id int64) (ServerDatabase, error) {

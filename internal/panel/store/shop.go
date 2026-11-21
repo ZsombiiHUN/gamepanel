@@ -84,7 +84,7 @@ type Account struct {
 const accountCols = `id,email,is_admin,COALESCE(external_id,''),has_password,totp_enabled,
 	(SELECT COUNT(*) FROM servers WHERE owner_id=users.id),created_at`
 
-func scanAccount(sc interface{ Scan(...any) error }) (Account, error) {
+func scanAccount(sc rowScanner) (Account, error) {
 	var a Account
 	err := sc.Scan(&a.ID, &a.Email, &a.IsAdmin, &a.ExternalID, &a.HasPassword, &a.TOTPEnabled, &a.Servers, &a.CreatedAt)
 	return a, nf(err)
@@ -122,20 +122,7 @@ func (s *Store) ListAccounts(ctx context.Context, f AccountFilter) ([]Account, e
 	}
 	q += ` ORDER BY id LIMIT ? OFFSET ?`
 	args = append(args, f.Limit, f.Offset)
-	rows, err := s.DB.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Account{}
-	for rows.Next() {
-		a, err := scanAccount(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, a)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanAccount, q, args...)
 }
 
 // NewAccount is what CreateAccount needs. An empty Password makes an account
@@ -289,7 +276,7 @@ type Webhook struct {
 
 const hookCols = `id,url,description,secret,events,enabled,created_at`
 
-func scanHook(sc interface{ Scan(...any) error }) (Webhook, error) {
+func scanHook(sc rowScanner) (Webhook, error) {
 	var h Webhook
 	var ev string
 	err := sc.Scan(&h.ID, &h.URL, &h.Description, &h.Secret, &ev, &h.Enabled, &h.CreatedAt)
@@ -325,20 +312,7 @@ func (s *Store) GetWebhook(ctx context.Context, id int64) (Webhook, error) {
 }
 
 func (s *Store) ListWebhooks(ctx context.Context) ([]Webhook, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+hookCols+` FROM webhooks ORDER BY id`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Webhook{}
-	for rows.Next() {
-		h, err := scanHook(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, h)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanHook, `SELECT `+hookCols+` FROM webhooks ORDER BY id`)
 }
 
 // UpdateWebhook saves a webhook's address, description, events and switch;
@@ -386,7 +360,7 @@ type Delivery struct {
 
 const deliveryCols = `id,webhook_id,event,payload,status,attempts,next_at,last_code,last_error,created_at,delivered_at`
 
-func scanDelivery(sc interface{ Scan(...any) error }) (Delivery, error) {
+func scanDelivery(sc rowScanner) (Delivery, error) {
 	var d Delivery
 	err := sc.Scan(&d.ID, &d.WebhookID, &d.Event, &d.Payload, &d.Status, &d.Attempts, &d.NextAt, &d.LastCode, &d.LastError, &d.CreatedAt, &d.DeliveredAt)
 	return d, nf(err)
@@ -416,20 +390,7 @@ func (s *Store) QueueEvent(ctx context.Context, event, payload string, hookID in
 
 // DueDeliveries returns pending deliveries whose time has come, oldest first.
 func (s *Store) DueDeliveries(ctx context.Context, limit int) ([]Delivery, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE status='pending' AND next_at<=? ORDER BY id LIMIT ?`, now(), limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Delivery
-	for rows.Next() {
-		d, err := scanDelivery(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanDelivery, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE status='pending' AND next_at<=? ORDER BY id LIMIT ?`, now(), limit)
 }
 
 // DeliveryDone records a successful delivery.
@@ -452,20 +413,7 @@ func (s *Store) DeliveryFailed(ctx context.Context, id int64, code int, msg stri
 
 // ListDeliveries returns a webhook's latest deliveries, newest first.
 func (s *Store) ListDeliveries(ctx context.Context, hookID int64, limit int) ([]Delivery, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE webhook_id=? ORDER BY id DESC LIMIT ?`, hookID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Delivery{}
-	for rows.Next() {
-		d, err := scanDelivery(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanDelivery, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE webhook_id=? ORDER BY id DESC LIMIT ?`, hookID, limit)
 }
 
 // RetryDelivery queues a finished delivery again, now.

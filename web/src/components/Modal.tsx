@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { useModalDialog } from "./ui";
 
 /** A modal with a title and a close button, for content that is not a form. Esc closes it. */
 export function Modal({
@@ -15,14 +16,8 @@ export function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const ref = useModalDialog(open);
   const titleId = useId();
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
   return (
     <dialog
       ref={ref}

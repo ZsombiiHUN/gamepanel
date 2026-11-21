@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { api, call } from "../api/client";
 import { invalidates, keys, meQuery, recoveryStatusQuery } from "../api/queries";
 import { CopyButton, ErrorBox, Field, Pill, Section } from "../components/ui";
+import { PasswordField, MfaCodeField } from "../components/AuthFields";
 
 function Qr({ uri }: { uri: string }) {
   const [src, setSrc] = useState("");
@@ -140,19 +141,7 @@ export function TotpSection() {
 
         {!enabled && !setup.data && (
           <form onSubmit={stop(() => setup.mutate())} className="max-w-md space-y-3">
-            <Field label="Your password">
-              {(id) => (
-                <input
-                  id={id}
-                  className="input"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              )}
-            </Field>
+            <PasswordField label="Your password" value={password} onChange={setPassword} />
             <ErrorBox error={setup.error} />
             <button type="submit" className="btn btn-primary" disabled={setup.isPending}>
               {setup.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Set up
@@ -208,32 +197,8 @@ export function TotpSection() {
               To turn it off or get new recovery codes, enter your password and a current authenticator or recovery code.
             </p>
             <div className="grid max-w-xl gap-4 sm:grid-cols-2">
-              <Field label="Your password">
-                {(id) => (
-                  <input
-                    id={id}
-                    className="input"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                )}
-              </Field>
-              <Field label="Authenticator or recovery code">
-                {(id) => (
-                  <input
-                    id={id}
-                    className="input font-mono"
-                    autoComplete="one-time-code"
-                    required
-                    maxLength={64}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                  />
-                )}
-              </Field>
+              <PasswordField label="Your password" value={password} onChange={setPassword} />
+              <MfaCodeField value={code} onChange={setCode} fullWidth />
             </div>
             <ErrorBox error={disable.error ?? regen.error} />
             <div className="flex gap-2">

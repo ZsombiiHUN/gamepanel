@@ -39,7 +39,7 @@ type Backup struct {
 
 const backupCols = `uuid,server_uuid,name,status,error,size,sha256,ignore,locked,created_at,completed_at,restore_status,restore_error,restored_at,disk`
 
-func scanBackup(sc interface{ Scan(...any) error }) (Backup, error) {
+func scanBackup(sc rowScanner) (Backup, error) {
 	var b Backup
 	err := sc.Scan(&b.UUID, &b.ServerUUID, &b.Name, &b.Status, &b.Error, &b.Size, &b.SHA256, &b.Ignore, &b.Locked, &b.CreatedAt, &b.CompletedAt,
 		&b.RestoreStatus, &b.RestoreError, &b.RestoredAt, &b.Disk)
@@ -163,20 +163,7 @@ func (s *Store) GetBackup(ctx context.Context, server, uuid string) (Backup, err
 }
 
 func (s *Store) ListBackups(ctx context.Context, server string) ([]Backup, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+backupCols+` FROM backups WHERE server_uuid=? ORDER BY created_at DESC, uuid`, server)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Backup{}
-	for rows.Next() {
-		b, err := scanBackup(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, b)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.DB, scanBackup, `SELECT `+backupCols+` FROM backups WHERE server_uuid=? ORDER BY created_at DESC, uuid`, server)
 }
 
 func (s *Store) SetBackupLocked(ctx context.Context, server, uuid string, locked bool) error {
@@ -197,20 +184,11 @@ func (s *Store) DeleteBackup(ctx context.Context, server, uuid string) error {
 
 // BackupsOnDisk lists a server's backups kept on disk ("s3"), for cleanup.
 func (s *Store) BackupsOnDisk(ctx context.Context, server, disk string) ([]string, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT uuid FROM backups WHERE server_uuid=? AND disk=?`, server, disk)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (string, error) {
 		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&id)
+		return id, err
+	}, `SELECT uuid FROM backups WHERE server_uuid=? AND disk=?`, server, disk)
 }
 
 // IgnoreList splits the stored newline-separated patterns.

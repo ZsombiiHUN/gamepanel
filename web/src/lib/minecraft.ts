@@ -260,7 +260,7 @@ export interface Segment {
   obfuscated?: boolean;
 }
 
-export const MC_COLORS: Record<string, string> = {
+const MC_COLORS: Record<string, string> = {
   "0": "#000000",
   "1": "#0000AA",
   "2": "#00AA00",
