@@ -2,6 +2,8 @@
 
 The **Startup** tab shows how the server starts: the startup command, the Docker image and the egg's variables.
 
+<Shot name="startup" alt="The Startup tab: startup command, Docker image and egg variables" />
+
 ## Who can change what
 
 | Setting | Who |

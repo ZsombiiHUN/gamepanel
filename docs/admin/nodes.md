@@ -2,6 +2,8 @@
 
 A node is a machine that runs game servers. Admins manage nodes under **Nodes**. To set one up, see [Installing a node](/nodes/installing).
 
+<Shot name="nodes" alt="The Nodes page: each node with its state, memory and disk allocated, and its servers" />
+
 ## Creating a node
 
 | Field | Meaning |

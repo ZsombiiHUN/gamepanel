@@ -93,6 +93,10 @@ GAMEPANEL_RUNTIME=fake bin/daemon</code></pre>
       </div>
     </header>
 
+    <section class="preview" aria-label="The panel">
+      <Shot name="console" alt="A running server in GamePanel: the live console beside CPU, memory and storage charts" />
+    </section>
+
     <section class="parts">
       <div class="parts-text">
         <h2>How the parts fit</h2>
@@ -330,6 +334,16 @@ h2 {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+.preview {
+  padding-bottom: 32px;
+}
+
+.preview :deep(.shot) {
+  margin: 0;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px -30px rgb(0 0 0 / 0.45);
 }
 
 .parts {

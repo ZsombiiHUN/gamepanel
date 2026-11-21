@@ -10,7 +10,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/servers.png" alt="The server list: cards with live CPU, memory and disk, status filters and a quick switcher" width="900">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/servers-dark.webp">
+    <img src="docs/public/screenshots/servers-light.webp" alt="The server list: cards with live CPU, memory and disk, status filters and a quick switcher" width="900">
+  </picture>
 </p>
 
 GamePanel has two parts. The **panel** is one Go binary that serves the API and the web UI. The **daemon** runs on each machine that hosts servers and drives Docker. You manage everything from the browser: start and stop servers, watch the console, edit files, take backups, and share access.
@@ -53,7 +56,10 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **Pterodactyl client API** | `/api/client` answers like Pterodactyl's for account, server list and details, resources, power, commands, files and backups, so bots and apps made for Pterodactyl work with a GamePanel API key |
 
 <p align="center">
-  <img src="docs/screenshots/console.png" alt="A running server: usage charts above a live console" width="900">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/console-dark.webp">
+    <img src="docs/public/screenshots/console-light.webp" alt="A running server: the live console beside CPU, memory and storage charts" width="900">
+  </picture>
 </p>
 
 ## Quick start

@@ -49,6 +49,8 @@ Open **Eggs** and import a Pterodactyl egg file (a `.json` file). The community 
 
 Choose **New server**, pick the egg, set memory and disk, and create it. The server installs in the background; its console shows the install script's output. When it reads **Offline**, press **Start**.
 
+<Shot name="new" alt="The New server page: pick a game, name it, choose a node and set limits" />
+
 ## Next
 
 - [How it works](/getting-started/architecture)

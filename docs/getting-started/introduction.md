@@ -2,6 +2,8 @@
 
 GamePanel runs game servers in Docker and gives you a web interface to manage them: start and stop them, watch the console, edit files, take backups and share access with other people.
 
+<Shot name="servers" alt="The server list: every server with its state, live usage and power buttons" />
+
 It has two parts:
 
 - **The panel** is one Go program. It serves the web interface and the API and keeps everything in one SQLite file. You run one panel.
