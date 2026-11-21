@@ -60,7 +60,7 @@ export function problem(status: number, detail: string) {
   });
 }
 
-export function newQueryClient() {
+function newQueryClient() {
   const client = createQueryClient();
   client.setDefaultOptions({ queries: { ...client.getDefaultOptions().queries, retry: false, refetchInterval: false } });
   return client;

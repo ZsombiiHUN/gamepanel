@@ -6,7 +6,7 @@ export interface Perm {
 }
 
 /** Friendly area names, in the order the picker shows them. Unknown prefixes go last under their own name. */
-export const AREAS: { id: string; label: string }[] = [
+const AREAS: { id: string; label: string }[] = [
   { id: "console", label: "Console" },
   { id: "power", label: "Power" },
   { id: "files", label: "Files" },
@@ -19,9 +19,9 @@ export const AREAS: { id: string; label: string }[] = [
   { id: "settings", label: "Settings" },
 ];
 
-export const areaOf = (perm: string) => perm.split(".")[0] ?? perm;
+const areaOf = (perm: string) => perm.split(".")[0] ?? perm;
 
-export function areaLabel(area: string) {
+function areaLabel(area: string) {
   return AREAS.find((a) => a.id === area)?.label ?? area.charAt(0).toUpperCase() + area.slice(1);
 }
 

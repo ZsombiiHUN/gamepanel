@@ -37,7 +37,7 @@ export const gb = (n: number) => (n >= 10 ? n.toFixed(0) : n.toFixed(1));
 const ticksOf = (max: number, label: (n: number) => string) => [0, max / 2, max].map((at) => ({ at, label: at === 0 ? "0" : label(at) }));
 
 /** MB for scales under a gigabyte (a 128 MB server is not "0.1 GB"), GB from there. */
-export function sizeUnit(scaleBytes: number) {
+function sizeUnit(scaleBytes: number) {
   return scaleBytes < GB ? { name: "MB", per: MB, fmt: (n: number) => n.toFixed(0) } : { name: "GB", per: GB, fmt: gb };
 }
 

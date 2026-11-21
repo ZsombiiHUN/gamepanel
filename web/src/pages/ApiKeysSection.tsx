@@ -4,6 +4,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { apiKeysQuery, invalidates, keys, meQuery } from "../api/queries";
 import { CopyButton, ErrorBox, Field, Section } from "../components/ui";
+import { PasswordField, MfaCodeField } from "../components/AuthFields";
 
 const when = (t: number) => (t ? new Date(t * 1000).toLocaleString() : "never");
 
@@ -112,35 +113,8 @@ export function ApiKeysSection() {
               </select>
             )}
           </Field>
-          <Field label="Your password">
-            {(id) => (
-              <input
-                id={id}
-                className="input"
-                type="password"
-                autoComplete="current-password"
-                required
-                maxLength={256}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            )}
-          </Field>
-          {mfa && (
-            <Field label="Authenticator or recovery code">
-              {(id) => (
-                <input
-                  id={id}
-                  className="input w-48 font-mono"
-                  autoComplete="one-time-code"
-                  required
-                  maxLength={64}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                />
-              )}
-            </Field>
-          )}
+          <PasswordField label="Your password" value={password} onChange={setPassword} />
+          {mfa && <MfaCodeField value={code} onChange={setCode} />}
           <button type="submit" className="btn btn-primary" disabled={create.isPending}>
             {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create key
           </button>

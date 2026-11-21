@@ -6,6 +6,7 @@ import { api, ApiError, call } from "../api/client";
 import { authOptionsQuery, invalidates, keys } from "../api/queries";
 import { AuthLayout } from "../components/AuthLayout";
 import { ErrorBox, Field } from "../components/ui";
+import { PasswordField } from "../components/AuthFields";
 import { ssoError, ssoStart } from "../lib/sso";
 import { getPasskey, passkeyError, passkeysSupported } from "../lib/webauthn";
 
@@ -146,20 +147,7 @@ export function LoginPage() {
               />
             )}
           </Field>
-          <Field label="Password">
-            {(id) => (
-              <input
-                id={id}
-                className="input"
-                type="password"
-                autoComplete="current-password"
-                required
-                readOnly={totpStep}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            )}
-          </Field>
+          <PasswordField label="Password" value={password} onChange={setPassword} readOnly={totpStep} />
           {totpStep && (
             <Field label="Authentication code" hint="From your authenticator app, or a recovery code.">
               {(id) => (
