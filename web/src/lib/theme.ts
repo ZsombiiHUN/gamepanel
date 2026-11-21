@@ -4,7 +4,7 @@ export type ThemePref = "system" | "light" | "dark";
 const KEY = "gp-theme";
 const media = () => window.matchMedia("(prefers-color-scheme: light)");
 
-export function readPref(): ThemePref {
+function readPref(): ThemePref {
   try {
     const v = localStorage.getItem(KEY);
     return v === "light" || v === "dark" ? v : "system";
@@ -14,7 +14,7 @@ export function readPref(): ThemePref {
 }
 
 /** Apply a preference to the page (index.html does the same before the first paint). */
-export function applyTheme(pref: ThemePref) {
+function applyTheme(pref: ThemePref) {
   const light = pref === "light" || (pref === "system" && media().matches);
   document.documentElement.dataset.theme = light ? "light" : "dark";
 }

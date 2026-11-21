@@ -50,21 +50,12 @@ func pickPort(ctx context.Context, q querier, nodeID int64, want int) (int, erro
 
 // ListPorts returns a server's ports, the primary one first.
 func (s *Store) ListPorts(ctx context.Context, uuid string) ([]ServerPort, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT sp.port, sp.notes, sp.port = sv.port FROM server_ports sp JOIN servers sv ON sv.uuid = sp.server_uuid
-		WHERE sp.server_uuid=? ORDER BY sp.port = sv.port DESC, sp.port`, uuid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []ServerPort{}
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (ServerPort, error) {
 		var p ServerPort
-		if err := rows.Scan(&p.Port, &p.Notes, &p.Primary); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&p.Port, &p.Notes, &p.Primary)
+		return p, err
+	}, `SELECT sp.port, sp.notes, sp.port = sv.port FROM server_ports sp JOIN servers sv ON sv.uuid = sp.server_uuid
+		WHERE sp.server_uuid=? ORDER BY sp.port = sv.port DESC, sp.port`, uuid)
 }
 
 // AddPort gives a server another port: want, or any free one when want is 0.

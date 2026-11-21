@@ -64,7 +64,7 @@ func (a *App) registerSchedules(api huma.API) {
 			}
 			l, err := a.Store.ListSchedules(ctx, s.UUID)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			return &scheduleListOut{Body: l}, nil
 		})

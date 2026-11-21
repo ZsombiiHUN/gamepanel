@@ -206,7 +206,7 @@ func (a *App) registerLinks(api huma.API) {
 			a.audit(ctx, u, "account.register", u.Email, map[bool]string{true: "invited", false: "open sign-up"}[b.Token != ""])
 			tok, err := a.newSession(ctx, u.ID, store.MethodRegister)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("could not create session")
+				return nil, huma.Error500InternalServerError("could not create session", err)
 			}
 			return &loginOut{Body: a.loginUser(u, store.MethodRegister), SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})

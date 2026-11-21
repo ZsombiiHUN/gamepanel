@@ -79,7 +79,7 @@ func (a *App) registerAuth(api huma.API) {
 			a.audit(ctx, u, "login.ok", email, "")
 			tok, err := a.newSession(ctx, u.ID, method)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("could not create session")
+				return nil, huma.Error500InternalServerError("could not create session", err)
 			}
 			return &loginOut{Body: a.loginUser(u, method), SetCookie: sessionCookies(ctx, tok, a.Store.SessionMax)}, nil
 		})
@@ -183,7 +183,7 @@ func (a *App) registerAccount(api huma.API) {
 				return nil, err
 			}
 			if err := a.Store.DeleteOtherSessions(ctx, u.ID, sessionToken(ctx)); err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			a.audit(ctx, u, "sessions.revoke_others", u.Email, "")
 			return nil, nil
@@ -196,7 +196,7 @@ func (a *App) registerAccount(api huma.API) {
 			}
 			es, err := a.Store.ListAudit(ctx, in.Q, in.Limit, in.Offset)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			return &auditOut{Body: es}, nil
 		})

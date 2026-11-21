@@ -11,8 +11,8 @@ type querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// rowScanner is *sql.Row or *sql.Rows. An alias, so the scan* helpers that
-// spell out the interface can be passed to queryAll.
+// rowScanner is *sql.Row or *sql.Rows; the scan* helpers take it so they serve
+// both single-row lookups and queryAll.
 type rowScanner = interface{ Scan(dest ...any) error }
 
 // count runs a SELECT COUNT(*)-style query that returns one integer.
@@ -27,14 +27,15 @@ func count(ctx context.Context, q querier, query string, args ...any) (int, erro
 // queryAll runs query and scans every row. The rows are closed before it
 // returns: the panel uses one database connection, so a later query would
 // wait on rows left open. A failure partway through returns the error, never
-// a shortened list.
+// a shortened list. An empty result is an empty, non-nil slice, which the API
+// encodes as [] rather than null.
 func queryAll[T any](ctx context.Context, q querier, scan func(rowScanner) (T, error), query string, args ...any) ([]T, error) {
 	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []T
+	out := []T{}
 	for rows.Next() {
 		v, err := scan(rows)
 		if err != nil {

@@ -190,12 +190,12 @@ func (a *App) registerServers(api huma.API) {
 			}
 			ss, err := a.Store.ListServers(ctx, u)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			// One query for every server shared with the caller, not one per server.
 			shared, err := a.Store.SubuserServers(ctx, u.ID)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("db error")
+				return nil, huma.Error500InternalServerError("db error", err)
 			}
 			out := &serverListOut{Body: []serverView{}}
 			for _, s := range ss {
@@ -380,7 +380,7 @@ func (a *App) registerServerAdmin(api huma.API) {
 			}
 			spec, err := a.specFor(ctx, next)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("could not build the server spec")
+				return nil, huma.Error500InternalServerError("could not build the server spec", err)
 			}
 			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerUpdate, spec); err != nil {
 				return nil, nodeErr(err)

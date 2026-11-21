@@ -52,21 +52,12 @@ func (s *Store) listAudit(ctx context.Context, conds []string, args []any, q str
 		where = " WHERE " + strings.Join(conds, " AND ")
 	}
 	args = append(args, limit, offset)
-	rows, err := s.DB.QueryContext(ctx, `SELECT id,at,COALESCE(actor_id,0),actor_email,action,target,ip,detail
-		FROM audit_log`+where+` ORDER BY id DESC LIMIT ? OFFSET ?`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []AuditEntry{}
-	for rows.Next() {
+	return queryAll(ctx, s.DB, func(sc rowScanner) (AuditEntry, error) {
 		var e AuditEntry
-		if err := rows.Scan(&e.ID, &e.At, &e.ActorID, &e.ActorEmail, &e.Action, &e.Target, &e.IP, &e.Detail); err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
+		err := sc.Scan(&e.ID, &e.At, &e.ActorID, &e.ActorEmail, &e.Action, &e.Target, &e.IP, &e.Detail)
+		return e, err
+	}, `SELECT id,at,COALESCE(actor_id,0),actor_email,action,target,ip,detail
+		FROM audit_log`+where+` ORDER BY id DESC LIMIT ? OFFSET ?`, args...)
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)

@@ -4,7 +4,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link2, Loader2 } from "lucide-react";
 import { api, call } from "../api/client";
 import { identitiesQuery, invalidates, keys } from "../api/queries";
-import { ErrorBox, Field, Pill, Section } from "../components/ui";
+import { ErrorBox, Pill, Section } from "../components/ui";
+import { PasswordField } from "../components/AuthFields";
 import { ssoError, ssoStart } from "../lib/sso";
 
 /** Linked single sign-on providers, with link and unlink. */
@@ -99,34 +100,14 @@ export function FirstPassword() {
         }
       >
         <div className="grid max-w-md gap-4">
-          <Field label="New password">
-            {(id) => (
-              <input
-                id={id}
-                className="input"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={12}
-                maxLength={256}
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Repeat new password" hint={again && pw !== again ? "The two do not match yet." : undefined}>
-            {(id) => (
-              <input
-                id={id}
-                className="input"
-                type="password"
-                autoComplete="new-password"
-                required
-                value={again}
-                onChange={(e) => setAgain(e.target.value)}
-              />
-            )}
-          </Field>
+          <PasswordField label="New password" kind="new" value={pw} onChange={setPw} />
+          <PasswordField
+            label="Repeat new password"
+            kind="new"
+            value={again}
+            onChange={setAgain}
+            hint={again && pw !== again ? "The two do not match yet." : undefined}
+          />
           <ErrorBox error={set.error} />
         </div>
       </Section>

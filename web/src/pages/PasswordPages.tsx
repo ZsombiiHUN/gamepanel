@@ -6,6 +6,7 @@ import { api, call } from "../api/client";
 import { authOptionsQuery, inviteQuery, invalidates, keys } from "../api/queries";
 import { AuthLayout, tokenFromHash } from "../components/AuthLayout";
 import { ErrorBox, Field } from "../components/ui";
+import { PasswordField } from "../components/AuthFields";
 import { SSOButtons } from "./LoginPage";
 
 export function ForgotPage() {
@@ -74,34 +75,20 @@ function NewPassword({
 }) {
   return (
     <>
-      <Field label="New password" hint="At least 12 characters. A few unrelated words make a strong one.">
-        {(id) => (
-          <input
-            id={id}
-            className="input"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={12}
-            maxLength={256}
-            value={password}
-            onChange={(e) => onPassword(e.target.value)}
-          />
-        )}
-      </Field>
-      <Field label="Repeat it" hint={confirm && confirm !== password ? "The two do not match yet." : undefined}>
-        {(id) => (
-          <input
-            id={id}
-            className="input"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={confirm}
-            onChange={(e) => onConfirm(e.target.value)}
-          />
-        )}
-      </Field>
+      <PasswordField
+        label="New password"
+        kind="new"
+        value={password}
+        onChange={onPassword}
+        hint="At least 12 characters. A few unrelated words make a strong one."
+      />
+      <PasswordField
+        label="Repeat it"
+        kind="new"
+        value={confirm}
+        onChange={onConfirm}
+        hint={confirm && confirm !== password ? "The two do not match yet." : undefined}
+      />
     </>
   );
 }
