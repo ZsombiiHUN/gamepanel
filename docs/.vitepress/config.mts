@@ -4,7 +4,12 @@ import { openapi } from './openapi'
 
 // The docs site. Pages live next to this folder as Markdown; asvs.md and
 // server-creation.md keep their old paths because code comments link to them.
+// DOCS_BASE is the path the site is served under: /gamepanel/ on GitHub Pages
+// (.github/workflows/docs.yml), / everywhere else.
+const base = process.env.DOCS_BASE ?? '/'
+
 export default defineConfig({
+  base,
   title: 'GamePanel',
   description: 'A self-hosted game server panel: one Go binary and one SQLite file, a small daemon per machine, and Pterodactyl egg import.',
   cleanUrls: true,
@@ -24,7 +29,7 @@ export default defineConfig({
     ],
   },
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }],
     ['meta', { name: 'theme-color', content: '#0b0b0a' }],
   ],
   markdown: {

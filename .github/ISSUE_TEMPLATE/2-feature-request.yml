@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest something GamePanel should do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bigger ideas are easier to shape in [Discussions → Ideas](https://github.com/ZsombiiHUN/gamepanel/discussions/categories/ideas) first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would it solve?
+      description: Describe the situation, not only the solution. Who runs into it, and how often?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: pterodactyl
+    attributes:
+      label: How do Pterodactyl, Pelican or other panels handle it?
+      description: Optional, but helps when it is about compatibility.
