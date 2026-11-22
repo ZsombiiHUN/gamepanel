@@ -52,7 +52,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ matrix.image }}
           # v0.1.0 -> 0.1.0, 0.1 and latest; a pre-release suffix (v0.2.0-rc.1) gets only its own tag.
