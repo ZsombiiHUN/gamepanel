@@ -36,5 +36,16 @@ CI fails on any of these, so run `make check` before pushing.
 - API changes: regenerate `web/openapi.json` and the web types.
 - By contributing you agree your work is licensed under AGPL-3.0.
 
+## Releasing (maintainers)
+1. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new
+   `## [x.y.z] - YYYY-MM-DD` heading, with **Upgrade notes** for anything an
+   admin must do, and update the compare links at the bottom.
+2. Merge that to `main`, then tag it:
+   `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
+3. `.github/workflows/release.yml` builds the archives, `checksums.txt` and
+   both images. The release fails if `CHANGELOG.md` has no section for the tag.
+   Try the build first with
+   `goreleaser release --snapshot --clean` (GoReleaser v2).
+
 ## Reporting security issues
 See [SECURITY.md](SECURITY.md).

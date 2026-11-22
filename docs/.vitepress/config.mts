@@ -80,6 +80,7 @@ export default defineConfig({
         text: 'Panel',
         items: [
           { text: 'Installing the panel', link: '/panel/installing' },
+          { text: 'Docker Compose', link: '/panel/docker' },
           { text: 'Reverse proxy and HTTPS', link: '/panel/reverse-proxy' },
           { text: 'Configuration reference', link: '/panel/configuration' },
           { text: 'Email', link: '/panel/email' },

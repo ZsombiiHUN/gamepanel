@@ -53,9 +53,19 @@ More in [Nodes and capacity](/admin/nodes).
 
 ## 4. Install the daemon
 
-Copy `bin/daemon` from your build (see [Installing the panel](/panel/installing#_1-get-the-binaries)) to the node:
+::: tip The quick way
+The installer does steps 2 and 4 to 6 on this page: it installs Docker if it is missing, the daemon, its settings and its service.
 
 ```sh
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
+  | sudo bash -s -- node --panel panel.example.com --token <the token>
+```
+:::
+
+Download the daemon for your CPU from the [releases page](https://github.com/ZsombiiHUN/gamepanel/releases) and check it, the same way as [the panel](/panel/installing#_1-get-the-binaries) but with `gamepanel-daemon_${V}_linux_$A.tar.gz`. Use the **same version as the panel**. Then:
+
+```sh
+tar xzf gamepanel-daemon_${V}_linux_$A.tar.gz
 sudo install -m 0755 daemon /usr/local/bin/gamepanel-daemon
 sudo install -d -m 0700 /etc/gamepanel /var/lib/gamepanel-daemon
 ```
@@ -95,7 +105,7 @@ If it does not connect, see [Troubleshooting](/troubleshooting#a-node-stays-offl
 
 The daemon runs as **root**: it hands server folders to uid 1000, talks to Docker, and enters container network namespaces for bandwidth limits.
 
-`/etc/systemd/system/gamepanel-daemon.service`:
+`/etc/systemd/system/gamepanel-daemon.service` (also in the archive, as `packaging/systemd/gamepanel-daemon.service`):
 
 ```ini
 [Unit]

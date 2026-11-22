@@ -62,7 +62,23 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
   </picture>
 </p>
 
-## Quick start
+## Install
+
+On a Linux server with systemd (Debian or Ubuntu get Caddy for HTTPS too):
+
+```sh
+# The panel
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
+  | sudo bash -s -- panel --domain panel.example.com --email you@example.com
+
+# A node (on each machine that runs game servers; the token comes from Nodes → Create node)
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
+  | sudo bash -s -- node --panel panel.example.com --token <token>
+```
+
+Or with containers: [`compose.yml`](compose.yml) runs the panel behind Caddy, plus an optional node ([Docker Compose guide](docs/panel/docker.md)). Release archives for linux amd64 and arm64, with checksums, are on the [releases page](https://github.com/ZsombiiHUN/gamepanel/releases); the step-by-step guide is [Installing the panel](docs/panel/installing.md).
+
+## Try it from source
 
 You need Go, Node 22 with pnpm 10, and Docker for real servers. The steps below use a fake runtime, so you can try the panel without Docker.
 
@@ -92,7 +108,7 @@ Then import a Pterodactyl egg under **Eggs** and choose **New server**.
 
 ## Documentation
 
-The full documentation is in [`docs/`](docs/): installing the panel and nodes behind HTTPS, every setting, eggs, backups, the API, troubleshooting and the security model. Read it as a site with `cd docs && pnpm install && pnpm dev`. Start with the [introduction](docs/getting-started/introduction.md) or the [production checklist](docs/getting-started/production-checklist.md).
+The full documentation is at **[zsombiihun.github.io/gamepanel](https://zsombiihun.github.io/gamepanel/)**, built from [`docs/`](docs/): installing the panel and nodes behind HTTPS, every setting, eggs, backups, the API, troubleshooting and the security model. Read it as a site with `cd docs && pnpm install && pnpm dev`. Start with the [introduction](docs/getting-started/introduction.md) or the [production checklist](docs/getting-started/production-checklist.md).
 
 ## Configuration
 
