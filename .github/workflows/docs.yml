@@ -37,7 +37,7 @@ jobs:
         env:
           DOCS_BASE: /gamepanel/
       - if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs/.vitepress/dist
   deploy:
