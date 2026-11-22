@@ -51,7 +51,7 @@ release:
   github:
     owner: ZsombiiHUN
     name: gamepanel
-  # v0.x and anything with a suffix (v0.2.0-rc.1) is marked as a pre-release.
+  # A tag with a suffix (v0.2.0-rc.1) is marked as a pre-release.
   prerelease: auto
   draft: false
   extra_files:
