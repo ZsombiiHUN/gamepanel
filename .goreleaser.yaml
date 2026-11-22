@@ -1,0 +1,71 @@
+# Release builds: `git tag v0.1.0 && git push origin v0.1.0` runs
+# .github/workflows/release.yml, which runs this. Try it locally with
+#   go run github.com/goreleaser/goreleaser/v2@v2.13.0 release --snapshot --clean
+version: 2
+project_name: gamepanel
+
+before:
+  hooks:
+    # The UI is embedded from internal/web/dist; it must match web/.
+    - go mod verify
+
+builds:
+  - id: panel
+    main: ./cmd/panel
+    binary: panel
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: &ldflags
+      - -s -w
+      - -X github.com/ZsombiiHUN/gamepanel/internal/version.Version={{ .Tag }}
+      - -X github.com/ZsombiiHUN/gamepanel/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/ZsombiiHUN/gamepanel/internal/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+  - id: daemon
+    main: ./cmd/daemon
+    binary: daemon
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: *ldflags
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: panel
+    ids: [panel]
+    name_template: "gamepanel-panel_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md, CHANGELOG.md, packaging/systemd/gamepanel.service]
+  - id: daemon
+    ids: [daemon]
+    name_template: "gamepanel-daemon_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md, CHANGELOG.md, packaging/systemd/gamepanel-daemon.service]
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+release:
+  github:
+    owner: ZsombiiHUN
+    name: gamepanel
+  # v0.x and anything with a suffix (v0.2.0-rc.1) is marked as a pre-release.
+  prerelease: auto
+  draft: false
+  extra_files:
+    - glob: scripts/install.sh
+  header: |
+    See [CHANGELOG.md](https://github.com/ZsombiiHUN/gamepanel/blob/{{ .Tag }}/CHANGELOG.md) for what changed and
+    [Upgrading](https://github.com/ZsombiiHUN/gamepanel/blob/{{ .Tag }}/docs/panel/upgrading.md) before you update.
+
+    Images: `ghcr.io/zsombiihun/gamepanel:{{ .Tag }}` and `ghcr.io/zsombiihun/gamepanel-daemon:{{ .Tag }}`.
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge pull request"
+      - "^Rebuild the embedded UI"

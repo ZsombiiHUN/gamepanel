@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon"
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
 
 func env(k, def string) string {
@@ -19,7 +21,12 @@ func env(k, def string) string {
 }
 
 func main() {
+	if len(os.Args) > 1 && version.IsFlag(os.Args[1]) {
+		fmt.Println(version.String("daemon"))
+		return
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	log.Info("starting", "version", version.Version)
 	cfg := daemon.Config{
 		PanelURL: env("GAMEPANEL_PANEL_URL", "ws://127.0.0.1:8080/daemon/connect"),
 		Token:    os.Getenv("GAMEPANEL_NODE_TOKEN"),

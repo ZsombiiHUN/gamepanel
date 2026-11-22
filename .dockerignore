@@ -1,0 +1,11 @@
+.git
+.dev
+bin
+web/node_modules
+docs
+coverage.out
+*.db
+*.db-*
+*.db.key
+daemon-data
+testpanel

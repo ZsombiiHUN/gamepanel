@@ -15,6 +15,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
 
 const backlogLines = 500
@@ -232,6 +233,11 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		if err := json.Unmarshal(env.Data, &hello); err != nil {
 			h.log.Warn("unreadable hello from node", "node", nc.id, "err", err)
 			return
+		}
+		if hello.Version != version.Version {
+			// Mixed versions are not tested; say so where an admin will look.
+			h.log.Warn("node runs a different version than the panel; upgrade them together",
+				"node", nc.id, "node_version", hello.Version, "panel_version", version.Version)
 		}
 		h.mu.Lock()
 		if h.nodes[nc.id] == nc {

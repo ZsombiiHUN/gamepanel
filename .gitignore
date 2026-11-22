@@ -18,3 +18,8 @@ web/e2e/.report/
 docs/node_modules/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# docker compose settings
+/.env
+/panel.env
+dist/

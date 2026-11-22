@@ -1,0 +1,32 @@
+# GamePanel panel. Installed by scripts/install.sh; see docs/panel/installing.md.
+[Unit]
+Description=GamePanel panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gamepanel
+Group=gamepanel
+EnvironmentFile=/etc/gamepanel/panel.env
+ExecStart=/usr/local/bin/panel
+WorkingDirectory=/var/lib/gamepanel
+Restart=on-failure
+RestartSec=5s
+
+# Hardening: the panel only needs its own folder and the network.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/var/lib/gamepanel
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

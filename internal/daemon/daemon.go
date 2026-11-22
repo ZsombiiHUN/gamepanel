@@ -27,9 +27,8 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
-
-const Version = "0.1.0"
 
 // Install states, reported through the normal state events.
 const (
@@ -307,7 +306,7 @@ func (d *Daemon) session(ctx context.Context) error {
 		}
 	}
 	d.mu.Unlock()
-	hello := proto.Hello{Version: Version, Servers: ids, SFTPPort: sftpPort, Containers: d.untracked(sctx, ids)}
+	hello := proto.Hello{Version: version.Version, Servers: ids, SFTPPort: sftpPort, Containers: d.untracked(sctx, ids)}
 	if err := d.send(sctx, proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(hello)}); err != nil {
 		return err
 	}
