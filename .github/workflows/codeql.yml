@@ -9,6 +9,10 @@ on:
     - cron: "23 5 * * 2" # weekly, to pick up new queries
 permissions:
   contents: read
+# A new push to a pull request cancels the run for the older commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   analyze:
     # Code scanning on a private repository needs GitHub Advanced Security, so
