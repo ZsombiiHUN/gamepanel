@@ -1,6 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { useTranslation } from "react-i18next";
 
 export interface TerminalHandle {
   writeln: (line: string) => void;
@@ -10,6 +11,7 @@ export interface TerminalHandle {
 }
 
 export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHandle>; expanded?: boolean }) {
+  const { t } = useTranslation();
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<XTerm | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
@@ -41,7 +43,7 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const t = new XTerm({
+    const xterm = new XTerm({
       convertEol: true,
       disableStdin: true,
       cursorBlink: false,
@@ -52,16 +54,16 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
       theme: { background: "#0d0d0c", foreground: "#dddbd4" },
     });
     const f = new FitAddon();
-    t.loadAddon(f);
-    t.open(el);
-    term.current = t;
+    xterm.loadAddon(f);
+    xterm.open(el);
+    term.current = xterm;
     fitAddon.current = f;
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => {
       ro.disconnect();
-      t.dispose();
+      xterm.dispose();
       term.current = null;
       fitAddon.current = null;
     };
@@ -71,7 +73,7 @@ export function ConsoleTerminal({ ref, expanded = false }: { ref: Ref<TerminalHa
     <div
       ref={host}
       role="log"
-      aria-label="Server console output"
+      aria-label={t("terminal.serverConsoleOutput")}
       className={`overflow-hidden bg-console px-3 py-3 ${expanded ? "h-[75vh]" : "h-[45vh] xl:h-[max(360px,calc(100vh-380px))]"} min-h-64`}
     />
   );

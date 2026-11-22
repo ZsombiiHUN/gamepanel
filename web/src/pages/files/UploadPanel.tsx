@@ -1,9 +1,11 @@
 import { Check, Loader2, X, AlertCircle } from "lucide-react";
 import type { Upload } from "../../hooks/useUploads";
 import { formatBytes } from "../../lib/format";
+import { useTranslation } from "react-i18next";
 
 /** Progress of this session's uploads. Finished ones stay until cleared, failures say why. */
 export function UploadPanel({ items, onCancel, onClear }: { items: Upload[]; onCancel: (id: number) => void; onClear: () => void }) {
+  const { t } = useTranslation();
   if (items.length === 0) return null;
   const active = items.filter((u) => u.status === "uploading" || u.status === "queued");
   const total = items.reduce((n, u) => n + u.size, 0);
@@ -13,22 +15,22 @@ export function UploadPanel({ items, onCancel, onClear }: { items: Upload[]; onC
     <section aria-labelledby="uploads-title" className="overflow-hidden rounded-xl border border-line bg-zinc-900">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
         <h2 id="uploads-title" className="text-sm font-semibold">
-          {active.length > 0 ? `Uploading ${active.length} ${active.length === 1 ? "file" : "files"}` : "Uploads finished"}
+          {active.length > 0 ? t("uploadPanel.uploading", { count: active.length }) : t("uploadPanel.uploadsFinished")}
           <span className="ml-2 font-mono text-xs font-normal text-zinc-500">
-            {formatBytes(sent)} of {formatBytes(total)}
+            {t("uploadPanel.progress", { sent: formatBytes(sent), total: formatBytes(total) })}
           </span>
-          {failed > 0 && <span className="ml-2 text-xs font-normal text-bad-text">{failed} failed</span>}
+          {failed > 0 && <span className="ml-2 text-xs font-normal text-bad-text">{t("uploadPanel.failed", { count: failed })}</span>}
         </h2>
         {active.length === 0 && (
           <button type="button" className="btn btn-ghost !min-h-8 !px-2.5 text-xs" onClick={onClear}>
-            Clear
+            {t("uploadPanel.clear")}
           </button>
         )}
       </div>
       <div
         className="h-1 bg-zinc-800"
         role="progressbar"
-        aria-label="Upload progress"
+        aria-label={t("uploadPanel.uploadProgress")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={total ? Math.round((sent / total) * 100) : 100}
@@ -39,15 +41,15 @@ export function UploadPanel({ items, onCancel, onClear }: { items: Upload[]; onC
         {items.map((u) => (
           <li key={u.id} className="flex items-center gap-3 px-4 py-2">
             {u.status === "done" ? (
-              <Check className="h-4 w-4 shrink-0 text-good-text" aria-label="Uploaded" />
+              <Check className="h-4 w-4 shrink-0 text-good-text" aria-label={t("uploadPanel.uploaded")} />
             ) : u.status === "failed" ? (
-              <AlertCircle className="h-4 w-4 shrink-0 text-bad-text" aria-label="Failed" />
+              <AlertCircle className="h-4 w-4 shrink-0 text-bad-text" aria-label={t("uploadPanel.failedOne")} />
             ) : u.status === "cancelled" ? (
-              <X className="h-4 w-4 shrink-0 text-zinc-500" aria-label="Cancelled" />
+              <X className="h-4 w-4 shrink-0 text-zinc-500" aria-label={t("uploadPanel.cancelled")} />
             ) : (
               <Loader2
                 className={`h-4 w-4 shrink-0 text-zinc-400 ${u.status === "uploading" ? "animate-spin" : ""}`}
-                aria-label={u.status === "uploading" ? "Uploading" : "Waiting"}
+                aria-label={u.status === "uploading" ? t("uploadPanel.uploading") : t("uploadPanel.waiting")}
               />
             )}
             <span className="min-w-0 flex-1">
@@ -63,7 +65,7 @@ export function UploadPanel({ items, onCancel, onClear }: { items: Upload[]; onC
               <button
                 type="button"
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-zinc-100"
-                aria-label={`Cancel ${u.path}`}
+                aria-label={t("uploadPanel.cancelPath", { path: u.path })}
                 onClick={() => onCancel(u.id)}
               >
                 <X className="h-4 w-4" aria-hidden />

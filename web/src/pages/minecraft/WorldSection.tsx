@@ -7,8 +7,11 @@ import { dirQuery, invalidates, keys, minecraftStatusQuery } from "../../api/que
 import { ErrorBox, FormDialog, InfoList, Section, Spinner } from "../../components/ui";
 import { parseProperties, setProperties, worldFolders } from "../../lib/minecraft";
 import { sendCommand, useServerFile, useWriteFile, type Can } from "./shared";
+import { Trans, useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 
 export function WorldSection({ uuid, running, stopped, can }: { uuid: string; running: boolean; stopped: boolean; can: Can }) {
+  const { t } = useTranslation();
   const file = useServerFile(uuid, "/server.properties");
   const root = useQuery(dirQuery(uuid, "/"));
   const write = useWriteFile(uuid);
@@ -50,14 +53,14 @@ export function WorldSection({ uuid, running, stopped, can }: { uuid: string; ru
 
   return (
     <Section
-      title="World"
-      desc="The world the server loads, from level-name in its settings."
+      title={t("worldSection.world")}
+      desc={t("worldSection.theWorldTheServerLoads")}
       footer={
         <>
-          <span>{stopped ? "Resetting deletes the world for good." : "Stop the server to reset its world."}</span>
+          <span>{stopped ? t("worldSection.resettingDeletesTheWorldFor") : t("worldSection.stopTheServerToReset")}</span>
           <div className="flex gap-2">
             <button type="button" className="btn" disabled={folders.length === 0 || archive.isPending} onClick={() => archive.mutate()}>
-              {archive.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Archive as .zip
+              {archive.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("worldSection.archiveAsZip")}
             </button>
             <button
               type="button"
@@ -68,7 +71,7 @@ export function WorldSection({ uuid, running, stopped, can }: { uuid: string; ru
                 setReset(true);
               }}
             >
-              Reset world
+              {t("worldSection.resetWorld")}
             </button>
           </div>
         </>
@@ -79,18 +82,18 @@ export function WorldSection({ uuid, running, stopped, can }: { uuid: string; ru
       ) : (
         <InfoList
           rows={[
-            { label: "Name", value: level },
-            { label: "Seed", value: props.get("level-seed") || "random" },
-            { label: "Type", value: props.get("level-type") || "minecraft:normal" },
-            { label: "Folders", value: folders.length ? folders.join(", ") : "not created yet" },
+            { label: t("common.name"), value: level },
+            { label: t("worldSection.seed"), value: props.get("level-seed") || t("worldSection.random") },
+            { label: t("common.type"), value: props.get("level-type") || "minecraft:normal" },
+            { label: t("worldSection.folders"), value: folders.length ? folders.join(", ") : t("worldSection.notCreated") },
           ]}
         />
       )}
       {archived && (
         <p role="status" className="mt-3 text-[13px] text-good-text">
-          Saved as {archived}.{" "}
+          {t("worldSection.savedAs", { name: archived })}{" "}
           <Link className="link" to="/servers/$uuid" params={{ uuid }} search={{ tab: "files" }}>
-            Download it from Files
+            {t("worldSection.downloadItFromFiles")}
           </Link>
           .
         </p>
@@ -98,8 +101,8 @@ export function WorldSection({ uuid, running, stopped, can }: { uuid: string; ru
       {archive.error ? <ErrorBox error={archive.error} /> : null}
       <FormDialog
         open={reset}
-        title="Reset the world?"
-        submitLabel="Delete and reset"
+        title={t("worldSection.resetTheWorld")}
+        submitLabel={t("worldSection.deleteAndReset")}
         danger
         pending={doReset.isPending}
         error={doReset.error}
@@ -107,17 +110,20 @@ export function WorldSection({ uuid, running, stopped, can }: { uuid: string; ru
         onSubmit={() => doReset.mutate()}
       >
         <p>
-          This deletes <span className="font-mono text-zinc-100">{folders.join(", ")}</span>. The server makes a new world when it next
-          starts. Backups are not touched.
+          <Trans
+            i18nKey="worldSection.resetBody"
+            values={{ folders: folders.join(", ") }}
+            components={{ code: <span className="font-mono text-zinc-100" /> }}
+          />
         </p>
         <div>
           <label htmlFor="mc-seed" className="label">
-            Seed for the new world
+            {t("worldSection.seedForTheNewWorld")}
           </label>
           <input
             id="mc-seed"
             className="input font-mono"
-            placeholder="Leave empty for a random seed"
+            placeholder={t("worldSection.leaveEmptyForARandom")}
             maxLength={64}
             value={seed}
             onChange={(e) => setSeed(e.target.value)}
@@ -137,27 +143,28 @@ async function toIcon(file: File): Promise<Blob> {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const g = c.getContext("2d");
-  if (!g) throw new Error("This browser cannot resize images.");
+  if (!g) throw new Error(i18n.t("worldSection.cannotResize"));
   g.imageSmoothingQuality = "high";
   g.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 64, 64);
-  return new Promise((ok, bad) => c.toBlob((b) => (b ? ok(b) : bad(new Error("The image could not be converted."))), "image/png"));
+  return new Promise((ok, bad) => c.toBlob((b) => (b ? ok(b) : bad(new Error(i18n.t("worldSection.cannotConvert")))), "image/png"));
 }
 
 export function IconSection({ uuid, running }: { uuid: string; running: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const status = qc.getQueryData(minecraftStatusQuery(uuid, running).queryKey);
   const upload = useMutation({
     mutationFn: async (f: File) => {
-      if (f.size > 20 << 20) throw new Error("Pick an image under 20 MB.");
+      if (f.size > 20 << 20) throw new Error(t("worldSection.tooBig"));
       const png = await toIcon(f);
       const res = await fetch(`/api/servers/${uuid}/files/upload?path=${encodeURIComponent("/server-icon.png")}`, {
         method: "PUT",
         body: png,
         credentials: "same-origin",
       });
-      if (!res.ok) throw new Error(`The upload failed (${res.status}).`);
+      if (!res.ok) throw new Error(t("worldSection.uploadFailed", { status: res.status }));
       return URL.createObjectURL(png);
     },
     meta: invalidates(keys.files(uuid)),
@@ -166,20 +173,20 @@ export function IconSection({ uuid, running }: { uuid: string; running: boolean 
   const shown = preview ?? status?.favicon ?? null;
   return (
     <Section
-      title="Server icon"
-      desc="The picture next to your server in the multiplayer list. Any image works: it is cropped to a square and scaled to 64×64."
+      title={t("worldSection.serverIcon")}
+      desc={t("worldSection.thePictureNextToYour")}
       footer={
         <>
           <span>
             {preview
               ? running
-                ? "Saved. Restart the server to show it."
-                : "Saved. It shows from the next start."
-              : "PNG, JPEG, WebP or GIF."}
+                ? t("worldSection.savedRestartTheServerTo")
+                : t("worldSection.savedItShowsFromThe")
+              : t("worldSection.pngJpegWebpOrGif")}
           </span>
           <button type="button" className="btn" disabled={upload.isPending} onClick={() => input.current?.click()}>
             {upload.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImageUp className="h-4 w-4" aria-hidden />}
-            Upload an image
+            {t("worldSection.uploadAnImage")}
           </button>
         </>
       }
@@ -188,7 +195,7 @@ export function IconSection({ uuid, running }: { uuid: string; running: boolean 
         {shown ? (
           <img
             src={shown}
-            alt="Server icon"
+            alt={t("worldSection.serverIcon")}
             width={64}
             height={64}
             className="h-16 w-16 rounded-[4px] border border-line [image-rendering:pixelated]"
@@ -201,14 +208,14 @@ export function IconSection({ uuid, running }: { uuid: string; running: boolean 
             <Box className="h-7 w-7" />
           </span>
         )}
-        <p className="text-[13px] text-zinc-500">{shown ? "Current icon." : "The icon shows here once the server reports it."}</p>
+        <p className="text-[13px] text-zinc-500">{shown ? t("worldSection.currentIcon") : t("worldSection.theIconShowsHereOnce")}</p>
       </div>
       <input
         ref={input}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif"
         className="sr-only"
-        aria-label="Server icon image"
+        aria-label={t("worldSection.serverIconImage")}
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) upload.mutate(f);

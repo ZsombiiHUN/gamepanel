@@ -17,22 +17,30 @@ import {
   type ListKind,
 } from "../../lib/minecraft";
 import { refreshSoon, sendCommand, useServerFile, useWriteFile, type Can } from "./shared";
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 
 /** A row of any of the four lists: players have a name and UUID, IP bans an address. */
 type Entry = Partial<ListedPlayer> & Partial<BannedIP>;
 
-const TABS: { id: ListKind; label: string; desc: string }[] = [
-  { id: "whitelist", label: "Whitelist", desc: "Players who may join while the whitelist is on." },
-  { id: "ops", label: "Operators", desc: "Players who may use every command." },
-  { id: "bans", label: "Banned players", desc: "Players who can never join." },
-  { id: "ipbans", label: "Banned IPs", desc: "Addresses no one can join from." },
-];
+const TABS: { id: ListKind; readonly label: string; readonly desc: string }[] = (["whitelist", "ops", "bans", "ipbans"] as const).map(
+  (id) => ({
+    id,
+    get label() {
+      return i18n.t(`playersSection.lists.${id}.label`);
+    },
+    get desc() {
+      return i18n.t(`playersSection.lists.${id}.desc`);
+    },
+  }),
+);
 
 /**
  * Whitelist, operators and bans. While the server runs they change through its own commands (it would
  * overwrite edited files); while it is stopped the panel edits the JSON files, looking up UUIDs itself.
  */
 export function PlayersSection({ uuid, running, can }: { uuid: string; running: boolean; can: Can }) {
+  const { t } = useTranslation();
   const [kind, setKind] = useState<ListKind>("whitelist");
   const qc = useQueryClient();
   const file = useServerFile(uuid, LIST_FILES[kind]);
@@ -106,28 +114,26 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
     if (valid) change.mutate({ action: "add", target: who.trim() });
   };
   const list = parseList<Entry>(file.data ?? "");
-  const tab = TABS.find((t) => t.id === kind) ?? { id: kind, label: kind, desc: "" };
+  const tab = TABS.find((info) => info.id === kind) ?? { id: kind, label: kind, desc: "" };
 
   return (
     <Section
-      title="Players"
-      desc={
-        running
-          ? "Changes go through the server's own commands and apply at once."
-          : "The server is stopped, so the panel edits its lists directly. They load at the next start."
-      }
+      title={t("playersSection.players")}
+      desc={running ? t("playersSection.changesGoThroughTheServer") : t("playersSection.theServerIsStoppedSo")}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="group" aria-label="List" className="seg">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" aria-pressed={kind === t.id} onClick={() => setKind(t.id)}>
-              {t.label}
+        <div role="group" aria-label={t("playersSection.list")} className="seg">
+          {TABS.map((info) => (
+            <button key={info.id} type="button" aria-pressed={kind === info.id} onClick={() => setKind(info.id)}>
+              {info.label}
             </button>
           ))}
         </div>
         {kind === "whitelist" && propsFile.data !== undefined && propsFile.data !== null && (
           <div className="flex items-center gap-2 text-[13px]">
-            <Pill tone={whitelistOn ? "good" : "neutral"}>{whitelistOn ? "Whitelist on" : "Whitelist off"}</Pill>
+            <Pill tone={whitelistOn ? "good" : "neutral"}>
+              {whitelistOn ? t("playersSection.whitelistOn") : t("playersSection.whitelistOff")}
+            </Pill>
             {canEdit && (
               <button
                 type="button"
@@ -136,7 +142,7 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
                 onClick={() => toggleWhitelist.mutate(!whitelistOn)}
               >
                 {toggleWhitelist.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                Turn {whitelistOn ? "off" : "on"}
+                {whitelistOn ? t("playersSection.turnOff") : t("playersSection.turnOn")}
               </button>
             )}
           </div>
@@ -145,15 +151,19 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
       <p className="mt-3 text-[13px] text-zinc-500">{tab.desc}</p>
 
       {canEdit && (
-        <form onSubmit={submit} className="mt-3 flex flex-wrap items-end gap-2" aria-label={`Add to ${tab.label}`}>
+        <form
+          onSubmit={submit}
+          className="mt-3 flex flex-wrap items-end gap-2"
+          aria-label={t("playersSection.addToLabel", { label: tab.label })}
+        >
           <div className="min-w-48 flex-1">
             <label htmlFor="mc-who" className="sr-only">
-              {kind === "ipbans" ? "IP address" : "Player name"}
+              {kind === "ipbans" ? t("playersSection.ipAddress") : t("playersSection.playerName")}
             </label>
             <input
               id="mc-who"
               className="input"
-              placeholder={kind === "ipbans" ? "IP address, such as 203.0.113.7" : "Player name"}
+              placeholder={kind === "ipbans" ? t("playersSection.ipAddressSuchAs203") : t("playersSection.playerName")}
               value={who}
               maxLength={kind === "ipbans" ? 45 : 16}
               autoComplete="off"
@@ -164,12 +174,12 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
           {(kind === "bans" || kind === "ipbans") && (
             <div className="min-w-48 flex-1">
               <label htmlFor="mc-reason" className="sr-only">
-                Reason
+                {t("playersSection.reason")}
               </label>
               <input
                 id="mc-reason"
                 className="input"
-                placeholder="Reason (optional)"
+                placeholder={t("playersSection.reasonOptional")}
                 value={reason}
                 maxLength={200}
                 onChange={(e) => setReason(e.target.value)}
@@ -182,21 +192,17 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
             ) : (
               <Plus className="h-4 w-4" aria-hidden />
             )}
-            {kind === "bans" || kind === "ipbans" ? "Ban" : "Add"}
+            {kind === "bans" || kind === "ipbans" ? t("playersSection.ban") : t("common.add")}
           </button>
         </form>
       )}
       {!canEdit && (
         <p className="mt-3 text-[13px] text-zinc-500">
-          {running
-            ? "Changing lists while the server runs needs permission to send console commands."
-            : "Changing lists needs permission to edit files."}
+          {running ? t("playersSection.changingListsWhileTheServer") : t("playersSection.changingListsNeedsPermissionTo")}
         </p>
       )}
       {kind !== "ipbans" && !onlineMode && !viaCommand && canEdit && (
-        <p className="mt-2 text-[12.5px] text-zinc-500">
-          This server runs in offline mode, so players get the UUID it derives from their name.
-        </p>
+        <p className="mt-2 text-[12.5px] text-zinc-500">{t("playersSection.thisServerRunsInOffline")}</p>
       )}
 
       <div className="mt-4">
@@ -206,7 +212,7 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
           <ErrorBox error={file.error} />
         ) : list.length === 0 ? (
           <p className="rounded-lg border border-dashed border-line-strong px-4 py-6 text-center text-[13px] text-zinc-500">
-            {file.data === null ? "The server creates this list on its first start." : "No one yet."}
+            {file.data === null ? t("playersSection.theServerCreatesThisList") : t("playersSection.noOneYet")}
           </p>
         ) : (
           <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line" aria-label={tab.label}>
@@ -226,13 +232,15 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
                       {id}
                       {kind === "ops" && e.level !== undefined && (
                         <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-zinc-500">
-                          <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> level {e.level}
+                          <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> {t("playersSection.level", { level: e.level })}
                         </span>
                       )}
                     </p>
                     <p className="truncate font-mono text-[11.5px] text-zinc-500">
                       {kind === "bans" || kind === "ipbans"
-                        ? [e.reason, e.expires && e.expires !== "forever" ? `until ${e.expires}` : ""].filter(Boolean).join(" · ")
+                        ? [e.reason, e.expires && e.expires !== "forever" ? t("playersSection.until", { when: e.expires }) : ""]
+                            .filter(Boolean)
+                            .join(" · ")
                         : e.uuid}
                     </p>
                   </div>
@@ -240,8 +248,8 @@ export function PlayersSection({ uuid, running, can }: { uuid: string; running: 
                     <button
                       type="button"
                       className="btn btn-ghost !min-h-8 !px-2"
-                      aria-label={`Remove ${id}`}
-                      title={kind === "bans" || kind === "ipbans" ? "Unban" : "Remove"}
+                      aria-label={t("playersSection.removeId", { id })}
+                      title={kind === "bans" || kind === "ipbans" ? t("playersSection.unban") : t("common.remove")}
                       disabled={change.isPending}
                       onClick={() => change.mutate({ action: "remove", target: id })}
                     >

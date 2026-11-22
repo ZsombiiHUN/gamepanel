@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 /**
  * A short, human name for a browser's User-Agent string, like "Firefox on
  * Windows", for the session list. Only common browsers and systems are named;
@@ -6,7 +7,7 @@
  * and Chrome claims to be Safari.
  */
 export function describeUserAgent(ua: string): string {
-  if (!ua.trim()) return "Unknown device";
+  if (!ua.trim()) return i18n.t("device.unknown");
   const browser = /Edg(e|A|iOS)?\//.test(ua)
     ? "Edge"
     : /OPR\/|Opera/.test(ua)
@@ -37,9 +38,9 @@ export function describeUserAgent(ua: string): string {
               : ua.includes("Linux")
                 ? "Linux"
                 : null;
-  if (browser && os) return `${browser} on ${os}`;
+  if (browser && os) return i18n.t("device.browserOn", { browser, os });
   if (browser) return browser;
-  if (os) return `Browser on ${os}`;
+  if (os) return i18n.t("device.someBrowserOn", { os });
   // Not a browser: show the product token ("python-requests/2.32") trimmed.
   const product = ua.trim().split(/\s/)[0] ?? "";
   return product.length <= 40 ? product : product.slice(0, 39) + "…";
@@ -48,23 +49,23 @@ export function describeUserAgent(ua: string): string {
 /** How a session signed in, from the API's method string. */
 export function describeSignIn(method: string): string {
   const [kind, provider] = method.split(":", 2);
-  const via = provider || "single sign-on";
+  const via = provider || i18n.t("signIn.sso");
   switch (kind) {
     case "password":
-      return "Password";
+      return i18n.t("signIn.password");
     case "password+totp":
-      return "Password and authenticator code";
+      return i18n.t("signIn.passwordTotp");
     case "password+recovery":
-      return "Password and recovery code";
+      return i18n.t("signIn.passwordRecovery");
     case "passkey":
-      return "Passkey";
+      return i18n.t("signIn.passkey");
     case "sso":
       return via;
     case "sso+totp":
-      return `${via} and authenticator code`;
+      return i18n.t("signIn.ssoTotp", { via });
     case "register":
-      return "New account";
+      return i18n.t("signIn.register");
     default:
-      return "Unknown";
+      return i18n.t("signIn.unknown");
   }
 }

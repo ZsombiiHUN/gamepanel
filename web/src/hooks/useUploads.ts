@@ -4,6 +4,7 @@ import { notifyUnauthorized } from "../api/client";
 import { keys, refreshNow } from "../api/queries";
 import { formatProblem } from "../lib/problem";
 import type { DroppedFile } from "../lib/files";
+import i18n from "../i18n";
 
 export interface Upload {
   id: number;
@@ -105,7 +106,7 @@ class UploadQueue {
         }
         finish({ status: "failed", error: formatProblem(body, xhr.status) });
       };
-      xhr.onerror = () => finish({ status: "failed", error: "The upload was interrupted. Check your connection and try again." });
+      xhr.onerror = () => finish({ status: "failed", error: i18n.t("uploads.interrupted") });
       xhr.onabort = () => finish({ status: "cancelled" });
       xhr.open("PUT", `/api/servers/${this.uuid}/files/upload?path=${encodeURIComponent(job.path)}`);
       xhr.withCredentials = true;

@@ -7,6 +7,7 @@ import type { WsStatus } from "../../api/ws";
 import { ErrorBox, OnlineDot, ServerIcon, StateBadge } from "../../components/ui";
 import { shownState } from "../../lib/servers";
 import { copyText } from "../../lib/clipboard";
+import { useTranslation } from "react-i18next";
 
 type ServerView = components["schemas"]["ServerView"];
 type PowerAction = "start" | "stop" | "restart" | "kill";
@@ -23,6 +24,7 @@ export function ServerHeader({
   wsStatus: WsStatus;
   can: (need?: string) => boolean;
 }) {
+  const { t } = useTranslation();
   const uuid = s.uuid;
   const power = useMutation({
     mutationFn: (action: PowerAction) => call(api.POST("/servers/{uuid}/power", { params: { path: { uuid } }, body: { action } })),
@@ -39,8 +41,8 @@ export function ServerHeader({
   if (sentIn !== null && state !== sentIn) setSentIn(null);
   useEffect(() => {
     if (sentIn === null) return;
-    const t = setTimeout(() => setSentIn(null), 15_000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setSentIn(null), 15_000);
+    return () => clearTimeout(timer);
   }, [sentIn]);
   const send = (action: PowerAction) => {
     const from = state;
@@ -74,17 +76,17 @@ export function ServerHeader({
           </div>
           {s.description && <p className="mt-0.5 text-[13px] text-zinc-400">{s.description}</p>}
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-zinc-400">
-            <CopyChip text={String(s.port)} label={`Port ${s.port}`} />
-            <OnlineDot online={s.node_online} label="Node" />
+            <CopyChip text={String(s.port)} label={t("serverHeader.portPort", { port: s.port })} />
+            <OnlineDot online={s.node_online} label={t("common.node")} />
             <span aria-live="polite" className="text-xs text-zinc-500">
-              Live: {wsStatus === "open" ? "connected" : wsStatus}
+              {t("serverHeader.live", { status: wsStatus === "open" ? t("serverHeader.connected") : wsStatus })}
             </span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!running && btn("start", "Start", <Play className="h-4 w-4" aria-hidden />, "btn-primary")}
-          {running && btn("restart", "Restart", <RotateCw className="h-4 w-4 !text-warn" aria-hidden />)}
-          {running && btn("stop", "Stop", <Square className="h-4 w-4 !text-bad" aria-hidden />)}
+          {!running && btn("start", t("common.start"), <Play className="h-4 w-4" aria-hidden />, "btn-primary")}
+          {running && btn("restart", t("common.restart"), <RotateCw className="h-4 w-4 !text-warn" aria-hidden />)}
+          {running && btn("stop", t("common.stop"), <Square className="h-4 w-4 !text-bad" aria-hidden />)}
           <MoreMenu>
             <button
               type="button"
@@ -93,7 +95,7 @@ export function ServerHeader({
               disabled={power.isPending || !killable || !s.node_online || !can("power")}
               onClick={() => send("kill")}
             >
-              <Skull className="h-4 w-4" aria-hidden /> Kill
+              <Skull className="h-4 w-4" aria-hidden /> {t("common.kill")}
             </button>
             <button
               type="button"
@@ -108,19 +110,17 @@ export function ServerHeader({
                 state === "starting"
               }
               onClick={() => {
-                if (window.confirm("Re-run the install script? Files it writes may overwrite your changes.")) reinstall.mutate();
+                if (window.confirm(t("serverHeader.confirmReinstall"))) reinstall.mutate();
               }}
             >
-              <RotateCw className="h-4 w-4" aria-hidden /> Reinstall
+              <RotateCw className="h-4 w-4" aria-hidden /> {t("serverHeader.reinstall")}
             </button>
           </MoreMenu>
         </div>
       </header>
       {s.suspended && (
         <p role="status" className="mt-4 rounded-xl border border-bad/40 bg-bad-bg px-4 py-3 text-sm text-bad-text">
-          {can("owner") && s.permissions.length > 0
-            ? "This server is suspended: it is stopped, cannot be started, and its owner and subusers cannot use it. Lift the suspension in Settings."
-            : "This server is suspended, so it is stopped and its console, files and settings are closed. Contact your host to have it restored."}
+          {can("owner") && s.permissions.length > 0 ? t("serverHeader.thisServerIsSuspendedIt") : t("serverHeader.thisServerIsSuspendedSo")}
         </p>
       )}
       <ErrorBox error={power.error ?? reinstall.error} />
@@ -129,11 +129,12 @@ export function ServerHeader({
 }
 
 function CopyChip({ text, label }: { text: string; label: string }) {
+  const { t } = useTranslation();
   const [done, setDone] = useState(false);
   return (
     <button
       type="button"
-      title="Copy"
+      title={t("common.copy")}
       className="inline-flex min-h-7 items-center gap-2 rounded-md border border-line bg-thead px-2 font-mono text-[12.5px] text-zinc-200 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-indigo-500"
       onClick={() => {
         void copyText(text)
@@ -147,16 +148,20 @@ function CopyChip({ text, label }: { text: string; label: string }) {
       {label}
       {done ? <Check className="h-3.5 w-3.5 text-good" aria-hidden /> : <Copy className="h-3.5 w-3.5 text-zinc-500" aria-hidden />}
       <span className="sr-only" aria-live="polite">
-        {done ? "Copied" : ""}
+        {done ? t("common.copied") : ""}
       </span>
     </button>
   );
 }
 
 function MoreMenu({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <details className="relative">
-      <summary className="btn !w-9 cursor-pointer list-none !px-0 [&::-webkit-details-marker]:hidden" aria-label="More actions">
+      <summary
+        className="btn !w-9 cursor-pointer list-none !px-0 [&::-webkit-details-marker]:hidden"
+        aria-label={t("serverHeader.moreActions")}
+      >
         <MoreVertical className="h-4 w-4" aria-hidden />
       </summary>
       <div

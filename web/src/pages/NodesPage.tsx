@@ -4,10 +4,12 @@ import { HardDrive, Loader2, Plus, Settings2, Trash2, X } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { invalidates, keys, nodesQuery, serversQuery } from "../api/queries";
 import { ConfirmDialog, CopyButton, Empty, ErrorBox, Field, Meter, PageHeader, Pill, Section, ServerIcon, Spinner } from "../components/ui";
+import { useTranslation } from "react-i18next";
 
 type NodeView = components["schemas"]["NodeView"];
 
 export function NodesPage() {
+  const { t } = useTranslation();
   const nodes = useQuery(nodesQuery);
   const servers = useQuery(serversQuery);
   const byNode = new Map<number, { uuid: string; name: string }[]>();
@@ -87,11 +89,12 @@ export function NodesPage() {
   return (
     <div>
       <PageHeader
-        title="Nodes"
-        sub="Machines that run your game servers. Each one runs the daemon, which connects out to this panel."
+        title={t("nodesPage.nodes")}
+        sub={t("nodesPage.machinesThatRunYourGame")}
         actions={
           <button type="button" className="btn btn-primary" aria-expanded={adding} onClick={() => setAdding(!adding)}>
-            {adding ? <X className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />} {adding ? "Cancel" : "Add node"}
+            {adding ? <X className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}{" "}
+            {adding ? t("common.cancel") : t("nodesPage.addNode")}
           </button>
         }
       />
@@ -100,22 +103,22 @@ export function NodesPage() {
         {created && (
           <section role="alert" aria-labelledby="token-h" className="rounded-xl border border-warn/30 bg-warn-bg p-5">
             <h2 id="token-h" className="text-[15px] font-semibold text-warn-text">
-              Node &quot;{created.name}&quot; created. Save its token now.
+              {t("nodesPage.created", { name: created.name })}
             </h2>
-            <p className="mt-1 text-sm text-warn-text">It is shown only once. Set it on the daemon as an environment variable:</p>
+            <p className="mt-1 text-sm text-warn-text">{t("nodesPage.itIsShownOnlyOnce")}</p>
             <pre
               tabIndex={0}
               role="region"
-              aria-label="Daemon environment"
+              aria-label={t("nodesPage.daemonEnvironment")}
               className="mt-3 overflow-x-auto rounded-lg border border-line bg-well p-3 font-mono text-[13px] text-good-text select-all"
             >
               <code>{envLine}</code>
             </pre>
             <div className="mt-3 flex flex-wrap gap-2">
-              <CopyButton text={envLine} label="Copy env line" />
-              <CopyButton text={created.token} label="Copy token only" />
+              <CopyButton text={envLine} label={t("nodesPage.copyEnvLine")} />
+              <CopyButton text={created.token} label={t("nodesPage.copyTokenOnly")} />
               <button type="button" className="btn btn-ghost" onClick={() => setCreated(null)}>
-                Dismiss
+                {t("nodesPage.dismiss")}
               </button>
             </div>
           </section>
@@ -124,21 +127,21 @@ export function NodesPage() {
         {adding && (
           <form onSubmit={submit}>
             <Section
-              title="Add a node"
-              desc="Creating a node gives you a token for its daemon. Capacity is optional; leave it at 0 to skip tracking."
+              title={t("nodesPage.addANode")}
+              desc={t("nodesPage.creatingANodeGivesYou")}
               footer={
                 <>
-                  <span>Servers on this node get a port from the range.</span>
+                  <span>{t("nodesPage.serversOnThisNodeGet")}</span>
                   <button type="submit" className="btn btn-primary" disabled={create.isPending}>
                     {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}{" "}
-                    Create node
+                    {t("nodesPage.createNode")}
                   </button>
                 </>
               }
             >
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-3 sm:max-w-md">
-                  <Field label="Name">
+                  <Field label={t("common.name")}>
                     {(id) => (
                       <input
                         id={id}
@@ -152,7 +155,7 @@ export function NodesPage() {
                     )}
                   </Field>
                 </div>
-                <Field label="Port range start">
+                <Field label={t("nodesPage.portRangeStart")}>
                   {(id) => (
                     <input
                       id={id}
@@ -166,7 +169,7 @@ export function NodesPage() {
                     />
                   )}
                 </Field>
-                <Field label="Port range end">
+                <Field label={t("nodesPage.portRangeEnd")}>
                   {(id) => (
                     <input
                       id={id}
@@ -181,17 +184,17 @@ export function NodesPage() {
                   )}
                 </Field>
                 <span className="hidden sm:block" />
-                <Field label="Memory capacity (MB)" hint="0 = not tracked">
+                <Field label={t("nodesPage.memoryCapacityMb")} hint={t("nodesPage.0NotTracked")}>
                   {(id) => (
                     <input id={id} className="input" type="number" min={0} value={capMem} onChange={(e) => setCapMem(e.target.value)} />
                   )}
                 </Field>
-                <Field label="Disk capacity (MB)" hint="0 = not tracked">
+                <Field label={t("nodesPage.diskCapacityMb")} hint={t("nodesPage.0NotTracked")}>
                   {(id) => (
                     <input id={id} className="input" type="number" min={0} value={capDisk} onChange={(e) => setCapDisk(e.target.value)} />
                   )}
                 </Field>
-                <Field label="Over-allocate (%)" hint="Limits may add up to capacity plus this much.">
+                <Field label={t("nodesPage.overAllocate")} hint={t("nodesPage.limitsMayAddUpTo")}>
                   {(id) => (
                     <input
                       id={id}
@@ -215,8 +218,8 @@ export function NodesPage() {
         {nodes.isPending && <Spinner />}
         <ErrorBox error={nodes.error} />
         {nodes.data?.length === 0 && !adding && (
-          <Empty icon={<HardDrive className="h-5 w-5" aria-hidden />} title="No nodes yet">
-            Add a node, then start the daemon on that machine with the token you get.
+          <Empty icon={<HardDrive className="h-5 w-5" aria-hidden />} title={t("nodesPage.noNodesYet")}>
+            {t("nodesPage.addANodeThenStart")}
           </Empty>
         )}
 
@@ -236,20 +239,18 @@ export function NodesPage() {
                       </span>
                       <Pill tone={n.online ? "good" : "bad"}>
                         <span className={`h-1.5 w-1.5 rounded-full ${n.online ? "bg-good" : "bg-bad"}`} aria-hidden />
-                        {n.online ? "Online" : "Offline"}
-                        <span className="sr-only"> daemon</span>
+                        {n.online ? t("common.online") : t("common.offline")}
+                        <span className="sr-only"> {t("nodesPage.daemon")}</span>
                       </Pill>
                     </h2>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[12px] text-zinc-500">
-                      <span className="font-mono">
-                        ports {n.port_start}-{n.port_end}
-                      </span>
+                      <span className="font-mono">{t("nodesPage.ports", { from: n.port_start, to: n.port_end })}</span>
                       <span aria-hidden>·</span>
-                      <span title="Where SFTP clients connect">
-                        sftp{" "}
+                      <span title={t("nodesPage.whereSftpClientsConnect")}>
+                        {t("nodesPage.sftp")}{" "}
                         <span className="font-mono">
-                          {n.sftp_host || "panel's host"}
-                          {n.sftp_port ? `:${n.sftp_port}` : ""}
+                          {n.sftp_host || t("nodesPage.panelHost")}
+                          {n.sftp_port ? t("nodesPage.sftpPort", { sftp_port: n.sftp_port }) : ""}
                         </span>
                       </span>
                     </div>
@@ -258,8 +259,8 @@ export function NodesPage() {
                     type="button"
                     className="btn btn-ghost !min-h-8 !px-2"
                     aria-expanded={open}
-                    aria-label={`Settings of ${n.name}`}
-                    title="Capacity and SFTP address"
+                    aria-label={t("nodesPage.settingsOfName", { name: n.name })}
+                    title={t("nodesPage.capacityAndSftpAddress")}
                     onClick={() => {
                       saveCap.reset();
                       saveSftp.reset();
@@ -283,20 +284,28 @@ export function NodesPage() {
                     type="button"
                     className="btn btn-ghost !min-h-8 !px-2 hover:[&_svg]:text-bad-text"
                     onClick={() => setToDelete(n)}
-                    aria-label={`Delete node ${n.name}`}
+                    aria-label={t("nodesPage.deleteNodeName", { name: n.name })}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
                 <div className="mt-4 space-y-3">
                   <Meter
-                    label="Memory allocated"
-                    text={n.memory_mb ? `${fmt(n.allocated_memory_mb)} / ${fmt(n.memory_mb)}` : `${fmt(n.allocated_memory_mb)} (no cap)`}
+                    label={t("nodesPage.memoryAllocated")}
+                    text={
+                      n.memory_mb
+                        ? `${fmt(n.allocated_memory_mb)} / ${fmt(n.memory_mb)}`
+                        : t("nodesPage.noCap", { used: fmt(n.allocated_memory_mb) })
+                    }
                     pct={pct(n.allocated_memory_mb, n.memory_mb)}
                   />
                   <Meter
-                    label="Disk allocated"
-                    text={n.disk_mb ? `${fmt(n.allocated_disk_mb)} / ${fmt(n.disk_mb)}` : `${fmt(n.allocated_disk_mb)} (no cap)`}
+                    label={t("nodesPage.diskAllocated")}
+                    text={
+                      n.disk_mb
+                        ? `${fmt(n.allocated_disk_mb)} / ${fmt(n.disk_mb)}`
+                        : t("nodesPage.noCap", { used: fmt(n.allocated_disk_mb) })
+                    }
                     pct={pct(n.allocated_disk_mb, n.disk_mb)}
                   />
                 </div>
@@ -309,20 +318,14 @@ export function NodesPage() {
                   <span className={(byNode.get(n.id)?.length ?? 0) > 0 ? "ml-1" : undefined}>
                     {(() => {
                       const c = byNode.get(n.id)?.length ?? 0;
-                      return c === 0 ? "No servers" : `${c} ${c === 1 ? "server" : "servers"}`;
+                      return c === 0 ? t("nodesPage.noServers") : t("appShell.servers", { count: c });
                     })()}
                   </span>
                 </div>
                 {n.unknown_servers.length > 0 && (
                   <div role="status" className="mt-5 rounded-xl border border-warn/30 bg-warn-bg p-4 text-sm text-warn-text">
-                    <p className="font-medium">
-                      This node has {n.unknown_servers.length === 1 ? "a server" : `${n.unknown_servers.length} servers`} the panel does not
-                      know
-                    </p>
-                    <p className="mt-1 text-warn-text">
-                      Left behind by a delete that did not finish, or from a panel database restored from an older backup. Nothing is
-                      deleted unless you remove it here.
-                    </p>
+                    <p className="font-medium">{t("nodesPage.unknownServers", { count: n.unknown_servers.length })}</p>
+                    <p className="mt-1 text-warn-text">{t("nodesPage.leftBehindByADelete")}</p>
                     <ul className="mt-3 space-y-2">
                       {n.unknown_servers.map((uuid) => (
                         <li key={uuid} className="flex items-center justify-between gap-3">
@@ -331,13 +334,13 @@ export function NodesPage() {
                             type="button"
                             className="btn btn-danger !py-1 text-xs"
                             disabled={removeUnknown.isPending || !n.online}
-                            title={n.online ? "Delete its container and files from the node" : "The node is offline"}
+                            title={n.online ? t("nodesPage.deleteItsContainerAndFiles") : t("nodesPage.theNodeIsOffline")}
                             onClick={() =>
-                              window.confirm(`Delete the container and files of ${uuid} from ${n.name}? This cannot be undone.`) &&
+                              window.confirm(t("nodesPage.confirmRemoveUnknown", { uuid, node: n.name })) &&
                               removeUnknown.mutate({ id: n.id, uuid })
                             }
                           >
-                            Remove
+                            {t("common.remove")}
                           </button>
                         </li>
                       ))}
@@ -358,7 +361,7 @@ export function NodesPage() {
                     className="mt-5 space-y-3 border-t border-line pt-4"
                   >
                     <div className="grid gap-3 sm:grid-cols-3">
-                      <Field label="Memory (MB)">
+                      <Field label={t("nodesPage.memoryMb")}>
                         {(id) => (
                           <input
                             id={id}
@@ -370,7 +373,7 @@ export function NodesPage() {
                           />
                         )}
                       </Field>
-                      <Field label="Disk (MB)">
+                      <Field label={t("nodesPage.diskMb")}>
                         {(id) => (
                           <input
                             id={id}
@@ -382,7 +385,7 @@ export function NodesPage() {
                           />
                         )}
                       </Field>
-                      <Field label="Over-allocate (%)">
+                      <Field label={t("nodesPage.overAllocate")}>
                         {(id) => (
                           <input
                             id={id}
@@ -396,10 +399,10 @@ export function NodesPage() {
                         )}
                       </Field>
                     </div>
-                    <p className="text-xs text-zinc-500">Existing servers are not changed. Only new servers and limit edits are checked.</p>
+                    <p className="text-xs text-zinc-500">{t("nodesPage.existingServersAreNotChanged")}</p>
                     <ErrorBox error={saveCap.error} />
                     <button type="submit" className="btn btn-primary" disabled={saveCap.isPending}>
-                      Save capacity
+                      {t("nodesPage.saveCapacity")}
                     </button>
                   </form>
                 )}
@@ -413,15 +416,12 @@ export function NodesPage() {
                   >
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="sm:col-span-2">
-                        <Field
-                          label="SFTP host"
-                          hint="Host name or IP address players' clients reach this node on. Empty = this panel's host."
-                        >
+                        <Field label={t("nodesPage.sftpHost")} hint={t("nodesPage.hostNameOrIpAddress")}>
                           {(id) => (
                             <input
                               id={id}
                               className="input font-mono"
-                              placeholder="node1.example.com"
+                              placeholder={t("nodesPage.node1ExampleCom")}
                               maxLength={253}
                               value={editing.host}
                               onChange={(e) => setEditing({ ...editing, host: e.target.value })}
@@ -429,7 +429,7 @@ export function NodesPage() {
                           )}
                         </Field>
                       </div>
-                      <Field label="SFTP port" hint="Empty = what the daemon listens on.">
+                      <Field label={t("nodesPage.sftpPort2")} hint={t("nodesPage.emptyWhatTheDaemonListens")}>
                         {(id) => (
                           <input
                             id={id}
@@ -447,11 +447,11 @@ export function NodesPage() {
                     <ErrorBox error={saveSftp.error} />
                     <div className="flex items-center gap-3">
                       <button type="submit" className="btn btn-primary" disabled={saveSftp.isPending}>
-                        Save SFTP address
+                        {t("nodesPage.saveSftpAddress")}
                       </button>
                       {saveSftp.isSuccess && (
                         <span role="status" className="text-sm text-good-text">
-                          Saved.
+                          {t("nodesPage.saved")}
                         </span>
                       )}
                     </div>
@@ -465,9 +465,9 @@ export function NodesPage() {
 
       <ConfirmDialog
         open={!!toDelete}
-        title={`Delete node ${toDelete?.name ?? ""}?`}
-        body="The node's token stops working. Nodes that still host servers may be refused."
-        confirmLabel="Delete node"
+        title={t("nodesPage.confirmDelete", { name: toDelete?.name ?? "" })}
+        body={t("nodesPage.theNodeSTokenStops")}
+        confirmLabel={t("nodesPage.deleteNode")}
         pending={del.isPending}
         error={del.error}
         onConfirm={() => toDelete && del.mutate(toDelete.id)}

@@ -1,4 +1,5 @@
 import { Field } from "./ui";
+import { useTranslation } from "react-i18next";
 
 /**
  * An account password input. "current" is a password being checked; "new" is
@@ -55,8 +56,9 @@ export function MfaCodeField({
   onChange: (value: string) => void;
   fullWidth?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
-    <Field label="Authenticator or recovery code">
+    <Field label={t("authFields.authenticatorOrRecoveryCode")}>
       {(id) => (
         <input
           id={id}

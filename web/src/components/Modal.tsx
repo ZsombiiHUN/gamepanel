@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useModalDialog } from "./ui";
+import { useTranslation } from "react-i18next";
 
 /** A modal with a title and a close button, for content that is not a form. Esc closes it. */
 export function Modal({
@@ -16,6 +17,7 @@ export function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
+  const { t } = useTranslation();
   const ref = useModalDialog(open);
   const titleId = useId();
   return (
@@ -31,7 +33,7 @@ export function Modal({
             <h2 id={titleId} className="text-lg font-semibold">
               {title}
             </h2>
-            <button type="button" className="btn btn-ghost -mr-2 -mt-1 !px-2" aria-label="Close" onClick={onClose}>
+            <button type="button" className="btn btn-ghost -mr-2 -mt-1 !px-2" aria-label={t("common.close")} onClick={onClose}>
               <X className="h-4 w-4" aria-hidden />
             </button>
           </div>

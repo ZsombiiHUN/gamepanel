@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 export interface Reading {
   cpu_pct: number;
   mem_bytes: number;
@@ -54,10 +55,12 @@ export function describeUsage(
   const cpuNow = running?.cpu_pct ?? null;
   const cpuMax = Math.max(20, Math.ceil(Math.max(0, ...cpuHistory) / 20) * 20 + 20);
   const cpu: ChartSpec = {
-    title: "CPU",
+    title: i18n.t("usage.cpu"),
     value: cpuNow === null ? "-" : `${cpuNow.toFixed(0)}%`,
-    unit: limits.cpuPct ? `of ${limits.cpuPct}% limit` : "no limit",
-    note: limits.cpuPct ? `About ${((cpuNow ?? 0) / 100).toFixed(1)} of ${limits.cpuPct / 100} cores in use` : "Share of one core",
+    unit: limits.cpuPct ? i18n.t("usage.ofLimit", { limit: limits.cpuPct }) : i18n.t("usage.noLimit"),
+    note: limits.cpuPct
+      ? i18n.t("usage.cores", { used: ((cpuNow ?? 0) / 100).toFixed(1), total: limits.cpuPct / 100 })
+      : i18n.t("usage.oneCore"),
     noteWarn: false,
     max: cpuMax,
     ticks: ticksOf(cpuMax, (n) => `${n}%`),
@@ -72,11 +75,17 @@ export function describeUsage(
   const mu = sizeUnit(memMaxBytes);
   const memWarn = memLimitBytes > 0 && memNowBytes !== null && memNowBytes / memLimitBytes >= WARN_AT;
   const memory: ChartSpec = {
-    title: "Memory",
+    title: i18n.t("usage.memory"),
     value: memNowBytes === null ? "-" : mu.fmt(memNowBytes / mu.per),
-    unit: memLimitBytes ? `${mu.name} of ${mu.fmt(memLimitBytes / mu.per)} ${mu.name}` : `${mu.name}, no limit`,
+    unit: memLimitBytes
+      ? i18n.t("usage.unitOf", { unit: mu.name, limit: mu.fmt(memLimitBytes / mu.per) })
+      : i18n.t("usage.unitNoLimit", { unit: mu.name }),
     note:
-      memNowBytes === null ? "Not running" : memLimitBytes ? `${Math.round((memNowBytes / memLimitBytes) * 100)}% used` : "No limit set",
+      memNowBytes === null
+        ? i18n.t("usage.notRunning")
+        : memLimitBytes
+          ? i18n.t("usage.percentUsed", { pct: Math.round((memNowBytes / memLimitBytes) * 100) })
+          : i18n.t("usage.noLimitSet"),
     noteWarn: memWarn,
     max: memMaxBytes / mu.per,
     limit: memLimitBytes ? memLimitBytes / mu.per : undefined,
@@ -91,14 +100,16 @@ export function describeUsage(
   const du = sizeUnit(diskMaxBytes);
   const diskFull = diskLimitBytes > 0 && diskNowBytes !== null && diskNowBytes / diskLimitBytes >= WARN_AT;
   const storage: ChartSpec = {
-    title: "Storage",
+    title: i18n.t("usage.storage"),
     value: diskNowBytes === null ? "-" : du.fmt(diskNowBytes / du.per),
-    unit: diskLimitBytes ? `${du.name} of ${du.fmt(diskLimitBytes / du.per)} ${du.name}` : `${du.name}, no limit`,
+    unit: diskLimitBytes
+      ? i18n.t("usage.unitOf", { unit: du.name, limit: du.fmt(diskLimitBytes / du.per) })
+      : i18n.t("usage.unitNoLimit", { unit: du.name }),
     note: diskFull
-      ? "Almost full. The server stops at its limit."
+      ? i18n.t("usage.almostFull")
       : diskLimitBytes
-        ? `${Math.round(((diskNowBytes ?? 0) / diskLimitBytes) * 100)}% used`
-        : "No quota set",
+        ? i18n.t("usage.percentUsed", { pct: Math.round(((diskNowBytes ?? 0) / diskLimitBytes) * 100) })
+        : i18n.t("usage.noQuota"),
     noteWarn: diskFull,
     max: diskMaxBytes / du.per,
     limit: diskLimitBytes ? diskLimitBytes / du.per : undefined,

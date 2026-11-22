@@ -19,6 +19,7 @@ import { SearchInput } from "../components/SearchInput";
 import { Empty, ErrorBox, Spinner } from "../components/ui";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { ACTIVITY_FILTERS, activityKind, describeAction, groupByDay, relativeTime, type ActivityKind } from "../lib/activity";
+import { useTranslation } from "react-i18next";
 
 type Entry = components["schemas"]["AuditEntry"];
 
@@ -59,6 +60,7 @@ function Detail({ e }: { e: Entry }) {
 const clock = (unix: number) => new Date(unix * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
 export function ActivityTab({ uuid }: { uuid: string }) {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState("");
   const [kind, setKind] = useState<ActivityKind | null>(null);
   const [page, setPage] = useState(0);
@@ -82,13 +84,13 @@ export function ActivityTab({ uuid }: { uuid: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="activity-title" className="text-[15px] font-semibold">
-              Activity
+              {t("activityTab.activity")}
             </h2>
-            <p className="mt-0.5 text-sm text-zinc-400">Everything people did on this server, newest first.</p>
+            <p className="mt-0.5 text-sm text-zinc-400">{t("activityTab.everythingPeopleDidOnThis")}</p>
           </div>
           <SearchInput
-            label="Search activity"
-            placeholder="Search action, person or file"
+            label={t("activityTab.searchActivity")}
+            placeholder={t("activityTab.searchActionPersonOrFile")}
             value={filter}
             onChange={(v) => {
               setFilter(v);
@@ -96,9 +98,9 @@ export function ActivityTab({ uuid }: { uuid: string }) {
             }}
           />
         </div>
-        <div role="group" aria-label="Show only" className="seg">
+        <div role="group" aria-label={t("activityTab.showOnly")} className="seg">
           <button type="button" aria-pressed={kind === null} onClick={() => choose(null)}>
-            All
+            {t("activityTab.all")}
           </button>
           {ACTIVITY_FILTERS.map((f) => (
             <button key={f.id} type="button" aria-pressed={kind === f.id} onClick={() => choose(kind === f.id ? null : f.id)}>
@@ -120,10 +122,13 @@ export function ActivityTab({ uuid }: { uuid: string }) {
       ) : null}
       {q.data && rows.length === 0 && (
         <div className="px-5 pb-5">
-          <Empty icon={<History className="h-5 w-5" aria-hidden />} title={narrowed ? "Nothing matches" : "Nothing yet"}>
+          <Empty
+            icon={<History className="h-5 w-5" aria-hidden />}
+            title={narrowed ? t("activityTab.nothingMatches") : t("activityTab.nothingYet")}
+          >
             {narrowed ? (
               <>
-                Try other words or another filter.{" "}
+                {t("activityTab.tryOtherWordsOrAnother")}{" "}
                 <button
                   type="button"
                   className="link"
@@ -132,11 +137,11 @@ export function ActivityTab({ uuid }: { uuid: string }) {
                     choose(null);
                   }}
                 >
-                  Show everything
+                  {t("activityTab.showEverything")}
                 </button>
               </>
             ) : (
-              "Power actions, console commands, file changes, backups and access changes show up here."
+              t("activityTab.emptyHint")
             )}
           </Empty>
         </div>
@@ -160,7 +165,7 @@ export function ActivityTab({ uuid }: { uuid: string }) {
                         <button
                           type="button"
                           className="font-medium text-zinc-100 hover:underline focus-visible:outline-2 focus-visible:outline-indigo-500"
-                          title={`Only show ${e.actor_email}`}
+                          title={t("activityTab.onlyShowActorEmail", { actor_email: e.actor_email })}
                           onClick={() => {
                             setFilter(e.actor_email);
                             setPage(0);
@@ -169,7 +174,9 @@ export function ActivityTab({ uuid }: { uuid: string }) {
                           {e.actor_email}
                         </button>
                       ) : (
-                        <span className="font-medium text-zinc-100">{e.action === "server.crash" ? "The server" : "Someone"}</span>
+                        <span className="font-medium text-zinc-100">
+                          {e.action === "server.crash" ? t("activityTab.theServer") : t("activityTab.someone")}
+                        </span>
                       )}{" "}
                       {describeAction(e.action, e.detail)}
                     </p>
@@ -185,7 +192,7 @@ export function ActivityTab({ uuid }: { uuid: string }) {
                     </time>
                     <div className="hidden sm:block">{relativeTime(e.at)}</div>
                     {e.ip && (
-                      <div className="hidden font-mono sm:block" title="IP address">
+                      <div className="hidden font-mono sm:block" title={t("activityTab.ipAddress")}>
                         {e.ip}
                       </div>
                     )}
@@ -198,13 +205,16 @@ export function ActivityTab({ uuid }: { uuid: string }) {
       </div>
 
       {(page > 0 || more) && (
-        <nav aria-label="Pages" className="flex items-center justify-between gap-3 border-t border-line px-5 py-3 text-sm text-zinc-500">
+        <nav
+          aria-label={t("activityTab.pages")}
+          className="flex items-center justify-between gap-3 border-t border-line px-5 py-3 text-sm text-zinc-500"
+        >
           <button type="button" className="btn btn-ghost" disabled={page === 0} onClick={() => setPage(page - 1)}>
-            <ChevronLeft className="h-4 w-4" aria-hidden /> Newer
+            <ChevronLeft className="h-4 w-4" aria-hidden /> {t("activityTab.newer")}
           </button>
-          <span>Page {page + 1}</span>
+          <span>{t("common.page", { page: page + 1 })}</span>
           <button type="button" className="btn btn-ghost" disabled={!more} onClick={() => setPage(page + 1)}>
-            Older <ChevronRight className="h-4 w-4" aria-hidden />
+            {t("activityTab.older")} <ChevronRight className="h-4 w-4" aria-hidden />
           </button>
         </nav>
       )}

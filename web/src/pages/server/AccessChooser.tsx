@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, SlidersHorizontal } from "lucide-react";
 import { ROLES, areaSummary, groupPerms, permLabel, requires, roleOf, setArea, togglePerm, type Perm } from "../../lib/access";
+import { useTranslation } from "react-i18next";
 
 /** A checkbox that can show "some ticked". */
 function AreaBox({
@@ -32,10 +33,11 @@ function AreaBox({
 
 /** One card per area (console, files, backups ...) with a tick-all box and a row per permission. */
 function PermPicker({ all, value, onChange }: { all: Perm[]; value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation();
   const known = all.map((p) => p.id);
   return (
     <fieldset className="grid gap-3 sm:grid-cols-2">
-      <legend className="sr-only">Permissions</legend>
+      <legend className="sr-only">{t("accessChooser.permissions")}</legend>
       {groupPerms(all).map((g) => {
         const on = g.perms.filter((p) => value.includes(p.id)).length;
         return (
@@ -46,7 +48,7 @@ function PermPicker({ all, value, onChange }: { all: Perm[]; value: string[]; on
             <div className="mb-2 flex items-center gap-2.5">
               {g.perms.length > 1 ? (
                 <AreaBox
-                  label={`All ${g.label} permissions`}
+                  label={t("accessChooser.allLabelPermissions", { label: g.label })}
                   checked={on === g.perms.length}
                   mixed={on > 0 && on < g.perms.length}
                   onChange={(v) => onChange(setArea(value, g.area, v, known))}
@@ -74,7 +76,7 @@ function PermPicker({ all, value, onChange }: { all: Perm[]; value: string[]; on
                       <span className="block text-sm text-zinc-200">{permLabel(p.id)}</span>
                       <span className="block text-xs text-zinc-500">
                         {p.description}
-                        {needs.length > 0 && <> · includes {needs.map(permLabel).join(", ").toLowerCase()}</>}
+                        {needs.length > 0 && ` · ${t("accessChooser.includes", { perms: needs.map(permLabel).join(", ").toLowerCase() })}`}
                       </span>
                     </span>
                   </label>
@@ -90,12 +92,13 @@ function PermPicker({ all, value, onChange }: { all: Perm[]; value: string[]; on
 
 /** Role cards plus an optional full permission list. */
 export function AccessChooser({ all, value, onChange }: { all: Perm[]; value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation();
   const known = all.map((p) => p.id);
   const role = roleOf(value, known);
   const [custom, setCustom] = useState(!role && value.length > 0);
   return (
     <div className="space-y-4">
-      <div role="radiogroup" aria-label="Role" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div role="radiogroup" aria-label={t("accessChooser.role")} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {ROLES.map((r) => {
           const active = role?.id === r.id;
           return (
@@ -121,14 +124,15 @@ export function AccessChooser({ all, value, onChange }: { all: Perm[]; value: st
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <button type="button" className="link inline-flex items-center gap-1.5" aria-expanded={custom} onClick={() => setCustom(!custom)}>
           <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-          {custom ? "Hide individual permissions" : "Pick individual permissions"}
+          {custom ? t("accessChooser.hideIndividualPermissions") : t("accessChooser.pickIndividualPermissions")}
         </button>
         <span className="text-zinc-500">
           {value.length === 0 ? (
-            "Nothing selected yet."
+            t("accessChooser.nothingSelected")
           ) : (
             <>
-              {role ? role.label : "Custom"}: {value.length} of {known.length || value.length} · {areaSummary(value)}
+              {role ? role.label : t("accessChooser.custom")}:{" "}
+              {t("accessChooser.countOf", { n: value.length, total: known.length || value.length })} · {areaSummary(value)}
             </>
           )}
         </span>

@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 /*
  * WebAuthn needs ArrayBuffers where the panel's JSON has base64url strings.
  * Browsers that have the JSON helpers (parse...FromJSON, toJSON) use them;
@@ -72,22 +73,21 @@ function credentialJSON(c: PublicKeyCredential): Json {
 /** Make a passkey with the panel's options; returns what the panel wants back. */
 export async function createPasskey(options: unknown) {
   const c = (await navigator.credentials.create(creationOptions(options as Json))) as PublicKeyCredential | null;
-  if (!c) throw new Error("No passkey was made.");
+  if (!c) throw new Error(i18n.t("passkey.notMade"));
   return credentialJSON(c);
 }
 
 /** Sign with a passkey; returns what the panel wants back. */
 export async function getPasskey(options: unknown) {
   const c = (await navigator.credentials.get(requestOptions(options as Json))) as PublicKeyCredential | null;
-  if (!c) throw new Error("No passkey was chosen.");
+  if (!c) throw new Error(i18n.t("passkey.notChosen"));
   return credentialJSON(c);
 }
 
 /** The browser's own words for a cancelled or refused prompt, in ours. */
 export function passkeyError(err: unknown) {
   if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError"))
-    return new Error("The passkey prompt was closed or timed out.");
-  if (err instanceof DOMException && err.name === "InvalidStateError")
-    return new Error("This device already has a passkey for your account.");
+    return new Error(i18n.t("passkey.cancelled"));
+  if (err instanceof DOMException && err.name === "InvalidStateError") return new Error(i18n.t("passkey.exists"));
   return err;
 }

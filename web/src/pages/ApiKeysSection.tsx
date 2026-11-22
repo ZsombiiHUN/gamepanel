@@ -5,10 +5,12 @@ import { api, call } from "../api/client";
 import { apiKeysQuery, invalidates, keys, meQuery } from "../api/queries";
 import { CopyButton, ErrorBox, Field, Section } from "../components/ui";
 import { PasswordField, MfaCodeField } from "../components/AuthFields";
+import { Trans, useTranslation } from "react-i18next";
 
 const when = (t: number) => (t ? new Date(t * 1000).toLocaleString() : "never");
 
 export function ApiKeysSection() {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [days, setDays] = useState("0");
   const [password, setPassword] = useState("");
@@ -41,35 +43,43 @@ export function ApiKeysSection() {
 
   return (
     <Section
-      title="API keys"
+      title={t("apiKeysSection.apiKeys")}
       id="keys-h"
       desc={
         <>
-          Keys act as you. Send one as <code className="rounded bg-zinc-800 px-1 py-0.5 text-xs">Authorization: Bearer &lt;key&gt;</code>.
-          They cannot change your password, two-factor settings or create other keys.
+          <Trans
+            i18nKey="apiKeysSection.desc"
+            values={{ header: "Authorization: Bearer <key>" }}
+            components={{ code: <code className="rounded bg-zinc-800 px-1 py-0.5 text-xs" /> }}
+          />
         </>
       }
     >
       <div className="space-y-4">
         {secret && (
           <div role="status" className="space-y-2 rounded-xl border border-warn/30 bg-warn-bg p-4">
-            <p className="text-sm text-warn-text">Copy this key now. It is not shown again.</p>
+            <p className="text-sm text-warn-text">{t("apiKeysSection.copyThisKeyNowIt")}</p>
             <code className="block break-all rounded-lg bg-well p-3 font-mono text-[13px] text-good-text select-all">{secret}</code>
-            <CopyButton text={secret} label="Copy key" />
+            <CopyButton text={secret} label={t("apiKeysSection.copyKey")} />
           </div>
         )}
 
         {list.data && list.data.length > 0 && (
-          <div className="relative overflow-x-auto rounded-xl border border-line" tabIndex={0} role="region" aria-label="API keys">
+          <div
+            className="relative overflow-x-auto rounded-xl border border-line"
+            tabIndex={0}
+            role="region"
+            aria-label={t("apiKeysSection.apiKeys")}
+          >
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Key</th>
-                  <th>Last used</th>
-                  <th>Expires</th>
+                  <th>{t("common.name")}</th>
+                  <th>{t("apiKeysSection.key")}</th>
+                  <th>{t("common.lastUsed")}</th>
+                  <th>{t("common.expires")}</th>
                   <th>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t("common.actions")}</span>
                   </th>
                 </tr>
               </thead>
@@ -84,7 +94,7 @@ export function ApiKeysSection() {
                       <button
                         type="button"
                         className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-bad-text"
-                        aria-label={`Revoke ${k.name}`}
+                        aria-label={t("apiKeysSection.revokeName", { name: k.name })}
                         disabled={del.isPending}
                         onClick={() => del.mutate(k.id)}
                       >
@@ -100,23 +110,23 @@ export function ApiKeysSection() {
         <ErrorBox error={list.error ?? del.error} />
 
         <form onSubmit={submit} className="flex flex-wrap items-end gap-3 border-t border-line pt-4">
-          <Field label="Name">
+          <Field label={t("common.name")}>
             {(id) => <input id={id} className="input" required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />}
           </Field>
-          <Field label="Expires">
+          <Field label={t("common.expires")}>
             {(id) => (
               <select id={id} className="input" value={days} onChange={(e) => setDays(e.target.value)}>
-                <option value="0">Never</option>
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="365">1 year</option>
+                <option value="0">{t("common.never")}</option>
+                <option value="30">{t("apiKeysSection.30Days")}</option>
+                <option value="90">{t("apiKeysSection.90Days")}</option>
+                <option value="365">{t("apiKeysSection.1Year")}</option>
               </select>
             )}
           </Field>
-          <PasswordField label="Your password" value={password} onChange={setPassword} />
+          <PasswordField label={t("apiKeysSection.yourPassword")} value={password} onChange={setPassword} />
           {mfa && <MfaCodeField value={code} onChange={setCode} />}
           <button type="submit" className="btn btn-primary" disabled={create.isPending}>
-            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create key
+            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("apiKeysSection.createKey")}
           </button>
         </form>
         <ErrorBox error={create.error} />

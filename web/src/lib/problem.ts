@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 /**
  * Error text shown to people. The panel's problem+json replies are written for
  * people (internal failures arrive as a generic sentence with a reference), so
@@ -8,17 +9,17 @@
 
 /** Plain sentences for replies that carry no usable message, by status. */
 export function statusMessage(status: number): string {
-  if (status === 0) return "Can't reach the panel. Check your connection and try again.";
-  if (status === 401) return "Your session has ended. Sign in again.";
-  if (status === 403) return "You don't have permission to do that.";
-  if (status === 404) return "That no longer exists.";
-  if (status === 408 || status === 504) return "The panel took too long to answer. Try again in a moment.";
-  if (status === 409) return "That can't be done right now. Try again in a moment.";
-  if (status === 413) return "That is too large.";
-  if (status === 429) return "Too many attempts. Wait a minute and try again.";
-  if (status === 502 || status === 503) return "The panel is not responding right now. Try again in a moment.";
-  if (status >= 500) return "Something went wrong on the panel. Try again in a moment.";
-  return "That didn't work. Check what you entered and try again.";
+  if (status === 0) return i18n.t("errors.offline");
+  if (status === 401) return i18n.t("errors.unauthorized");
+  if (status === 403) return i18n.t("errors.forbidden");
+  if (status === 404) return i18n.t("errors.notFound");
+  if (status === 408 || status === 504) return i18n.t("errors.timeout");
+  if (status === 409) return i18n.t("errors.conflict");
+  if (status === 413) return i18n.t("errors.tooLarge");
+  if (status === 429) return i18n.t("errors.tooMany");
+  if (status === 502 || status === 503) return i18n.t("errors.unavailable");
+  if (status >= 500) return i18n.t("errors.server");
+  return i18n.t("errors.badRequest");
 }
 
 /** "body.limits.memory_mb" -> "Memory mb"; "" when there is no field. */
@@ -69,5 +70,5 @@ export function errorText(err: unknown): string {
   if (typeof err === "string") return err;
   if (err instanceof Error && err.name === "ApiError") return err.message;
   console.error(err);
-  return "Something went wrong on this page. Reload it and try again.";
+  return i18n.t("errors.client");
 }

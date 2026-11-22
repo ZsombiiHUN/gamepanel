@@ -28,18 +28,20 @@ import { NodesPage } from "./pages/NodesPage";
 import { ForgotPage, RegisterPage, ResetPage } from "./pages/PasswordPages";
 import { ServerDetailPage } from "./pages/ServerDetailPage";
 import { ServersPage } from "./pages/ServersPage";
+import { useTranslation } from "react-i18next";
 
 export interface RouterContext {
   queryClient: QueryClient;
 }
 
 function NotFound() {
+  const { t } = useTranslation();
   return (
     <div className="mx-auto max-w-md px-6 pt-24">
-      <Empty icon={<Compass className="h-5 w-5" aria-hidden />} title="Page not found">
-        That address does not lead anywhere.{" "}
+      <Empty icon={<Compass className="h-5 w-5" aria-hidden />} title={t("router.pageNotFound")}>
+        {t("router.noSuchAddress")}{" "}
         <Link to="/" className="link">
-          Back to your servers
+          {t("router.backToYourServers")}
         </Link>
       </Empty>
     </div>
@@ -48,12 +50,13 @@ function NotFound() {
 
 /** Last stop for a page that failed to load or crashed: a plain message and a way out, never a stack trace. */
 function AppError({ error }: ErrorComponentProps) {
+  const { t } = useTranslation();
   return (
     <div role="alert" className="mx-auto max-w-md px-6 pt-24">
-      <Empty icon={<AlertTriangle className="h-5 w-5" aria-hidden />} title="This page could not be shown">
+      <Empty icon={<AlertTriangle className="h-5 w-5" aria-hidden />} title={t("router.thisPageCouldNotBe")}>
         {errorText(error)}{" "}
         <button type="button" className="link" onClick={() => window.location.reload()}>
-          Reload
+          {t("router.reload")}
         </button>
       </Empty>
     </div>
@@ -63,11 +66,12 @@ function AppError({ error }: ErrorComponentProps) {
 class Forbidden extends Error {}
 
 function ForbiddenPage({ error }: ErrorComponentProps) {
+  const { t } = useTranslation();
   if (!(error instanceof Forbidden)) throw error;
   return (
     <div role="alert" className="mx-auto max-w-md pt-10">
-      <Empty icon={<Lock className="h-5 w-5" aria-hidden />} title="Administrators only">
-        You need administrator access to view this page.
+      <Empty icon={<Lock className="h-5 w-5" aria-hidden />} title={t("router.administratorsOnly")}>
+        {t("router.youNeedAdministratorAccessTo")}
       </Empty>
     </div>
   );

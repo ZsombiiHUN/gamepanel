@@ -3,11 +3,13 @@ import { ChevronRight, Loader2, Lock } from "lucide-react";
 import { ErrorBox, Section, Spinner } from "../../components/ui";
 import { checkField, MANAGED_KEYS, parseProperties, PROPERTY_GROUPS, setProperties, type PropField } from "../../lib/minecraft";
 import { Motd, useServerFile, useWriteFile, type Can } from "./shared";
+import { useTranslation } from "react-i18next";
 
 const GROUPED = new Set(PROPERTY_GROUPS.flatMap((g) => g.fields.map((f) => f.key)));
 
 /** server.properties as a form: the common settings by group, every other key under "All settings". */
 export function PropertiesSection({ uuid, running, can }: { uuid: string; running: boolean; can: Can }) {
+  const { t } = useTranslation();
   const file = useServerFile(uuid, "/server.properties");
   const write = useWriteFile(uuid);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -44,48 +46,43 @@ export function PropertiesSection({ uuid, running, can }: { uuid: string; runnin
 
   if (file.isPending)
     return (
-      <Section title="Server settings">
+      <Section title={t("propertiesSection.serverSettings")}>
         <Spinner />
       </Section>
     );
   if (file.error)
     return (
-      <Section title="Server settings">
+      <Section title={t("propertiesSection.serverSettings")}>
         <ErrorBox error={file.error} />
       </Section>
     );
   if (file.data === null)
-    return (
-      <Section
-        title="Server settings"
-        desc="The server writes server.properties on its first start. Start it once, then change its settings here."
-      />
-    );
+    return <Section title={t("propertiesSection.serverSettings")} desc={t("propertiesSection.theServerWritesServerProperties")} />;
 
   return (
     <Section
-      title="Server settings"
-      desc="The common settings from server.properties. The server reads them when it starts."
+      title={t("propertiesSection.serverSettings")}
+      desc={t("propertiesSection.theCommonSettingsFromServer")}
       footer={
         <>
           <span role="status">
             {saved
               ? running
-                ? "Saved. Restart the server to apply the changes."
-                : "Saved. They apply when the server starts."
+                ? t("propertiesSection.savedRestartTheServerTo")
+                : t("propertiesSection.savedTheyApplyWhenThe")
               : dirty
-                ? `${Object.keys(draft).length} unsaved change${Object.keys(draft).length === 1 ? "" : "s"}`
-                : "The port is set by the panel."}
+                ? t("propertiesSection.unsaved", { count: Object.keys(draft).length })
+                : t("propertiesSection.thePortIsSetBy")}
           </span>
           <div className="flex gap-2">
             {dirty && (
               <button type="button" className="btn" onClick={() => setDraft({})}>
-                Discard
+                {t("propertiesSection.discard")}
               </button>
             )}
             <button type="button" className="btn btn-primary" disabled={!editable || !dirty || bad || write.isPending} onClick={save}>
               {write.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-              Save
+              {t("common.save")}
             </button>
           </div>
         </>
@@ -107,13 +104,13 @@ export function PropertiesSection({ uuid, running, can }: { uuid: string; runnin
                 />
               ))}
             </div>
-            {g.title === "General" && (
+            {g.id === "general" && (
               <div
                 role="figure"
                 className="mt-4 rounded-lg border border-line bg-[#1b1b1b] px-3 py-2.5"
-                aria-label="How the message of the day looks"
+                aria-label={t("propertiesSection.howTheMessageOfThe")}
               >
-                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-zinc-500">Preview</p>
+                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-zinc-500">{t("propertiesSection.preview")}</p>
                 <Motd text={value("motd", "A Minecraft Server")} />
               </div>
             )}
@@ -124,7 +121,8 @@ export function PropertiesSection({ uuid, running, can }: { uuid: string; runnin
           <details className="group rounded-lg border border-line">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-[13px] font-medium text-zinc-300 hover:text-zinc-100">
               <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden />
-              All settings <span className="text-zinc-500">({others.length} more)</span>
+              {t("propertiesSection.allSettings")}{" "}
+              <span className="text-zinc-500">{t("propertiesSection.more", { count: others.length })}</span>
             </summary>
             <div className="grid gap-x-5 gap-y-3 border-t border-line p-3 sm:grid-cols-2">
               {others.map((k) => {
@@ -134,14 +132,14 @@ export function PropertiesSection({ uuid, running, can }: { uuid: string; runnin
                   <div key={k}>
                     <label htmlFor={id} className="mb-1 flex items-center gap-1.5 font-mono text-[12px] text-zinc-400">
                       {k}
-                      {managed && <Lock className="h-3 w-3" aria-label="set by the panel" />}
+                      {managed && <Lock className="h-3 w-3" aria-label={t("propertiesSection.setByThePanel")} />}
                     </label>
                     <input
                       id={id}
                       className={`input font-mono !text-[12.5px] ${k in draft ? "!border-zinc-400" : ""}`}
                       value={value(k)}
                       disabled={!editable || managed}
-                      title={managed ? "The panel writes this on every start from the server's primary port." : undefined}
+                      title={managed ? t("propertiesSection.thePanelWritesThisOn") : undefined}
                       onChange={(e) => set(k, e.target.value)}
                     />
                   </div>

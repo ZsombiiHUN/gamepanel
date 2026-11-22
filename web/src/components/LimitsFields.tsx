@@ -1,4 +1,5 @@
 import { Field } from "./ui";
+import { useTranslation } from "react-i18next";
 
 // Limits are edited as strings so a field can be empty while typing.
 export interface LimitsForm {
@@ -74,30 +75,33 @@ export const formToLimits = (f: LimitsForm): LimitsValue => ({
 });
 
 /** One input per limit. Zero generally means "unlimited" or "default"; the hints say which. */
+type NumField = Exclude<keyof LimitsForm, "cpuset">;
+
 export function LimitsFields({ value, onChange }: { value: LimitsForm; onChange: (v: LimitsForm) => void }) {
+  const { t } = useTranslation();
   const set = (k: keyof LimitsForm) => (e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...value, [k]: e.target.value });
-  const num = (k: keyof LimitsForm, label: string, hint: string, min: number, max: number, required = false) => (
-    <Field label={label} hint={hint} key={k}>
+  const num = (k: NumField, min: number, max: number, required = false) => (
+    <Field label={t(`limitsFields.fields.${k}.label`)} hint={t(`limitsFields.fields.${k}.hint`)} key={k}>
       {(id) => <input id={id} className="input" type="number" min={min} max={max} required={required} value={value[k]} onChange={set(k)} />}
     </Field>
   );
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      {num("memory_mb", "Memory (MB)", "Hard limit. The server is killed above it.", 64, 1048576, true)}
-      {num("swap_mb", "Swap (MB)", "On top of memory. 0 = none, -1 = unlimited.", -1, 1048576)}
-      {num("cpu_pct", "CPU limit (%)", "100 = one core. 0 = unlimited.", 0, 6400)}
-      <Field label="CPU cores" hint="Pin to specific cores, e.g. 0-3 or 0,2. Empty = any.">
+      {num("memory_mb", 64, 1048576, true)}
+      {num("swap_mb", -1, 1048576)}
+      {num("cpu_pct", 0, 6400)}
+      <Field label={t("limitsFields.cpuCores")} hint={t("limitsFields.pinToSpecificCoresE")}>
         {(id) => (
           <input id={id} className="input font-mono" pattern="[0-9]+([\-,][0-9]+)*|" value={value.cpuset} onChange={set("cpuset")} />
         )}
       </Field>
-      {num("disk_mb", "Disk (MB)", "Quota enforced by the node. 0 = unlimited.", 0, 104857600)}
-      {num("pids_limit", "Max processes", "Processes and threads. Stops fork bombs.", 16, 65536)}
-      {num("io_weight", "Disk IO priority", "10-1000, relative to other servers. 0 = default.", 0, 1000)}
-      {num("backup_limit", "Backups to keep", "1-100.", 1, 100)}
-      {num("bandwidth_mbit", "Network (Mbit/s)", "Upload and download each, shaped on the node. 0 = unlimited.", 0, 100000)}
-      {num("database_limit", "Databases", "MySQL databases the owner may create. 0-100.", 0, 100)}
-      {num("port_limit", "Extra ports", "Ports the owner may add beyond the primary one. 0-100.", 0, 100)}
+      {num("disk_mb", 0, 104857600)}
+      {num("pids_limit", 16, 65536)}
+      {num("io_weight", 0, 1000)}
+      {num("backup_limit", 1, 100)}
+      {num("bandwidth_mbit", 0, 100000)}
+      {num("database_limit", 0, 100)}
+      {num("port_limit", 0, 100)}
     </div>
   );
 }

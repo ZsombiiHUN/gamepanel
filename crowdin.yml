@@ -1,0 +1,14 @@
+# Crowdin sync for the web UI. English is the source; translators work in
+# Crowdin and its pull requests add web/src/i18n/locales/<lang>/translation.json.
+# The UI loads every file it finds there, so a new language needs no code change.
+project_id_env: CROWDIN_PROJECT_ID
+api_token_env: CROWDIN_PERSONAL_TOKEN
+preserve_hierarchy: true
+files:
+  - source: /web/src/i18n/locales/en/translation.json
+    translation: /web/src/i18n/locales/%two_letters_code%/translation.json
+    languages_mapping:
+      two_letters_code:
+        pt-BR: pt-BR
+        zh-CN: zh-CN
+        zh-TW: zh-TW

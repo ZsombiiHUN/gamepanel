@@ -4,11 +4,13 @@ import { blockIcon } from "../lib/icon";
 import { errorText } from "../lib/problem";
 import { stateLabel } from "../lib/servers";
 import { copyText } from "../lib/clipboard";
+import { useTranslation } from "react-i18next";
 
-export function Spinner({ label = "Loading" }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
+  const { t } = useTranslation();
   return (
     <div role="status" className="flex items-center gap-2 text-sm text-zinc-400">
-      <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {label}...
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {label ?? t("ui.loading")}...
     </div>
   );
 }
@@ -97,10 +99,11 @@ export function ServerIcon({ name, size = 44 }: { name: string; size?: number })
 }
 
 export function OnlineDot({ online, label }: { online: boolean; label: string }) {
+  const { t } = useTranslation();
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-zinc-300">
       <span className={`h-2 w-2 rounded-full ${online ? "bg-good" : "bg-bad-text"}`} aria-hidden />
-      {label}: {online ? "online" : "offline"}
+      {label}: {online ? t("componentsUi.online") : t("componentsUi.offline")}
     </span>
   );
 }
@@ -118,7 +121,9 @@ export function Field({ label, children, hint }: { label: string; children: (id:
   );
 }
 
-export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+export function CopyButton({ text, label }: { text: string; label?: string }) {
+  const { t } = useTranslation();
+  label ??= t("common.copy");
   const [done, setDone] = useState(false);
   const [err, setErr] = useState(false);
   return (
@@ -139,7 +144,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
       }}
     >
       {done ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
-      {done ? "Copied" : err ? "Copy failed - select manually" : label}
+      {done ? t("common.copied") : err ? t("componentsUi.copyFailedSelectManually") : label}
     </button>
   );
 }
@@ -178,6 +183,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const ref = useModalDialog(open);
   const titleId = useId();
   return (
@@ -198,7 +204,7 @@ export function ConfirmDialog({
       ) : null}
       <div className="mt-5 flex justify-end gap-2">
         <button type="button" className="btn" onClick={onCancel} autoFocus>
-          Cancel
+          {t("common.cancel")}
         </button>
         <button type="button" className="btn btn-danger" onClick={onConfirm} disabled={pending}>
           {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
@@ -236,6 +242,7 @@ export function FormDialog({
   onSubmit: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const ref = useModalDialog(open);
   const titleId = useId();
   return (
@@ -263,7 +270,7 @@ export function FormDialog({
           ) : null}
           <div className="mt-5 flex justify-end gap-2">
             <button type="button" className="btn" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </button>
             <button type="submit" className={`btn ${danger ? "btn-danger" : "btn-primary"}`} disabled={pending || disabled}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
@@ -408,7 +415,9 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
  * A column of <Section>s with an "On this page" list beside it on wide screens. The list is read from
  * the sections themselves, so it follows whatever the page shows (sections can depend on permissions).
  */
-export function SectionsWithNav({ children, label = "On this page" }: { children: ReactNode; label?: string }) {
+export function SectionsWithNav({ children, label }: { children: ReactNode; label?: string }) {
+  const { t } = useTranslation();
+  label ??= t("ui.onThisPage");
   const ref = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<{ id: string; title: string }[]>([]);
   const [active, setActive] = useState<string | null>(null);
@@ -496,15 +505,15 @@ export function Stat({
   children?: ReactNode;
   tone?: "warn" | "bad";
 }) {
-  const t = tone === "warn" ? "text-warn-text" : tone === "bad" ? "text-bad-text" : "";
+  const toneClass = tone === "warn" ? "text-warn-text" : tone === "bad" ? "text-bad-text" : "";
   return (
     <div className="min-w-0 rounded-xl border border-line bg-zinc-900 px-4 py-3.5">
       <dt className="text-[13px] text-zinc-400">{label}</dt>
       <dd className="mt-1.5">
-        <span className={`text-[22px] font-semibold leading-none tracking-tight ${t}`}>{value}</span>
+        <span className={`text-[22px] font-semibold leading-none tracking-tight ${toneClass}`}>{value}</span>
         {unit && <span className="ml-1.5 text-[13px] text-zinc-500">{unit}</span>}
         {children && <div className="mt-3">{children}</div>}
-        {hint && <p className={`mt-2 truncate text-[12.5px] ${t || "text-zinc-500"}`}>{hint}</p>}
+        {hint && <p className={`mt-2 truncate text-[12.5px] ${toneClass || "text-zinc-500"}`}>{hint}</p>}
       </dd>
     </div>
   );

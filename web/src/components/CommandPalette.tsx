@@ -7,6 +7,7 @@ import { rankItems, type PaletteItem } from "../lib/palette";
 import { sortServers, stateLabel } from "../lib/servers";
 import { TAB_INFO, tabShown } from "../lib/tabs";
 import { StateMark } from "./ui";
+import { useTranslation } from "react-i18next";
 
 type Item = PaletteItem & { go: () => void; state?: string };
 
@@ -15,6 +16,7 @@ const MAX_SHOWN = 100;
 
 /** Quick switcher: jump to any server, a tab of the current server, or an admin page. Opened with Ctrl/Cmd+K. */
 export function CommandPalette({ open, onClose, currentServer }: { open: boolean; onClose: () => void; currentServer?: string }) {
+  const { t } = useTranslation();
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
@@ -40,12 +42,12 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
     const out: Item[] = [];
     const cur = (servers.data ?? []).find((s) => s.uuid === currentServer);
     if (cur) {
-      for (const t of TAB_INFO) {
-        const { id: tab, label, keywords } = t;
-        if (!tabShown(t, cur)) continue;
+      for (const info of TAB_INFO) {
+        const { id: tab, label, keywords } = info;
+        if (!tabShown(info, cur)) continue;
         out.push({
           id: `tab:${tab}`,
-          group: `This server (${cur.name})`,
+          group: t("commandPalette.thisServer", { name: cur.name }),
           label,
           keywords: `${cur.name} tab ${keywords ?? ""}`,
           go: () => void navigate({ to: "/servers/$uuid", params: { uuid: cur.uuid }, search: { tab } }),
@@ -55,7 +57,7 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
     for (const s of sortServers(servers.data ?? [])) {
       out.push({
         id: `server:${s.uuid}`,
-        group: "Servers",
+        group: t("nav.servers"),
         label: s.name,
         keywords: [s.egg_name, s.node_name, String(s.port), s.state, stateLabel[s.state]].filter(Boolean).join(" "),
         state: s.state,
@@ -63,21 +65,21 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
       });
     }
     const pages: [string, string, string][] = [
-      ["/", "All servers", ""],
-      ["/account", "Account", "profile password two-factor 2fa api keys sessions"],
+      ["/", t("commandPalette.allServers"), ""],
+      ["/account", t("nav.account"), "profile password two-factor 2fa api keys sessions"],
     ];
     if (me.data?.is_admin)
       pages.push(
-        ["/servers/new", "New server", "create add"],
-        ["/nodes", "Nodes", "machines daemon"],
-        ["/eggs", "Eggs", "templates import games"],
-        ["/database-hosts", "Database hosts", "mysql mariadb"],
-        ["/audit", "Audit log", "events security history"],
+        ["/servers/new", t("createServerPage.newServer"), "create add"],
+        ["/nodes", t("nav.nodes"), "machines daemon"],
+        ["/eggs", t("nav.eggs"), "templates import games"],
+        ["/database-hosts", t("nav.databaseHosts"), "mysql mariadb"],
+        ["/audit", t("nav.audit"), "events security history"],
       );
     for (const [to, label, keywords] of pages)
-      out.push({ id: `page:${to}`, group: "Pages", label, keywords, go: () => void navigate({ to }) });
+      out.push({ id: `page:${to}`, group: t("commandPalette.pages"), label, keywords, go: () => void navigate({ to }) });
     return out;
-  }, [servers.data, me.data, currentServer, navigate]);
+  }, [servers.data, me.data, currentServer, navigate, t]);
 
   const shown = useMemo(() => rankItems(items, q).slice(0, MAX_SHOWN), [items, q]);
   const idx = Math.min(active, Math.max(0, shown.length - 1));
@@ -93,7 +95,7 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- see above
     <dialog
       ref={dialog}
-      aria-label="Quick switcher"
+      aria-label={t("commandPalette.quickSwitcher")}
       onClose={onClose}
       onClick={(e) => {
         if (e.target === dialog.current) onClose();
@@ -108,11 +110,11 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
           aria-expanded="true"
           aria-controls={listId}
           aria-activedescendant={shown[idx] ? `${listId}-${idx}` : undefined}
-          aria-label="Search servers and pages"
+          aria-label={t("commandPalette.searchServersAndPages")}
           autoComplete="off"
           spellCheck={false}
           className="min-h-12 flex-1 bg-transparent text-[15px] outline-none placeholder:text-zinc-500"
-          placeholder="Jump to a server or page…"
+          placeholder={t("commandPalette.jumpToAServerOr")}
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -138,13 +140,13 @@ export function CommandPalette({ open, onClose, currentServer }: { open: boolean
           }}
         />
         <kbd className="rounded border border-zinc-700 px-1.5 font-mono text-[11px] text-zinc-500" aria-hidden>
-          Esc
+          {t("commandPalette.esc")}
         </kbd>
       </div>
-      <ul id={listId} role="listbox" aria-label="Results" className="max-h-[50vh] overflow-y-auto p-1.5">
+      <ul id={listId} role="listbox" aria-label={t("commandPalette.results")} className="max-h-[50vh] overflow-y-auto p-1.5">
         {shown.length === 0 && (
           <li role="presentation" className="px-3 py-6 text-center text-sm text-zinc-500">
-            Nothing matches “{q.trim()}”.
+            {t("commandPalette.nothingMatches", { q: q.trim() })}
           </li>
         )}
         {shown.map((it, i) => (

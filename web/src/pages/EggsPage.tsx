@@ -4,8 +4,10 @@ import { Egg, Loader2, Plus, Upload, X } from "lucide-react";
 import { api, call } from "../api/client";
 import { eggsQuery, invalidates, keys } from "../api/queries";
 import { Empty, ErrorBox, Field, PageHeader, Pill, Section, ServerIcon, Spinner } from "../components/ui";
+import { useTranslation } from "react-i18next";
 
 export function EggsPage() {
+  const { t } = useTranslation();
   const eggs = useQuery(eggsQuery);
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
@@ -36,10 +38,10 @@ export function EggsPage() {
     imp.reset();
     try {
       const parsed: unknown = JSON.parse(text);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Egg must be a JSON object");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(t("eggsPage.notObject"));
       imp.mutate(parsed as Record<string, unknown>);
     } catch {
-      setParseError("That is not valid egg JSON. Check that you picked the right file.");
+      setParseError(t("eggsPage.invalidJson"));
     }
   };
 
@@ -48,12 +50,13 @@ export function EggsPage() {
   return (
     <div>
       <PageHeader
-        title="Eggs"
-        sub="Templates that say how to install and start a kind of game server. Pterodactyl and Pelican eggs import unchanged."
+        title={t("eggsPage.eggs")}
+        sub={t("eggsPage.templatesThatSayHowTo")}
         actions={
           eggs.data?.length ? (
             <button type="button" className="btn btn-primary" aria-expanded={open} onClick={() => setOpen(!open)}>
-              {open ? <X className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />} {open ? "Cancel" : "Import egg"}
+              {open ? <X className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}{" "}
+              {open ? t("common.cancel") : t("eggsPage.importEgg")}
             </button>
           ) : null
         }
@@ -62,26 +65,26 @@ export function EggsPage() {
       <div className="space-y-5">
         {imp.isSuccess && !showImport && (
           <p role="status" className="rounded-xl border border-good/25 bg-good-bg px-4 py-2.5 text-sm text-good-text">
-            Imported egg &quot;{imp.data.name}&quot;.
+            {t("eggsPage.imported", { name: imp.data.name })}
           </p>
         )}
         {showImport && (
           <form onSubmit={submit}>
             <Section
-              title="Import an egg"
-              desc="Choose an egg's .json file, or paste its contents."
+              title={t("eggsPage.importAnEgg")}
+              desc={t("eggsPage.chooseAnEggSJson")}
               footer={
                 <>
-                  <span>Install scripts are imported too. Values reach the server only as environment variables.</span>
+                  <span>{t("eggsPage.installScriptsAreImportedToo")}</span>
                   <button type="submit" className="btn btn-primary" disabled={imp.isPending || !text.trim()}>
                     {imp.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Upload className="h-4 w-4" aria-hidden />}{" "}
-                    Import
+                    {t("eggsPage.import")}
                   </button>
                 </>
               }
             >
               <div className="space-y-4">
-                <Field label="Egg file (.json)">
+                <Field label={t("eggsPage.eggFileJson")}>
                   {(id) => (
                     <input
                       id={id}
@@ -92,7 +95,7 @@ export function EggsPage() {
                     />
                   )}
                 </Field>
-                <Field label="Or paste egg JSON">
+                <Field label={t("eggsPage.orPasteEggJson")}>
                   {(id) => (
                     <textarea
                       id={id}
@@ -108,7 +111,7 @@ export function EggsPage() {
                 <ErrorBox error={imp.error} />
                 {imp.isSuccess && (
                   <p role="status" className="text-sm text-good-text">
-                    Imported egg &quot;{imp.data.name}&quot;.
+                    {t("eggsPage.imported", { name: imp.data.name })}
                   </p>
                 )}
               </div>
@@ -119,8 +122,8 @@ export function EggsPage() {
         {eggs.isPending && <Spinner />}
         <ErrorBox error={eggs.error} />
         {eggs.data?.length === 0 && (
-          <Empty icon={<Egg className="h-5 w-5" aria-hidden />} title="No eggs imported yet">
-            Import one above to be able to create servers.
+          <Empty icon={<Egg className="h-5 w-5" aria-hidden />} title={t("eggsPage.noEggsImportedYet")}>
+            {t("eggsPage.importOneAboveToBe")}
           </Empty>
         )}
         <ul className="grid gap-4 sm:grid-cols-2">
@@ -134,17 +137,15 @@ export function EggsPage() {
                   </h2>
                   {egg.description && <p className="mt-0.5 line-clamp-2 text-sm text-zinc-400">{egg.description}</p>}
                 </div>
-                <Pill>
-                  {(egg.variables ?? []).length} variable{(egg.variables ?? []).length === 1 ? "" : "s"}
-                </Pill>
+                <Pill>{t("eggsPage.variables", { count: (egg.variables ?? []).length })}</Pill>
               </div>
               <dl className="mt-4 space-y-2 text-[13px]">
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Image</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{t("eggsPage.image")}</dt>
                   <dd className="mt-0.5 break-all font-mono text-zinc-300">{egg.docker_image}</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Startup</dt>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{t("eggsPage.startup")}</dt>
                   <dd className="mt-0.5 break-all rounded-lg bg-well px-2.5 py-1.5 font-mono text-zinc-300">{egg.startup}</dd>
                 </div>
               </dl>

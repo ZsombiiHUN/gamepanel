@@ -9,18 +9,20 @@ import { ErrorBox, Field } from "../components/ui";
 import { PasswordField } from "../components/AuthFields";
 import { ssoError, ssoStart } from "../lib/sso";
 import { getPasskey, passkeyError, passkeysSupported } from "../lib/webauthn";
+import { useTranslation } from "react-i18next";
 
 /** The password was right and the account wants its second factor: a step, not an error. */
 const needsCode = (err: unknown) => err instanceof ApiError && err.detail === "totp_required";
 
 /** "Continue with GitHub" buttons. Plain links: the browser leaves for the provider. */
 export function SSOButtons({ providers, query }: { providers: { id: string; name: string }[]; query?: Record<string, string> }) {
+  const { t } = useTranslation();
   if (providers.length === 0) return null;
   return (
     <div className="space-y-2">
       {providers.map((p) => (
         <a key={p.id} href={ssoStart(p.id, query)} className="btn w-full">
-          <LogIn className="h-4 w-4" aria-hidden /> Continue with {p.name}
+          <LogIn className="h-4 w-4" aria-hidden /> {t("loginPage.continueWith", { name: p.name })}
         </a>
       ))}
     </div>
@@ -28,6 +30,7 @@ export function SSOButtons({ providers, query }: { providers: { id: string; name
 }
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const search = useSearch({ from: "/login" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -76,7 +79,7 @@ export function LoginPage() {
 
   if (ssoTotp) {
     return (
-      <AuthLayout title="Two-step check" sub="You signed in with your provider. Your account also wants its authentication code.">
+      <AuthLayout title={t("loginPage.twoStepCheck")} sub={t("loginPage.youSignedInWithYour")}>
         <form
           className="space-y-6"
           aria-labelledby="auth-title"
@@ -86,7 +89,7 @@ export function LoginPage() {
           }}
         >
           <ErrorBox error={verify.error} />
-          <Field label="Authentication code" hint="From your authenticator app, or a recovery code.">
+          <Field label={t("loginPage.authenticationCode")} hint={t("loginPage.fromYourAuthenticatorAppOr")}>
             {(id) => (
               <input
                 id={id}
@@ -101,10 +104,10 @@ export function LoginPage() {
             )}
           </Field>
           <button type="submit" className="btn btn-primary w-full" disabled={verify.isPending}>
-            {verify.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Verify and sign in
+            {verify.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("loginPage.verifyAndSignIn")}
           </button>
           <Link to="/login" className="link block text-center text-sm">
-            Start over
+            {t("loginPage.startOver")}
           </Link>
         </form>
       </AuthLayout>
@@ -121,8 +124,8 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      title={totpStep ? "Two-step check" : "Welcome back"}
-      sub={totpStep ? "Your password is right. One more code to go." : "Sign in to manage your game servers."}
+      title={totpStep ? t("loginPage.twoStepCheck") : t("loginPage.welcomeBack")}
+      sub={totpStep ? t("loginPage.yourPasswordIsRightOne") : t("loginPage.signInToManageYour")}
     >
       <form onSubmit={submit} className="space-y-6" aria-labelledby="auth-title">
         {ssoMsg && (
@@ -132,7 +135,7 @@ export function LoginPage() {
         )}
         <ErrorBox error={shown ?? passkey.error} />
         <div className="space-y-4">
-          <Field label="Email">
+          <Field label={t("common.email")}>
             {(id) => (
               <input
                 id={id}
@@ -147,9 +150,9 @@ export function LoginPage() {
               />
             )}
           </Field>
-          <PasswordField label="Password" value={password} onChange={setPassword} readOnly={totpStep} />
+          <PasswordField label={t("common.password")} value={password} onChange={setPassword} readOnly={totpStep} />
           {totpStep && (
-            <Field label="Authentication code" hint="From your authenticator app, or a recovery code.">
+            <Field label={t("loginPage.authenticationCode")} hint={t("loginPage.fromYourAuthenticatorAppOr")}>
               {(id) => (
                 <input
                   id={id}
@@ -167,7 +170,8 @@ export function LoginPage() {
           )}
         </div>
         <button type="submit" className="btn btn-primary w-full" disabled={login.isPending}>
-          {login.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {totpStep ? "Verify and sign in" : "Sign in"}
+          {login.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{" "}
+          {totpStep ? t("loginPage.verifyAndSignIn") : t("common.signIn")}
         </button>
         {totpStep && (
           <button
@@ -179,14 +183,14 @@ export function LoginPage() {
               login.reset();
             }}
           >
-            Use a different account
+            {t("loginPage.useADifferentAccount")}
           </button>
         )}
         {!totpStep && (providers.length > 0 || offerPasskey) && (
           <>
             <div className="flex items-center gap-3 text-xs text-zinc-500" aria-hidden>
               <span className="h-px flex-1 bg-zinc-800" />
-              or
+              {t("loginPage.or")}
               <span className="h-px flex-1 bg-zinc-800" />
             </div>
             {offerPasskey && (
@@ -196,7 +200,7 @@ export function LoginPage() {
                 ) : (
                   <Fingerprint className="h-4 w-4" aria-hidden />
                 )}{" "}
-                Sign in with a passkey
+                {t("loginPage.signInWithAPasskey")}
               </button>
             )}
             <SSOButtons providers={providers} />
@@ -206,12 +210,12 @@ export function LoginPage() {
           <div className="flex flex-wrap justify-between gap-2 text-sm">
             {opts.password_reset && (
               <Link to="/forgot" className="link">
-                Forgot your password?
+                {t("loginPage.forgotYourPassword")}
               </Link>
             )}
             {opts.signup === "open" && (
               <Link to="/register" className="link">
-                Create an account
+                {t("loginPage.createAnAccount")}
               </Link>
             )}
           </div>

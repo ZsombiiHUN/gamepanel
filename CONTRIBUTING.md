@@ -29,6 +29,22 @@ CI fails on any of these, so run `make check` before pushing.
   why on the same line. Unused ones fail the lint.
 - Formatting-only commits go in `.git-blame-ignore-revs`.
 
+## Translations
+The web UI's text lives in `web/src/i18n/locales/en/translation.json`, grouped by
+the file that uses it. English is the source and the fallback.
+
+- **In code**: `const { t } = useTranslation();` then `t("serversPage.title")`.
+  Use `{{name}}` placeholders, `count` for plurals (`key_one` / `key_other`), and
+  `<Trans>` when a sentence contains a link or `<code>`. Outside React (helpers
+  in `lib/`), import `i18n` from `src/i18n` and call `i18n.t`.
+- **Keys are checked**: the type check rejects a key that is not in the English
+  file, and `src/i18n/i18n.test.ts` fails on text written straight into JSX and
+  on English keys nothing uses.
+- **Other languages** are translated on Crowdin (`crowdin.yml`), not by editing
+  the JSON by hand. Each arrives as `locales/<lang>/translation.json` and is
+  loaded automatically. The browser's language is used; `localStorage.lang`
+  overrides it. Messages that come from the API are still English.
+
 ## Pull requests
 - One concern per PR, with tests. Security-sensitive code (file access, auth,
   container settings) needs a test that proves the protection.

@@ -7,9 +7,11 @@ import { identitiesQuery, invalidates, keys } from "../api/queries";
 import { ErrorBox, Pill, Section } from "../components/ui";
 import { PasswordField } from "../components/AuthFields";
 import { ssoError, ssoStart } from "../lib/sso";
+import { useTranslation } from "react-i18next";
 
 /** Linked single sign-on providers, with link and unlink. */
 export function SignInMethods() {
+  const { t } = useTranslation();
   const q = useQuery(identitiesQuery);
   const search = useSearch({ from: "/app/account" });
   const unlink = useMutation({
@@ -23,10 +25,7 @@ export function SignInMethods() {
   const justLinked = search.sso_linked ? providers.find((p) => p.id === search.sso_linked)?.name : undefined;
 
   return (
-    <Section
-      title="Sign-in methods"
-      desc="Sign in with an account you already have elsewhere. Linking happens here, while you are signed in, so nobody can attach their sign-in to your account."
-    >
+    <Section title={t("signInMethods.signInMethods")} desc={t("signInMethods.signInWithAnAccount")}>
       {msg && (
         <p role="alert" className="mb-3 rounded-lg border border-warn/30 bg-warn-bg px-3 py-2.5 text-sm text-warn-text">
           {msg}
@@ -34,7 +33,7 @@ export function SignInMethods() {
       )}
       {justLinked && (
         <p role="status" className="mb-3 text-sm text-good-text">
-          {justLinked} is linked. You can now sign in with it.
+          {t("signInMethods.justLinked", { name: justLinked })}
         </p>
       )}
       <ul className="divide-y divide-line rounded-xl border border-line">
@@ -44,15 +43,21 @@ export function SignInMethods() {
             <li key={p.id} className="flex flex-wrap items-center gap-3 p-3.5">
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium text-zinc-100">{p.name}</div>
-                <div className="text-xs text-zinc-500">{id ? `Linked${id.email ? ` as ${id.email}` : ""}` : "Not linked"}</div>
+                <div className="text-xs text-zinc-500">
+                  {id
+                    ? id.email
+                      ? t("signInMethods.linkedAs", { email: id.email })
+                      : t("signInMethods.linked")
+                    : t("signInMethods.notLinked")}
+                </div>
               </div>
               {id ? (
                 <button type="button" className="btn btn-ghost" disabled={unlink.isPending} onClick={() => unlink.mutate(p.id)}>
-                  Unlink
+                  {t("signInMethods.unlink")}
                 </button>
               ) : (
                 <a className="btn" href={ssoStart(p.id, { mode: "link" })}>
-                  <Link2 className="h-4 w-4" aria-hidden /> Link
+                  <Link2 className="h-4 w-4" aria-hidden /> {t("signInMethods.link")}
                 </a>
               )}
             </li>
@@ -61,8 +66,8 @@ export function SignInMethods() {
       </ul>
       {!q.data.has_password && (
         <p className="mt-3">
-          <Pill tone="warn">No password</Pill>{" "}
-          <span className="text-sm text-zinc-400">Set one below so you can still sign in if a provider is unavailable.</span>
+          <Pill tone="warn">{t("signInMethods.noPassword")}</Pill>{" "}
+          <span className="text-sm text-zinc-400">{t("signInMethods.setOneBelowSoYou")}</span>
         </p>
       )}
       <div className="mt-3">
@@ -74,6 +79,7 @@ export function SignInMethods() {
 
 /** For accounts made through single sign-on: choose a first password. */
 export function FirstPassword() {
+  const { t } = useTranslation();
   const [pw, setPw] = useState("");
   const [again, setAgain] = useState("");
   const set = useMutation({
@@ -88,25 +94,25 @@ export function FirstPassword() {
       }}
     >
       <Section
-        title="Password"
-        desc="Your account was made through single sign-on and has no password yet."
+        title={t("common.password")}
+        desc={t("signInMethods.yourAccountWasMadeThrough")}
         footer={
           <>
             <span />
             <button type="submit" className="btn btn-primary" disabled={set.isPending || pw !== again}>
-              {set.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Set password
+              {set.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("signInMethods.setPassword")}
             </button>
           </>
         }
       >
         <div className="grid max-w-md gap-4">
-          <PasswordField label="New password" kind="new" value={pw} onChange={setPw} />
+          <PasswordField label={t("signInMethods.newPassword")} kind="new" value={pw} onChange={setPw} />
           <PasswordField
-            label="Repeat new password"
+            label={t("signInMethods.repeatNewPassword")}
             kind="new"
             value={again}
             onChange={setAgain}
-            hint={again && pw !== again ? "The two do not match yet." : undefined}
+            hint={again && pw !== again ? t("signInMethods.theTwoDoNotMatch") : undefined}
           />
           <ErrorBox error={set.error} />
         </div>

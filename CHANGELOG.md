@@ -39,6 +39,8 @@ tested, but it has not run in production yet.
   arm64 archives with checksums, `ghcr.io/zsombiihun/gamepanel` and
   `gamepanel-daemon` images, `compose.yml`, systemd units and an installer
   (`scripts/install.sh`).
+- **Translations**: every UI string is in one English file, ready for Crowdin
+  (`crowdin.yml`). The UI follows the browser's language once others exist.
 
 [Unreleased]: https://github.com/ZsombiiHUN/gamepanel/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/ZsombiiHUN/gamepanel/releases/tag/v0.1.0

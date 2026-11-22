@@ -3,7 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
-  Ban,
   Box,
   Check,
   Copy,
@@ -22,8 +21,10 @@ import { api, call, type components } from "../api/client";
 import { invalidates, keys, meQuery } from "../api/queries";
 import { ErrorBox, Field, FormDialog, Section, SectionsWithNav } from "../components/ui";
 import { SftpConnect } from "./server/SftpConnect";
+import { DeleteDialog, SuspendSection } from "./server/SuspendDelete";
 import { LimitsFields, formToLimits, limitsToForm, type LimitsForm } from "../components/LimitsFields";
 import { copyText } from "../lib/clipboard";
+import { useTranslation } from "react-i18next";
 
 type ServerView = components["schemas"]["ServerView"];
 
@@ -88,6 +89,7 @@ function Tile({
 const ico = (I: typeof Server) => <I className="h-4 w-4" aria-hidden />;
 
 export function SettingsTab({ server }: { server: ServerView }) {
+  const { t } = useTranslation();
   const me = useQuery(meQuery);
   const isAdmin = !!me.data?.is_admin;
   const [confirm, setConfirm] = useState(false);
@@ -129,39 +131,54 @@ export function SettingsTab({ server }: { server: ServerView }) {
       {server.permissions.includes("settings.rename") && <RenameSection server={server} />}
 
       <Section
-        title="Details"
-        desc="Where this server lives and who owns it."
+        title={t("settingsTab.details")}
+        desc={t("settingsTab.whereThisServerLivesAnd")}
         footer={
           isAdmin ? (
             <>
-              <span>Handing the server over removes the current owner's access.</span>
+              <span>{t("settingsTab.handingTheServerOverRemoves")}</span>
               <button type="button" className="btn" onClick={() => setOwnerOpen(true)}>
-                <Crown className="h-4 w-4" aria-hidden /> Change owner
+                <Crown className="h-4 w-4" aria-hidden /> {t("settingsTab.changeOwner")}
               </button>
             </>
           ) : undefined
         }
       >
         <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          <Tile icon={ico(Box)} label="Game">
-            {server.egg_name || `Egg #${server.egg_id}`}
+          <Tile icon={ico(Box)} label={t("settingsTab.game")}>
+            {server.egg_name || t("settingsTab.eggId", { id: server.egg_id })}
           </Tile>
-          <Tile icon={ico(Server)} label="Node">
-            {server.node_name || `Node #${server.node_id}`}
+          <Tile icon={ico(Server)} label={t("common.node")}>
+            {server.node_name || t("settingsTab.nodeId", { id: server.node_id })}
           </Tile>
-          <Tile icon={ico(Network)} label="Primary port" mono action={<CopyIcon text={String(server.port)} label="Copy port" />}>
+          <Tile
+            icon={ico(Network)}
+            label={t("settingsTab.primaryPort")}
+            mono
+            action={<CopyIcon text={String(server.port)} label={t("settingsTab.copyPort")} />}
+          >
             {server.port}
           </Tile>
-          <Tile icon={ico(Crown)} label="Owner">
-            {server.owner_email ?? `User #${server.owner_id}`}
+          <Tile icon={ico(Crown)} label={t("common.owner")}>
+            {server.owner_email ?? t("settingsTab.userId", { id: server.owner_id })}
           </Tile>
           <div className="sm:col-span-2">
-            <Tile icon={ico(Fingerprint)} label="Server ID" mono action={<CopyIcon text={server.uuid} label="Copy server ID" />}>
+            <Tile
+              icon={ico(Fingerprint)}
+              label={t("settingsTab.serverId")}
+              mono
+              action={<CopyIcon text={server.uuid} label={t("settingsTab.copyServerId")} />}
+            >
               {server.uuid}
             </Tile>
           </div>
           {isAdmin && server.external_id && (
-            <Tile icon={ico(Tag)} label="External ID (shop)" mono action={<CopyIcon text={server.external_id} label="Copy external ID" />}>
+            <Tile
+              icon={ico(Tag)}
+              label={t("settingsTab.externalIdShop")}
+              mono
+              action={<CopyIcon text={server.external_id} label={t("settingsTab.copyExternalId")} />}
+            >
               {server.external_id}
             </Tile>
           )}
@@ -177,8 +194,8 @@ export function SettingsTab({ server }: { server: ServerView }) {
           }}
         >
           <Section
-            title="Resource limits"
-            desc="What this server may use on its node. A running server picks up changes the next time it starts."
+            title={t("settingsTab.resourceLimits")}
+            desc={t("settingsTab.whatThisServerMayUse")}
             footer={
               <>
                 <span
@@ -186,10 +203,10 @@ export function SettingsTab({ server }: { server: ServerView }) {
                   role={saveLimits.isSuccess && !limitsDirty ? "status" : undefined}
                 >
                   {saveLimits.isSuccess && !limitsDirty
-                    ? "Limits saved."
+                    ? t("settingsTab.limitsSaved")
                     : limitsDirty
-                      ? "You have unsaved changes."
-                      : "0 usually means unlimited."}
+                      ? t("settingsTab.youHaveUnsavedChanges")
+                      : t("settingsTab.0UsuallyMeansUnlimited")}
                 </span>
                 <div className="flex gap-2">
                   {limitsDirty && (
@@ -201,11 +218,11 @@ export function SettingsTab({ server }: { server: ServerView }) {
                         saveLimits.reset();
                       }}
                     >
-                      Discard
+                      {t("settingsTab.discard")}
                     </button>
                   )}
                   <button type="submit" className="btn btn-primary" disabled={saveLimits.isPending || !limitsDirty}>
-                    Save limits
+                    {t("settingsTab.saveLimits")}
                   </button>
                 </div>
               </>
@@ -218,25 +235,30 @@ export function SettingsTab({ server }: { server: ServerView }) {
           </Section>
         </form>
       ) : (
-        <Section title="Resource limits" desc="Set by an administrator. Ask them if the server needs more.">
+        <Section title={t("settingsTab.resourceLimits")} desc={t("settingsTab.setByAnAdministratorAsk")}>
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            <Tile icon={ico(MemoryStick)} label="Memory">
+            <Tile icon={ico(MemoryStick)} label={t("common.memory")}>
               {sizeMb(server.memory_mb)}
               {server.swap_mb !== 0 && (
-                <span className="text-zinc-500"> + {server.swap_mb < 0 ? "unlimited" : sizeMb(server.swap_mb)} swap</span>
+                <span className="text-zinc-500">
+                  {" "}
+                  + {server.swap_mb < 0 ? t("settingsTab.unlimited") : sizeMb(server.swap_mb)} {t("settingsTab.swap")}
+                </span>
               )}
             </Tile>
-            <Tile icon={ico(Cpu)} label="CPU">
-              {server.cpu_pct ? `${server.cpu_pct}% (${(server.cpu_pct / 100).toFixed(server.cpu_pct % 100 ? 1 : 0)} cores)` : "Unlimited"}
-              {server.cpuset && <span className="text-zinc-500"> · cores {server.cpuset}</span>}
+            <Tile icon={ico(Cpu)} label={t("common.cpu")}>
+              {server.cpu_pct
+                ? t("settingsTab.cpu", { pct: server.cpu_pct, cores: (server.cpu_pct / 100).toFixed(server.cpu_pct % 100 ? 1 : 0) })
+                : t("settingsTab.unlimited2")}
+              {server.cpuset && <span className="text-zinc-500"> · {t("settingsTab.cpuset", { cpuset: server.cpuset })}</span>}
             </Tile>
-            <Tile icon={ico(HardDrive)} label="Disk">
-              {server.disk_mb ? sizeMb(server.disk_mb) : "Unlimited"}
+            <Tile icon={ico(HardDrive)} label={t("common.disk")}>
+              {server.disk_mb ? sizeMb(server.disk_mb) : t("settingsTab.unlimited2")}
             </Tile>
-            <Tile icon={ico(Archive)} label="Backups kept">
+            <Tile icon={ico(Archive)} label={t("settingsTab.backupsKept")}>
               {server.backup_limit}
             </Tile>
-            <Tile icon={ico(Layers)} label="Max processes">
+            <Tile icon={ico(Layers)} label={t("settingsTab.maxProcesses")}>
               {server.pids_limit}
             </Tile>
           </div>
@@ -244,7 +266,7 @@ export function SettingsTab({ server }: { server: ServerView }) {
       )}
 
       {canSftp && (
-        <Section title="SFTP" desc="Move big uploads, whole folders and world saves with a desktop client.">
+        <Section title={t("settingsTab.sftp")} desc={t("settingsTab.moveBigUploadsWholeFolders")}>
           <SftpConnect uuid={server.uuid} serverName={server.name} />
         </Section>
       )}
@@ -254,13 +276,13 @@ export function SettingsTab({ server }: { server: ServerView }) {
       {isAdmin && (
         <Section
           danger
-          title="Delete this server"
-          desc="Removes the server from the panel and from its node, including its files. This cannot be undone."
+          title={t("settingsTab.deleteThisServer")}
+          desc={t("settingsTab.removesTheServerFromThe")}
           footer={
             <>
-              <span>Backups stored on the node are deleted with it.</span>
+              <span>{t("settingsTab.backupsStoredOnTheNode")}</span>
               <button type="button" className="btn btn-danger" onClick={() => setConfirm(true)}>
-                <Trash2 className="h-4 w-4" aria-hidden /> Delete server
+                <Trash2 className="h-4 w-4" aria-hidden /> {t("settingsTab.deleteServer")}
               </button>
             </>
           }
@@ -283,125 +305,8 @@ export function SettingsTab({ server }: { server: ServerView }) {
   );
 }
 
-/** Suspending stops the server and locks its owner out until it is lifted; nothing is deleted. */
-function SuspendSection({ server }: { server: ServerView }) {
-  const [confirm, setConfirm] = useState(false);
-  const change = useMutation({
-    mutationFn: () =>
-      call(
-        server.suspended
-          ? api.POST("/servers/{uuid}/unsuspend", { params: { path: { uuid: server.uuid } } })
-          : api.POST("/servers/{uuid}/suspend", { params: { path: { uuid: server.uuid } } }),
-      ),
-    meta: invalidates(keys.server(server.uuid), keys.servers),
-    onSuccess: () => setConfirm(false),
-  });
-  return (
-    <>
-      <Section
-        title="Suspension"
-        desc={
-          server.suspended
-            ? "This server is suspended. Lifting it lets its owner and subusers use it again; it is not started by this."
-            : "Stops the server and keeps it stopped. Its owner and subusers still see it but cannot use it until the suspension is lifted. Nothing is deleted."
-        }
-        footer={
-          <>
-            <span>{server.suspended ? "Suspended." : "Billing systems do this through the API when an invoice goes unpaid."}</span>
-            <button
-              type="button"
-              className={server.suspended ? "btn btn-primary" : "btn"}
-              disabled={change.isPending}
-              onClick={() => (server.suspended ? change.mutate() : setConfirm(true))}
-            >
-              <Ban className="h-4 w-4" aria-hidden /> {server.suspended ? "Lift suspension" : "Suspend server"}
-            </button>
-          </>
-        }
-      >
-        {server.suspended && change.error ? <ErrorBox error={change.error} /> : null}
-      </Section>
-      <FormDialog
-        open={confirm}
-        title={`Suspend ${server.name}?`}
-        submitLabel="Suspend server"
-        pending={change.isPending}
-        error={change.error}
-        onSubmit={() => change.mutate()}
-        onClose={() => {
-          setConfirm(false);
-          change.reset();
-        }}
-      >
-        <p>
-          The server is stopped now if it is running, and cannot be started until you lift the suspension. Its owner and subusers lose
-          access to the console, files, backups and settings in the meantime.
-        </p>
-      </FormDialog>
-    </>
-  );
-}
-
-/** Deleting asks for the server's name, so it cannot happen by a stray click. */
-function DeleteDialog({
-  open,
-  name,
-  offline,
-  pending,
-  error,
-  onConfirm,
-  onCancel,
-}: {
-  open: boolean;
-  name: string;
-  offline: boolean;
-  pending: boolean;
-  error: unknown;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const [typed, setTyped] = useState("");
-  const close = () => {
-    setTyped("");
-    onCancel();
-  };
-  return (
-    <FormDialog
-      open={open}
-      danger
-      title={`Delete ${name}?`}
-      submitLabel="Delete server"
-      pending={pending}
-      error={error}
-      disabled={typed.trim() !== name.trim()}
-      onSubmit={onConfirm}
-      onClose={close}
-    >
-      <p>This permanently deletes the server, its files and its backups. It cannot be undone.</p>
-      {offline && (
-        <p className="rounded-lg border border-warn/30 bg-warn-bg px-3 py-2 text-sm text-warn-text">
-          Its node is offline. The server is removed from the panel now, and the node deletes its container and files when it connects
-          again.
-        </p>
-      )}
-      <Field label={`Type ${name} to confirm`}>
-        {(id) => (
-          <input
-            id={id}
-            className="input"
-            autoComplete="off"
-            spellCheck={false}
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            autoFocus
-          />
-        )}
-      </Field>
-    </FormDialog>
-  );
-}
-
 function RenameSection({ server }: { server: ServerView }) {
+  const { t } = useTranslation();
   const [name, setName] = useState<string | null>(null);
   const [desc, setDesc] = useState<string | null>(null);
   const save = useMutation({
@@ -428,15 +333,21 @@ function RenameSection({ server }: { server: ServerView }) {
       }}
     >
       <Section
-        title="Name"
-        desc="What everyone with access sees in their server list."
+        title={t("common.name")}
+        desc={t("settingsTab.whatEveryoneWithAccessSees")}
         footer={
           <>
             <span
               className={save.isSuccess && !dirty ? "text-good-text" : dirty ? "text-warn-text" : ""}
               role={save.isSuccess && !dirty ? "status" : undefined}
             >
-              {save.isSuccess && !dirty ? "Saved." : empty ? "The name cannot be empty." : dirty ? "You have unsaved changes." : ""}
+              {save.isSuccess && !dirty
+                ? t("settingsTab.saved")
+                : empty
+                  ? t("settingsTab.theNameCannotBeEmpty")
+                  : dirty
+                    ? t("settingsTab.youHaveUnsavedChanges")
+                    : ""}
             </span>
             <div className="flex gap-2">
               {dirty && (
@@ -448,23 +359,23 @@ function RenameSection({ server }: { server: ServerView }) {
                     setDesc(null);
                   }}
                 >
-                  Discard
+                  {t("settingsTab.discard")}
                 </button>
               )}
               <button type="submit" className="btn btn-primary" disabled={!dirty || empty || save.isPending}>
-                Save
+                {t("common.save")}
               </button>
             </div>
           </>
         }
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name">
+          <Field label={t("common.name")}>
             {(id) => (
               <input id={id} className="input" maxLength={64} value={name ?? server.name} onChange={(e) => setName(e.target.value)} />
             )}
           </Field>
-          <Field label="Description" hint="Optional, e.g. the season or the modpack version.">
+          <Field label={t("common.description")} hint={t("settingsTab.optionalEGTheSeason")}>
             {(id) => (
               <input
                 id={id}
@@ -485,6 +396,7 @@ function RenameSection({ server }: { server: ServerView }) {
 }
 
 function OwnerDialog({ server, onClose }: { server: ServerView; onClose: () => void }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const change = useMutation({
     mutationFn: () => call(api.PUT("/servers/{uuid}/owner", { params: { path: { uuid: server.uuid } }, body: { email: email.trim() } })),
@@ -494,20 +406,19 @@ function OwnerDialog({ server, onClose }: { server: ServerView; onClose: () => v
   return (
     <FormDialog
       open
-      title={`Change the owner of ${server.name}`}
-      submitLabel="Change owner"
+      title={t("settingsTab.changeTheOwnerOfName", { name: server.name })}
+      submitLabel={t("settingsTab.changeOwner")}
       pending={change.isPending}
       error={change.error}
       disabled={!email.includes("@")}
       onSubmit={() => change.mutate()}
       onClose={onClose}
     >
-      <Field label="New owner's email" hint="They need an account already. If they were a subuser, they become the owner instead.">
+      <Field label={t("settingsTab.newOwnerSEmail")} hint={t("settingsTab.theyNeedAnAccountAlready")}>
         {(id) => <input id={id} type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />}
       </Field>
       <p className="text-xs text-zinc-500">
-        The current owner{server.owner_email ? ` (${server.owner_email})` : ""} loses access. Add them as a subuser afterwards if they
-        should keep it.
+        {server.owner_email ? t("settingsTab.ownerLosesAccessEmail", { email: server.owner_email }) : t("settingsTab.ownerLosesAccess")}
       </p>
     </FormDialog>
   );

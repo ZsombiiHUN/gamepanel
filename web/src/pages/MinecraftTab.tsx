@@ -8,6 +8,7 @@ import { IconSection, WorldSection } from "./minecraft/WorldSection";
 import { PlayersSection } from "./minecraft/PlayersSection";
 import { PropertiesSection } from "./minecraft/PropertiesSection";
 import { Motd, sendCommand, type Can } from "./minecraft/shared";
+import { useTranslation } from "react-i18next";
 
 type ServerView = components["schemas"]["ServerView"];
 
@@ -31,6 +32,7 @@ export function MinecraftTab({ server, state, can, kind }: { server: ServerView;
 // ---- Status --------------------------------------------------------------------------------
 
 function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string; can: Can; kind: "server" | "proxy" }) {
+  const { t } = useTranslation();
   const running = state === "running";
   const status = useQuery(minecraftStatusQuery(uuid, running && can("console.read")));
   const qc = useQueryClient();
@@ -45,16 +47,14 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
 
   return (
     <Section
-      title="Status"
-      desc="What players see in their server list, checked every 10 seconds while the server runs."
+      title={t("common.status")}
+      desc={t("minecraftTab.whatPlayersSeeInTheir")}
       footer={
         running && s ? (
           <>
-            <span>
-              {s.version} · answered in {s.latency_ms} ms
-            </span>
+            <span>{t("minecraftTab.versionLatency", { version: s.version, ms: s.latency_ms })}</span>
             <button type="button" className="btn btn-ghost !min-h-8" onClick={() => void status.refetch()} disabled={status.isFetching}>
-              <RefreshCw className={`h-4 w-4 ${status.isFetching ? "animate-spin" : ""}`} aria-hidden /> Refresh
+              <RefreshCw className={`h-4 w-4 ${status.isFetching ? "animate-spin" : ""}`} aria-hidden /> {t("common.refresh")}
             </button>
           </>
         ) : undefined
@@ -62,12 +62,10 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
     >
       {!running ? (
         <p className="text-[13.5px] text-zinc-400">
-          {state === "starting"
-            ? "The server is still starting. Its status appears once it is ready."
-            : "Start the server to see who is online."}
+          {state === "starting" ? t("minecraftTab.theServerIsStillStarting") : t("minecraftTab.startTheServerToSee")}
         </p>
       ) : !can("console.read") ? (
-        <p className="text-[13.5px] text-zinc-400">Seeing who is online needs console access.</p>
+        <p className="text-[13.5px] text-zinc-400">{t("minecraftTab.seeingWhoIsOnlineNeeds")}</p>
       ) : status.isPending ? (
         <Spinner />
       ) : status.error ? (
@@ -78,7 +76,7 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
             {s.favicon ? (
               <img
                 src={s.favicon}
-                alt="Server icon"
+                alt={t("minecraftTab.serverIcon")}
                 width={64}
                 height={64}
                 className="h-16 w-16 shrink-0 rounded-[4px] [image-rendering:pixelated]"
@@ -98,15 +96,18 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
 
           <div>
             <h3 className="mb-2 flex items-center gap-2 text-[13px] font-medium text-zinc-300">
-              <Users className="h-4 w-4 text-zinc-500" aria-hidden /> Online now
+              <Users className="h-4 w-4 text-zinc-500" aria-hidden /> {t("minecraftTab.onlineNow")}
               <Pill tone={s.online > 0 ? "good" : "neutral"}>{s.online}</Pill>
             </h3>
             {s.online === 0 ? (
-              <p className="text-[13px] text-zinc-500">No one is online.</p>
+              <p className="text-[13px] text-zinc-500">{t("minecraftTab.noOneIsOnline")}</p>
             ) : s.players.length === 0 ? (
-              <p className="text-[13px] text-zinc-500">The server does not share who is online (hide-online-players).</p>
+              <p className="text-[13px] text-zinc-500">{t("minecraftTab.theServerDoesNotShare")}</p>
             ) : (
-              <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line" aria-label="Players online">
+              <ul
+                className="divide-y divide-line overflow-hidden rounded-lg border border-line"
+                aria-label={t("minecraftTab.playersOnline")}
+              >
                 {s.players.map((p) => (
                   <li key={p.id || p.name} className="flex items-center gap-3 px-3 py-2">
                     <Avatar name={p.name} size={28} />
@@ -116,8 +117,8 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
                         <button
                           type="button"
                           className="btn btn-ghost !min-h-8 !px-2"
-                          title="Make operator"
-                          aria-label={`Make ${p.name} an operator`}
+                          title={t("minecraftTab.makeOperator")}
+                          aria-label={t("minecraftTab.makeNameAnOperator", { name: p.name })}
                           onClick={() => act.mutate(`op ${p.name}`)}
                         >
                           <Crown className="h-4 w-4" aria-hidden />
@@ -125,8 +126,8 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
                         <button
                           type="button"
                           className="btn btn-ghost !min-h-8 !px-2"
-                          title="Kick"
-                          aria-label={`Kick ${p.name}`}
+                          title={t("minecraftTab.kick")}
+                          aria-label={t("minecraftTab.kickName", { name: p.name })}
                           onClick={() => act.mutate(`kick ${p.name}`)}
                         >
                           <LogOut className="h-4 w-4" aria-hidden />
@@ -134,8 +135,8 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
                         <button
                           type="button"
                           className="btn btn-ghost !min-h-8 !px-2"
-                          title="Ban"
-                          aria-label={`Ban ${p.name}`}
+                          title={t("minecraftTab.ban")}
+                          aria-label={t("minecraftTab.banName", { name: p.name })}
                           onClick={() => setBan(p.name)}
                         >
                           <Gavel className="h-4 w-4" aria-hidden />
@@ -147,7 +148,7 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
               </ul>
             )}
             {s.online > s.players.length && s.players.length > 0 && (
-              <p className="mt-2 text-[12px] text-zinc-500">The server lists {s.players.length} of them.</p>
+              <p className="mt-2 text-[12px] text-zinc-500">{t("minecraftTab.listsSome", { count: s.players.length })}</p>
             )}
           </div>
 
@@ -157,9 +158,9 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
       ) : null}
       <ConfirmDialog
         open={ban !== null}
-        title={`Ban ${ban ?? ""}?`}
-        body="They are kicked and cannot join again until you unban them under Players."
-        confirmLabel="Ban"
+        title={t("minecraftTab.confirmBan", { name: ban ?? "" })}
+        body={t("minecraftTab.theyAreKickedAndCannot")}
+        confirmLabel={t("minecraftTab.ban")}
         pending={act.isPending}
         onCancel={() => setBan(null)}
         onConfirm={() => {
@@ -171,6 +172,7 @@ function StatusSection({ uuid, state, can, kind }: { uuid: string; state: string
 }
 
 function QuickActions({ uuid }: { uuid: string }) {
+  const { t } = useTranslation();
   const [msg, setMsg] = useState("");
   const [done, setDone] = useState<string | null>(null);
   const run = useMutation({
@@ -181,17 +183,17 @@ function QuickActions({ uuid }: { uuid: string }) {
     },
   });
   const actions = [
-    { label: "Save the world", command: "save-all", icon: Save },
-    { label: "Make it day", command: "time set day", icon: Sun },
-    { label: "Clear the weather", command: "weather clear", icon: CloudSun },
+    { label: t("minecraftTab.actions.save"), command: "save-all", icon: Save },
+    { label: t("minecraftTab.actions.day"), command: "time set day", icon: Sun },
+    { label: t("minecraftTab.actions.weather"), command: "weather clear", icon: CloudSun },
   ];
   const say = (e: SubmitEvent) => {
     e.preventDefault();
-    if (msg.trim()) run.mutate({ command: `say ${msg.trim()}`, label: "Message sent" }, { onSuccess: () => setMsg("") });
+    if (msg.trim()) run.mutate({ command: `say ${msg.trim()}`, label: t("minecraftTab.messageSent") }, { onSuccess: () => setMsg("") });
   };
   return (
     <div>
-      <h3 className="mb-2 text-[13px] font-medium text-zinc-300">Quick actions</h3>
+      <h3 className="mb-2 text-[13px] font-medium text-zinc-300">{t("minecraftTab.quickActions")}</h3>
       <div className="flex flex-wrap gap-2">
         {actions.map((a) => (
           <button key={a.command} type="button" className="btn" disabled={run.isPending} onClick={() => run.mutate(a)}>
@@ -199,20 +201,20 @@ function QuickActions({ uuid }: { uuid: string }) {
           </button>
         ))}
       </div>
-      <form onSubmit={say} className="mt-2 flex gap-2" aria-label="Message everyone">
+      <form onSubmit={say} className="mt-2 flex gap-2" aria-label={t("minecraftTab.messageEveryone")}>
         <label htmlFor="mc-say" className="sr-only">
-          Message to everyone online
+          {t("minecraftTab.messageToEveryoneOnline")}
         </label>
         <input
           id="mc-say"
           className="input"
-          placeholder="Message everyone online"
+          placeholder={t("minecraftTab.messageEveryoneOnline")}
           maxLength={200}
           value={msg}
           onChange={(e) => setMsg(e.target.value)}
         />
         <button type="submit" className="btn" disabled={!msg.trim() || run.isPending}>
-          <Megaphone className="h-4 w-4" aria-hidden /> Send
+          <Megaphone className="h-4 w-4" aria-hidden /> {t("minecraftTab.send")}
         </button>
       </form>
       <p role="status" className="mt-1 h-4 text-[12px] text-good-text">
@@ -226,6 +228,7 @@ function QuickActions({ uuid }: { uuid: string }) {
 // ---- Version -------------------------------------------------------------------------------
 
 function VersionSection({ uuid, stopped, can }: { uuid: string; stopped: boolean; can: Can }) {
+  const { t } = useTranslation();
   const v = useQuery(minecraftVersionsQuery(uuid));
   const [pick, setPick] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -248,13 +251,13 @@ function VersionSection({ uuid, stopped, can }: { uuid: string; stopped: boolean
 
   if (v.isPending)
     return (
-      <Section title="Version">
+      <Section title={t("minecraftTab.version")}>
         <Spinner />
       </Section>
     );
   if (v.error)
     return (
-      <Section title="Version">
+      <Section title={t("minecraftTab.version")}>
         <ErrorBox error={v.error} />
       </Section>
     );
@@ -262,18 +265,18 @@ function VersionSection({ uuid, stopped, can }: { uuid: string; stopped: boolean
   if (d.flavor === "bungeecord" || (d.variable && d.versions.length === 0 && d.flavor))
     return (
       <Section
-        title="Version"
-        desc="This server always installs the newest build. Reinstall it to update."
+        title={t("minecraftTab.version")}
+        desc={t("minecraftTab.thisServerAlwaysInstallsThe")}
         footer={
           <>
-            <span>{stopped ? "Reinstalling keeps your files and configs." : "Stop the server to reinstall it."}</span>
+            <span>{stopped ? t("minecraftTab.reinstallingKeepsYourFilesAnd") : t("minecraftTab.stopTheServerToReinstall")}</span>
             <button
               type="button"
               className="btn"
               disabled={!stopped || !can("settings.reinstall") || reinstall.isPending}
               onClick={() => reinstall.mutate()}
             >
-              {reinstall.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Update to the newest build
+              {reinstall.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("minecraftTab.updateToTheNewestBuild")}
             </button>
           </>
         }
@@ -281,28 +284,23 @@ function VersionSection({ uuid, stopped, can }: { uuid: string; stopped: boolean
         {reinstall.error ? <ErrorBox error={reinstall.error} /> : null}
       </Section>
     );
-  if (!d.variable)
-    return <Section title="Version" desc="This egg does not say which version it installs. Look for a version setting under Startup." />;
+  if (!d.variable) return <Section title={t("minecraftTab.version")} desc={t("minecraftTab.thisEggDoesNotSay")} />;
 
   const choice = pick ?? d.current;
   const isLatest = d.current === "latest" || d.current === "";
   const options = ["latest", ...d.versions];
   return (
     <Section
-      title="Version"
-      desc={
-        d.flavor === "velocity"
-          ? "The Velocity version to install. Switching reinstalls the proxy; your configs stay."
-          : "The Minecraft version to install. Switching reinstalls the server software; your worlds, plugins and configs stay."
-      }
+      title={t("minecraftTab.version")}
+      desc={d.flavor === "velocity" ? t("minecraftTab.theVelocityVersionToInstall") : t("minecraftTab.theMinecraftVersionToInstall")}
       footer={
         <>
           <span>
             {!stopped
-              ? "Stop the server to switch versions."
+              ? t("minecraftTab.stopTheServerToSwitch")
               : !allowed
-                ? "Switching needs the startup and reinstall permissions."
-                : "Make a backup first: a world opened in a newer version cannot go back."}
+                ? t("minecraftTab.switchingNeedsTheStartupAnd")
+                : t("minecraftTab.makeABackupFirstA")}
           </span>
           <button
             type="button"
@@ -310,40 +308,39 @@ function VersionSection({ uuid, stopped, can }: { uuid: string; stopped: boolean
             disabled={!stopped || !allowed || choice === d.current}
             onClick={() => setConfirm(true)}
           >
-            Switch version
+            {t("minecraftTab.switchVersion")}
           </button>
         </>
       }
     >
-      <InfoList rows={[{ label: "Installed", value: isLatest ? "latest (newest release at install time)" : d.current }]} />
+      <InfoList rows={[{ label: t("minecraftTab.installed"), value: isLatest ? t("minecraftTab.latestAtInstall") : d.current }]} />
       <div className="mt-4 max-w-sm">
         <label htmlFor="mc-version" className="label">
-          Switch to
+          {t("minecraftTab.switchTo")}
         </label>
         <select id="mc-version" className="input" value={choice} onChange={(e) => setPick(e.target.value)} disabled={!allowed}>
           {!options.includes(d.current) && <option value={d.current}>{d.current}</option>}
           {options.map((o) => (
             <option key={o} value={o}>
-              {o === "latest" ? "Latest release" : o}
+              {o === "latest" ? t("minecraftTab.latestRelease") : o}
             </option>
           ))}
         </select>
-        {d.versions.length > 0 && <p className="mt-1 text-[12px] text-zinc-500">{d.versions.length} releases available.</p>}
+        {d.versions.length > 0 && (
+          <p className="mt-1 text-[12px] text-zinc-500">{t("minecraftTab.releases", { count: d.versions.length })}</p>
+        )}
       </div>
       <FormDialog
         open={confirm}
-        title={`Switch to ${choice === "latest" ? "the latest release" : choice}?`}
-        submitLabel="Switch and reinstall"
+        title={choice === "latest" ? t("minecraftTab.switchToLatest") : t("minecraftTab.switchToVersion", { version: choice })}
+        submitLabel={t("minecraftTab.switchAndReinstall")}
         pending={sw.isPending}
         error={sw.error}
         onClose={() => setConfirm(false)}
         onSubmit={() => sw.mutate({ variable: d.variable, version: choice, reset: d.reset })}
       >
-        <p>The server software is downloaded again for this version. Worlds, plugins, mods and configs are kept.</p>
-        <p className="text-warn-text">
-          Going to an older version can corrupt a world, and plugins or mods may not support the new one. Make a backup first if you are not
-          sure.
-        </p>
+        <p>{t("minecraftTab.theServerSoftwareIsDownloaded")}</p>
+        <p className="text-warn-text">{t("minecraftTab.goingToAnOlderVersion")}</p>
       </FormDialog>
     </Section>
   );

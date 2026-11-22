@@ -5,6 +5,7 @@ import { api, call, type components } from "../api/client";
 import { keys, startupQuery } from "../api/queries";
 import { CopyButton, ErrorBox, Pill, Section, SectionsWithNav, Spinner } from "../components/ui";
 import { fillCommand, inputKind } from "../lib/startup";
+import { useTranslation } from "react-i18next";
 
 type StartupView = components["schemas"]["StartupView"];
 type StartupVar = components["schemas"]["StartupVar"];
@@ -32,11 +33,12 @@ function useSave(uuid: string) {
 }
 
 function StartupForms({ uuid, s }: { uuid: string; s: StartupView }) {
+  const { t } = useTranslation();
   return (
     <SectionsWithNav>
       {s.pending && (
         <p role="status" className="rounded-xl border border-warn/30 bg-warn-bg px-4 py-3 text-sm text-warn-text">
-          Your changes are saved. They take effect the next time the server starts, so restart it when it suits you.
+          {t("startupTab.yourChangesAreSavedThey")}
         </p>
       )}
       <CommandSection uuid={uuid} s={s} />
@@ -48,18 +50,19 @@ function StartupForms({ uuid, s }: { uuid: string; s: StartupView }) {
 }
 
 function CrashSection({ uuid, s }: { uuid: string; s: StartupView }) {
+  const { t } = useTranslation();
   const save = useSave(uuid);
   return (
     <Section
-      title="Crashes"
-      desc="What happens when the server stops without anyone asking. A server that exits normally, for example after a stop command typed in the game, counts as stopped, not crashed."
+      title={t("startupTab.crashes")}
+      desc={t("startupTab.whatHappensWhenTheServer")}
       footer={
         <span role={save.isSuccess ? "status" : undefined}>
           {save.isPending
-            ? "Saving..."
+            ? t("startupTab.saving")
             : save.isSuccess
-              ? "Saved. This applies right away."
-              : "If it crashes again within a minute of a restart, it is left stopped."}
+              ? t("startupTab.savedThisAppliesRightAway")
+              : t("startupTab.ifItCrashesAgainWithin")}
         </span>
       }
     >
@@ -72,8 +75,8 @@ function CrashSection({ uuid, s }: { uuid: string; s: StartupView }) {
           onChange={(e) => save.mutate({ crash_restart: e.target.checked })}
         />
         <span>
-          Restart the server automatically when it crashes
-          {!s.can_edit_crash_restart && <span className="block text-xs text-zinc-500">You do not have permission to change this.</span>}
+          {t("startupTab.restartTheServerAutomaticallyWhen")}
+          {!s.can_edit_crash_restart && <span className="block text-xs text-zinc-500">{t("startupTab.youDoNotHavePermission")}</span>}
         </span>
       </label>
       {save.error && <ErrorBox error={save.error} />}
@@ -82,6 +85,7 @@ function CrashSection({ uuid, s }: { uuid: string; s: StartupView }) {
 }
 
 function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
+  const { t } = useTranslation();
   const values = Object.fromEntries([...Object.entries(s.builtins), ...s.variables.map((v) => [v.env, v.value] as const)]);
   const preview = fillCommand(s.command, values);
   const [raw, setRaw] = useState(false);
@@ -91,22 +95,18 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
 
   return (
     <Section
-      title="Startup command"
-      desc={
-        s.custom_command ? "An administrator replaced the egg's command for this server." : "The command the server runs, from its egg."
-      }
+      title={t("startupTab.startupCommand")}
+      desc={s.custom_command ? t("startupTab.anAdministratorReplacedTheEgg") : t("startupTab.theCommandTheServerRuns")}
       footer={
         <>
-          <span>
-            {raw ? "Placeholders like {{SERVER_PORT}} are filled from the variables below." : "Shown with the current values filled in."}
-          </span>
+          <span>{raw ? t("startupTab.placeholdersLikeServerPortAre") : t("startupTab.shownWithTheCurrentValues")}</span>
           <div className="flex flex-wrap gap-2">
             {!editing && (
               <button type="button" className="btn btn-ghost" onClick={() => setRaw(!raw)} aria-pressed={raw}>
-                {raw ? "Show values" : "Show placeholders"}
+                {raw ? t("startupTab.showValues") : t("startupTab.showPlaceholders")}
               </button>
             )}
-            {!editing && <CopyButton text={raw ? s.command : preview} label="Copy" />}
+            {!editing && <CopyButton text={raw ? s.command : preview} label={t("common.copy")} />}
             {s.can_edit_command && !editing && (
               <button
                 type="button"
@@ -116,7 +116,7 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
                   setDraft(s.command);
                 }}
               >
-                Edit
+                {t("common.edit")}
               </button>
             )}
           </div>
@@ -132,7 +132,7 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
           className="space-y-3"
         >
           <label htmlFor="startup-cmd" className="label">
-            Command
+            {t("startupTab.command")}
           </label>
           <textarea
             id="startup-cmd"
@@ -141,9 +141,7 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
             onChange={(e) => setDraft(e.target.value.replace(/[\r\n]+/g, " "))}
             spellCheck={false}
           />
-          <p className="text-xs text-zinc-500">
-            Use {"{{VARIABLE}}"} for values. They reach the server as environment variables, so they can never inject shell commands.
-          </p>
+          <p className="text-xs text-zinc-500">{t("startupTab.useVariables", { variable: t("startupTab.variable") })}</p>
           <ErrorBox error={save.error} />
           <div className="flex flex-wrap justify-end gap-2">
             {s.custom_command && (
@@ -153,14 +151,14 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
                 disabled={save.isPending}
                 onClick={() => save.mutate({ startup: "" }, { onSuccess: () => setDraft(null) })}
               >
-                <RotateCcw className="h-4 w-4" aria-hidden /> Use the egg's command
+                <RotateCcw className="h-4 w-4" aria-hidden /> {t("startupTab.useTheEggSCommand")}
               </button>
             )}
             <button type="button" className="btn" onClick={() => setDraft(null)}>
-              Cancel
+              {t("common.cancel")}
             </button>
             <button type="submit" className="btn btn-primary" disabled={save.isPending || !draft.trim()}>
-              Save command
+              {t("startupTab.saveCommand")}
             </button>
           </div>
         </form>
@@ -174,6 +172,7 @@ function CommandSection({ uuid, s }: { uuid: string; s: StartupView }) {
 }
 
 function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
+  const { t } = useTranslation();
   const save = useSave(uuid);
   const listed = s.images.some((i) => i.image === s.image);
   const [custom, setCustom] = useState<string | null>(null);
@@ -182,15 +181,13 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
   if (!s.can_change_image) {
     return (
       <Section
-        title="Docker image"
-        desc={
-          s.custom_image ? "An administrator chose this image. Ask them if you need a different one." : "The runtime the server runs in."
-        }
+        title={t("startupTab.dockerImage")}
+        desc={s.custom_image ? t("startupTab.anAdministratorChoseThisImage") : t("startupTab.theRuntimeTheServerRuns")}
       >
         <p className="flex flex-wrap items-center gap-2 font-mono text-[13px] text-zinc-200">
           {label && <span className="font-sans text-sm font-medium">{label}</span>}
           {s.image}
-          <Lock className="h-3.5 w-3.5 text-zinc-500" aria-label="Locked" />
+          <Lock className="h-3.5 w-3.5 text-zinc-500" aria-label={t("startupTab.locked")} />
         </p>
       </Section>
     );
@@ -198,16 +195,16 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
   const selectValue = custom !== null || !listed ? "__custom" : s.image;
   return (
     <Section
-      title="Docker image"
-      desc="The runtime the server runs in, such as a Java version. Pick a newer one if the game asks for it."
+      title={t("startupTab.dockerImage")}
+      desc={t("startupTab.theRuntimeTheServerRuns2")}
       footer={
         <span role={save.isSuccess ? "status" : undefined}>
-          {save.isPending ? "Saving..." : save.isSuccess ? "Image saved." : "Changing the image does not touch your files."}
+          {save.isPending ? t("startupTab.saving") : save.isSuccess ? t("startupTab.imageSaved") : t("startupTab.changingTheImageDoesNot")}
         </span>
       }
     >
       <label htmlFor="startup-image" className="label">
-        Image
+        {t("startupTab.image")}
       </label>
       <select
         id="startup-image"
@@ -225,11 +222,13 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
       >
         {s.images.map((i) => (
           <option key={i.image} value={i.image}>
-            {i.label === i.image ? i.image : `${i.label} (${i.image})`}
+            {i.label === i.image ? i.image : t("startupTab.labelImage", { label: i.label, image: i.image })}
           </option>
         ))}
         {/* Admins may run any image; others only pick from the egg's list. */}
-        {(s.can_edit_command || !listed) && <option value="__custom">{listed ? "Custom image..." : `Custom: ${s.image}`}</option>}
+        {(s.can_edit_command || !listed) && (
+          <option value="__custom">{listed ? t("startupTab.customImage") : t("startupTab.customImage2", { image: s.image })}</option>
+        )}
       </select>
       {s.can_edit_command && selectValue === "__custom" && (
         <form
@@ -240,18 +239,18 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
           }}
         >
           <label htmlFor="startup-custom-image" className="sr-only">
-            Custom image
+            {t("startupTab.customImage3")}
           </label>
           <input
             id="startup-custom-image"
             className="input flex-1 basis-64 font-mono text-[13px]"
-            placeholder="ghcr.io/owner/image:tag"
+            placeholder={t("startupTab.ghcrIoOwnerImageTag")}
             value={custom ?? s.image}
             onChange={(e) => setCustom(e.target.value)}
             spellCheck={false}
           />
           <button type="submit" className="btn btn-primary" disabled={save.isPending || !(custom ?? s.image).trim()}>
-            Use image
+            {t("startupTab.useImage")}
           </button>
         </form>
       )}
@@ -263,6 +262,7 @@ function ImageSection({ uuid, s }: { uuid: string; s: StartupView }) {
 }
 
 function VariablesSection({ uuid, s }: { uuid: string; s: StartupView }) {
+  const { t } = useTranslation();
   const save = useSave(uuid);
   // Only what the person typed; everything else shows the saved value.
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -270,7 +270,7 @@ function VariablesSection({ uuid, s }: { uuid: string; s: StartupView }) {
   const dirty = Object.keys(changed).length > 0;
 
   if (s.variables.length === 0) {
-    return <Section title="Variables" desc="This egg has no settings you can see." />;
+    return <Section title={t("startupTab.variables")} desc={t("startupTab.thisEggHasNoSettings")} />;
   }
   return (
     <form
@@ -280,17 +280,17 @@ function VariablesSection({ uuid, s }: { uuid: string; s: StartupView }) {
       }}
     >
       <Section
-        title="Variables"
-        desc="Settings the egg passes to the server, such as the version or the jar to run."
+        title={t("startupTab.variables")}
+        desc={t("startupTab.settingsTheEggPassesTo")}
         footer={
           s.can_edit_variables ? (
             <>
               <span role={save.isSuccess && !dirty ? "status" : undefined}>
                 {dirty
-                  ? `${Object.keys(changed).length} unsaved ${Object.keys(changed).length === 1 ? "change" : "changes"}.`
+                  ? t("startupTab.unsaved", { count: Object.keys(changed).length })
                   : save.isSuccess
-                    ? "Variables saved."
-                    : "Locked variables can only be changed by an administrator."}
+                    ? t("startupTab.variablesSaved")
+                    : t("startupTab.lockedVariablesCanOnlyBe")}
               </span>
               <div className="flex gap-2">
                 {dirty && (
@@ -302,16 +302,16 @@ function VariablesSection({ uuid, s }: { uuid: string; s: StartupView }) {
                       save.reset();
                     }}
                   >
-                    Discard
+                    {t("startupTab.discard")}
                   </button>
                 )}
                 <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
-                  Save variables
+                  {t("startupTab.saveVariables")}
                 </button>
               </div>
             </>
           ) : (
-            <span>You can see these settings but not change them.</span>
+            <span>{t("startupTab.youCanSeeTheseSettings")}</span>
           )
         }
       >
@@ -329,6 +329,7 @@ function VariablesSection({ uuid, s }: { uuid: string; s: StartupView }) {
 }
 
 function VariableField({ v, value, onChange }: { v: StartupVar; value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
   const id = `var-${v.env}`;
   const kind = inputKind(v.rules, v.default);
   const hint = [v.description, v.rules_summary && `(${v.rules_summary})`].filter(Boolean).join(" ");
@@ -339,8 +340,8 @@ function VariableField({ v, value, onChange }: { v: StartupVar; value: string; o
           {v.name}
         </label>
         <code className="rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-400">{v.env}</code>
-        {!v.editable && <Lock className="h-3.5 w-3.5 text-zinc-500" aria-label="Read only" />}
-        {v.admin_only && <Pill tone="warn">Hidden from users</Pill>}
+        {!v.editable && <Lock className="h-3.5 w-3.5 text-zinc-500" aria-label={t("startupTab.readOnly")} />}
+        {v.admin_only && <Pill tone="warn">{t("startupTab.hiddenFromUsers")}</Pill>}
       </div>
       {kind.type === "select" ? (
         <select
@@ -351,7 +352,7 @@ function VariableField({ v, value, onChange }: { v: StartupVar; value: string; o
           onChange={(e) => onChange(e.target.value)}
           aria-describedby={hint ? `${id}-hint` : undefined}
         >
-          {!kind.options.includes(value) && <option value={value}>{value || "(empty)"}</option>}
+          {!kind.options.includes(value) && <option value={value}>{value || t("startupTab.empty")}</option>}
           {kind.options.map((o) => (
             <option key={o} value={o}>
               {kind.labels?.[o] ?? o}
