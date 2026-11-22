@@ -1,4 +1,5 @@
 import { minecraftKind } from "./minecraft";
+import i18n from "../i18n";
 
 export const TABS = [
   "console",
@@ -21,24 +22,97 @@ export type Tab = (typeof TABS)[number];
  * hold, or "owner" for sections only the owner and admins see.
  */
 export const TAB_INFO: { id: Tab; label: string; need?: string; keywords?: string; minecraft?: boolean }[] = [
-  { id: "console", label: "Console", need: "console.read" },
+  {
+    id: "console",
+    get label() {
+      return i18n.t("tabs.console");
+    },
+    need: "console.read",
+  },
   {
     id: "minecraft",
-    label: "Minecraft",
+    get label() {
+      return i18n.t("tabs.minecraft");
+    },
     need: "files.read",
     minecraft: true,
     keywords: "players whitelist ops bans server.properties motd version world seed icon gamerule",
   },
-  { id: "files", label: "Files", need: "files.read" },
-  { id: "mods", label: "Mods", need: "files.write", keywords: "plugins modrinth datapacks install" },
-  { id: "backups", label: "Backups", need: "backups.read" },
-  { id: "schedules", label: "Schedules", need: "schedules.manage" },
-  { id: "startup", label: "Startup", need: "startup.read", keywords: "variables docker image java version command" },
-  { id: "network", label: "Network", need: "network.read", keywords: "ports allocations" },
-  { id: "databases", label: "Databases", need: "databases.read", keywords: "mysql mariadb sql" },
-  { id: "activity", label: "Activity", need: "activity.read", keywords: "log history who audit" },
-  { id: "users", label: "Access", need: "owner", keywords: "subusers permissions" },
-  { id: "settings", label: "Settings" },
+  {
+    id: "files",
+    get label() {
+      return i18n.t("tabs.files");
+    },
+    need: "files.read",
+  },
+  {
+    id: "mods",
+    get label() {
+      return i18n.t("tabs.mods");
+    },
+    need: "files.write",
+    keywords: "plugins modrinth datapacks install",
+  },
+  {
+    id: "backups",
+    get label() {
+      return i18n.t("tabs.backups");
+    },
+    need: "backups.read",
+  },
+  {
+    id: "schedules",
+    get label() {
+      return i18n.t("tabs.schedules");
+    },
+    need: "schedules.manage",
+  },
+  {
+    id: "startup",
+    get label() {
+      return i18n.t("tabs.startup");
+    },
+    need: "startup.read",
+    keywords: "variables docker image java version command",
+  },
+  {
+    id: "network",
+    get label() {
+      return i18n.t("tabs.network");
+    },
+    need: "network.read",
+    keywords: "ports allocations",
+  },
+  {
+    id: "databases",
+    get label() {
+      return i18n.t("tabs.databases");
+    },
+    need: "databases.read",
+    keywords: "mysql mariadb sql",
+  },
+  {
+    id: "activity",
+    get label() {
+      return i18n.t("tabs.activity");
+    },
+    need: "activity.read",
+    keywords: "log history who audit",
+  },
+  {
+    id: "users",
+    get label() {
+      return i18n.t("tabs.users");
+    },
+    need: "owner",
+    keywords: "subusers permissions",
+  },
+  {
+    id: "settings",
+    get label() {
+      return i18n.t("tabs.settings");
+    },
+  },
 ];
 
 /** Whether a viewer with these rights may open a tab. */

@@ -6,8 +6,11 @@ import { authOptionsQuery, identitiesQuery, invalidates, keys, passkeysQuery } f
 import { ErrorBox, Field, FormDialog, Section } from "../components/ui";
 import { PasswordField } from "../components/AuthFields";
 import { createPasskey, passkeyError, passkeysSupported } from "../lib/webauthn";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 
 export function PasskeysSection() {
+  const { t } = useTranslation();
   const options = useQuery(authOptionsQuery);
   const list = useQuery({ ...passkeysQuery, enabled: !!options.data?.passkeys });
   const ids = useQuery(identitiesQuery);
@@ -20,18 +23,18 @@ export function PasskeysSection() {
   const supported = passkeysSupported();
   return (
     <Section
-      title="Passkeys"
-      desc="Sign in with your fingerprint, face or device PIN instead of a password. Passkeys cannot be phished, and need no second factor."
+      title={t("passkeysSection.passkeys")}
+      desc={t("passkeysSection.signInWithYourFingerprint")}
       footer={
         <>
-          <span>{supported ? "Each device or password manager can hold its own passkey." : "This browser does not support passkeys."}</span>
+          <span>{supported ? t("passkeysSection.eachDeviceOrPasswordManager") : t("passkeysSection.thisBrowserDoesNotSupport")}</span>
           <button type="button" className="btn btn-primary" disabled={!supported} onClick={() => setAdding(true)}>
-            <Fingerprint className="h-4 w-4" aria-hidden /> Add a passkey
+            <Fingerprint className="h-4 w-4" aria-hidden /> {t("passkeysSection.addAPasskey")}
           </button>
         </>
       }
     >
-      {list.data?.length === 0 && <p className="text-sm text-zinc-400">No passkeys yet.</p>}
+      {list.data?.length === 0 && <p className="text-sm text-zinc-400">{t("passkeysSection.noPasskeysYet")}</p>}
       {!!list.data?.length && (
         <ul className="divide-y divide-line rounded-xl border border-line">
           {list.data.map((p) => (
@@ -40,16 +43,18 @@ export function PasskeysSection() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-zinc-100">{p.name}</div>
                 <div className="text-xs text-zinc-500">
-                  Added {new Date(p.created_at * 1000).toLocaleDateString()} ·{" "}
-                  {p.last_used_at ? `last used ${new Date(p.last_used_at * 1000).toLocaleDateString()}` : "never used"}
+                  {t("passkeysSection.added", { when: new Date(p.created_at * 1000).toLocaleDateString() })} ·{" "}
+                  {p.last_used_at
+                    ? t("passkeysSection.lastUsed", { when: new Date(p.last_used_at * 1000).toLocaleDateString() })
+                    : t("passkeysSection.neverUsed")}
                 </div>
               </div>
               <button
                 type="button"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-bad-text"
-                aria-label={`Remove ${p.name}`}
+                aria-label={t("passkeysSection.removeName", { name: p.name })}
                 onClick={() => {
-                  if (window.confirm(`Remove the passkey "${p.name}"? That device can no longer sign in with it.`)) remove.mutate(p.id);
+                  if (window.confirm(t("passkeysSection.confirmRemove", { name: p.name }))) remove.mutate(p.id);
                 }}
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
@@ -67,6 +72,7 @@ export function PasskeysSection() {
 }
 
 function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const [password, setPassword] = useState("");
   const [name, setName] = useState(() => guessDevice());
   const add = useMutation({
@@ -90,29 +96,29 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
   return (
     <FormDialog
       open
-      title="Add a passkey"
-      submitLabel="Continue"
+      title={t("passkeysSection.addAPasskey")}
+      submitLabel={t("common.continue")}
       pending={add.isPending}
       error={add.error}
       disabled={(needsPassword && !password) || !name.trim()}
       onSubmit={() => add.mutate()}
       onClose={onClose}
     >
-      <Field label="Name" hint="So you can tell your passkeys apart later.">
+      <Field label={t("common.name")} hint={t("passkeysSection.soYouCanTellYour")}>
         {(id) => <input id={id} className="input" maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />}
       </Field>
       {needsPassword && (
         <PasswordField
-          label="Your password"
+          label={t("passkeysSection.yourPassword")}
           value={password}
           onChange={setPassword}
-          hint="Adding a way into your account needs your password."
+          hint={t("passkeysSection.addingAWayIntoYour")}
           autoFocus
         />
       )}
       {add.isPending && (
         <p role="status" className="flex items-center gap-2 text-sm text-zinc-400">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Follow your browser's prompt.
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t("passkeysSection.followYourBrowserSPrompt")}
         </p>
       )}
     </FormDialog>
@@ -121,9 +127,9 @@ function AddPasskey({ needsPassword, onClose }: { needsPassword: boolean; onClos
 
 function guessDevice() {
   const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
-  if (/iPhone|iPad/.test(ua)) return "iPhone or iPad";
-  if (ua.includes("Android")) return "Android phone";
+  if (/iPhone|iPad/.test(ua)) return i18n.t("passkeysSection.device.ios");
+  if (ua.includes("Android")) return i18n.t("passkeysSection.device.android");
   if (ua.includes("Mac")) return "Mac";
-  if (ua.includes("Windows")) return "Windows PC";
-  return "Passkey";
+  if (ua.includes("Windows")) return i18n.t("passkeysSection.device.windows");
+  return i18n.t("signIn.passkey");
 }

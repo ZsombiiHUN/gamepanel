@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon"
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
 
 func env(k, def string) string {
@@ -19,13 +21,20 @@ func env(k, def string) string {
 }
 
 func main() {
+	if len(os.Args) > 1 && version.IsFlag(os.Args[1]) {
+		fmt.Println(version.String("daemon"))
+		return
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	log.Info("starting", "version", version.Version)
 	cfg := daemon.Config{
 		PanelURL: env("GAMEPANEL_PANEL_URL", "ws://127.0.0.1:8080/daemon/connect"),
 		Token:    os.Getenv("GAMEPANEL_NODE_TOKEN"),
 		DataDir:  env("GAMEPANEL_DATA_DIR", "./daemon-data"),
 		// Off by default: "pull from URL" must not reach the node's own network.
 		PullAllowPrivate: os.Getenv("GAMEPANEL_PULL_ALLOW_PRIVATE") == "1",
+		// On by default: servers running when the node went down start again.
+		NoResume: os.Getenv("GAMEPANEL_RESUME") == "off",
 	}
 	if cfg.Token == "" {
 		log.Error("GAMEPANEL_NODE_TOKEN is required (create a node in the panel to get one)")

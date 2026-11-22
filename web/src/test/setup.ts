@@ -1,5 +1,6 @@
 import { afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import "../i18n";
 
 // Component tests run in jsdom; pure-logic tests stay in node and skip this.
 if (typeof document !== "undefined") {

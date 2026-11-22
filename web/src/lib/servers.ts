@@ -1,19 +1,20 @@
 import type { components } from "../api/client";
+import { translated } from "../i18n";
 
 type ServerView = components["schemas"]["ServerView"];
 export type SearchableServer = Pick<ServerView, "name" | "state" | "port"> & { egg_name?: string; node_name?: string };
 
-export const stateLabel: Record<string, string> = {
-  running: "Running",
-  starting: "Starting",
-  stopping: "Stopping",
-  installing: "Installing",
-  install_failed: "Install failed",
-  crashed: "Crashed",
-  offline: "Stopped",
-  unknown: "Unknown",
-  suspended: "Suspended",
-};
+export const stateLabel: Record<string, string> = translated({
+  running: "servers.state.running",
+  starting: "servers.state.starting",
+  stopping: "servers.state.stopping",
+  installing: "servers.state.installing",
+  install_failed: "servers.state.install_failed",
+  crashed: "servers.state.crashed",
+  offline: "servers.state.offline",
+  unknown: "servers.state.unknown",
+  suspended: "servers.state.suspended",
+});
 
 /** The state to show: a suspension outranks whatever the node reports. */
 export function shownState(s: { state: string; suspended?: boolean }, live?: string | null): string {
@@ -22,12 +23,12 @@ export function shownState(s: { state: string; suspended?: boolean }, live?: str
 
 export const GROUPS = ["running", "busy", "problem", "stopped"] as const;
 export type Group = (typeof GROUPS)[number];
-export const groupLabel: Record<Group, string> = {
-  running: "Running",
-  stopped: "Stopped",
-  busy: "Starting or installing",
-  problem: "Needs attention",
-};
+export const groupLabel: Record<Group, string> = translated({
+  running: "servers.group.running",
+  stopped: "servers.group.stopped",
+  busy: "servers.group.busy",
+  problem: "servers.group.problem",
+});
 
 /** Coarse bucket for the status filter chips. */
 export function groupOf(state: string): Group {

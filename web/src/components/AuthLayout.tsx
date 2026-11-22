@@ -1,16 +1,18 @@
 import type { ReactNode } from "react";
 import { Gamepad2 } from "lucide-react";
 import { ServerIcon } from "./ui";
+import { useTranslation } from "react-i18next";
 
 /** The two-column frame of the sign-in, sign-up and password pages. */
 export function AuthLayout({ title, sub, children }: { title: string; sub: ReactNode; children: ReactNode }) {
+  const { t } = useTranslation();
   return (
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <main className="flex items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm space-y-6">
           <div className="flex items-center gap-2.5 text-zinc-100">
             <Gamepad2 className="h-5 w-5 text-indigo-300" aria-hidden />
-            <span className="h-display text-lg">GamePanel</span>
+            <span className="h-display text-lg">{t("authLayout.gamepanel")}</span>
           </div>
           <div>
             <h1 id="auth-title" className="h-display text-3xl">
@@ -32,7 +34,7 @@ export function AuthLayout({ title, sub, children }: { title: string; sub: React
           </div>
         </div>
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-side via-side/90 to-transparent p-12 pt-24">
-          <p className="h-display max-w-md text-2xl leading-snug text-zinc-100">Game servers, without the panel you have to babysit.</p>
+          <p className="h-display max-w-md text-2xl leading-snug text-zinc-100">{t("authLayout.gameServersWithoutThePanel")}</p>
         </div>
       </aside>
     </div>

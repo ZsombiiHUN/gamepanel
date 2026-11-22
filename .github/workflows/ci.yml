@@ -101,3 +101,27 @@ jobs:
         with:
           go-version-file: go.mod
       - run: bash scripts/docker-smoke.sh
+  packaging:
+    # The release config, the installer and both images still build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck scripts/install.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: panel
+          cache-from: type=gha,scope=panel
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: daemon
+          cache-from: type=gha,scope=daemon

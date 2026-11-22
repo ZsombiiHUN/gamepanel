@@ -22,6 +22,7 @@ import { Empty, ServerIcon, StateMark } from "../components/ui";
 import { isTypingTarget } from "../lib/palette";
 import { shownState, sortServers } from "../lib/servers";
 import { TAB_INFO } from "../lib/tabs";
+import { useTranslation } from "react-i18next";
 
 const item =
   "group flex min-h-8 items-center gap-2.5 rounded-[7px] px-2 text-[13.5px] text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
@@ -29,10 +30,10 @@ const itemOn = "bg-row-active font-medium !text-zinc-100 shadow-[inset_0_0_0_1px
 const iconCls = "h-4 w-4 shrink-0 text-zinc-500 group-hover:text-zinc-300 group-aria-[current=page]:text-zinc-100";
 
 const ADMIN = [
-  ["/nodes", "Nodes", HardDrive],
-  ["/eggs", "Eggs", Egg],
-  ["/database-hosts", "Database hosts", DatabaseIcon],
-  ["/audit", "Audit log", ClipboardList],
+  ["/nodes", "nav.nodes", HardDrive],
+  ["/eggs", "nav.eggs", Egg],
+  ["/database-hosts", "nav.databaseHosts", DatabaseIcon],
+  ["/audit", "nav.audit", ClipboardList],
 ] as const;
 
 /** The product mark: a light tile with two blocks, the same in both themes. */
@@ -60,6 +61,7 @@ function Sidebar({
   signingOut: boolean;
   onSearch: () => void;
 }) {
+  const { t } = useTranslation();
   const servers = useQuery(serversQuery);
   const current = useParams({ from: "/app/servers/$uuid", shouldThrow: false })?.uuid;
   const n = servers.data?.length;
@@ -72,8 +74,8 @@ function Sidebar({
       >
         <Mark />
         <span className="min-w-0 leading-tight">
-          <span className="block text-sm font-semibold tracking-tight text-zinc-100">GamePanel</span>
-          <span className="block text-xs text-zinc-500">{n === undefined ? "\u00a0" : `${n} server${n === 1 ? "" : "s"}`}</span>
+          <span className="block text-sm font-semibold tracking-tight text-zinc-100">{t("appShell.gamepanel")}</span>
+          <span className="block text-xs text-zinc-500">{n === undefined ? "\u00a0" : t("appShell.servers", { count: n })}</span>
         </span>
       </Link>
       <button
@@ -84,30 +86,30 @@ function Sidebar({
       >
         <Search className="h-4 w-4" aria-hidden />{" "}
         <span className="flex-1 text-left">
-          Search <span className="sr-only">servers and pages</span>
+          {t("appShell.search")} <span className="sr-only">{t("appShell.serversAndPages")}</span>
         </span>
         <kbd className="kbd" aria-hidden>
-          Ctrl K
+          {t("appShell.ctrlK")}
         </kbd>
       </button>
       {/* Only the server list scrolls; the admin links and account stay in view however many servers there are. */}
-      <nav aria-label="Servers" className="-mx-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1">
+      <nav aria-label={t("common.servers")} className="-mx-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-1">
         <Link
           to="/"
           activeOptions={{ exact: true }}
           className={item}
           activeProps={{ className: `${item} ${itemOn}`, "aria-current": "page" }}
         >
-          <LayoutGrid className={iconCls} aria-hidden /> <span className="flex-1">All servers</span>
+          <LayoutGrid className={iconCls} aria-hidden /> <span className="flex-1">{t("appShell.allServers")}</span>
           {n !== undefined && <span className="font-mono text-xs text-zinc-500">{n}</span>}
         </Link>
         <div className="flex items-center justify-between px-2 pb-1 pt-3 text-[11.5px] font-medium text-zinc-500">
-          Servers
+          {t("common.servers")}
           {isAdmin && (
             <Link
               to="/servers/new"
-              aria-label="New server"
-              title="New server"
+              aria-label={t("appShell.newServer")}
+              title={t("appShell.newServer")}
               className="-mr-1 grid h-6 w-6 place-content-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -129,11 +131,11 @@ function Sidebar({
         ))}
       </nav>
       {isAdmin && (
-        <nav aria-label="Admin" className="flex shrink-0 flex-col gap-px">
-          <div className="px-2 pb-1 pt-2 text-[11.5px] font-medium text-zinc-500">Admin</div>
+        <nav aria-label={t("common.admin")} className="flex shrink-0 flex-col gap-px">
+          <div className="px-2 pb-1 pt-2 text-[11.5px] font-medium text-zinc-500">{t("common.admin")}</div>
           {ADMIN.map(([to, label, Icon]) => (
             <Link key={to} to={to} className={item} activeProps={{ className: `${item} ${itemOn}`, "aria-current": "page" }}>
-              <Icon className={iconCls} aria-hidden /> {label}
+              <Icon className={iconCls} aria-hidden /> {t(label)}
             </Link>
           ))}
         </nav>
@@ -154,8 +156,8 @@ function Sidebar({
         <button
           type="button"
           className="btn btn-ghost !min-h-8 !px-2"
-          aria-label="Sign out"
-          title="Sign out"
+          aria-label={t("common.signOut")}
+          title={t("common.signOut")}
           onClick={onSignOut}
           disabled={signingOut}
         >
@@ -168,6 +170,7 @@ function Sidebar({
 
 /** Where you are, as a trail: Servers / name / tab, or the admin page. */
 function Crumbs() {
+  const { t } = useTranslation();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const uuid = useParams({ from: "/app/servers/$uuid", shouldThrow: false })?.uuid;
   const tab = useSearch({ from: "/app/servers/$uuid", shouldThrow: false })?.tab ?? "console";
@@ -176,16 +179,16 @@ function Crumbs() {
   let trail: { label: string; to?: "/" }[];
   if (uuid)
     trail = [
-      { label: "Servers", to: "/" },
+      { label: t("nav.servers"), to: "/" },
       { label: server.data?.name ?? "…" },
-      { label: TAB_INFO.find((t) => t.id === tab)?.label ?? "" },
+      { label: TAB_INFO.find((info) => info.id === tab)?.label ?? "" },
     ];
-  else if (path === "/servers/new") trail = [{ label: "Servers", to: "/" }, { label: "New server" }];
-  else if (admin) trail = [{ label: "Admin" }, { label: admin[1] }];
-  else if (path === "/account") trail = [{ label: "Account" }];
-  else trail = [{ label: "Servers" }];
+  else if (path === "/servers/new") trail = [{ label: t("nav.servers"), to: "/" }, { label: t("createServerPage.newServer") }];
+  else if (admin) trail = [{ label: t("common.admin") }, { label: t(admin[1]) }];
+  else if (path === "/account") trail = [{ label: t("nav.account") }];
+  else trail = [{ label: t("nav.servers") }];
   return (
-    <nav aria-label="Location" className="min-w-0">
+    <nav aria-label={t("appShell.location")} className="min-w-0">
       <ol className="flex min-w-0 items-center gap-2 text-[13.5px] text-zinc-500">
         {trail.map((c, i) => {
           const last = i === trail.length - 1;
@@ -218,15 +221,16 @@ function Crumbs() {
  * no server list or search (they would be refused), just a way out.
  */
 function RestrictedSidebar({ email, onSignOut, signingOut }: { email: string; onSignOut: () => void; signingOut: boolean }) {
+  const { t } = useTranslation();
   return (
     <div className="flex h-full flex-col gap-3 px-2.5 pb-2.5 pt-3">
       <span className="flex shrink-0 items-center gap-2.5 px-1.5 py-1.5 text-sm font-semibold tracking-tight">
-        <Mark /> GamePanel
+        <Mark /> {t("appShell.gamepanel")}
       </span>
-      <p className="flex-1 px-2 text-[13px] text-zinc-500">Set up two-factor authentication to use the rest of the panel.</p>
+      <p className="flex-1 px-2 text-[13px] text-zinc-500">{t("appShell.setUpTwoFactorAuthentication")}</p>
       <div className="truncate px-2 text-[13px] text-zinc-400">{email}</div>
       <button type="button" className={item} onClick={onSignOut} disabled={signingOut}>
-        <LogOut className="h-4 w-4" aria-hidden /> Sign out
+        <LogOut className="h-4 w-4" aria-hidden /> {t("common.signOut")}
       </button>
     </div>
   );
@@ -234,17 +238,18 @@ function RestrictedSidebar({ email, onSignOut, signingOut }: { email: string; on
 
 /** Shown instead of any page when the account has a second factor this sign-in did not use. */
 function SignInAgain() {
+  const { t } = useTranslation();
   return (
     <div className="mx-auto max-w-lg">
-      <Empty icon={<ShieldCheck className="h-5 w-5" aria-hidden />} title="Sign in with your second factor">
-        This panel requires two-factor authentication. Your account has a passkey or authenticator app, but this sign-in did not use it.
-        Sign out, then sign in again with your passkey, or with your password and authenticator code.
+      <Empty icon={<ShieldCheck className="h-5 w-5" aria-hidden />} title={t("appShell.signInWithYourSecond")}>
+        {t("appShell.thisPanelRequiresTwoFactor")}
       </Empty>
     </div>
   );
 }
 
 export function AppShell() {
+  const { t } = useTranslation();
   const routeUser = useRouteContext({ from: "/app", select: (c) => c.me });
   // Follow the live answer, so setting up a second factor lifts the restriction at once.
   const user = useQuery(meQuery).data ?? routeUser;
@@ -290,20 +295,26 @@ export function AppShell() {
   return (
     <div className="min-h-screen bg-side lg:flex">
       <header className="flex items-center gap-2 border-b border-line bg-side px-3 py-2 lg:hidden">
-        <button type="button" className="btn btn-ghost !px-2" aria-label="Open menu" aria-expanded={open} onClick={() => setOpen(true)}>
+        <button
+          type="button"
+          className="btn btn-ghost !px-2"
+          aria-label={t("appShell.openMenu")}
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+        >
           <Menu className="h-5 w-5" aria-hidden />
         </button>
-        <span className="text-[15px] font-semibold tracking-tight">GamePanel</span>
+        <span className="text-[15px] font-semibold tracking-tight">{t("appShell.gamepanel")}</span>
       </header>
       {open && <div className="fixed inset-0 z-30 bg-black/60 lg:hidden" onClick={() => setOpen(false)} aria-hidden />}
       <aside
-        aria-label="Navigation"
+        aria-label={t("appShell.navigation")}
         className={`fixed left-0 top-0 z-40 h-dvh w-64 overflow-hidden border-r border-line bg-side transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[244px] lg:border-r-0 lg:shrink-0 lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <button
           type="button"
           className="btn btn-ghost absolute right-2 top-2 !px-2 lg:hidden"
-          aria-label="Close menu"
+          aria-label={t("appShell.closeMenu")}
           onClick={() => setOpen(false)}
         >
           <X className="h-5 w-5" aria-hidden />

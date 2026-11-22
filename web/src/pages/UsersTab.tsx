@@ -6,22 +6,26 @@ import { invalidates, keys, permissionsQuery, serverInvitesQuery, subusersQuery 
 import { Avatar, ConfirmDialog, CopyButton, Empty, ErrorBox, Field, Pill, Section, Spinner } from "../components/ui";
 import { areaSummary, roleOf } from "../lib/access";
 import { AccessChooser } from "./server/AccessChooser";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 
 /** Links come relative when the panel has no public address configured. */
 const absolute = (link: string) => (link.startsWith("/") ? window.location.origin + link : link);
 
 function daysLeft(unix: number, now = Date.now()) {
   const d = Math.ceil((unix * 1000 - now) / 86_400_000);
-  if (d <= 0) return "expires today";
-  return d === 1 ? "expires tomorrow" : `expires in ${d} days`;
+  if (d <= 0) return i18n.t("usersTab.expiresToday");
+  return i18n.t("usersTab.expiresIn", { count: d });
 }
 
 function RoleTag({ perms, known }: { perms: string[]; known: string[] }) {
+  const { t } = useTranslation();
   const role = roleOf(perms, known);
-  return <Pill tone={role?.id === "full" ? "good" : "neutral"}>{role ? role.label : "Custom"}</Pill>;
+  return <Pill tone={role?.id === "full" ? "good" : "neutral"}>{role ? role.label : t("usersTab.custom")}</Pill>;
 }
 
 export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: string }) {
+  const { t } = useTranslation();
   const perms = useQuery(permissionsQuery);
   const list = useQuery(subusersQuery(uuid));
   const invites = useQuery(serverInvitesQuery(uuid));
@@ -72,10 +76,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
 
   return (
     <div className="space-y-5">
-      <Section
-        title="People with access"
-        desc="Subusers can only do what you allow. They never see variables the egg hides, and cannot manage access or delete the server."
-      >
+      <Section title={t("usersTab.peopleWithAccess")} desc={t("usersTab.subusersCanOnlyDoWhat")}>
         <ErrorBox error={list.error ?? remove.error ?? save.error ?? withdraw.error} />
         {list.isPending && <Spinner />}
         {list.data && (ownerEmail || count > 0) && (
@@ -85,11 +86,11 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                 <Avatar name={ownerEmail} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-zinc-100">{ownerEmail}</div>
-                  <div className="text-xs text-zinc-500">Can do everything, including managing access</div>
+                  <div className="text-xs text-zinc-500">{t("usersTab.canDoEverythingIncludingManaging")}</div>
                 </div>
                 <Pill tone="warn">
                   <Crown className="mr-1 h-3 w-3" aria-hidden />
-                  Owner
+                  {t("common.owner")}
                 </Pill>
               </li>
             )}
@@ -106,7 +107,9 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                         <span className="truncate text-sm font-medium text-zinc-100">{u.email}</span>
                         <RoleTag perms={u.permissions} known={known} />
                       </div>
-                      <div className="mt-0.5 truncate text-xs text-zinc-500">{areaSummary(u.permissions) || "No permissions"}</div>
+                      <div className="mt-0.5 truncate text-xs text-zinc-500">
+                        {areaSummary(u.permissions) || t("usersTab.noPermissions")}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -118,12 +121,13 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                           setEditing(open ? null : { id: u.user_id, perms: u.permissions });
                         }}
                       >
-                        {open ? "Close" : "Edit"} <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} aria-hidden />
+                        {open ? t("common.close") : t("common.edit")}{" "}
+                        <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} aria-hidden />
                       </button>
                       <button
                         type="button"
                         className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-bad-text"
-                        aria-label={`Remove ${u.email}`}
+                        aria-label={t("usersTab.removeEmail", { email: u.email })}
                         onClick={() => setToRemove({ id: u.user_id, email: u.email })}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden />
@@ -135,10 +139,10 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                       <AccessChooser all={all} value={editing.perms} onChange={(v) => setEditing({ id: u.user_id, perms: v })} />
                       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
                         {editing.perms.length === 0 && (
-                          <span className="mr-auto text-sm text-warn-text">Pick at least one permission, or remove them instead.</span>
+                          <span className="mr-auto text-sm text-warn-text">{t("usersTab.pickAtLeastOnePermission")}</span>
                         )}
                         <button type="button" className="btn btn-ghost" onClick={() => setEditing(null)}>
-                          Cancel
+                          {t("common.cancel")}
                         </button>
                         <button
                           type="button"
@@ -146,7 +150,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                           disabled={save.isPending || !changed || editing.perms.length === 0}
                           onClick={() => save.mutate(editing)}
                         >
-                          {save.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Save permissions
+                          {save.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("usersTab.savePermissions")}
                         </button>
                       </div>
                     </div>
@@ -167,14 +171,14 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                     <span className="truncate text-sm font-medium text-zinc-300">{i.email}</span>
                     <Pill tone="warn">
                       <Clock className="mr-1 h-3 w-3" aria-hidden />
-                      Invited
+                      {t("usersTab.invited")}
                     </Pill>
                     <RoleTag perms={i.permissions} known={known} />
                   </div>
-                  <div className="mt-0.5 text-xs text-zinc-500">Waiting for them to sign up, {daysLeft(i.expires_at)}</div>
+                  <div className="mt-0.5 text-xs text-zinc-500">{t("usersTab.waiting", { expires: daysLeft(i.expires_at) })}</div>
                 </div>
                 <button type="button" className="btn btn-ghost" disabled={withdraw.isPending} onClick={() => withdraw.mutate(i.id)}>
-                  Withdraw
+                  {t("usersTab.withdraw")}
                 </button>
               </li>
             ))}
@@ -182,8 +186,8 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
         )}
         {list.data && count === 0 && (
           <div className="mt-3">
-            <Empty icon={<UserPlus className="h-5 w-5" aria-hidden />} title="Only you have access">
-              Add a friend or a moderator below and choose what they can do.
+            <Empty icon={<UserPlus className="h-5 w-5" aria-hidden />} title={t("usersTab.onlyYouHaveAccess")}>
+              {t("usersTab.addAFriendOrA")}
             </Empty>
           </div>
         )}
@@ -191,18 +195,18 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
 
       <form onSubmit={submit}>
         <Section
-          title="Add someone"
-          desc="If they already have an account here they get access at once. If not, they get an invitation to sign up, and the access comes with it."
+          title={t("usersTab.addSomeone")}
+          desc={t("usersTab.ifTheyAlreadyHaveAn")}
           footer={
             <>
               <span>
                 {picked.length === 0
-                  ? "Choose a role or some permissions."
-                  : `${roleOf(picked, known)?.label ?? "Custom"} · ${picked.length} permission${picked.length === 1 ? "" : "s"}`}
+                  ? t("usersTab.chooseARoleOrSome")
+                  : `${roleOf(picked, known)?.label ?? t("accessChooser.custom")} · ${t("usersTab.permissions", { count: picked.length })}`}
               </span>
               <button type="submit" className="btn btn-primary" disabled={add.isPending || picked.length === 0 || !email.trim()}>
                 {add.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserPlus className="h-4 w-4" aria-hidden />}{" "}
-                Add person
+                {t("usersTab.addPerson")}
               </button>
             </>
           }
@@ -212,23 +216,25 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
               <div role="status" className="space-y-2 rounded-xl border border-line-strong bg-row-active p-4 text-sm text-zinc-200">
                 {sent.added || !sent.link ? (
                   <p className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-good-text" aria-hidden /> {sent.email} now has access.
+                    <Check className="h-4 w-4 text-good-text" aria-hidden /> {t("usersTab.hasAccess", { email: sent.email })}
                   </p>
                 ) : (
                   <>
                     <p>
-                      {sent.email} has no account yet, so they were invited{sent.emailed ? " by email" : ""}.{" "}
-                      {sent.emailed ? "You can also send them this link yourself:" : "Send them this link; it works once, for 7 days:"}
+                      {sent.emailed
+                        ? t("usersTab.invitedByEmail", { email: sent.email })
+                        : t("usersTab.invitedNoAccount", { email: sent.email })}{" "}
+                      {sent.emailed ? t("usersTab.youCanAlsoSendThem") : t("usersTab.sendThemThisLinkIt")}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
                       <code className="min-w-0 flex-1 break-all rounded bg-zinc-950 px-2 py-1.5 text-xs text-zinc-300">{sent.link}</code>
-                      <CopyButton text={sent.link} label="Copy link" />
+                      <CopyButton text={sent.link} label={t("usersTab.copyLink")} />
                     </div>
                   </>
                 )}
               </div>
             )}
-            <Field label="Their email">
+            <Field label={t("usersTab.theirEmail")}>
               {(id) => (
                 <input
                   id={id}
@@ -236,7 +242,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
                   type="email"
                   required
                   autoComplete="off"
-                  placeholder="friend@example.com"
+                  placeholder={t("usersTab.friendExampleCom")}
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -246,7 +252,7 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
               )}
             </Field>
             <div>
-              <div className="label">What can they do?</div>
+              <div className="label">{t("usersTab.whatCanTheyDo")}</div>
               {perms.isPending ? <Spinner /> : <AccessChooser all={all} value={picked} onChange={setPicked} />}
             </div>
             <ErrorBox error={add.error ?? perms.error} />
@@ -256,9 +262,9 @@ export function UsersTab({ uuid, ownerEmail }: { uuid: string; ownerEmail?: stri
 
       <ConfirmDialog
         open={!!toRemove}
-        title={`Remove ${toRemove?.email ?? ""}?`}
-        body="They lose all access to this server immediately. You can add them again later."
-        confirmLabel="Remove access"
+        title={t("usersTab.confirmRemove", { email: toRemove?.email ?? "" })}
+        body={t("usersTab.theyLoseAllAccessTo")}
+        confirmLabel={t("usersTab.removeAccess")}
         pending={remove.isPending}
         error={remove.error}
         onConfirm={() => toRemove && remove.mutate(toRemove.id)}

@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 /** Archives the panel can extract. */
 const ARCHIVE = /\.(zip|tar|tar\.gz|tgz|tar\.bz2|tbz2|gz)$/i;
 export const isArchive = (name: string) => ARCHIVE.test(name);
@@ -14,10 +15,10 @@ export const octal = (mode: number) => (mode & 0o777).toString(8).padStart(3, "0
 /** A name for a new file or folder: one segment, no slashes, not "." or "..". */
 export function nameProblem(name: string): string | null {
   const n = name.trim();
-  if (!n) return "Enter a name.";
-  if (n === "." || n === "..") return "That name is reserved.";
-  if (/[\\/\0]/.test(n)) return "Names cannot contain / or \\.";
-  if (n.length > 255) return "Names can be at most 255 characters.";
+  if (!n) return i18n.t("fileName.empty");
+  if (n === "." || n === "..") return i18n.t("fileName.reserved");
+  if (/[\\/\0]/.test(n)) return i18n.t("fileName.slash");
+  if (n.length > 255) return i18n.t("fileName.tooLong");
   return null;
 }
 

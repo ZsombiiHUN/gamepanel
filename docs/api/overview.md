@@ -77,7 +77,7 @@ Bots and apps written for Pterodactyl's client API can work with a GamePanel key
 
 ## All endpoints
 
-The [API reference](/api/reference) lists every endpoint with its parameters, bodies and responses, and can send requests to your panel. It is generated from the same OpenAPI description, which you can [download](/openapi.json){target="_self" download}. By area:
+The [API reference](/api/reference) lists every endpoint with its parameters, bodies and responses, and can send requests to your panel. It is generated from the same OpenAPI description, which you can [download](../openapi.json){target="_self" download}. By area:
 
 | Area | Paths |
 |---|---|

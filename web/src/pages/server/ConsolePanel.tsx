@@ -5,6 +5,7 @@ import { api, call } from "../../api/client";
 import { ConsoleTerminal, type TerminalHandle } from "../../components/Terminal";
 import { ErrorBox } from "../../components/ui";
 import { copyText } from "../../lib/clipboard";
+import { useTranslation } from "react-i18next";
 
 export function ConsolePanel({
   uuid,
@@ -19,6 +20,7 @@ export function ConsolePanel({
   canSend: boolean;
   status: string;
 }) {
+  const { t } = useTranslation();
   const [cmd, setCmd] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -39,28 +41,28 @@ export function ConsolePanel({
     "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
 
   return (
-    <section aria-label="Console" className="overflow-clip rounded-xl border border-line bg-well shadow-panel">
+    <section aria-label={t("consolePanel.console")} className="overflow-clip rounded-xl border border-line bg-well shadow-panel">
       <div className="flex items-center gap-3 border-b border-line bg-thead py-1 pl-4 pr-2">
         <h2 className="flex items-center gap-2.5 text-[13.5px] font-medium">
           <span
             className={`h-[7px] w-[7px] rounded-full ${status === "open" ? "bg-good" : status === "closed" ? "bg-bad-text" : "bg-warn"}`}
             title={
               status === "open"
-                ? "Following live output"
+                ? t("consolePanel.followingLiveOutput")
                 : status === "closed"
-                  ? "Disconnected: you no longer have access to this console"
-                  : "Reconnecting"
+                  ? t("consolePanel.disconnectedYouNoLongerHave")
+                  : t("consolePanel.reconnecting")
             }
             aria-hidden
           />
-          Console
+          {t("tabs.console")}
         </h2>
         <div className="ml-auto flex items-center gap-0.5">
           <button
             type="button"
             className={tool}
-            aria-label={copied ? "Copied" : "Copy log"}
-            title="Copy log"
+            aria-label={copied ? t("common.copied") : t("consolePanel.copyLog")}
+            title={t("consolePanel.copyLog")}
             onClick={() => {
               void copyText(termRef.current?.text() ?? "")
                 .then(() => {
@@ -72,15 +74,21 @@ export function ConsolePanel({
           >
             {copied ? <Check className="h-4 w-4 text-good" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
           </button>
-          <button type="button" className={tool} aria-label="Clear" title="Clear" onClick={() => termRef.current?.clear()}>
+          <button
+            type="button"
+            className={tool}
+            aria-label={t("consolePanel.clear")}
+            title={t("consolePanel.clear")}
+            onClick={() => termRef.current?.clear()}
+          >
             <Eraser className="h-4 w-4" aria-hidden />
           </button>
           <button
             type="button"
             className={tool}
-            aria-label={expanded ? "Shrink" : "Expand"}
+            aria-label={expanded ? t("consolePanel.shrink") : t("consolePanel.expand")}
             aria-pressed={expanded}
-            title={expanded ? "Shrink" : "Expand"}
+            title={expanded ? t("consolePanel.shrink") : t("consolePanel.expand")}
             onClick={() => setExpanded((v) => !v)}
           >
             {expanded ? <Shrink className="h-4 w-4" aria-hidden /> : <Expand className="h-4 w-4" aria-hidden />}
@@ -89,33 +97,34 @@ export function ConsolePanel({
       </div>
       {status === "closed" && (
         <p role="status" className="border-b border-row-hover px-[18px] py-2 text-[13px] text-bad-text">
-          The console was closed because you no longer have access to it.
+          {t("consolePanel.theConsoleWasClosedBecause")}
         </p>
       )}
       <ConsoleTerminal ref={termRef} expanded={expanded} />
       {canSend && (
         <form
           onSubmit={submit}
-          aria-label="Send a console command"
+          aria-label={t("consolePanel.sendAConsoleCommand")}
           className="sticky bottom-0 z-10 flex items-center gap-2.5 border-t border-line bg-thead pl-4 pr-2"
         >
           <span className="font-mono text-zinc-600" aria-hidden>
             ›
           </span>
           <label htmlFor="cmd" className="sr-only">
-            Console command
+            {t("consolePanel.consoleCommand")}
           </label>
           <input
             id="cmd"
             className="min-h-12 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-zinc-500"
-            placeholder="Send a command"
+            placeholder={t("consolePanel.sendACommand")}
             autoComplete="off"
             maxLength={2048}
             value={cmd}
             onChange={(e) => setCmd(e.target.value)}
           />
           <button type="submit" className="btn btn-ghost !min-h-9" disabled={send.isPending || !cmd.trim()}>
-            {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />} Send
+            {send.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}{" "}
+            {t("consolePanel.send")}
           </button>
         </form>
       )}

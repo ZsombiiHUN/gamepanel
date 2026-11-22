@@ -6,8 +6,10 @@ import { api, call } from "../api/client";
 import { eggsQuery, invalidates, keys, nodesQuery } from "../api/queries";
 import { ErrorBox, Field, InfoList, Meter, PageHeader, Section, ServerIcon, Spinner } from "../components/ui";
 import { LimitsFields, defaultLimitsForm, formToLimits, type LimitsForm } from "../components/LimitsFields";
+import { useTranslation } from "react-i18next";
 
 export function CreateServerPage() {
+  const { t } = useTranslation();
   const nodes = useQuery(nodesQuery);
   const eggs = useQuery(eggsQuery);
   const navigate = useNavigate();
@@ -64,14 +66,20 @@ export function CreateServerPage() {
   const gb = (mb: number) => (mb >= 1024 ? `${+(mb / 1024).toFixed(1)} GB` : `${mb} MB`);
 
   return (
-    <form onSubmit={submit} aria-label="Create server" className="xl:grid xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start xl:gap-8">
+    <form
+      onSubmit={submit}
+      aria-label={t("createServerPage.createServer")}
+      className="xl:grid xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start xl:gap-8"
+    >
       <div className="min-w-0 max-w-[880px]">
-        <PageHeader title="New server" sub="Pick a game and a node, set its limits, and it is installed in the background." />
+        <PageHeader title={t("createServerPage.newServer")} sub={t("createServerPage.pickAGameAndA")} />
         <div className="space-y-5">
           <fieldset className="min-w-0">
-            <legend className="mb-2.5 flex w-full items-baseline justify-between text-[13.5px] font-semibold">Game</legend>
+            <legend className="mb-2.5 flex w-full items-baseline justify-between text-[13.5px] font-semibold">
+              {t("createServerPage.game")}
+            </legend>
             {eggList.length === 0 ? (
-              <p className="text-[13px] text-zinc-500">Import an egg first.</p>
+              <p className="text-[13px] text-zinc-500">{t("createServerPage.importAnEggFirst")}</p>
             ) : (
               <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr))]">
                 {eggList.map((x) => (
@@ -107,9 +115,9 @@ export function CreateServerPage() {
             {egg?.description && <p className="mt-2 text-[12.5px] text-zinc-500">{egg.description}</p>}
           </fieldset>
 
-          <Section title="Details" desc="The name is only for you. The icon is generated from it.">
+          <Section title={t("createServerPage.details")} desc={t("createServerPage.theNameIsOnlyFor")}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Name">
+              <Field label={t("common.name")}>
                 {(id) => (
                   <input
                     id={id}
@@ -122,16 +130,16 @@ export function CreateServerPage() {
                   />
                 )}
               </Field>
-              <Field label="Node" hint={nodeList.length === 0 ? "Create a node first." : undefined}>
+              <Field label={t("common.node")} hint={nodeList.length === 0 ? t("createServerPage.createANodeFirst") : undefined}>
                 {(id) => (
                   <select id={id} className="input" required value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
                     <option value="" disabled>
-                      Select a node
+                      {t("createServerPage.selectANode")}
                     </option>
                     {nodeList.map((n) => (
                       <option key={n.id} value={n.id}>
                         {n.name}
-                        {n.online ? "" : " (offline)"}
+                        {n.online ? "" : t("createServerPage.offline")}
                       </option>
                     ))}
                   </select>
@@ -140,12 +148,12 @@ export function CreateServerPage() {
             </div>
           </Section>
 
-          <Section title="Resources" desc="Hard limits for this server. Zero usually means unlimited.">
+          <Section title={t("createServerPage.resources")} desc={t("createServerPage.hardLimitsForThisServer")}>
             <LimitsFields value={limits} onChange={setLimits} />
           </Section>
 
-          <Section title="Network">
-            <Field label="Port" hint="Leave empty to take the next free port in the node's range.">
+          <Section title={t("createServerPage.network")}>
+            <Field label={t("common.port")} hint={t("createServerPage.leaveEmptyToTakeThe")}>
               {(id) => (
                 <input
                   id={id}
@@ -153,7 +161,7 @@ export function CreateServerPage() {
                   type="number"
                   min={1}
                   max={65535}
-                  placeholder="auto"
+                  placeholder={t("createServerPage.auto")}
                   value={port}
                   onChange={(e) => setPort(e.target.value)}
                 />
@@ -162,7 +170,10 @@ export function CreateServerPage() {
           </Section>
 
           {egg && (egg.variables ?? []).length > 0 && (
-            <Section title="Environment variables" desc={`Defaults come from ${egg.name}.`}>
+            <Section
+              title={t("createServerPage.environmentVariables")}
+              desc={t("createServerPage.defaultsComeFromName", { name: egg.name })}
+            >
               <div className="grid gap-4 sm:grid-cols-2">
                 {(egg.variables ?? []).map((v) => (
                   <Field key={v.env} label={v.name} hint={v.description || v.env}>
@@ -182,39 +193,39 @@ export function CreateServerPage() {
         </div>
       </div>
 
-      <aside aria-label="Summary" className="mt-6 xl:sticky xl:top-[76px] xl:mt-0">
+      <aside aria-label={t("createServerPage.summary")} className="mt-6 xl:sticky xl:top-[76px] xl:mt-0">
         <div className="rounded-xl border border-line bg-zinc-900 p-4">
           <div className="flex items-center gap-3">
             <ServerIcon name={name || "new server"} size={40} />
             <div className="min-w-0">
-              <p className="truncate text-[14.5px] font-semibold">{name || "New server"}</p>
-              <p className="truncate text-[12.5px] text-zinc-500">{egg?.name ?? "No game picked"}</p>
+              <p className="truncate text-[14.5px] font-semibold">{name || t("createServerPage.newServer")}</p>
+              <p className="truncate text-[12.5px] text-zinc-500">{egg?.name ?? t("createServerPage.noGame")}</p>
             </div>
           </div>
           <div className="mt-4 border-t border-line pt-3">
             <InfoList
               rows={[
-                { label: "Node", value: node?.name ?? "-", plain: true },
-                { label: "Port", value: port || "next free" },
-                { label: "Memory", value: mem ? gb(mem) : "no limit" },
-                { label: "Disk", value: disk ? gb(disk) : "no limit" },
-                { label: "Backups kept", value: limits.backup_limit || "0" },
+                { label: t("common.node"), value: node?.name ?? "-", plain: true },
+                { label: t("common.port"), value: port || t("createServerPage.nextFree") },
+                { label: t("common.memory"), value: mem ? gb(mem) : t("usage.noLimit") },
+                { label: t("common.disk"), value: disk ? gb(disk) : t("usage.noLimit") },
+                { label: t("createServerPage.backupsKept"), value: limits.backup_limit || "0" },
               ]}
             />
           </div>
           {node && (node.memory_mb > 0 || node.disk_mb > 0) && (
             <div className="mt-4 space-y-3 border-t border-line pt-3">
-              <p className="text-[12.5px] text-zinc-500">{node.name} after this server</p>
+              <p className="text-[12.5px] text-zinc-500">{t("createServerPage.nodeAfter", { node: node.name })}</p>
               {node.memory_mb > 0 && (
                 <Meter
-                  label="Memory"
+                  label={t("common.memory")}
                   text={`${gb(node.allocated_memory_mb + mem)} / ${gb(node.memory_mb)}`}
                   pct={((node.allocated_memory_mb + mem) / node.memory_mb) * 100}
                 />
               )}
               {node.disk_mb > 0 && (
                 <Meter
-                  label="Disk"
+                  label={t("common.disk")}
                   text={`${gb(node.allocated_disk_mb + disk)} / ${gb(node.disk_mb)}`}
                   pct={((node.allocated_disk_mb + disk) / node.disk_mb) * 100}
                 />
@@ -225,10 +236,10 @@ export function CreateServerPage() {
         <div className="mt-3 space-y-2">
           <ErrorBox error={create.error} />
           <button type="submit" className="btn btn-primary w-full !min-h-10" disabled={create.isPending}>
-            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create server
+            {create.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("createServerPage.createServer")}
           </button>
           <button type="button" className="btn btn-ghost w-full" onClick={() => void navigate({ to: "/" })}>
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </aside>

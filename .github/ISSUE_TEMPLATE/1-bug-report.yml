@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in GamePanel does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Security problems do not go here**: use
+        [Security → Report a vulnerability](https://github.com/ZsombiiHUN/gamepanel/security/advisories/new) instead.
+        Questions and setup help belong in [Discussions](https://github.com/ZsombiiHUN/gamepanel/discussions).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a server from the Paper egg
+        2. Open Files and upload a folder
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: GamePanel version
+      description: Output of `panel version` and `daemon version` (or the image tag).
+      placeholder: panel v0.1.0 (commit 1a2b3c4d5e6f, ...)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed?
+      options:
+        - install.sh
+        - Docker Compose
+        - Release archive, set up by hand
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS, Docker version, browser
+      placeholder: Ubuntu 24.04, Docker 29.0, Firefox 150
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The panel's and daemon's log lines around the problem (`journalctl -u gamepanel -u gamepanel-daemon`). Remove tokens and addresses you do not want public.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send
+      options:
+        - label: I searched existing issues and this is not one of them.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

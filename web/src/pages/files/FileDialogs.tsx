@@ -5,6 +5,8 @@ import { invalidatesAlways, keys } from "../../api/queries";
 import { Field, FormDialog } from "../../components/ui";
 import { joinPath, parentPath } from "../../lib/format";
 import { modeString, moveTarget, nameProblem, octal } from "../../lib/files";
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 
 export interface FileItem {
   name: string;
@@ -23,7 +25,8 @@ function useFileMutation<T>(uuid: string, fn: (v: T) => Promise<unknown>, onDone
   return useMutation({ mutationFn: fn, onSuccess: onDone, meta: invalidatesAlways(keys.files(uuid)) });
 }
 
-const names = (items: FileItem[]) => (items.length === 1 ? `“${items[0]?.name ?? ""}”` : `${items.length} items`);
+const names = (items: FileItem[]) =>
+  items.length === 1 ? `“${items[0]?.name ?? ""}”` : i18n.t("fileDialogs.items", { count: items.length });
 
 export function FileDialogs({
   uuid,
@@ -57,6 +60,7 @@ export function FileDialogs({
 }
 
 function RenameDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; onClose: () => void }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(item.name);
   const problem = nameProblem(name);
   const m = useFileMutation(
@@ -73,15 +77,15 @@ function RenameDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; o
   return (
     <FormDialog
       open
-      title={`Rename ${item.name}`}
-      submitLabel="Rename"
+      title={t("fileDialogs.renameName", { name: item.name })}
+      submitLabel={t("common.rename")}
       pending={m.isPending}
       error={m.error}
       disabled={!!problem || name.trim() === item.name}
       onSubmit={() => m.mutate(undefined)}
       onClose={onClose}
     >
-      <Field label="New name" hint={name && problem ? problem : undefined}>
+      <Field label={t("fileDialogs.newName")} hint={name && problem ? problem : undefined}>
         {(id) => (
           <input
             id={id}
@@ -101,6 +105,7 @@ function RenameDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; o
 }
 
 function MoveDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[]; onClose: () => void }) {
+  const { t } = useTranslation();
   const [folder, setFolder] = useState(parentPath(items[0]?.path ?? "/"));
   const moves = items.map((i) => ({ from: i.path, to: moveTarget(i.path, folder) })).filter((m) => m.from !== m.to);
   const m = useFileMutation(
@@ -111,15 +116,15 @@ function MoveDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[];
   return (
     <FormDialog
       open
-      title={`Move ${names(items)}`}
-      submitLabel="Move"
+      title={t("fileDialogs.moveTitle", { what: names(items) })}
+      submitLabel={t("fileDialogs.move")}
       pending={m.isPending}
       error={m.error}
       disabled={moves.length === 0}
       onSubmit={() => m.mutate(undefined)}
       onClose={onClose}
     >
-      <Field label="Into folder" hint="Missing folders are created. Nothing is overwritten.">
+      <Field label={t("fileDialogs.intoFolder")} hint={t("fileDialogs.missingFoldersAreCreatedNothing")}>
         {(id) => (
           <input
             id={id}
@@ -128,7 +133,7 @@ function MoveDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[];
             onChange={(e) => setFolder(e.target.value)}
             autoFocus
             spellCheck={false}
-            placeholder="/plugins/old"
+            placeholder={t("fileDialogs.pluginsOld")}
           />
         )}
       </Field>
@@ -136,14 +141,15 @@ function MoveDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[];
   );
 }
 
-const WHO = ["Owner", "Group", "Others"] as const;
+const WHO = ["owner", "group", "others"] as const;
 const WHAT = [
-  ["Read", 4],
-  ["Write", 2],
-  ["Run", 1],
+  ["read", 4],
+  ["write", 2],
+  ["run", 1],
 ] as const;
 
 function ChmodDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; onClose: () => void }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState(item.mode ?? 0o644);
   const m = useFileMutation(
     uuid,
@@ -153,21 +159,21 @@ function ChmodDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; on
   return (
     <FormDialog
       open
-      title={`Permissions of ${item.name}`}
-      submitLabel="Save permissions"
+      title={t("fileDialogs.permissionsOfName", { name: item.name })}
+      submitLabel={t("fileDialogs.savePermissions")}
       pending={m.isPending}
       error={m.error}
       onSubmit={() => m.mutate(undefined)}
       onClose={onClose}
     >
       <table className="w-full text-sm">
-        <caption className="sr-only">Who may read, write and run {item.name}</caption>
+        <caption className="sr-only">{t("fileDialogs.modeCaption", { name: item.name })}</caption>
         <thead>
           <tr className="text-left text-xs text-zinc-500">
             <th scope="col" className="pb-2 font-medium" />
             {WHAT.map(([w]) => (
               <th key={w} scope="col" className="pb-2 font-medium">
-                {w}
+                {t(`fileDialogs.mode.${w}`)}
               </th>
             ))}
           </tr>
@@ -176,7 +182,7 @@ function ChmodDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; on
           {WHO.map((who, wi) => (
             <tr key={who}>
               <th scope="row" className="py-1.5 pr-4 text-left font-medium text-zinc-300">
-                {who}
+                {t(`fileDialogs.who.${who}`)}
               </th>
               {WHAT.map(([what, bit]) => {
                 const b = bit << (3 * (2 - wi));
@@ -185,7 +191,7 @@ function ChmodDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; on
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-indigo-500"
-                      aria-label={`${who} can ${what.toLowerCase()}`}
+                      aria-label={t(`fileDialogs.can.${who}.${what}`)}
                       checked={(mode & b) !== 0}
                       onChange={(e) => setMode(e.target.checked ? mode | b : mode & ~b)}
                     />
@@ -199,12 +205,13 @@ function ChmodDialog({ uuid, item, onClose }: { uuid: string; item: FileItem; on
       <p className="font-mono text-[13px] text-zinc-400">
         {octal(mode)} · {modeString(mode)}
       </p>
-      <p className="text-xs text-zinc-500">The panel always keeps read and write for the owner, so the server can still use the file.</p>
+      <p className="text-xs text-zinc-500">{t("fileDialogs.thePanelAlwaysKeepsRead")}</p>
     </FormDialog>
   );
 }
 
 function CompressDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[]; onClose: () => void }) {
+  const { t } = useTranslation();
   const [format, setFormat] = useState<"tar.gz" | "zip">("zip");
   const root = parentPath(items[0]?.path ?? "/");
   const m = useFileMutation(
@@ -218,15 +225,15 @@ function CompressDialog({ uuid, items, onClose }: { uuid: string; items: FileIte
   return (
     <FormDialog
       open
-      title={`Compress ${names(items)}`}
-      submitLabel="Create archive"
+      title={t("fileDialogs.compressTitle", { what: names(items) })}
+      submitLabel={t("fileDialogs.createArchive")}
       pending={m.isPending}
       error={m.error}
       onSubmit={() => m.mutate(undefined)}
       onClose={onClose}
     >
       <fieldset>
-        <legend className="label">Format</legend>
+        <legend className="label">{t("fileDialogs.format")}</legend>
         <div className="flex gap-4">
           {(["zip", "tar.gz"] as const).map((f) => (
             <label key={f} className="inline-flex items-center gap-2">
@@ -236,13 +243,14 @@ function CompressDialog({ uuid, items, onClose }: { uuid: string; items: FileIte
         </div>
       </fieldset>
       <p className="text-xs text-zinc-500">
-        The archive is saved in {root} and counts toward the server's disk limit. {m.isPending && "Large folders can take a few minutes."}
+        {t("fileDialogs.archiveSavedIn", { folder: root })} {m.isPending && t("fileDialogs.largeFolders")}
       </p>
     </FormDialog>
   );
 }
 
 function DeleteDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[]; onClose: () => void }) {
+  const { t } = useTranslation();
   const m = useFileMutation(
     uuid,
     () => call(api.POST("/servers/{uuid}/files/delete", { params: { path: { uuid } }, body: { paths: items.map((i) => i.path) } })),
@@ -253,15 +261,16 @@ function DeleteDialog({ uuid, items, onClose }: { uuid: string; items: FileItem[
     <FormDialog
       open
       danger
-      title={`Delete ${names(items)}?`}
-      submitLabel="Delete"
+      title={t("fileDialogs.deleteTitle", { what: names(items) })}
+      submitLabel={t("common.delete")}
       pending={m.isPending}
       error={m.error}
       onSubmit={() => m.mutate(undefined)}
       onClose={onClose}
     >
       <p>
-        {folders > 0 ? "Folders are deleted with everything in them. " : ""}This cannot be undone, so take a backup first if you are unsure.
+        {folders > 0 ? `${t("fileDialogs.foldersAreDeletedWithEverything")} ` : ""}
+        {t("fileDialogs.cannotBeUndone")}
       </p>
       {items.length > 1 && (
         <ul className="max-h-40 overflow-y-auto rounded-lg border border-line bg-zinc-950 p-2 font-mono text-xs text-zinc-400">
@@ -287,6 +296,7 @@ function NewDialog({
   onClose: () => void;
   onOpenFile: (p: string) => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const problem = nameProblem(name);
   const path = joinPath(dir, name.trim());
@@ -304,15 +314,15 @@ function NewDialog({
   return (
     <FormDialog
       open
-      title={folder ? "New folder" : "New file"}
-      submitLabel={folder ? "Create folder" : "Create and edit"}
+      title={folder ? t("fileDialogs.newFolder") : t("fileDialogs.newFile")}
+      submitLabel={folder ? t("fileDialogs.createFolder") : t("fileDialogs.createAndEdit")}
       pending={m.isPending}
       error={m.error}
       disabled={!!problem}
       onSubmit={() => m.mutate(undefined)}
       onClose={onClose}
     >
-      <Field label="Name" hint={name && problem ? problem : `Created in ${dir}`}>
+      <Field label={t("common.name")} hint={name && problem ? problem : t("fileDialogs.createdInDir", { dir })}>
         {(id) => (
           <input
             id={id}
@@ -321,7 +331,7 @@ function NewDialog({
             onChange={(e) => setName(e.target.value)}
             autoFocus
             spellCheck={false}
-            placeholder={folder ? "plugins" : "server.properties"}
+            placeholder={folder ? t("fileDialogs.plugins") : t("fileDialogs.serverProperties")}
           />
         )}
       </Field>
@@ -330,6 +340,7 @@ function NewDialog({
 }
 
 function PullDialog({ uuid, dir, onClose }: { uuid: string; dir: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const valid = /^https?:\/\/\S+$/i.test(url.trim());
@@ -342,15 +353,15 @@ function PullDialog({ uuid, dir, onClose }: { uuid: string; dir: string; onClose
   return (
     <FormDialog
       open
-      title="Download from a URL"
-      submitLabel="Download"
+      title={t("fileDialogs.downloadFromAUrl")}
+      submitLabel={t("common.download")}
       pending={m.isPending}
       error={m.error}
       disabled={!valid || (!!name && !!nameProblem(name))}
       onSubmit={() => m.mutate(undefined)}
       onClose={onClose}
     >
-      <Field label="URL" hint="The node downloads it directly, which is quicker than downloading and uploading it yourself.">
+      <Field label={t("fileDialogs.url")} hint={t("fileDialogs.theNodeDownloadsItDirectly")}>
         {(id) => (
           <input
             id={id}
@@ -359,12 +370,12 @@ function PullDialog({ uuid, dir, onClose }: { uuid: string; dir: string; onClose
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             autoFocus
-            placeholder="https://example.com/plugin.jar"
+            placeholder={t("fileDialogs.httpsExampleComPluginJar")}
             spellCheck={false}
           />
         )}
       </Field>
-      <Field label="Save as (optional)" hint={`Saved in ${dir}. Leave empty to keep the file's own name.`}>
+      <Field label={t("fileDialogs.saveAsOptional")} hint={t("fileDialogs.savedInDirLeaveEmpty", { dir })}>
         {(id) => (
           <input
             id={id}
@@ -377,7 +388,7 @@ function PullDialog({ uuid, dir, onClose }: { uuid: string; dir: string; onClose
       </Field>
       {m.isPending && (
         <p role="status" className="text-xs text-zinc-400">
-          Downloading. Large files can take a few minutes.
+          {t("fileDialogs.downloadingLargeFilesCanTake")}
         </p>
       )}
     </FormDialog>

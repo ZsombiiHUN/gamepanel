@@ -10,6 +10,8 @@ import { ArrowLeft, Loader2, Save, Trash2 } from "lucide-react";
 import { api, ApiError, call } from "../api/client";
 import { fileQuery, invalidates, keys } from "../api/queries";
 import { ConfirmDialog, ErrorBox, Spinner } from "../components/ui";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 
 function langFor(path: string): Extension[] {
   const ext = path.split(".").pop()?.toLowerCase();
@@ -21,12 +23,13 @@ function langFor(path: string): Extension[] {
 
 function friendly(err: unknown): unknown {
   if (err instanceof ApiError && err.status === 413) {
-    return new Error("This file is too large to edit in the browser. Use SFTP or another tool for large files.");
+    return new Error(i18n.t("fileEditor.tooLarge"));
   }
   return err;
 }
 
 export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; path: string; onClose: () => void; onDeleted: () => void }) {
+  const { t } = useTranslation();
   const file = useQuery(fileQuery(uuid, path));
   // What the user typed (null until they type) and what was last saved. Neither copies server data into state.
   const [edited, setEdited] = useState<string | null>(null);
@@ -48,7 +51,7 @@ export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; p
   });
 
   const close = () => {
-    if (dirty && !window.confirm("Discard unsaved changes?")) return;
+    if (dirty && !window.confirm(t("fileEditor.confirmDiscard"))) return;
     onClose();
   };
 
@@ -56,22 +59,23 @@ export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; p
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn" onClick={close}>
-          <ArrowLeft className="h-4 w-4" aria-hidden /> Back
+          <ArrowLeft className="h-4 w-4" aria-hidden /> {t("common.back")}
         </button>
         <h2 className="break-all font-mono text-sm">
           {path}
           {dirty && (
-            <span className="ml-2 text-warn-text" title="Unsaved changes">
-              (modified)
+            <span className="ml-2 text-warn-text" title={t("fileEditor.unsavedChanges")}>
+              {t("fileEditor.modified")}
             </span>
           )}
         </h2>
         <div className="ml-auto flex gap-2">
           <button type="button" className="btn btn-primary" onClick={() => save.mutate()} disabled={!file.data || !dirty || save.isPending}>
-            {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />} Save
+            {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}{" "}
+            {t("common.save")}
           </button>
           <button type="button" className="btn btn-danger" onClick={() => setConfirm(true)}>
-            <Trash2 className="h-4 w-4" aria-hidden /> Delete
+            <Trash2 className="h-4 w-4" aria-hidden /> {t("common.delete")}
           </button>
         </div>
       </div>
@@ -80,19 +84,19 @@ export function FileEditor({ uuid, path, onClose, onDeleted }: { uuid: string; p
       <ErrorBox error={save.error} />
       {save.isSuccess && !dirty && (
         <p role="status" className="text-sm text-good-text">
-          Saved.
+          {t("fileEditor.saved")}
         </p>
       )}
       {file.data && (
-        <div role="group" aria-label={`Editor for ${path}`} className="overflow-hidden rounded-md border border-line">
+        <div role="group" aria-label={t("fileEditor.editorForPath", { path })} className="overflow-hidden rounded-md border border-line">
           <CodeMirror value={text} onChange={setEdited} theme={oneDark} extensions={langFor(path)} height="60vh" />
         </div>
       )}
       <ConfirmDialog
         open={confirm}
-        title="Delete this file?"
+        title={t("fileEditor.deleteThisFile")}
         body={<span className="break-all font-mono">{path}</span>}
-        confirmLabel="Delete"
+        confirmLabel={t("common.delete")}
         pending={del.isPending}
         error={del.error}
         onConfirm={() => del.mutate()}

@@ -5,11 +5,13 @@ import { invalidates, keys, sessionsQuery } from "../api/queries";
 import { ErrorBox, Pill, Section } from "../components/ui";
 import { relativeTime } from "../lib/activity";
 import { describeSignIn, describeUserAgent } from "../lib/useragent";
+import { Trans, useTranslation } from "react-i18next";
 
 const mobile = (ua: string) => /iPhone|iPad|iPod|Android|Mobile/.test(ua);
 
 /** Every signed-in browser or device on the account, each of which can be signed out (ASVS v5.0.0-7.5.2). */
 export function SessionsSection() {
+  const { t } = useTranslation();
   const list = useQuery({ ...sessionsQuery, refetchInterval: 60_000 });
   const revoke = useMutation({
     mutationFn: (id: string) => call(api.DELETE("/auth/sessions/{id}", { params: { path: { id } } })),
@@ -23,23 +25,24 @@ export function SessionsSection() {
 
   return (
     <Section
-      title="Sessions"
+      title={t("sessionsSection.sessions")}
       id="sessions-h"
-      desc="Browsers and devices signed in to your account. If you do not recognise one, sign it out and change your password."
+      desc={t("sessionsSection.browsersAndDevicesSignedIn")}
       footer={
         <>
           <span className={revokeOthers.isSuccess ? "text-good-text" : ""} role={revokeOthers.isSuccess ? "status" : undefined}>
-            {revokeOthers.isSuccess ? "Other sessions signed out." : ""}
+            {revokeOthers.isSuccess ? t("sessionsSection.otherSessionsSignedOut") : ""}
           </span>
           <button type="button" className="btn" onClick={() => revokeOthers.mutate()} disabled={revokeOthers.isPending || others === 0}>
-            {revokeOthers.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Sign out all other sessions
+            {revokeOthers.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{" "}
+            {t("sessionsSection.signOutAllOtherSessions")}
           </button>
         </>
       }
     >
-      {list.isPending && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" aria-label="Loading sessions" />}
+      {list.isPending && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" aria-label={t("sessionsSection.loadingSessions")} />}
       {list.data && (
-        <ul className="divide-y divide-line rounded-xl border border-line" aria-label="Signed-in sessions">
+        <ul className="divide-y divide-line rounded-xl border border-line" aria-label={t("sessionsSection.signedInSessions")}>
           {list.data.map((s) => {
             const Icon = mobile(s.user_agent) ? Smartphone : Monitor;
             const name = describeUserAgent(s.user_agent);
@@ -50,7 +53,7 @@ export function SessionsSection() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-200">
                     <span title={s.user_agent || undefined}>{name}</span>
-                    {s.current && <Pill tone="good">This device</Pill>}
+                    {s.current && <Pill tone="good">{t("sessionsSection.thisDevice")}</Pill>}
                   </div>
                   <div className="mt-0.5 text-xs text-zinc-500">
                     {[
@@ -61,13 +64,17 @@ export function SessionsSection() {
                       ),
                       s.ip && s.last_ip && s.ip !== s.last_ip && (
                         <span key="from">
-                          signed in from <span className="font-mono">{s.ip}</span>
+                          <Trans
+                            i18nKey="sessionsSection.signedInFrom"
+                            values={{ ip: s.ip }}
+                            components={{ ip: <span className="font-mono" /> }}
+                          />
                         </span>
                       ),
-                      s.current ? "active now" : `active ${relativeTime(s.last_seen_at)}`,
+                      s.current ? t("sessionsSection.activeNow") : t("sessionsSection.active", { when: relativeTime(s.last_seen_at) }),
                       s.created_at > 0 && (
                         <span key="at" title={new Date(s.created_at * 1000).toLocaleString()}>
-                          signed in {relativeTime(s.created_at)}
+                          {t("sessionsSection.signedIn", { when: relativeTime(s.created_at) })}
                         </span>
                       ),
                       s.method && describeSignIn(s.method),
@@ -85,8 +92,8 @@ export function SessionsSection() {
                   <button
                     type="button"
                     className="btn btn-ghost !px-2.5 text-zinc-500 hover:text-bad-text"
-                    aria-label={`Sign out ${name}${where ? ` at ${where}` : ""}`}
-                    title="Sign out"
+                    aria-label={where ? t("sessionsSection.signOutAt", { name, where }) : t("sessionsSection.signOut", { name })}
+                    title={t("common.signOut")}
                     disabled={revoke.isPending && revoke.variables === s.id}
                     onClick={() => revoke.mutate(s.id)}
                   >

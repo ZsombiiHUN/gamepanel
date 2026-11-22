@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 /** Fill {{VAR}} placeholders the way the node does; unknown ones stay as they are. */
 export function fillCommand(command: string, values: Record<string, string>) {
   return command.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (all, name: string) => values[name] ?? all);
@@ -27,7 +28,7 @@ export function inputKind(ruleText: string, def: string): InputKind {
     // Keep the egg's own spelling: some read "1"/"0", others "true"/"false".
     const numeric = def === "1" || def === "0";
     const [on, off] = numeric ? ["1", "0"] : ["true", "false"];
-    return { type: "select", options: [on, off], labels: { [on]: "Enabled", [off]: "Disabled" } };
+    return { type: "select", options: [on, off], labels: { [on]: i18n.t("common.enabled"), [off]: i18n.t("common.disabled") } };
   }
   if (rs.some(([n]) => n === "integer" || n === "int" || n === "numeric")) return { type: "number" };
   return { type: "text" };

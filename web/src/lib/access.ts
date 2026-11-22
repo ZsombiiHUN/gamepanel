@@ -1,3 +1,5 @@
+import i18n from "../i18n";
+import { translated } from "../i18n";
 /** Subuser permissions as people think about them: areas, roles and what each tick implies. */
 
 export interface Perm {
@@ -7,16 +9,66 @@ export interface Perm {
 
 /** Friendly area names, in the order the picker shows them. Unknown prefixes go last under their own name. */
 const AREAS: { id: string; label: string }[] = [
-  { id: "console", label: "Console" },
-  { id: "power", label: "Power" },
-  { id: "files", label: "Files" },
-  { id: "backups", label: "Backups" },
-  { id: "schedules", label: "Schedules" },
-  { id: "startup", label: "Startup" },
-  { id: "network", label: "Network" },
-  { id: "databases", label: "Databases" },
-  { id: "activity", label: "Activity" },
-  { id: "settings", label: "Settings" },
+  {
+    id: "console",
+    get label() {
+      return i18n.t("access.areas.console");
+    },
+  },
+  {
+    id: "power",
+    get label() {
+      return i18n.t("access.areas.power");
+    },
+  },
+  {
+    id: "files",
+    get label() {
+      return i18n.t("access.areas.files");
+    },
+  },
+  {
+    id: "backups",
+    get label() {
+      return i18n.t("access.areas.backups");
+    },
+  },
+  {
+    id: "schedules",
+    get label() {
+      return i18n.t("access.areas.schedules");
+    },
+  },
+  {
+    id: "startup",
+    get label() {
+      return i18n.t("access.areas.startup");
+    },
+  },
+  {
+    id: "network",
+    get label() {
+      return i18n.t("access.areas.network");
+    },
+  },
+  {
+    id: "databases",
+    get label() {
+      return i18n.t("access.areas.databases");
+    },
+  },
+  {
+    id: "activity",
+    get label() {
+      return i18n.t("access.areas.activity");
+    },
+  },
+  {
+    id: "settings",
+    get label() {
+      return i18n.t("access.areas.settings");
+    },
+  },
 ];
 
 const areaOf = (perm: string) => perm.split(".")[0] ?? perm;
@@ -39,31 +91,31 @@ export function groupPerms(all: Perm[]): { area: string; label: string; perms: P
 }
 
 /** Short names for each permission; the server's description goes under them. */
-const SHORT: Record<string, string> = {
-  "console.read": "View console",
-  "console.send": "Send commands",
-  power: "Start, stop and restart",
-  "files.read": "Browse and download",
-  "files.write": "Upload, edit and delete",
-  "backups.read": "See backups",
-  "backups.create": "Create",
-  "backups.restore": "Restore",
-  "backups.delete": "Delete and lock",
-  "backups.download": "Download",
-  "schedules.manage": "Manage schedules",
-  "settings.reinstall": "Reinstall",
-  "settings.rename": "Rename",
-  "activity.read": "See the activity log",
-  "startup.read": "See startup settings",
-  "startup.update": "Change variables",
-  "startup.docker-image": "Change Docker image",
-  "network.read": "See ports",
-  "network.manage": "Manage ports",
-  "databases.read": "See databases",
-  "databases.manage": "Manage databases",
-};
+const SHORT: Record<string, string> = translated({
+  "console.read": "access.perms.console_read",
+  "console.send": "access.perms.console_send",
+  power: "access.perms.power",
+  "files.read": "access.perms.files_read",
+  "files.write": "access.perms.files_write",
+  "backups.read": "access.perms.backups_read",
+  "backups.create": "access.perms.backups_create",
+  "backups.restore": "access.perms.backups_restore",
+  "backups.delete": "access.perms.backups_delete",
+  "backups.download": "access.perms.backups_download",
+  "schedules.manage": "access.perms.schedules_manage",
+  "settings.reinstall": "access.perms.settings_reinstall",
+  "settings.rename": "access.perms.settings_rename",
+  "activity.read": "access.perms.activity_read",
+  "startup.read": "access.perms.startup_read",
+  "startup.update": "access.perms.startup_update",
+  "startup.docker-image": "access.perms.startup_docker_image",
+  "network.read": "access.perms.network_read",
+  "network.manage": "access.perms.network_manage",
+  "databases.read": "access.perms.databases_read",
+  "databases.manage": "access.perms.databases_manage",
+});
 
-export const permLabel = (id: string) => SHORT[id] ?? id;
+export const permLabel = (id: string) => (SHORT as Record<string, string | undefined>)[id] ?? id;
 
 /**
  * What a permission is useless without. Ticking one ticks these too, and
@@ -123,20 +175,32 @@ const pick = (ids: string[]) => (known: string[]) => known.filter((p) => ids.inc
 export const ROLES: Role[] = [
   {
     id: "viewer",
-    label: "Viewer",
-    desc: "Watches the console and status, nothing else.",
+    get label() {
+      return i18n.t("access.roles.viewer.label");
+    },
+    get desc() {
+      return i18n.t("access.roles.viewer.desc");
+    },
     perms: pick(["console.read", "activity.read"]),
   },
   {
     id: "moderator",
-    label: "Moderator",
-    desc: "Runs commands, restarts the server and takes backups.",
+    get label() {
+      return i18n.t("access.roles.moderator.label");
+    },
+    get desc() {
+      return i18n.t("access.roles.moderator.desc");
+    },
     perms: pick(["console.read", "console.send", "power", "activity.read", "backups.read", "backups.create"]),
   },
   {
     id: "manager",
-    label: "Manager",
-    desc: "Also edits files, mods, schedules and startup settings.",
+    get label() {
+      return i18n.t("access.roles.manager.label");
+    },
+    get desc() {
+      return i18n.t("access.roles.manager.desc");
+    },
     perms: pick([
       "console.read",
       "console.send",
@@ -157,8 +221,12 @@ export const ROLES: Role[] = [
   },
   {
     id: "full",
-    label: "Full access",
-    desc: "Everything a subuser can have. Still cannot manage access or delete the server.",
+    get label() {
+      return i18n.t("access.roles.full.label");
+    },
+    get desc() {
+      return i18n.t("access.roles.full.desc");
+    },
     perms: (known) => [...known],
   },
 ];

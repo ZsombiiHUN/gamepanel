@@ -1,8 +1,20 @@
 # Upgrading
 
 ::: warning Pre-alpha
-There are no releases or version numbers yet, and the API may change between commits. Read the commit log between the commit you run and the one you upgrade to before you upgrade.
+Before 1.0, a minor release (0.**x**.0) may change the API or need you to do something. Read the [changelog](https://github.com/ZsombiiHUN/gamepanel/blob/main/CHANGELOG.md) from your version to the new one first; anything you must do is under **Upgrade notes**. `panel version` and `daemon version` say what you run.
 :::
+
+## With the installer
+
+If you installed with [the installer](/panel/installing#the-quick-way-the-installer), run it again on the panel machine and on every node:
+
+```sh
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh | sudo bash -s -- upgrade
+```
+
+On the panel machine it stops the panel, copies the database and key file to `/var/backups/gamepanel/pre-<version>-<time>/` together with the old binary, installs the new one and starts it. On a node it replaces the daemon and restarts it; game servers keep running. Add `--version v0.2.0` to pick a release.
+
+With Docker Compose, see [Docker Compose → Upgrading](/panel/docker#upgrading).
 
 ## What happens on upgrade
 
@@ -17,16 +29,10 @@ There are no releases or version numbers yet, and the API may change between com
    ```sh
    sudo systemctl start gamepanel-backup.service
    ```
-2. **Build** the new binaries (see [Installing the panel](/panel/installing#_1-get-the-binaries)):
-   ```sh
-   git fetch && git checkout <new commit>
-   make web
-   CGO_ENABLED=0 go build -o bin/panel ./cmd/panel
-   CGO_ENABLED=0 go build -o bin/daemon ./cmd/daemon
-   ```
+2. **Download** the new release and check it (see [Installing the panel](/panel/installing#_1-get-the-binaries)).
 3. **Replace and restart:**
    ```sh
-   sudo install -m 0755 bin/panel /usr/local/bin/panel
+   sudo install -m 0755 panel /usr/local/bin/panel
    sudo systemctl restart gamepanel
    journalctl -u gamepanel -n 20
    ```
@@ -34,7 +40,7 @@ There are no releases or version numbers yet, and the API may change between com
 
 ## Upgrading nodes
 
-Upgrade the daemons right after the panel, so both sides run the same commit. On each node:
+Upgrade the daemons right after the panel, so both sides run the same version. On each node:
 
 ```sh
 sudo install -m 0755 daemon /usr/local/bin/gamepanel-daemon
@@ -44,7 +50,7 @@ sudo systemctl restart gamepanel-daemon
 Game servers keep running through the restart.
 
 ::: tip
-Mixing builds is not tested. The daemon reports its version to the panel when it connects, but the panel does not check it yet, so keep panel and daemons on the same commit.
+Mixing versions is not tested. The daemon reports its version when it connects, and the panel logs a warning (`node runs a different version than the panel`) when it differs from its own.
 :::
 
 ## Going back
@@ -56,4 +62,4 @@ Mixing builds is not tested. The daemon reports its version to the panel when it
 
 ## Version notes
 
-There are no release notes yet. Changes that need you to do something are called out in the commit messages and pull requests on GitHub.
+Every release is in the [changelog](https://github.com/ZsombiiHUN/gamepanel/blob/main/CHANGELOG.md) and on the [releases page](https://github.com/ZsombiiHUN/gamepanel/releases).

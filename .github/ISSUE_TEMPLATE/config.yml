@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/ZsombiiHUN/gamepanel/security/advisories/new
+    about: Privately, please. Never in a public issue. See SECURITY.md.
+  - name: Ask a question or get help with setup
+    url: https://github.com/ZsombiiHUN/gamepanel/discussions/categories/q-a
+    about: Installing, configuring, eggs, reverse proxies.
+  - name: Documentation
+    url: https://zsombiihun.github.io/gamepanel/
+    about: Installing, configuration and troubleshooting.

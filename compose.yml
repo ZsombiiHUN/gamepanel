@@ -1,0 +1,69 @@
+# GamePanel with Docker Compose: the panel behind Caddy (automatic HTTPS) and,
+# optionally, a node on the same machine.
+#
+#   cp .env.example .env                  # set GAMEPANEL_DOMAIN first
+#   docker compose up -d                  # panel + Caddy
+#   docker compose exec panel panel create-admin you@example.com
+#   # Nodes -> Create node in the panel, put the token in .env, then:
+#   docker compose --profile node up -d   # adds the daemon
+#
+# See docs/panel/docker.md for details.
+name: gamepanel
+
+services:
+  panel:
+    image: ghcr.io/zsombiihun/gamepanel:${GAMEPANEL_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      GAMEPANEL_PUBLIC_URL: https://${GAMEPANEL_DOMAIN:?set GAMEPANEL_DOMAIN in .env}
+      # Caddy is the only thing that reaches the panel, from this subnet.
+      GAMEPANEL_TRUSTED_PROXIES: 172.31.250.0/24
+      GAMEPANEL_REQUIRE_MFA: ${GAMEPANEL_REQUIRE_MFA:-admins}
+    env_file:
+      - path: panel.env
+        required: false # SMTP, single sign-on, S3 and other settings
+    volumes:
+      - panel-data:/data # panel.db and panel.db.key: back up both
+    networks: [gamepanel]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    command: caddy reverse-proxy --from ${GAMEPANEL_DOMAIN} --to panel:8080
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+    networks: [gamepanel]
+    depends_on: [panel]
+
+  # A node on this machine. It talks to the host's Docker, so server folders
+  # are host paths: the data directory is mounted at the same path inside and
+  # out. Host networking lets game servers' ports and SFTP (2022) be reached
+  # directly; the daemon dials the panel through its public address.
+  daemon:
+    image: ghcr.io/zsombiihun/gamepanel-daemon:${GAMEPANEL_VERSION:-latest}
+    profiles: [node]
+    restart: unless-stopped
+    network_mode: host
+    pid: host # network limits enter each server's network namespace
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    environment:
+      GAMEPANEL_PANEL_URL: wss://${GAMEPANEL_DOMAIN}/daemon/connect
+      GAMEPANEL_NODE_TOKEN: ${GAMEPANEL_NODE_TOKEN:?create a node in the panel and set GAMEPANEL_NODE_TOKEN in .env}
+      GAMEPANEL_DATA_DIR: /var/lib/gamepanel-daemon
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/gamepanel-daemon:/var/lib/gamepanel-daemon
+
+volumes:
+  panel-data:
+  caddy-data:
+
+networks:
+  gamepanel:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24

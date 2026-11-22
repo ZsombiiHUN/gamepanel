@@ -82,6 +82,8 @@ func TestEditLimitsAndNodeCapacity(t *testing.T) {
 	}
 	s.admin.do("POST", srv+"/power", map[string]string{"action": "restart"}, 202)
 	waitFor(t, "new limits applied at restart", func() bool { return memOf() == 1024 })
+	// the restart runs in the background; a stop sent before it finishes is lost
+	waitFor(t, "running after the restart", func() bool { return s.state() == "running" })
 	s.admin.do("POST", srv+"/power", map[string]string{"action": "stop"}, 202)
 	waitFor(t, "stopped", func() bool { return s.state() == "offline" })
 	s.setLimits(map[string]any{"memory_mb": 512}, 204)

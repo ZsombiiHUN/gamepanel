@@ -27,9 +27,8 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
-
-const Version = "0.1.0"
 
 // Install states, reported through the normal state events.
 const (
@@ -56,6 +55,9 @@ type Config struct {
 	// PullAllowPrivate lets "pull from URL" fetch from private and loopback
 	// addresses (off by default: see pull).
 	PullAllowPrivate bool
+	// NoResume keeps servers offline after the daemon starts, even those that
+	// were running when it stopped (see resume).
+	NoResume bool
 
 	// Test-only: the SSH handshake deadline (30 s) and how long a login
 	// waits for the panel (10 s).
@@ -256,6 +258,9 @@ func (d *Daemon) loadState() {
 // exponential backoff. Losing the connection is never fatal, so there is no
 // error to return.
 func (d *Daemon) Run(ctx context.Context) {
+	if n := d.resume(ctx); n > 0 {
+		d.log.Info("started servers that were running before the restart", "count", n)
+	}
 	backoff := time.Second
 	for ctx.Err() == nil {
 		start := time.Now()
@@ -307,7 +312,7 @@ func (d *Daemon) session(ctx context.Context) error {
 		}
 	}
 	d.mu.Unlock()
-	hello := proto.Hello{Version: Version, Servers: ids, SFTPPort: sftpPort, Containers: d.untracked(sctx, ids)}
+	hello := proto.Hello{Version: version.Version, Servers: ids, SFTPPort: sftpPort, Containers: d.untracked(sctx, ids)}
 	if err := d.send(sctx, proto.Envelope{Type: proto.EvtHello, Data: proto.Marshal(hello)}); err != nil {
 		return err
 	}
@@ -1085,6 +1090,7 @@ func (d *Daemon) startClaimed(ctx context.Context, uuid string) error {
 			d.log.Info("incoming traffic is policed, not shaped: this kernel has no ifb device", "server", uuid)
 		}
 	}
+	d.markRunning(uuid, true)
 	d.emitState(ctx, uuid, runtime.StateRunning)
 	return nil
 }
@@ -1177,6 +1183,7 @@ func (d *Daemon) kill(ctx context.Context, uuid string) error {
 	}
 	d.mu.Unlock()
 	defer release()
+	d.markRunning(uuid, false)
 	if st, err := d.rt.State(ctx, uuid); (err == nil && st == runtime.StateOffline) || (err != nil && d.isStale(uuid)) {
 		return nil
 	}
@@ -1192,6 +1199,7 @@ func (d *Daemon) stopClaimed(ctx context.Context, uuid string) error {
 	if err != nil {
 		return err
 	}
+	d.markRunning(uuid, false)
 	// Nothing to stop. Saying "stopping" here would leave the server shown as
 	// stopping, since no exit follows.
 	if st, err := d.rt.State(ctx, uuid); (err == nil && st == runtime.StateOffline) || (err != nil && d.isStale(uuid)) {
@@ -1263,6 +1271,7 @@ func (d *Daemon) remove(ctx context.Context, uuid string) error {
 	_ = os.Remove(d.statePath(uuid))
 	_ = os.Remove(d.installedPath(uuid))
 	_ = os.Remove(d.stalePath(uuid))
+	_ = os.Remove(d.runningPath(uuid))
 	_ = os.RemoveAll(filepath.Join(d.cfg.DataDir, "backups", uuid))
 	return os.RemoveAll(d.serverDir(uuid))
 }

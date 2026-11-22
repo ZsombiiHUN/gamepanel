@@ -23,6 +23,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 	"github.com/ZsombiiHUN/gamepanel/internal/web"
 )
 
@@ -43,6 +44,16 @@ func main() {
 // run is main with errors returned, so deferred cleanup (closing the
 // database) happens on every exit path.
 func run(args []string) error {
+	if len(args) > 0 && version.IsFlag(args[0]) {
+		fmt.Println(version.String("panel"))
+		return nil
+	}
+	if len(args) > 0 && isHelp(args[0]) {
+		// Answered before the database is opened, so asking for help
+		// never creates panel.db or its key file.
+		fmt.Print(usage)
+		return nil
+	}
 	if len(args) > 0 && args[0] == "openapi" {
 		// Prints the API description; needs no database (make openapi).
 		b, err := api.OpenAPI()
@@ -76,6 +87,24 @@ func run(args []string) error {
 		}
 	}
 	return serve(st, log, args)
+}
+
+const usage = `Usage: panel [command]
+
+Commands:
+  (none)                      run the panel (-addr overrides GAMEPANEL_ADDR)
+  create-admin <email>        create an admin account and print its password
+  reset-2fa <email>           remove an account's second factors
+  reset-link <email>          print a one-time password reset link
+  openapi                     print the OpenAPI description
+  version                     print the version
+
+Settings are environment variables (GAMEPANEL_DB, GAMEPANEL_ADDR, ...);
+see https://github.com/ZsombiiHUN/gamepanel/blob/main/docs/panel/configuration.md
+`
+
+func isHelp(arg string) bool {
+	return arg == "help" || arg == "-h" || arg == "-help" || arg == "--help"
 }
 
 // serve runs the panel until SIGINT or SIGTERM.

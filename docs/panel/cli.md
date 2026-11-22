@@ -11,8 +11,16 @@ sudo -u gamepanel sh -c 'set -a; . /etc/gamepanel/panel.env; exec /usr/local/bin
 The commands are safe to run while the panel is running.
 
 ::: warning
-Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it.
+Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it. `version` and `help` are the exceptions: they open nothing.
 :::
+
+## `panel version`
+
+Prints the version, commit and build date, e.g. `panel v0.1.0 (commit 1a2b3c4d5e6f, built 2026-11-22, go1.27.4 linux/amd64)`. `daemon version` does the same for the daemon. Include both in bug reports.
+
+## `panel help`
+
+Lists the commands.
 
 ## `panel create-admin <email>`
 

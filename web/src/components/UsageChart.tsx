@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { useTranslation } from "react-i18next";
 
 const W = 300;
 const H = 120;
@@ -35,6 +36,7 @@ export function UsageChart({
   /** Smaller variant for the console's side rail: title and value on one line, a short chart, no card of its own. */
   compact?: boolean;
 }) {
+  const { t } = useTranslation();
   const gid = useId();
   const n = values.length;
   const pts = values.map((v, i) => [n > 1 ? (i * W) / (n - 1) : W, H - (Math.min(v, max) / max) * H] as const);
@@ -71,13 +73,13 @@ export function UsageChart({
       </p>
       <div className={`${compact ? "mt-2" : "mt-3.5"} flex gap-2.5`}>
         <div className={`relative ${compact ? "h-16 w-10" : "h-[120px] w-12"} shrink-0`} aria-hidden>
-          {ticks.map((t) => (
+          {ticks.map((tick) => (
             <span
-              key={t.label}
+              key={tick.label}
               className={`absolute right-0 translate-y-1/2 whitespace-nowrap font-mono ${compact ? "text-[10.5px]" : "text-[11.5px]"} text-zinc-500`}
-              style={{ bottom: `${(t.at / max) * 100}%` }}
+              style={{ bottom: `${(tick.at / max) * 100}%` }}
             >
-              {t.label}
+              {tick.label}
             </span>
           ))}
         </div>
@@ -87,7 +89,7 @@ export function UsageChart({
             preserveAspectRatio="none"
             className={`block ${compact ? "h-16" : "h-[120px]"} w-full overflow-visible`}
             role="img"
-            aria-label={`${title} over the last readings`}
+            aria-label={t("usageChart.titleOverTheLastReadings", { title })}
           >
             <defs>
               <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
@@ -95,13 +97,13 @@ export function UsageChart({
                 <stop offset="1" style={{ stopColor: color }} stopOpacity="0" />
               </linearGradient>
             </defs>
-            {ticks.map((t) => (
+            {ticks.map((tick) => (
               <line
-                key={t.label}
+                key={tick.label}
                 x1="0"
                 x2={W}
-                y1={y(t.at)}
-                y2={y(t.at)}
+                y1={y(tick.at)}
+                y2={y(tick.at)}
                 className="stroke-line-strong"
                 strokeWidth="1"
                 vectorEffect="non-scaling-stroke"
@@ -133,7 +135,7 @@ export function UsageChart({
           </svg>
           <div className={`mt-1.5 flex justify-between font-mono ${compact ? "text-[10.5px]" : "text-[11.5px]"} text-zinc-500`} aria-hidden>
             <span>{since}</span>
-            <span>now</span>
+            <span>{t("usageChart.now")}</span>
           </div>
         </div>
       </div>

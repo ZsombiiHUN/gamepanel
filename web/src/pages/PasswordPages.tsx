@@ -8,25 +8,27 @@ import { AuthLayout, tokenFromHash } from "../components/AuthLayout";
 import { ErrorBox, Field } from "../components/ui";
 import { PasswordField } from "../components/AuthFields";
 import { SSOButtons } from "./LoginPage";
+import { useTranslation } from "react-i18next";
 
 export function ForgotPage() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const send = useMutation({ mutationFn: () => call(api.POST("/auth/forgot", { body: { email: email.trim() } })) });
   if (send.isSuccess) {
     return (
-      <AuthLayout title="Check your email" sub="">
+      <AuthLayout title={t("passwordPages.checkYourEmail")} sub="">
         <p role="status" className="flex gap-2 text-sm text-zinc-300">
           <CheckCircle2 className="h-5 w-5 shrink-0 text-good-text" aria-hidden />
-          If {email.trim()} has an account, a link to choose a new password is on its way. It works for an hour.
+          {t("passwordPages.linkSent", { email: email.trim() })}
         </p>
         <Link to="/login" className="link text-sm">
-          Back to sign in
+          {t("passwordPages.backToSignIn")}
         </Link>
       </AuthLayout>
     );
   }
   return (
-    <AuthLayout title="Forgot your password?" sub="We will email you a link to choose a new one.">
+    <AuthLayout title={t("passwordPages.forgotYourPassword")} sub={t("passwordPages.weWillEmailYouA")}>
       <form
         className="space-y-6"
         aria-labelledby="auth-title"
@@ -36,7 +38,7 @@ export function ForgotPage() {
         }}
       >
         <ErrorBox error={send.error} />
-        <Field label="Email">
+        <Field label={t("common.email")}>
           {(id) => (
             <input
               id={id}
@@ -51,10 +53,10 @@ export function ForgotPage() {
           )}
         </Field>
         <button type="submit" className="btn btn-primary w-full" disabled={send.isPending}>
-          {send.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Send the link
+          {send.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("passwordPages.sendTheLink")}
         </button>
         <Link to="/login" className="link block text-center text-sm">
-          Back to sign in
+          {t("passwordPages.backToSignIn")}
         </Link>
       </form>
     </AuthLayout>
@@ -73,51 +75,53 @@ function NewPassword({
   onPassword: (v: string) => void;
   onConfirm: (v: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <PasswordField
-        label="New password"
+        label={t("passwordPages.newPassword")}
         kind="new"
         value={password}
         onChange={onPassword}
-        hint="At least 12 characters. A few unrelated words make a strong one."
+        hint={t("passwordPages.atLeast12CharactersA")}
       />
       <PasswordField
-        label="Repeat it"
+        label={t("passwordPages.repeatIt")}
         kind="new"
         value={confirm}
         onChange={onConfirm}
-        hint={confirm && confirm !== password ? "The two do not match yet." : undefined}
+        hint={confirm && confirm !== password ? t("passwordPages.theTwoDoNotMatch") : undefined}
       />
     </>
   );
 }
 
 export function ResetPage() {
+  const { t } = useTranslation();
   const [token] = useState(() => tokenFromHash());
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const reset = useMutation({ mutationFn: () => call(api.POST("/auth/reset", { body: { token, password } })) });
   if (!token) {
     return (
-      <AuthLayout title="This link is incomplete" sub="Open the link from the email again, or ask for a new one.">
+      <AuthLayout title={t("passwordPages.thisLinkIsIncomplete")} sub={t("passwordPages.openTheLinkFromThe")}>
         <Link to="/forgot" className="link text-sm">
-          Ask for a new link
+          {t("passwordPages.askForANewLink")}
         </Link>
       </AuthLayout>
     );
   }
   if (reset.isSuccess) {
     return (
-      <AuthLayout title="Password changed" sub="You were signed out everywhere. Sign in with your new password.">
+      <AuthLayout title={t("passwordPages.passwordChanged")} sub={t("passwordPages.youWereSignedOutEverywhere")}>
         <Link to="/login" className="btn btn-primary w-full">
-          Sign in
+          {t("common.signIn")}
         </Link>
       </AuthLayout>
     );
   }
   return (
-    <AuthLayout title="Choose a new password" sub="Every device signed in to your account is signed out.">
+    <AuthLayout title={t("passwordPages.chooseANewPassword")} sub={t("passwordPages.everyDeviceSignedInTo")}>
       <form
         className="space-y-6"
         aria-labelledby="auth-title"
@@ -129,7 +133,7 @@ export function ResetPage() {
         <ErrorBox error={reset.error} />
         <NewPassword password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} />
         <button type="submit" className="btn btn-primary w-full" disabled={reset.isPending || password !== confirm}>
-          {reset.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Save new password
+          {reset.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("passwordPages.saveNewPassword")}
         </button>
       </form>
     </AuthLayout>
@@ -137,6 +141,7 @@ export function ResetPage() {
 }
 
 export function RegisterPage() {
+  const { t } = useTranslation();
   const [token] = useState(() => tokenFromHash());
   const invite = useQuery({ ...inviteQuery(token), enabled: !!token });
   const options = useQuery(authOptionsQuery);
@@ -152,17 +157,19 @@ export function RegisterPage() {
   const inv = invite.data;
   const sub = inv
     ? inv.server_name
-      ? `You were invited to the game server ${inv.server_name}.`
-      : "You were invited to make an account."
-    : "Make an account to manage game servers.";
+      ? t("passwordPages.invitedToServer", { server: inv.server_name })
+      : t("passwordPages.invitedToAccount")
+    : t("passwordPages.registerSub");
   return (
-    <AuthLayout title={inv ? "You are invited" : "Create an account"} sub={sub}>
-      {token && invite.isPending && <Loader2 className="h-5 w-5 animate-spin text-zinc-400" aria-label="Checking the invitation" />}
+    <AuthLayout title={inv ? t("passwordPages.youAreInvited") : t("passwordPages.createAnAccount")} sub={sub}>
+      {token && invite.isPending && (
+        <Loader2 className="h-5 w-5 animate-spin text-zinc-400" aria-label={t("passwordPages.checkingTheInvitation")} />
+      )}
       {token && invite.error ? (
         <>
           <ErrorBox error={invite.error} />
           <Link to="/login" className="link text-sm">
-            Back to sign in
+            {t("passwordPages.backToSignIn")}
           </Link>
         </>
       ) : (
@@ -176,7 +183,7 @@ export function RegisterPage() {
             }}
           >
             <ErrorBox error={register.error} />
-            <Field label="Email" hint={inv ? "The invitation is for this address." : undefined}>
+            <Field label={t("common.email")} hint={inv ? t("passwordPages.theInvitationIsForThis") : undefined}>
               {(id) => (
                 <input
                   id={id}
@@ -192,22 +199,22 @@ export function RegisterPage() {
             </Field>
             <NewPassword password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} />
             <button type="submit" className="btn btn-primary w-full" disabled={register.isPending || password !== confirm}>
-              {register.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Create account
+              {register.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} {t("passwordPages.createAccount")}
             </button>
             {(options.data?.sso.length ?? 0) > 0 && (
               <>
                 <div className="flex items-center gap-3 text-xs text-zinc-500" aria-hidden>
                   <span className="h-px flex-1 bg-zinc-800" />
-                  or, without a password
+                  {t("passwordPages.orWithoutPassword")}
                   <span className="h-px flex-1 bg-zinc-800" />
                 </div>
                 <SSOButtons providers={options.data?.sso ?? []} query={token ? { invite: token } : {}} />
               </>
             )}
             <p className="text-center text-sm text-zinc-400">
-              Already have one?{" "}
+              {t("passwordPages.alreadyHaveOne")}{" "}
               <Link to="/login" className="link">
-                Sign in
+                {t("common.signIn")}
               </Link>
             </p>
           </form>

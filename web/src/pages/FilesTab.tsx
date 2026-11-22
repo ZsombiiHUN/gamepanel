@@ -37,6 +37,7 @@ import { FileDialogs, type FileAction, type FileItem } from "./files/FileDialogs
 import { RowMenu, type MenuItem } from "./files/RowMenu";
 import { UploadPanel } from "./files/UploadPanel";
 import { SftpDialog } from "./server/SftpConnect";
+import { useTranslation } from "react-i18next";
 
 type FileInfo = components["schemas"]["FileInfo"];
 type Row = FileInfo & { path: string; parent: string };
@@ -46,6 +47,7 @@ const iconBtn =
   "inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-indigo-500";
 
 export function FilesTab({ uuid }: { uuid: string }) {
+  const { t } = useTranslation();
   // The folder and the search live in the address, so a folder can be linked to and Back goes up.
   const { dir = "/", q: urlQuery } = useSearch({ from: "/app/servers/$uuid" });
   const navigate = useNavigate({ from: "/servers/$uuid" });
@@ -109,47 +111,48 @@ export function FilesTab({ uuid }: { uuid: string }) {
 
   const menu = (r: Row): MenuItem[] => {
     const out: MenuItem[] = [];
-    if (!r.dir) out.push({ label: "Download", icon: <Download className="h-4 w-4" aria-hidden />, href: downloadUrl(uuid, r.path) });
+    if (!r.dir)
+      out.push({ label: t("common.download"), icon: <Download className="h-4 w-4" aria-hidden />, href: downloadUrl(uuid, r.path) });
     if (!canWrite) return out;
     out.push(
       {
-        label: "Rename",
+        label: t("common.rename"),
         icon: <Pencil className="h-4 w-4" aria-hidden />,
         onSelect: () => setAction({ kind: "rename", items: [item(r)] }),
       },
       {
-        label: "Move",
+        label: t("fileDialogs.move"),
         icon: <FolderInput className="h-4 w-4" aria-hidden />,
         onSelect: () => setAction({ kind: "move", items: [item(r)] }),
       },
       {
-        label: "Make a copy",
+        label: t("filesTab.makeCopy"),
         icon: <Copy className="h-4 w-4" aria-hidden />,
         onSelect: () =>
           quick.mutate(() => call(api.POST("/servers/{uuid}/files/copy", { params: { path: { uuid } }, body: { path: r.path } }))),
       },
       {
-        label: "Permissions",
+        label: t("filesTab.permissions"),
         icon: <KeyRound className="h-4 w-4" aria-hidden />,
         onSelect: () => setAction({ kind: "chmod", items: [item(r)] }),
       },
     );
     if (!r.dir && isArchive(r.name)) {
       out.push({
-        label: "Extract here",
+        label: t("filesTab.extractHere"),
         icon: <ArchiveRestore className="h-4 w-4" aria-hidden />,
         onSelect: () =>
           quick.mutate(() => call(api.POST("/servers/{uuid}/files/decompress", { params: { path: { uuid } }, body: { path: r.path } }))),
       });
     } else {
       out.push({
-        label: "Compress",
+        label: t("filesTab.compress"),
         icon: <FileArchive className="h-4 w-4" aria-hidden />,
         onSelect: () => setAction({ kind: "compress", items: [item(r)] }),
       });
     }
     out.push({
-      label: "Delete",
+      label: t("common.delete"),
       icon: <Trash2 className="h-4 w-4" aria-hidden />,
       danger: true,
       onSelect: () => setAction({ kind: "delete", items: [item(r)] }),
@@ -172,48 +175,48 @@ export function FilesTab({ uuid }: { uuid: string }) {
         {canWrite && (
           <>
             <button type="button" className="btn btn-primary" onClick={() => fileInput.current?.click()}>
-              <Upload className="h-4 w-4" aria-hidden /> Upload files
+              <Upload className="h-4 w-4" aria-hidden /> {t("filesTab.uploadFiles")}
             </button>
             {/* Secondary actions keep their names for screen readers but show only icons on phones. */}
             <button
               type="button"
               className="btn !px-3"
-              aria-label="Upload folder"
-              title="Upload folder"
+              aria-label={t("filesTab.uploadFolder")}
+              title={t("filesTab.uploadFolder")}
               onClick={() => folderInput.current?.click()}
             >
               <FolderInput className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">Upload folder</span>
+              <span className="hidden sm:inline">{t("filesTab.uploadFolder")}</span>
             </button>
             <button
               type="button"
               className="btn !px-3"
-              aria-label="New folder"
-              title="New folder"
+              aria-label={t("filesTab.newFolder")}
+              title={t("filesTab.newFolder")}
               onClick={() => setAction({ kind: "newFolder", dir })}
             >
               <FolderPlus className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">New folder</span>
+              <span className="hidden sm:inline">{t("filesTab.newFolder")}</span>
             </button>
             <button
               type="button"
               className="btn !px-3"
-              aria-label="New file"
-              title="New file"
+              aria-label={t("filesTab.newFile")}
+              title={t("filesTab.newFile")}
               onClick={() => setAction({ kind: "newFile", dir })}
             >
               <FilePlus className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">New file</span>
+              <span className="hidden sm:inline">{t("filesTab.newFile")}</span>
             </button>
             <button
               type="button"
               className="btn !px-3"
-              aria-label="From URL"
-              title="Download from a URL"
+              aria-label={t("filesTab.fromUrl")}
+              title={t("filesTab.downloadFromAUrl")}
               onClick={() => setAction({ kind: "pull", dir })}
             >
               <Link2 className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">From URL</span>
+              <span className="hidden sm:inline">{t("filesTab.fromUrl")}</span>
             </button>
             <input
               ref={fileInput}
@@ -242,12 +245,12 @@ export function FilesTab({ uuid }: { uuid: string }) {
         <button
           type="button"
           className="btn btn-ghost !px-3 sm:ml-auto sm:!px-4"
-          aria-label="Connect with SFTP"
-          title="Open these files in an SFTP client"
+          aria-label={t("filesTab.connectWithSftp")}
+          title={t("filesTab.openTheseFilesInAn")}
           onClick={() => setSftpOpen(true)}
         >
           <Plug className="h-4 w-4" aria-hidden />
-          <span className="hidden sm:inline">SFTP</span>
+          <span className="hidden sm:inline">{t("filesTab.sftp")}</span>
         </button>
       </div>
       <SftpDialog open={sftpOpen} uuid={uuid} serverName={server.data?.name ?? ""} onClose={() => setSftpOpen(false)} />
@@ -269,16 +272,16 @@ export function FilesTab({ uuid }: { uuid: string }) {
       >
         {dragging && (
           <div className="pointer-events-none absolute inset-0 z-20 grid place-content-center bg-indigo-500/10 text-sm font-medium text-zinc-100">
-            Drop files or folders to upload them to {dir}
+            {t("filesTab.dropToUpload", { dir })}
           </div>
         )}
         <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5">
-          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm">
+          <nav aria-label={t("filesTab.breadcrumb")} className="flex flex-wrap items-center gap-1 text-sm">
             <button
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-200 hover:bg-row-hover focus-visible:outline-2 focus-visible:outline-indigo-500"
               onClick={() => setDir("/")}
-              aria-label="Root folder"
+              aria-label={t("filesTab.rootFolder")}
             >
               <Home className="h-4 w-4" aria-hidden />
             </button>
@@ -301,8 +304,8 @@ export function FilesTab({ uuid }: { uuid: string }) {
             })}
           </nav>
           <SearchInput
-            label="Search files"
-            placeholder={dir === "/" ? "Search all files" : "Search in this folder"}
+            label={t("filesTab.searchFiles")}
+            placeholder={dir === "/" ? t("filesTab.searchAllFiles") : t("filesTab.searchInThisFolder")}
             value={q}
             onChange={setQ}
           />
@@ -311,18 +314,18 @@ export function FilesTab({ uuid }: { uuid: string }) {
         {chosen.length > 0 && (
           <div
             role="toolbar"
-            aria-label="Selected items"
+            aria-label={t("filesTab.selectedItems")}
             className="flex flex-wrap items-center gap-2 border-t border-line bg-indigo-500/5 px-3.5 py-2 text-sm"
           >
-            <span className="mr-1 font-medium">{chosen.length} selected</span>
+            <span className="mr-1 font-medium">{t("filesTab.selected", { count: chosen.length })}</span>
             {canWrite && (
               <button type="button" className="btn !min-h-8 !px-3" onClick={() => setAction({ kind: "move", items: chosen.map(item) })}>
-                <FolderInput className="h-4 w-4" aria-hidden /> Move
+                <FolderInput className="h-4 w-4" aria-hidden /> {t("filesTab.move")}
               </button>
             )}
             {canWrite && (
               <button type="button" className="btn !min-h-8 !px-3" onClick={() => setAction({ kind: "compress", items: chosen.map(item) })}>
-                <FileArchive className="h-4 w-4" aria-hidden /> Compress
+                <FileArchive className="h-4 w-4" aria-hidden /> {t("filesTab.compress")}
               </button>
             )}
             {canWrite && (
@@ -331,11 +334,11 @@ export function FilesTab({ uuid }: { uuid: string }) {
                 className="btn btn-danger !min-h-8 !px-3"
                 onClick={() => setAction({ kind: "delete", items: chosen.map(item) })}
               >
-                <Trash2 className="h-4 w-4" aria-hidden /> Delete
+                <Trash2 className="h-4 w-4" aria-hidden /> {t("common.delete")}
               </button>
             )}
             <button type="button" className="btn btn-ghost !min-h-8 !px-2.5" onClick={() => setSelected(new Set())}>
-              <X className="h-4 w-4" aria-hidden /> Clear selection
+              <X className="h-4 w-4" aria-hidden /> {t("filesTab.clearSelection")}
             </button>
           </div>
         )}
@@ -347,7 +350,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
         )}
         {needle && searching && (
           <div className="px-4 py-3" role="status">
-            <Spinner label={`Searching ${dir === "/" ? "all folders" : dir}`} />
+            <Spinner label={dir === "/" ? t("filesTab.searchingAll") : t("filesTab.searchingIn", { dir })} />
           </div>
         )}
         {list.error ? (
@@ -362,16 +365,16 @@ export function FilesTab({ uuid }: { uuid: string }) {
         ) : null}
 
         {list.data && (
-          <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Files">
+          <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label={t("filesTab.files")}>
             <table className="w-full text-sm sm:min-w-[620px]">
-              <caption className="sr-only">Files in {dir}</caption>
+              <caption className="sr-only">{t("filesTab.filesIn", { dir })}</caption>
               <thead className="bg-thead text-left text-[12.5px] text-zinc-500">
                 <tr>
                   <th scope="col" className="w-10 py-2.5 pl-4">
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-indigo-500"
-                      aria-label="Select all"
+                      aria-label={t("filesTab.selectAll")}
                       checked={allChosen}
                       ref={(el) => {
                         if (el) el.indeterminate = chosen.length > 0 && !allChosen;
@@ -381,19 +384,19 @@ export function FilesTab({ uuid }: { uuid: string }) {
                     />
                   </th>
                   <th scope="col" className="px-2 py-2.5 font-medium">
-                    Name
+                    {t("common.name")}
                   </th>
                   <th scope="col" className="px-3 py-2.5 font-medium">
-                    Size
+                    {t("common.size")}
                   </th>
                   <th scope="col" className="hidden px-3 py-2.5 font-medium md:table-cell">
-                    Permissions
+                    {t("filesTab.permissions")}
                   </th>
                   <th scope="col" className="hidden px-3 py-2.5 font-medium sm:table-cell">
-                    Modified
+                    {t("filesTab.modified")}
                   </th>
                   <th scope="col" className="px-3 py-2.5">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t("common.actions")}</span>
                   </th>
                 </tr>
               </thead>
@@ -403,7 +406,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
                     <td />
                     <td className="px-2 py-2.5" colSpan={5}>
                       <button type="button" className="link inline-flex items-center gap-2" onClick={() => setDir(parentPath(dir))}>
-                        <ArrowLeft className="h-4 w-4" aria-hidden /> Parent directory
+                        <ArrowLeft className="h-4 w-4" aria-hidden /> {t("filesTab.parentDirectory")}
                       </button>
                     </td>
                   </tr>
@@ -413,10 +416,12 @@ export function FilesTab({ uuid }: { uuid: string }) {
                     <td />
                     <td className="px-2 py-4 text-zinc-500" colSpan={5}>
                       {needle
-                        ? `No files or folders named “${needle}” in ${dir === "/" ? "any folder" : dir + " or its subfolders"}.`
+                        ? dir === "/"
+                          ? t("filesTab.noMatchAnywhere", { needle })
+                          : t("filesTab.noMatchIn", { needle, dir })
                         : canWrite
-                          ? "Empty directory. Drop files here to upload them."
-                          : "Empty directory."}
+                          ? t("filesTab.emptyDirectoryDropFilesHere")
+                          : t("filesTab.emptyDirectory")}
                     </td>
                   </tr>
                 )}
@@ -429,7 +434,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
                       <input
                         type="checkbox"
                         className="h-4 w-4 accent-indigo-500"
-                        aria-label={`Select ${f.path.slice(1)}`}
+                        aria-label={t("filesTab.select", { name: f.path.slice(1) })}
                         checked={selected.has(f.path)}
                         onChange={() => toggle(f.path)}
                       />
@@ -451,7 +456,7 @@ export function FilesTab({ uuid }: { uuid: string }) {
                           {f.name}
                           {f.parent && (
                             <span className="ml-2 font-mono text-xs text-zinc-500">
-                              <span className="sr-only">, in </span>
+                              <span className="sr-only">{t("filesTab.in")} </span>
                               {f.parent}
                             </span>
                           )}
@@ -472,12 +477,12 @@ export function FilesTab({ uuid }: { uuid: string }) {
                             href={downloadUrl(uuid, f.path)}
                             download
                             className={`${iconBtn} opacity-60 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100`}
-                            aria-label={`Download ${f.path.slice(1)}`}
+                            aria-label={t("filesTab.downloadName", { name: f.path.slice(1) })}
                           >
                             <Download className="h-4 w-4" aria-hidden />
                           </a>
                         )}
-                        <RowMenu label={`Actions for ${f.path.slice(1)}`} items={menu(f)} />
+                        <RowMenu label={t("filesTab.actionsFor", { name: f.path.slice(1) })} items={menu(f)} />
                       </span>
                     </td>
                   </tr>
@@ -489,8 +494,13 @@ export function FilesTab({ uuid }: { uuid: string }) {
       </section>
       <p className="text-[12.5px] text-zinc-500" aria-live="polite">
         {needle
-          ? `${found ? `${found.hits.length} ${found.hits.length === 1 ? "match" : "matches"}` : "Searching"}${found?.truncated ? ` (stopped early after ${found.scanned} folders or too many matches. Narrow your search or open a subfolder.)` : ""}. Press Esc to clear.`
-          : `${entries.length} items. Click a file to edit it${canWrite ? ", or drop files and folders anywhere on the list to upload them" : ""}. Tip: type to search inside every subfolder.`}
+          ? t("filesTab.searchStatus", {
+              status: found ? t("filesTab.matches", { count: found.hits.length }) : t("filesTab.searching"),
+              truncated: found?.truncated ? ` ${t("filesTab.stoppedEarly", { scanned: found.scanned })}` : "",
+            })
+          : canWrite
+            ? t("filesTab.footerWrite", { count: entries.length })
+            : t("filesTab.footerRead", { count: entries.length })}
       </p>
 
       <FileDialogs

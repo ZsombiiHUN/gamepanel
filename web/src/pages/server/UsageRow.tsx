@@ -6,16 +6,11 @@ import { metricsQuery, type MetricRange } from "../../api/queries";
 import type { LiveStats } from "../../api/ws";
 import { describeUsage, type Limits } from "../../lib/usage";
 import { formatBytes } from "../../lib/format";
+import { useTranslation } from "react-i18next";
 
 const MAX_POINTS = 30;
 type Range = "live" | MetricRange;
-const RANGES: { id: Range; label: string; since: string }[] = [
-  { id: "live", label: "Live", since: "earlier" },
-  { id: "1h", label: "1 h", since: "1 h ago" },
-  { id: "24h", label: "24 h", since: "24 h ago" },
-  { id: "7d", label: "7 days", since: "7 days ago" },
-  { id: "30d", label: "30 days", since: "30 days ago" },
-];
+const RANGES: { id: Range }[] = [{ id: "live" }, { id: "1h" }, { id: "24h" }, { id: "7d" }, { id: "30d" }];
 
 /** CPU, memory and disk: live readings, or the panel's history for a range. */
 export function UsageRow({
@@ -32,6 +27,7 @@ export function UsageRow({
   latest: LiveStats | null;
   limits: Limits;
 }) {
+  const { t } = useTranslation();
   const [range, setRange] = useState<Range>("live");
   const liveCpu = useRollingSamples(running, (s) => s.cpu_pct, MAX_POINTS);
   // Raw bytes; each chart converts to its own unit (MB or GB, chosen from the limit).
@@ -49,25 +45,23 @@ export function UsageRow({
     limits,
     range === "live" ? cpu : [...cpu, ...pts.map((p) => p.cpu_max)],
   );
-  const since = RANGES.find((r) => r.id === range)?.since ?? "earlier";
+  const since = t(`usageRow.since.${range}`);
   const peakCpu = Math.max(0, ...pts.map((p) => p.cpu_max));
   const peakMem = Math.max(0, ...pts.map((p) => p.mem_max));
   const step = history.data?.step ?? 60;
 
   return (
-    <section aria-label="Usage" className="space-y-2.5">
+    <section aria-label={t("usageRow.usage")} className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="group" aria-label="Time range" className="seg">
+        <div role="group" aria-label={t("usageRow.timeRange")} className="seg">
           {RANGES.map((r) => (
             <button key={r.id} type="button" aria-pressed={range === r.id} onClick={() => setRange(r.id)}>
-              {r.label}
+              {t(`usageRow.range.${r.id}`)}
             </button>
           ))}
         </div>
         {range !== "live" && history.data && pts.length > 0 && (
-          <p className="text-[12.5px] text-zinc-500">
-            Peaks: CPU {peakCpu.toFixed(0)}%, memory {formatBytes(peakMem)}
-          </p>
+          <p className="text-[12.5px] text-zinc-500">{t("usageRow.peaks", { cpu: peakCpu.toFixed(0), memory: formatBytes(peakMem) })}</p>
         )}
       </div>
       <div
@@ -83,12 +77,14 @@ export function UsageRow({
       </div>
       <p className="text-[12.5px] text-zinc-500" aria-live="polite">
         {range === "live"
-          ? "Live readings since this page was opened. Pick a range to see the history."
+          ? t("usageRow.liveReadingsSinceThisPage")
           : history.isPending
-            ? "Loading history"
+            ? t("usageRow.loadingHistory")
             : pts.length === 0
-              ? "No history for this range yet. The panel records usage once a minute."
-              : `Averages over ${step >= 3600 ? `${step / 3600} h` : `${step / 60} min`}. The panel keeps minutes for 2 days and quarter hours for 30 days.`}
+              ? t("usageRow.noHistoryForThisRange")
+              : t("usageRow.averages", {
+                  step: step >= 3600 ? t("usageRow.hours", { n: step / 3600 }) : t("usageRow.minutes", { n: step / 60 }),
+                })}
       </p>
     </section>
   );

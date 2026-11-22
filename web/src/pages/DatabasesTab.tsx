@@ -4,6 +4,7 @@ import { Database, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
 import { api, call, type components } from "../api/client";
 import { databasesQuery, invalidates, keys } from "../api/queries";
 import { ConfirmDialog, CopyButton, Empty, ErrorBox, Field, FormDialog, Section, Spinner } from "../components/ui";
+import { useTranslation } from "react-i18next";
 
 type DatabasesView = components["schemas"]["DatabasesView"];
 type ServerDatabase = components["schemas"]["ServerDatabase"];
@@ -16,6 +17,7 @@ export function DatabasesTab({ uuid }: { uuid: string }) {
 }
 
 function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
+  const { t } = useTranslation();
   const [creating, setCreating] = useState(false);
   // Passwords the person asked to see, by database id. They are never cached.
   const [shown, setShown] = useState<Record<number, string>>({});
@@ -39,30 +41,28 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
   return (
     <div className="space-y-5">
       <Section
-        title="Databases"
-        desc="MySQL databases for plugins and mods that need one, such as LuckPerms or CoreProtect. Each has its own user that can reach only that database."
+        title={t("databasesTab.databases")}
+        desc={t("databasesTab.mysqlDatabasesForPluginsAnd")}
         footer={
           v.can_manage ? (
             <>
               <span>
                 {!v.available
-                  ? "No database host is set up yet. Ask an administrator."
-                  : `${v.databases.length} of ${v.limit} ${v.limit === 1 ? "database" : "databases"} used.`}
+                  ? t("databasesTab.noDatabaseHostIsSet")
+                  : t("databasesTab.used", { used: v.databases.length, count: v.limit })}
               </span>
               <button type="button" className="btn btn-primary" disabled={!v.available || full} onClick={() => setCreating(true)}>
-                <Plus className="h-4 w-4" aria-hidden /> New database
+                <Plus className="h-4 w-4" aria-hidden /> {t("databasesTab.newDatabase")}
               </button>
             </>
           ) : (
-            <span>You can see these databases but not their passwords.</span>
+            <span>{t("databasesTab.youCanSeeTheseDatabases")}</span>
           )
         }
       >
         {v.databases.length === 0 ? (
-          <Empty icon={<Database className="h-5 w-5" aria-hidden />} title="No databases yet">
-            {v.limit === 0
-              ? "This server may not have databases. An administrator can raise its limit."
-              : "Create one when a plugin asks for MySQL."}
+          <Empty icon={<Database className="h-5 w-5" aria-hidden />} title={t("databasesTab.noDatabasesYet")}>
+            {v.limit === 0 ? t("databasesTab.thisServerMayNotHave") : t("databasesTab.createOneWhenAPlugin")}
           </Empty>
         ) : (
           <ul className="space-y-3">
@@ -77,16 +77,15 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                         className="btn btn-ghost !min-h-8 !px-2.5 text-xs"
                         disabled={rotate.isPending}
                         onClick={() => {
-                          if (window.confirm(`Give ${d.name} a new password? Anything using the old one stops connecting.`))
-                            rotate.mutate(d.id);
+                          if (window.confirm(t("databasesTab.confirmRotate", { name: d.name }))) rotate.mutate(d.id);
                         }}
                       >
-                        <KeyRound className="h-4 w-4" aria-hidden /> New password
+                        <KeyRound className="h-4 w-4" aria-hidden /> {t("databasesTab.newPassword")}
                       </button>
                       <button
                         type="button"
                         className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 hover:bg-row-hover hover:text-bad-text"
-                        aria-label={`Delete ${d.name}`}
+                        aria-label={t("databasesTab.deleteName", { name: d.name })}
                         onClick={() => setToDelete(d)}
                       >
                         <Trash2 className="h-4 w-4" aria-hidden />
@@ -95,16 +94,16 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                   )}
                 </div>
                 <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                  <Detail label="Host" value={`${d.host}:${d.port}`} />
-                  <Detail label="Database" value={d.name} />
-                  <Detail label="Username" value={d.username} />
+                  <Detail label={t("databasesTab.host")} value={`${d.host}:${d.port}`} />
+                  <Detail label={t("databasesTab.database")} value={d.name} />
+                  <Detail label={t("common.username")} value={d.username} />
                   <div className="flex items-center justify-between gap-2">
-                    <dt className="text-zinc-500">Password</dt>
+                    <dt className="text-zinc-500">{t("common.password")}</dt>
                     <dd className="flex items-center gap-1 font-mono text-[13px] text-zinc-200">
                       {shown[d.id] ? (
                         <>
                           <span className="break-all">{shown[d.id]}</span>
-                          <CopyButton text={shown[d.id] ?? ""} label="Copy" />
+                          <CopyButton text={shown[d.id] ?? ""} label={t("common.copy")} />
                         </>
                       ) : (
                         "••••••••"
@@ -113,7 +112,11 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                         <button
                           type="button"
                           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 hover:bg-row-hover"
-                          aria-label={shown[d.id] ? `Hide the password of ${d.name}` : `Show the password of ${d.name}`}
+                          aria-label={
+                            shown[d.id]
+                              ? t("databasesTab.hideThePasswordOfName", { name: d.name })
+                              : t("databasesTab.showThePasswordOfName", { name: d.name })
+                          }
                           onClick={() => (shown[d.id] ? setShown(({ [d.id]: _, ...rest }) => rest) : reveal.mutate(d.id))}
                         >
                           {shown[d.id] ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
@@ -121,14 +124,12 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
                       )}
                     </dd>
                   </div>
-                  <Detail label="Connections from" value={d.remote === "%" ? "anywhere" : d.remote} />
+                  <Detail label={t("databasesTab.connectionsFrom")} value={d.remote === "%" ? "anywhere" : d.remote} />
                   <div className="sm:col-span-2">
-                    <dt className="sr-only">JDBC address</dt>
+                    <dt className="sr-only">{t("databasesTab.jdbcAddress")}</dt>
                     <dd className="flex flex-wrap items-center gap-2 font-mono text-xs text-zinc-500">
-                      <span className="break-all">
-                        jdbc:mysql://{d.host}:{d.port}/{d.name}
-                      </span>
-                      <CopyButton text={`jdbc:mysql://${d.host}:${d.port}/${d.name}`} label="Copy JDBC" />
+                      <span className="break-all">{`jdbc:mysql://${d.host}:${d.port}/${d.name}`}</span>
+                      <CopyButton text={`jdbc:mysql://${d.host}:${d.port}/${d.name}`} label={t("databasesTab.copyJdbc")} />
                     </dd>
                   </div>
                 </dl>
@@ -145,9 +146,9 @@ function Databases({ uuid, v }: { uuid: string; v: DatabasesView }) {
       )}
       <ConfirmDialog
         open={!!toDelete}
-        title={`Delete ${toDelete?.name ?? ""}?`}
-        body="The database, its tables and its user are deleted for good. Plugins using it stop working."
-        confirmLabel="Delete database"
+        title={t("databasesTab.confirmDelete", { name: toDelete?.name ?? "" })}
+        body={t("databasesTab.deleteBody")}
+        confirmLabel={t("databasesTab.deleteDatabase")}
         pending={remove.isPending}
         error={remove.error}
         onConfirm={() => toDelete && remove.mutate(toDelete.id)}
@@ -178,6 +179,7 @@ function CreateDialog({
   onClose: () => void;
   onCreated: (d: { id: number; password: string }) => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [remote, setRemote] = useState("%");
   const valid = /^[A-Za-z0-9_]{1,48}$/.test(name);
@@ -193,8 +195,8 @@ function CreateDialog({
   return (
     <FormDialog
       open
-      title="New database"
-      submitLabel="Create database"
+      title={t("databasesTab.newDatabase")}
+      submitLabel={t("databasesTab.createDatabase")}
       pending={create.isPending}
       error={create.error}
       disabled={!valid}
@@ -202,8 +204,8 @@ function CreateDialog({
       onClose={onClose}
     >
       <Field
-        label="Name"
-        hint={name && !valid ? "Letters, digits and _ only, up to 48." : "The server's prefix is added in front, so names never clash."}
+        label={t("common.name")}
+        hint={name && !valid ? t("databasesTab.lettersDigitsAndOnlyUp") : t("databasesTab.theServerSPrefixIs")}
       >
         {(id) => (
           <input
@@ -212,12 +214,12 @@ function CreateDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus
-            placeholder="luckperms"
+            placeholder={t("databasesTab.luckperms")}
             spellCheck={false}
           />
         )}
       </Field>
-      <Field label="Connections from" hint="% allows any address. Use the game server's address to allow only it.">
+      <Field label={t("databasesTab.connectionsFrom")} hint={t("databasesTab.allowsAnyAddressUseThe")}>
         {(id) => (
           <input id={id} className="input font-mono" value={remote} onChange={(e) => setRemote(e.target.value)} spellCheck={false} />
         )}

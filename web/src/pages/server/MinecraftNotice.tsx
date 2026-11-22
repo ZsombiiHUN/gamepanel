@@ -4,6 +4,7 @@ import { api, call } from "../../api/client";
 import { invalidates, keys, startupQuery } from "../../api/queries";
 import { ErrorBox } from "../../components/ui";
 import { pickJavaImage, type Problem } from "../../lib/minecraft";
+import { useTranslation } from "react-i18next";
 
 /**
  * A banner over the console when a Minecraft server stopped for a reason its owner can fix in one click:
@@ -20,6 +21,7 @@ export function MinecraftNotice({
   can: (need?: string) => boolean;
   onDone: () => void;
 }) {
+  const { t } = useTranslation();
   const startup = useQuery({ ...startupQuery(uuid), enabled: can("startup.read") });
   const start = () => call(api.POST("/servers/{uuid}/power", { params: { path: { uuid } }, body: { action: "start" } }));
 
@@ -62,29 +64,28 @@ export function MinecraftNotice({
         <div className="min-w-0 flex-1 space-y-2">
           {problem.kind === "eula" ? (
             <>
-              <p className="font-medium text-zinc-100">Accept the Minecraft EULA to start this server</p>
+              <p className="font-medium text-zinc-100">{t("minecraftNotice.acceptTheMinecraftEulaTo")}</p>
               <p className="text-zinc-300">
-                Mojang requires every server owner to agree to the Minecraft End User License Agreement.{" "}
+                {t("minecraftNotice.eulaRequired")}{" "}
                 <a
                   className="link inline-flex items-center gap-1 underline"
                   href="https://aka.ms/MinecraftEULA"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Read the EULA <ExternalLink className="h-3 w-3" aria-hidden />
+                  {t("minecraftNotice.readTheEula")} <ExternalLink className="h-3 w-3" aria-hidden />
                 </a>
               </p>
             </>
           ) : (
             <>
               <p className="font-medium text-zinc-100">
-                This server needs Java {problem.need}
-                {problem.have ? `, but the image has Java ${problem.have}` : " or newer"}
+                {problem.have
+                  ? t("minecraftNotice.needsJavaHave", { need: problem.need, have: problem.have })
+                  : t("minecraftNotice.needsJava", { need: problem.need })}
               </p>
               <p className="text-zinc-300">
-                {target
-                  ? `Switch the image to ${target.label} and start again.`
-                  : "None of this egg's images has a new enough Java. Ask an admin for a newer image, or install an older Minecraft version."}
+                {target ? t("minecraftNotice.switchTheImageToLabel", { label: target.label }) : t("minecraftNotice.noneOfThisEggS")}
               </p>
             </>
           )}
@@ -97,7 +98,7 @@ export function MinecraftNotice({
                 onClick={() => acceptEula.mutate()}
               >
                 {acceptEula.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                {can("power") ? "I accept, start the server" : "I accept"}
+                {can("power") ? t("minecraftNotice.iAcceptStartTheServer") : t("minecraftNotice.iAccept")}
               </button>
             )}
             {problem.kind === "java" && target && can("startup.docker-image") && (
@@ -108,17 +109,23 @@ export function MinecraftNotice({
                 onClick={() => switchJava.mutate(target.image)}
               >
                 {switchJava.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                Use {target.label}
-                {can("power") ? " and start" : ""}
+                {can("power")
+                  ? t("minecraftNotice.useAndStart", { image: target.label })
+                  : t("minecraftNotice.use", { image: target.label })}
               </button>
             )}
             {((problem.kind === "eula" && !canAccept) || (problem.kind === "java" && target && !can("startup.docker-image"))) && (
-              <p className="text-zinc-400">You do not have permission to change this; ask the server&apos;s owner.</p>
+              <p className="text-zinc-400">{t("minecraftNotice.youDoNotHavePermission")}</p>
             )}
           </div>
           {m.error ? <ErrorBox error={m.error} /> : null}
         </div>
-        <button type="button" className="rounded-md p-1 text-zinc-400 hover:text-zinc-100" aria-label="Dismiss" onClick={onDone}>
+        <button
+          type="button"
+          className="rounded-md p-1 text-zinc-400 hover:text-zinc-100"
+          aria-label={t("minecraftNotice.dismiss")}
+          onClick={onDone}
+        >
           <X className="h-4 w-4" aria-hidden />
         </button>
       </div>

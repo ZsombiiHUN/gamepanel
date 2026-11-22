@@ -31,12 +31,10 @@ These are not built yet. Plan around them:
 
 | Gap | What to do meanwhile |
 |---|---|
-| No release downloads or version numbers | Build from a known commit and write down which one you run |
 | No health or metrics endpoint | Check the login page over HTTPS from your monitoring |
 | No built-in panel backup command | Use `sqlite3 .backup` as shown in [Backing up the panel](/panel/backing-up) |
 | Activity and audit logs are never pruned | Watch the database size; it grows slowly |
 | Pterodactyl application API not built | Billing modules need the [GamePanel API](/server-creation#selling-servers-the-shop-api) |
 | Not verified on Podman, Windows or macOS Docker hosts | Use Linux with Docker Engine |
-| Servers are not started again after a node reboots | Start them by hand after maintenance, and keep reboots planned |
 | Egg `config.files` rules are not applied | Set the port in config files such as Minecraft's `server.properties` yourself. See [Eggs](/admin/eggs#ports-and-config-files) |
 | No server transfer between nodes | Move servers by backup and re-upload. See [Data directory](/nodes/data-directory#moving-or-rebuilding-a-node) |

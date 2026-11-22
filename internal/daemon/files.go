@@ -22,6 +22,7 @@ import (
 
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
 
 // pullTimeout bounds a download from the internet into a server.
@@ -255,7 +256,7 @@ func (d *Daemon) pull(ctx context.Context, t proto.Transfer) (proto.TransferResu
 	if err != nil {
 		return proto.TransferResult{}, proto.Invalid("use a full http:// or https:// address")
 	}
-	req.Header.Set("User-Agent", "GamePanel-daemon/"+Version)
+	req.Header.Set("User-Agent", "GamePanel-daemon/"+version.Version)
 	resp, err := d.pullClient().Do(req)
 	if err != nil {
 		var blocked *blockedAddrError

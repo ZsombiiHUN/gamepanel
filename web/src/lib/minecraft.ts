@@ -1,3 +1,4 @@
+import i18n from "../i18n";
 /** What the panel knows about Minecraft servers: console problems, server.properties, MOTD codes, player lists. */
 
 /** "server" for a Minecraft server, "proxy" for Velocity/BungeeCord, null for anything else. */
@@ -156,78 +157,251 @@ export interface PropField {
 }
 
 /** The settings people change most, grouped. Anything else is under "All settings". */
-export const PROPERTY_GROUPS: { title: string; fields: PropField[] }[] = [
+export const PROPERTY_GROUPS: { id: string; title: string; fields: PropField[] }[] = [
   {
-    title: "General",
+    id: "general",
+    get title() {
+      return i18n.t("minecraftProps.groups.general");
+    },
     fields: [
       {
         key: "motd",
-        label: "Message of the day",
+        get label() {
+          return i18n.t("minecraftProps.fields.motd.label");
+        },
         type: "text",
         lines: 2,
         def: "A Minecraft Server",
-        hint: "Shown in the server list, up to two lines. § codes add colour.",
+        get hint() {
+          return i18n.t("minecraftProps.fields.motd.hint");
+        },
       },
-      { key: "max-players", label: "Max players", type: "number", min: 1, max: 10000, def: "20" },
+      {
+        key: "max-players",
+        get label() {
+          return i18n.t("minecraftProps.fields.maxPlayers.label");
+        },
+        type: "number",
+        min: 1,
+        max: 10000,
+        def: "20",
+      },
       {
         key: "online-mode",
-        label: "Online mode",
+        get label() {
+          return i18n.t("minecraftProps.fields.onlineMode.label");
+        },
         type: "bool",
         def: "true",
-        hint: "Check accounts with Mojang. Turn off only behind a proxy.",
+        get hint() {
+          return i18n.t("minecraftProps.fields.onlineMode.hint");
+        },
       },
-      { key: "white-list", label: "Whitelist", type: "bool", def: "false", hint: "Only listed players can join." },
-      { key: "enforce-whitelist", label: "Kick players not on the whitelist", type: "bool", def: "false" },
-      { key: "enable-status", label: "Show in server lists", type: "bool", def: "true" },
-      { key: "hide-online-players", label: "Hide who is online", type: "bool", def: "false" },
-    ],
-  },
-  {
-    title: "Gameplay",
-    fields: [
-      { key: "gamemode", label: "Game mode", type: "select", options: ["survival", "creative", "adventure", "spectator"], def: "survival" },
-      { key: "force-gamemode", label: "Force the game mode on join", type: "bool", def: "false" },
-      { key: "difficulty", label: "Difficulty", type: "select", options: ["peaceful", "easy", "normal", "hard"], def: "easy" },
-      { key: "hardcore", label: "Hardcore", type: "bool", def: "false" },
-      { key: "pvp", label: "PvP", type: "bool", def: "true" },
       {
-        key: "allow-flight",
-        label: "Allow flight",
+        key: "white-list",
+        get label() {
+          return i18n.t("minecraftProps.fields.whiteList.label");
+        },
         type: "bool",
         def: "false",
-        hint: "Stops kicks for flying when mods or plugins allow it.",
+        get hint() {
+          return i18n.t("minecraftProps.fields.whiteList.hint");
+        },
       },
-      { key: "spawn-protection", label: "Spawn protection radius", type: "number", min: 0, max: 1000, def: "16" },
-      { key: "enable-command-block", label: "Command blocks", type: "bool", def: "false" },
-      { key: "allow-nether", label: "Nether", type: "bool", def: "true" },
-      { key: "spawn-monsters", label: "Monsters", type: "bool", def: "true" },
+      {
+        key: "enforce-whitelist",
+        get label() {
+          return i18n.t("minecraftProps.fields.enforceWhitelist.label");
+        },
+        type: "bool",
+        def: "false",
+      },
+      {
+        key: "enable-status",
+        get label() {
+          return i18n.t("minecraftProps.fields.enableStatus.label");
+        },
+        type: "bool",
+        def: "true",
+      },
+      {
+        key: "hide-online-players",
+        get label() {
+          return i18n.t("minecraftProps.fields.hideOnlinePlayers.label");
+        },
+        type: "bool",
+        def: "false",
+      },
     ],
   },
   {
-    title: "Performance",
+    id: "gameplay",
+    get title() {
+      return i18n.t("minecraftProps.groups.gameplay");
+    },
+    fields: [
+      {
+        key: "gamemode",
+        get label() {
+          return i18n.t("minecraftProps.fields.gamemode.label");
+        },
+        type: "select",
+        options: ["survival", "creative", "adventure", "spectator"],
+        def: "survival",
+      },
+      {
+        key: "force-gamemode",
+        get label() {
+          return i18n.t("minecraftProps.fields.forceGamemode.label");
+        },
+        type: "bool",
+        def: "false",
+      },
+      {
+        key: "difficulty",
+        get label() {
+          return i18n.t("minecraftProps.fields.difficulty.label");
+        },
+        type: "select",
+        options: ["peaceful", "easy", "normal", "hard"],
+        def: "easy",
+      },
+      {
+        key: "hardcore",
+        get label() {
+          return i18n.t("minecraftProps.fields.hardcore.label");
+        },
+        type: "bool",
+        def: "false",
+      },
+      {
+        key: "pvp",
+        get label() {
+          return i18n.t("minecraftProps.fields.pvp.label");
+        },
+        type: "bool",
+        def: "true",
+      },
+      {
+        key: "allow-flight",
+        get label() {
+          return i18n.t("minecraftProps.fields.allowFlight.label");
+        },
+        type: "bool",
+        def: "false",
+        get hint() {
+          return i18n.t("minecraftProps.fields.allowFlight.hint");
+        },
+      },
+      {
+        key: "spawn-protection",
+        get label() {
+          return i18n.t("minecraftProps.fields.spawnProtection.label");
+        },
+        type: "number",
+        min: 0,
+        max: 1000,
+        def: "16",
+      },
+      {
+        key: "enable-command-block",
+        get label() {
+          return i18n.t("minecraftProps.fields.enableCommandBlock.label");
+        },
+        type: "bool",
+        def: "false",
+      },
+      {
+        key: "allow-nether",
+        get label() {
+          return i18n.t("minecraftProps.fields.allowNether.label");
+        },
+        type: "bool",
+        def: "true",
+      },
+      {
+        key: "spawn-monsters",
+        get label() {
+          return i18n.t("minecraftProps.fields.spawnMonsters.label");
+        },
+        type: "bool",
+        def: "true",
+      },
+    ],
+  },
+  {
+    id: "performance",
+    get title() {
+      return i18n.t("minecraftProps.groups.performance");
+    },
     fields: [
       {
         key: "view-distance",
-        label: "View distance",
+        get label() {
+          return i18n.t("minecraftProps.fields.viewDistance.label");
+        },
         type: "number",
         min: 2,
         max: 32,
         def: "10",
-        hint: "Chunks sent to players. The biggest lever on CPU and memory.",
+        get hint() {
+          return i18n.t("minecraftProps.fields.viewDistance.hint");
+        },
       },
       {
         key: "simulation-distance",
-        label: "Simulation distance",
+        get label() {
+          return i18n.t("minecraftProps.fields.simulationDistance.label");
+        },
         type: "number",
         min: 2,
         max: 32,
         def: "10",
-        hint: "Chunks where mobs and crops tick.",
+        get hint() {
+          return i18n.t("minecraftProps.fields.simulationDistance.hint");
+        },
       },
-      { key: "max-tick-time", label: "Watchdog (ms)", type: "number", min: -1, max: 600000, def: "60000", hint: "-1 turns it off." },
-      { key: "network-compression-threshold", label: "Compression threshold", type: "number", min: -1, max: 65535, def: "256" },
-      { key: "entity-broadcast-range-percentage", label: "Entity range (%)", type: "number", min: 10, max: 1000, def: "100" },
-      { key: "sync-chunk-writes", label: "Synchronous chunk writes", type: "bool", def: "true" },
+      {
+        key: "max-tick-time",
+        get label() {
+          return i18n.t("minecraftProps.fields.maxTickTime.label");
+        },
+        type: "number",
+        min: -1,
+        max: 600000,
+        def: "60000",
+        get hint() {
+          return i18n.t("minecraftProps.fields.maxTickTime.hint");
+        },
+      },
+      {
+        key: "network-compression-threshold",
+        get label() {
+          return i18n.t("minecraftProps.fields.networkCompressionThreshold.label");
+        },
+        type: "number",
+        min: -1,
+        max: 65535,
+        def: "256",
+      },
+      {
+        key: "entity-broadcast-range-percentage",
+        get label() {
+          return i18n.t("minecraftProps.fields.entityBroadcastRangePercentage.label");
+        },
+        type: "number",
+        min: 10,
+        max: 1000,
+        def: "100",
+      },
+      {
+        key: "sync-chunk-writes",
+        get label() {
+          return i18n.t("minecraftProps.fields.syncChunkWrites.label");
+        },
+        type: "bool",
+        def: "true",
+      },
     ],
   },
 ];
@@ -238,13 +412,14 @@ export const MANAGED_KEYS = new Set(["server-port", "query.port"]);
 /** Checks a value for a field; returns a message or null. */
 export function checkField(f: PropField, v: string): string | null {
   if (f.type === "number") {
-    if (!/^-?\d+$/.test(v.trim())) return "Enter a whole number.";
+    if (!/^-?\d+$/.test(v.trim())) return i18n.t("minecraftProps.check.wholeNumber");
     const n = Number(v);
-    if (f.min !== undefined && n < f.min) return `At least ${f.min}.`;
-    if (f.max !== undefined && n > f.max) return `At most ${f.max}.`;
+    if (f.min !== undefined && n < f.min) return i18n.t("minecraftProps.check.atLeast", { min: f.min });
+    if (f.max !== undefined && n > f.max) return i18n.t("minecraftProps.check.atMost", { max: f.max });
   }
-  if (f.type === "text" && v.length > 1024) return "Too long.";
-  if (f.type === "text" && v.split("\n").length > (f.lines ?? 1)) return f.lines ? `At most ${f.lines} lines.` : "Keep it on one line.";
+  if (f.type === "text" && v.length > 1024) return i18n.t("minecraftProps.check.tooLong");
+  if (f.type === "text" && v.split("\n").length > (f.lines ?? 1))
+    return f.lines ? i18n.t("minecraftProps.check.maxLines", { count: f.lines }) : i18n.t("minecraftProps.check.oneLine");
   return null;
 }
 

@@ -5,8 +5,10 @@ import { AUDIT_PAGE_SIZE, auditQuery } from "../api/queries";
 import { SearchInput } from "../components/SearchInput";
 import { Empty, ErrorBox, PageHeader, Pill, Spinner } from "../components/ui";
 import { useSearchText } from "../hooks/useSearchText";
+import { useTranslation } from "react-i18next";
 
 export function AuditPage() {
+  const { t } = useTranslation();
   // The search term and page live in the address, so a view can be shared and Back works.
   // Changing the term and returning to page one is a single navigation, so paging is never undone by a timer.
   const { q: term = "", page = 0 } = useSearch({ from: "/app/admin/audit" });
@@ -20,12 +22,12 @@ export function AuditPage() {
   return (
     <div>
       <PageHeader
-        title="Audit log"
-        sub="Security events across the panel, newest first. Times are in your browser's timezone."
+        title={t("auditPage.auditLog")}
+        sub={t("auditPage.securityEventsAcrossThePanel")}
         actions={
           <SearchInput
-            label="Search the audit log"
-            placeholder="Search event, user, target, IP…"
+            label={t("auditPage.searchTheAuditLog")}
+            placeholder={t("auditPage.searchEventUserTargetIp")}
             value={filter}
             onChange={setFilter}
             className="w-72"
@@ -35,22 +37,22 @@ export function AuditPage() {
       {q.isPending && <Spinner />}
       {q.error && <ErrorBox error={q.error} />}
       {q.data?.length === 0 && page === 0 && !term && (
-        <Empty icon={<ScrollText className="h-5 w-5" aria-hidden />} title="No events yet">
-          Sign-ins, power actions and settings changes show up here.
+        <Empty icon={<ScrollText className="h-5 w-5" aria-hidden />} title={t("auditPage.noEventsYet")}>
+          {t("auditPage.signInsPowerActionsAnd")}
         </Empty>
       )}
       {q.data && (q.data.length > 0 || page > 0 || term) && (
         <div className="overflow-hidden rounded-xl border border-line bg-zinc-900">
-          <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Audit events">
+          <div className="relative overflow-x-auto" tabIndex={0} role="region" aria-label={t("auditPage.auditEvents")}>
             <table className="tbl">
-              <caption className="sr-only">Security events, newest first</caption>
+              <caption className="sr-only">{t("auditPage.securityEventsNewestFirst")}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Time</th>
-                  <th scope="col">Event</th>
-                  <th scope="col">User</th>
-                  <th scope="col">Target</th>
-                  <th scope="col">IP</th>
+                  <th scope="col">{t("auditPage.time")}</th>
+                  <th scope="col">{t("auditPage.event")}</th>
+                  <th scope="col">{t("auditPage.user")}</th>
+                  <th scope="col">{t("auditPage.target")}</th>
+                  <th scope="col">{t("auditPage.ip")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -78,7 +80,7 @@ export function AuditPage() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={5} className="!py-10 text-center text-zinc-500">
-                      {term ? `No events match “${term}”.` : "No more events."}
+                      {term ? t("auditPage.noEventsMatchTerm", { term }) : t("auditPage.noMoreEvents")}
                     </td>
                   </tr>
                 )}
@@ -87,16 +89,16 @@ export function AuditPage() {
           </div>
           <div className="flex items-center justify-between border-t border-line bg-thead px-4 py-2 text-[13px] text-zinc-500">
             <span aria-live="polite">
-              Page {page + 1}
-              {q.data.length ? ` · ${q.data.length} events` : ""}
-              {term ? ` matching “${term}”` : ""}
+              {t("common.page", { page: page + 1 })}
+              {q.data.length ? ` · ${t("auditPage.events", { count: q.data.length })}` : ""}
+              {term ? ` ${t("auditPage.matchingTerm", { term })}` : ""}
             </span>
             <div className="flex gap-2">
               <button type="button" className="btn" disabled={page === 0} onClick={() => goTo(page - 1)}>
-                <ChevronLeft className="h-4 w-4" aria-hidden /> Newer
+                <ChevronLeft className="h-4 w-4" aria-hidden /> {t("auditPage.newer")}
               </button>
               <button type="button" className="btn" disabled={q.data.length < AUDIT_PAGE_SIZE} onClick={() => goTo(page + 1)}>
-                Older <ChevronRight className="h-4 w-4" aria-hidden />
+                {t("auditPage.older")} <ChevronRight className="h-4 w-4" aria-hidden />
               </button>
             </div>
           </div>

@@ -12,28 +12,48 @@ You need:
 - a domain name pointing at it, for example `panel.example.com`,
 - root access.
 
+## The quick way: the installer
+
+On Debian or Ubuntu, one command does every step on this page (and sets up Caddy for HTTPS):
+
+```sh
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
+  | sudo bash -s -- panel --domain panel.example.com --email you@example.com
+```
+
+It downloads the newest release, checks it against the release's `checksums.txt`, and installs the same files, user and systemd unit described below. It prints the admin's password once. Add `--version v0.1.0` to pin a release, `--no-caddy` to bring your own proxy. Running it again is safe: it keeps an existing `panel.env` and database. Read the script first if you like; it is [`scripts/install.sh`](https://github.com/ZsombiiHUN/gamepanel/blob/main/scripts/install.sh).
+
+Prefer containers? See [Docker Compose](/panel/docker). The rest of this page does it by hand.
+
 ## 1. Get the binaries
 
-There are no release downloads yet, so build them. You can do this on any machine with Go 1.27.4+, Node 22 and pnpm 10, and copy the result over.
+Download the panel for your CPU (`amd64` or `arm64`) from the [releases page](https://github.com/ZsombiiHUN/gamepanel/releases), and check it:
+
+```sh
+V=0.1.0 A=amd64
+curl -fLO https://github.com/ZsombiiHUN/gamepanel/releases/download/v$V/gamepanel-panel_${V}_linux_$A.tar.gz
+curl -fLO https://github.com/ZsombiiHUN/gamepanel/releases/download/v$V/checksums.txt
+sha256sum --ignore-missing -c checksums.txt
+tar xzf gamepanel-panel_${V}_linux_$A.tar.gz
+sudo install -m 0755 panel /usr/local/bin/panel
+panel version
+```
+
+The binary is static, with the interface built in; it runs on any Linux of that CPU type.
+
+::: details Building from source instead
+You need Go (see `go.mod`), Node 22 and pnpm 10.
 
 ```sh
 git clone https://github.com/ZsombiiHUN/gamepanel && cd gamepanel
-git checkout <commit or tag you want to run>
+git checkout v0.1.0
 make web                                  # builds the interface into the Go tree
 CGO_ENABLED=0 go build -o bin/panel ./cmd/panel
 CGO_ENABLED=0 go build -o bin/daemon ./cmd/daemon
-```
-
-With `CGO_ENABLED=0` both are static binaries with no runtime dependencies, so they run on any Linux of the same CPU type. (`make build` works too, but links against the build machine's C library.) For an arm64 server, add `GOARCH=arm64`.
-
-Install the panel:
-
-```sh
 sudo install -m 0755 bin/panel /usr/local/bin/panel
 ```
 
-::: tip
-Write down which commit you built. Until there are version numbers, it is the only way to know what you run.
+With `CGO_ENABLED=0` both are static. For an arm64 server, add `GOARCH=arm64`.
 :::
 
 ## 2. Create a user and folders
@@ -79,7 +99,7 @@ It prints a random password **once**. The first run also creates the database an
 
 ## 5. Run it as a service
 
-Create `/etc/systemd/system/gamepanel.service`:
+The release archive has this unit in `packaging/systemd/gamepanel.service`; copy it, or create `/etc/systemd/system/gamepanel.service`:
 
 ```ini
 [Unit]
