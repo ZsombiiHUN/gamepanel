@@ -33,6 +33,8 @@ func main() {
 		DataDir:  env("GAMEPANEL_DATA_DIR", "./daemon-data"),
 		// Off by default: "pull from URL" must not reach the node's own network.
 		PullAllowPrivate: os.Getenv("GAMEPANEL_PULL_ALLOW_PRIVATE") == "1",
+		// On by default: servers running when the node went down start again.
+		NoResume: os.Getenv("GAMEPANEL_RESUME") == "off",
 	}
 	if cfg.Token == "" {
 		log.Error("GAMEPANEL_NODE_TOKEN is required (create a node in the panel to get one)")

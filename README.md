@@ -134,6 +134,7 @@ All settings are environment variables.
 | `GAMEPANEL_DATA_DIR` | `./daemon-data` | Server files |
 | `GAMEPANEL_RUNTIME` | `docker` | `fake` for development |
 | `GAMEPANEL_PULL_ALLOW_PRIVATE` | unset | Set to `1` to let "download from a URL" fetch from private and local addresses. Off by default, so server owners cannot make the node reach its own network |
+| `GAMEPANEL_RESUME` | on | `off` keeps servers offline when the daemon starts. Otherwise servers that were running when the node or Docker went down start again |
 | `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | SFTP listener; `off` disables it. Sign in as `<email>.<first 8 characters of the server uuid>` with an **API key** (Account page) as the password. The host key is created in the data dir on first start |
 
 For production, run the panel behind a TLS reverse proxy and point the daemon at it with `wss://`.

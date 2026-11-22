@@ -123,8 +123,10 @@ journalctl -u gamepanel-daemon -f
 
 Restarting the daemon does **not** stop game servers: their containers keep running, and the daemon picks them up again.
 
-::: warning After a reboot
-Game server containers are created without a Docker restart policy, and the daemon does not start servers by itself when the machine boots. After a node reboots, its servers stay **offline** until someone starts them.
+::: tip After a reboot
+When the daemon starts, it starts again every server that was running when the node went down, even if the panel cannot be reached yet. Servers someone stopped or killed, servers that stopped themselves (exit code 0, such as `stop` typed in the console) and servers that crashed and were left stopped stay offline. Set `GAMEPANEL_RESUME=off` to keep every server offline after a restart.
+
+Game server containers have no Docker restart policy of their own: the daemon decides, so crash limits and suspensions still hold.
 :::
 
 ## Firewall

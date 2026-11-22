@@ -29,6 +29,11 @@ func (d *Daemon) expectStop(uuid string) {
 // exited handles the end of a server's process. It reports whether the exit
 // was a crash; the caller then reports no plain offline state for it.
 func (d *Daemon) exited(ctx context.Context, uuid string, x runtime.Exit) bool {
+	if ctx.Err() != nil {
+		// The daemon is shutting down, likely with Docker and the machine:
+		// that is no reason to forget the server should run (see resume).
+		return false
+	}
 	d.mu.Lock()
 	m := d.servers[uuid]
 	if m == nil || m.install != "" || m.op == opDelete || m.op == opRestore {
@@ -39,6 +44,9 @@ func (d *Daemon) exited(ctx context.Context, uuid string, x runtime.Exit) bool {
 	// Exit code 0 is a clean stop, e.g. "stop" typed in the game console.
 	if asked || (x.Code == 0 && !x.OOM) {
 		d.mu.Unlock()
+		if !asked {
+			d.markRunning(uuid, false) // it stopped itself; leave it stopped after a reboot
+		}
 		return false
 	}
 	spec := m.spec
@@ -67,6 +75,7 @@ func (d *Daemon) exited(ctx context.Context, uuid string, x runtime.Exit) bool {
 	}
 	_ = d.send(ctx, proto.Envelope{Type: proto.EvtCrash, Data: proto.Marshal(c)})
 	if !c.Restarting {
+		d.markRunning(uuid, false)
 		d.emitState(ctx, uuid, proto.StateCrashed)
 		return true
 	}
@@ -87,6 +96,7 @@ func (d *Daemon) exited(ctx context.Context, uuid string, x runtime.Exit) bool {
 				m.crashed = true
 			}
 			d.mu.Unlock()
+			d.markRunning(uuid, false)
 			d.emitState(ctx, uuid, proto.StateCrashed)
 		}
 	}()

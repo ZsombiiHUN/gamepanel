@@ -10,6 +10,7 @@ The daemon is configured only through environment variables. With systemd, put t
 | `GAMEPANEL_RUNTIME` | `docker` | `fake` runs no containers, for development and trying the panel out |
 | `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | Address and port of the SFTP server; `off` turns it off. If the port is taken, the daemon logs a warning and runs without SFTP |
 | `GAMEPANEL_PULL_ALLOW_PRIVATE` | unset | `1` lets "download from a URL" fetch from private and local addresses. Off by default, so server owners cannot make the node reach its own network |
+| `GAMEPANEL_RESUME` | on | `off` keeps servers offline when the daemon starts. Otherwise servers that were running when the node or Docker went down start again |
 
 Docker's own variables (`DOCKER_HOST`, `DOCKER_API_VERSION`, `DOCKER_CERT_PATH`, `DOCKER_TLS_VERIFY`) are honoured, so the daemon can use a non-default socket.
 
