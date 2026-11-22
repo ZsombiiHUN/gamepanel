@@ -30,7 +30,7 @@ jobs:
       # jobs, which build without -race; whichever job saves it first wins. Without
       # -race builds of the dependencies this job compiles them all again (35s on
       # 8 cores, more on a runner), so it keeps a cache of its own.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cache/go-build
