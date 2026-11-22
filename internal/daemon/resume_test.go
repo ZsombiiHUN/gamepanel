@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
 )
@@ -19,6 +20,10 @@ func reboot(t *testing.T, d *Daemon, rt *runtime.Fake, cfg func(*Config)) *Daemo
 	for _, id := range ids {
 		if err := rt.Stop(ctx, id, 0); err != nil {
 			t.Fatal(err)
+		}
+		// The fake's kill returns before the process has gone.
+		if !eventually(5*time.Second, stateIs(rt, id, runtime.StateOffline)) {
+			t.Fatalf("server %s never stopped", id)
 		}
 	}
 	c := d.cfg
