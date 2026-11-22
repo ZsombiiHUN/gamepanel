@@ -14,6 +14,8 @@
 set -euo pipefail
 
 REPO=ZsombiiHUN/gamepanel
+# A mirror of the release files (<url>/<tag>/<file>), e.g. for offline installs.
+RELEASE_URL=${GAMEPANEL_RELEASE_URL:-https://github.com/$REPO/releases/download}
 VERSION=latest
 DOMAIN=""
 EMAIL=""
@@ -46,6 +48,7 @@ Commands:
   panel      install the panel (and Caddy for HTTPS)
   node       install the daemon on a machine that will run game servers
   upgrade    upgrade whatever is installed here (backs up the panel first)
+  download   only download and verify both archives into the current folder
   help       show this
 
 Options:
@@ -86,6 +89,7 @@ arch() {
 
 resolve_version() {
 	[ "$VERSION" != latest ] && return 0
+	[ -z "${GAMEPANEL_RELEASE_URL:-}" ] || die "--version is required with GAMEPANEL_RELEASE_URL"
 	# Pre-releases count: until v1.0 every release is one.
 	VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" |
 		sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)
@@ -97,7 +101,7 @@ fetch() {
 	local part=$1 dir=$2 a file base
 	a=$(arch)
 	file="gamepanel-${part}_${VERSION#v}_linux_${a}.tar.gz"
-	base="https://github.com/$REPO/releases/download/$VERSION"
+	base="$RELEASE_URL/$VERSION"
 	say "Downloading $part $VERSION ($a)"
 	curl -fsSL -o "$dir/$file" "$base/$file" || die "download failed: $base/$file"
 	curl -fsSL -o "$dir/checksums.txt" "$base/checksums.txt" || die "download failed: $base/checksums.txt"
@@ -348,6 +352,12 @@ case "$cmd" in
 panel) cmd_panel ;;
 node) cmd_node ;;
 upgrade) cmd_upgrade ;;
+download)
+	resolve_version
+	fetch panel "$PWD"
+	fetch daemon "$PWD"
+	say "Verified and unpacked into $PWD"
+	;;
 help | -h | --help) usage ;;
 *) die "unknown command $cmd (see install.sh help)" ;;
 esac
