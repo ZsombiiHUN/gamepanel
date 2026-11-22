@@ -50,7 +50,10 @@ the file that uses it. English is the source and the fallback.
   container settings) needs a test that proves the protection.
 - Run `make check` before pushing.
 - API changes: regenerate `web/openapi.json` and the web types.
-- By contributing you agree your work is licensed under AGPL-3.0.
+- Sign the [Contributor License Agreement](CLA.md) once: the CLA bot asks on
+  your first pull request, and you reply with one line. GamePanel is AGPL-3.0
+  and is also offered under commercial licenses; the CLA lets the maintainer do
+  both. You keep your copyright, and your work stays available as open source.
 
 ## Releasing (maintainers)
 1. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new

@@ -204,4 +204,8 @@ Pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; the sh
 
 ## License
 
-[AGPL-3.0](LICENSE).
+[AGPL-3.0](LICENSE). If the AGPL does not fit how you want to use GamePanel,
+for example in a closed-source product or a hosted service whose changes you
+cannot publish, a commercial license is available: contact
+[@ZsombiiHUN](https://github.com/ZsombiiHUN). Contributors sign a
+[CLA](CLA.md) so both licenses stay possible.
