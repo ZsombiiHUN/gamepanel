@@ -33,7 +33,7 @@ test("on their server they get the tabs they are allowed, and no command box", a
 test("another user's server looks like it does not exist", async ({ page, panel }) => {
   const other = panel.seeded("Survival SMP");
   await page.goto(`/servers/${other.uuid}`);
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("It may have been deleted, or you no longer have access to it.")).toBeVisible();
   await expect(page.getByRole("heading", { name: other.name })).toHaveCount(0);
 });
 
