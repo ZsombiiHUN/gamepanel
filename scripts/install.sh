@@ -210,7 +210,23 @@ install_docker() {
 	confirm "Docker is not installed. Install it with Docker's script (get.docker.com)?" ||
 		die "the daemon needs Docker"
 	say "Installing Docker"
-	curl -fsSL https://get.docker.com | sh
+	# get.docker.com, pinned to a docker/docker-install commit and checked
+	# against its SHA-256 before it runs. The script still installs the newest
+	# Docker Engine from Docker's own package repository.
+	local commit=8ad27bd3ac871feabe62f1d926c4067800c1732f
+	local sum=77f623a9f23857ebc45a50e37696fc406e3a60bda4ef17399444f792ecf8895d
+	local script
+	script=$(mktemp)
+	curl -fsSL "https://raw.githubusercontent.com/docker/docker-install/$commit/install.sh" -o "$script"
+	echo "$sum  $script" | sha256sum -c --quiet - || {
+		rm -f "$script"
+		die "Docker's install script did not match its checksum"
+	}
+	sh "$script" || {
+		rm -f "$script"
+		die "installing Docker failed"
+	}
+	rm -f "$script"
 	systemctl enable --now docker
 }
 
