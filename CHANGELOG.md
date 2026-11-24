@@ -11,6 +11,13 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Added
+
+- Accounts can carry a bcrypt password hash from Pterodactyl (`$2y$`), so
+  people moved over by the coming Pterodactyl import keep their password. The
+  first sign-in replaces it with an Argon2id hash; bcrypt hashes are never
+  written, and ones with a cost above 14 are refused.
+
 ### Fixed
 
 - After a restart, a server could be left without a console, and a stop sent

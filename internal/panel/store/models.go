@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -124,6 +125,9 @@ func hashPassword(pw string) string {
 }
 
 func checkPassword(pw, enc string) bool {
+	if isBcrypt(enc) {
+		return checkBcrypt(pw, enc)
+	}
 	parts := strings.SplitN(enc, "$", 3)
 	if len(parts) != 3 || parts[0] != "argon2id" {
 		return false
@@ -136,6 +140,54 @@ func checkPassword(pw, enc string) bool {
 	t, m, p := argonParams()
 	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(key))) //nolint:gosec // G115: len(key) <= maxHashLen, checked above
 	return subtle.ConstantTimeCompare(got, key) == 1
+}
+
+// Accounts imported from Pterodactyl keep the bcrypt hash Laravel stored
+// ("$2y$10$..."), so their owners sign in with the password they already
+// have. bcrypt is only ever checked, never written: the first sign-in that
+// passes replaces the hash with an Argon2id one (upgradeHash).
+
+// maxBcryptCost bounds the cost of a stored bcrypt hash, so a corrupt or
+// planted row cannot make one sign-in take minutes (cost 31 is 2^31 rounds).
+// Laravel's default is 10 and its docs never go past 12.
+const maxBcryptCost = 14
+
+// bcryptMaxPassword is how many bytes of a password bcrypt reads. PHP's
+// password_verify ignores the rest, so a longer password set in Pterodactyl
+// is checked the same way here; the Argon2id hash that replaces it covers
+// the whole password.
+const bcryptMaxPassword = 72
+
+func isBcrypt(enc string) bool {
+	return strings.HasPrefix(enc, "$2a$") || strings.HasPrefix(enc, "$2b$") || strings.HasPrefix(enc, "$2y$")
+}
+
+func checkBcrypt(pw, enc string) bool {
+	if len(enc) > maxHashLen {
+		return false
+	}
+	cost, err := bcrypt.Cost([]byte(enc))
+	if err != nil || cost > maxBcryptCost {
+		return false
+	}
+	b := []byte(pw)
+	if len(b) > bcryptMaxPassword {
+		b = b[:bcryptMaxPassword]
+	}
+	return bcrypt.CompareHashAndPassword([]byte(enc), b) == nil
+}
+
+// upgradeHash replaces a hash that is not Argon2id (an imported bcrypt one)
+// once pw has been checked against it. A failure only means the next sign-in
+// tries again, so it is logged and not returned.
+func (s *Store) upgradeHash(ctx context.Context, userID int64, pw, enc string) {
+	if !isBcrypt(enc) {
+		return
+	}
+	// The WHERE on the old hash keeps a password change made in between.
+	if _, err := s.exec(ctx, `UPDATE users SET password_hash=? WHERE id=? AND password_hash=?`, hashPassword(pw), userID, enc); err != nil && s.Log != nil {
+		s.Log.Warn("upgrade password hash", "user", userID, "err", err)
+	}
 }
 
 func (s *Store) CreateUser(ctx context.Context, email, password string, admin bool) (User, error) {
@@ -169,6 +221,7 @@ func (s *Store) Login(ctx context.Context, email, password string) (User, error)
 	if !checkPassword(password, u.hash) {
 		return User{}, userErr("invalid email or password")
 	}
+	s.upgradeHash(ctx, u.ID, password, u.hash)
 	return u, nil
 }
 

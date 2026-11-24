@@ -370,7 +370,11 @@ func (s *Store) CheckPassword(ctx context.Context, userID int64, pw string) bool
 		checkPassword(pw, dummyHash)
 		return false
 	}
-	return checkPassword(pw, enc)
+	if !checkPassword(pw, enc) {
+		return false
+	}
+	s.upgradeHash(ctx, userID, pw, enc)
+	return true
 }
 
 // UserIDByEmail is used by the offline reset command.
