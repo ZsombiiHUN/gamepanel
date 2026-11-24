@@ -11,6 +11,13 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Fixed
+
+- After a restart, a server could be left without a console, and a stop sent
+  right after the restart could be lost and wait out the full 30-second
+  graceful stop. A run's console now belongs to that run: it is let go as soon
+  as the run ends, and an old run's stream can no longer take the new run's.
+
 ### Security
 
 - Downloading a file from a URL no longer connects to 6to4 (`2002::/16`)
