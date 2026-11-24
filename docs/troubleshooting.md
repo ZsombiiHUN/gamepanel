@@ -42,7 +42,8 @@ Check the daemon's log on the node.
 | `GAMEPANEL_NODE_TOKEN is required` | Set the token in `/etc/gamepanel/daemon.env` |
 | `cannot reach the Docker daemon` | Start Docker: `systemctl start docker`. Check `docker info` works as root |
 | `panel connection lost ... 401` or `403` | Wrong token, or the node was deleted. Create the node again and use the new token |
-| `panel connection lost ... connection refused` / `no such host` | `GAMEPANEL_PANEL_URL` is wrong, or the panel is down. It must end in `/daemon/connect` |
+| `panel connection lost ... connection refused` / `no such host` | `GAMEPANEL_PANEL_URL` is wrong, or the panel is down. Use the panel's address, such as `https://panel.example.com` (the daemon adds `/daemon/connect`) |
+| `panel connection lost ... status code 101 but got 200` | `GAMEPANEL_PANEL_URL` has a path that is not `/daemon/connect`. Use only the panel's address |
 | `panel connection lost ... certificate` | The panel's HTTPS certificate is not trusted by the node. Use a real certificate (Caddy and Let's Encrypt do this) |
 | Connects, then drops every minute | The reverse proxy closes idle websockets. Raise its timeout (`proxy_read_timeout 1h` in nginx) |
 

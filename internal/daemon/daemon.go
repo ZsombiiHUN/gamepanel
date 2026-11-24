@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1431,4 +1432,31 @@ func closeQuiet(c io.Closer) { _ = c.Close() }
 func (d *Daemon) stopClaimedThenEnd(ctx context.Context, uuid string, end func()) error {
 	defer end()
 	return d.stopClaimed(ctx, uuid)
+}
+
+// NormalizePanelURL accepts the panel's address in the forms people paste:
+// http(s):// becomes ws(s)://, and a bare host gets the /daemon/connect path.
+// Without this, a URL like https://panel.example.com only fails later with
+// "expected handshake response status code 101 but got 200".
+func NormalizePanelURL(raw string) (string, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", fmt.Errorf("GAMEPANEL_PANEL_URL: %w", err)
+	}
+	switch u.Scheme {
+	case "ws", "wss":
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	default:
+		return "", fmt.Errorf("GAMEPANEL_PANEL_URL %q: want wss://panel.example.com/daemon/connect", raw)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("GAMEPANEL_PANEL_URL %q has no host", raw)
+	}
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/daemon/connect"
+	}
+	return u.String(), nil
 }
