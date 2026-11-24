@@ -3,6 +3,8 @@
 # Eclipse Temurin JRE (HotSpot): the fastest free JVM for Minecraft in community
 # benchmarks; OpenJ9 uses less memory but runs Minecraft markedly slower.
 ARG JAVA_VERSION=25
+# Not pinned by digest on purpose: one Dockerfile builds every Java version, and
+# the weekly rebuild should pick up the newest Temurin patch and Ubuntu fixes.
 FROM eclipse-temurin:${JAVA_VERSION}-jre-noble
 
 # curl and jq are for gp-install; fontconfig for plugins that render maps or images.

@@ -41,6 +41,20 @@ panel version
 
 The binary is static, with the interface built in; it runs on any Linux of that CPU type.
 
+### Verifying a release
+
+From v0.1.1 on, each release also has `checksums.txt.sigstore.json`, a [Sigstore](https://www.sigstore.dev/) signature of `checksums.txt` made by this repository's release workflow, and every archive has GitHub build provenance. To check both, with [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) and the [GitHub CLI](https://cli.github.com/):
+
+```sh
+curl -fLO https://github.com/ZsombiiHUN/gamepanel/releases/download/v$V/checksums.txt.sigstore.json
+cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/ZsombiiHUN/gamepanel/\.github/workflows/release\.yml@refs/tags/v'
+gh attestation verify gamepanel-panel_${V}_linux_$A.tar.gz --repo ZsombiiHUN/gamepanel
+```
+
+The images are built with provenance and an SBOM too: `docker buildx imagetools inspect ghcr.io/zsombiihun/gamepanel:$V --format '{{ json .Provenance }}'`.
+
 ::: details Building from source instead
 You need Go (see `go.mod`), Node 22 and pnpm 10.
 

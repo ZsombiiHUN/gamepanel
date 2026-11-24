@@ -11,6 +11,13 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Security
+
+- Releases sign `checksums.txt` with Sigstore (`checksums.txt.sigstore.json`) and
+  publish GitHub build provenance for every archive. See
+  [Verifying a release](docs/panel/installing.md#verifying-a-release).
+- The panel and daemon images are built from base images pinned by digest.
+
 ## [0.1.0] - 2026-11-24
 
 The first release. GamePanel is pre-alpha: it works end to end and is well
