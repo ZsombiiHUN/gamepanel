@@ -889,6 +889,7 @@
   },
   "backupsTab": {
     "backupsKept": "Backups kept",
+    "ofMax": "of {{max}}",
     "fullTheOldestUnlockedOne": "Full: the oldest unlocked one goes next",
     "storageUsed": "Storage used",
     "countsAgainstTheNodeS": "Counts against the node's disk",

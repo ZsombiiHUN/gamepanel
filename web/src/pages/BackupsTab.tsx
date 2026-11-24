@@ -6,6 +6,7 @@ import { backupsQuery, invalidates, keys, serverQuery } from "../api/queries";
 import { ErrorBox, Field, Stat, StatRow } from "../components/ui";
 import { relativeTime } from "../lib/activity";
 import { formatBytes } from "../lib/format";
+import { useDetailsPopover } from "../hooks/useDetailsPopover";
 import { useTranslation } from "react-i18next";
 
 export function BackupsTab({ uuid }: { uuid: string }) {
@@ -17,11 +18,15 @@ export function BackupsTab({ uuid }: { uuid: string }) {
   const [truncate, setTruncate] = useState(false);
   const list = useQuery(backupsQuery(uuid));
   const canDownload = !!server.data?.permissions.includes("backups.download");
+  const { ref: formRef, close: closeForm } = useDetailsPopover();
 
   const create = useMutation({
     mutationFn: () => call(api.POST("/servers/{uuid}/backups", { params: { path: { uuid } }, body: { name, ignore } })),
     meta,
-    onSuccess: () => setName(""),
+    onSuccess: () => {
+      setName("");
+      closeForm();
+    },
   });
   const remove = useMutation({
     mutationFn: (backup: string) => call(api.DELETE("/servers/{uuid}/backups/{backup}", { params: { path: { uuid, backup } } })),
@@ -65,7 +70,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
         <Stat
           label={t("backupsTab.backupsKept")}
           value={kept}
-          unit={max ? `of ${max}` : undefined}
+          unit={max ? t("backupsTab.ofMax", { max }) : undefined}
           hint={kept >= max && max > 0 ? t("backupsTab.fullTheOldestUnlockedOne") : undefined}
           tone={kept >= max && max > 0 ? "warn" : undefined}
         >
@@ -94,7 +99,7 @@ export function BackupsTab({ uuid }: { uuid: string }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
         <h2 className="text-[15px] font-semibold">{t("backupsTab.history")}</h2>
-        <details className="relative">
+        <details ref={formRef} className="relative">
           <summary className="btn btn-primary cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <Plus className="h-4 w-4" aria-hidden /> {t("backupsTab.createBackup")}
           </summary>
