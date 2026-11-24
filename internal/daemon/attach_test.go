@@ -17,12 +17,22 @@ import (
 type lingeringConsole struct {
 	*runtime.Fake
 	release chan struct{}
+	closed  chan struct{} // one value per console stream the daemon closed
 }
 
 type lingeringReader struct {
 	io.ReadCloser
 	release chan struct{}
+	closed  chan struct{}
 	once    sync.Once
+}
+
+// Close is the attach goroutine's last deferred call, made after it has
+// cleaned up the attachment, so a signal here means that clean-up is done.
+func (r *lingeringReader) Close() error {
+	err := r.ReadCloser.Close()
+	r.closed <- struct{}{}
+	return err
 }
 
 func (r *lingeringReader) Read(p []byte) (int, error) {
@@ -38,7 +48,7 @@ func (l *lingeringConsole) Attach(ctx context.Context, uuid string) (io.ReadClos
 	if err != nil {
 		return nil, nil, err
 	}
-	return &lingeringReader{ReadCloser: r, release: l.release}, w, nil
+	return &lingeringReader{ReadCloser: r, release: l.release, closed: l.closed}, w, nil
 }
 
 func stdinOf(d *Daemon, id string) io.Writer {
@@ -54,7 +64,7 @@ func stdinOf(d *Daemon, id string) io.Writer {
 // once it ended, cleared the console the new run should have had.
 func TestRestartAttachesTheNewRun(t *testing.T) {
 	t.Parallel()
-	rt := &lingeringConsole{Fake: runtime.NewFake(), release: make(chan struct{})}
+	rt := &lingeringConsole{Fake: runtime.NewFake(), release: make(chan struct{}), closed: make(chan struct{}, 8)}
 	d := newTestDaemon(t, rt)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -103,7 +113,14 @@ func TestRestartAttachesTheNewRun(t *testing.T) {
 		t.Fatal("third run never attached")
 	}
 	close(rt.release)
-	time.Sleep(100 * time.Millisecond)
+	// The first two runs' streams end and clean up; the third's stays open.
+	for i := range 2 {
+		select {
+		case <-rt.closed:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("old console stream %d never finished", i+1)
+		}
+	}
 	if stdinOf(d, id) == nil {
 		t.Fatal("an old run's stream cleared the current run's console")
 	}
