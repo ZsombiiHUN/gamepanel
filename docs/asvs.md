@@ -26,7 +26,7 @@ controls only, and even there some Level 2 requirements are not met yet (see
 | TOTP secrets and recovery codes come from a CSPRNG | v5.0.0-6.5.3 | L2 | `store.BeginTOTP`, `store.NewRecoveryCodes` | `store.TestRecoveryCodeStrength` |
 | Recovery codes have 120 bits, so a SHA-256 hash is enough to store them. Codes from before 120 bits still work once each, and the account page asks their owner to replace them | v5.0.0-6.5.2 | L2 | `store.NewRecoveryCodes`, migration 00115 | `store.TestRecoveryCodeStrength`, `store.TestLegacyRecoveryCodes`, `api.TestRecoveryCodesThroughTheAPI` |
 | TOTP uses 30-second steps | v5.0.0-6.5.5 | L2 | `store.verifyTOTP` | `store.TestTOTPRFC6238Vectors`, `store.TestVerifyTOTPWindowAndReplay` |
-| Passwords stored with Argon2id (t=3, m=64 MiB, p=4) | v5.0.0-11.4.2 | L2 | `store/models.go` | — |
+| Passwords stored with Argon2id (t=3, m=64 MiB, p=4); a bcrypt hash imported from Pterodactyl is only checked, and replaced at the first sign-in | v5.0.0-11.4.2 | L2 | `store/models.go` | `store.TestImportedBcryptSignInUpgradesTheHash` |
 | Session tokens: 256 random bits, stored only as a hash, checked on the server | v5.0.0-7.2.1, v5.0.0-7.2.3 | L1 | `store.NewToken` | — |
 | A new session token at each sign-in | v5.0.0-7.2.4 | L1 | `store.NewSession` | — |
 | Signing out ends the session on the server | v5.0.0-7.4.1 | L1 | `logout` | `api.TestCookieAndHeaderHardening` |
