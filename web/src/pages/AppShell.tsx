@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { api, call } from "../api/client";
+import { api, ApiError, call } from "../api/client";
 import { meQuery, serverQuery, serversQuery } from "../api/queries";
 import { CommandPalette } from "../components/CommandPalette";
 import { ThemeSwitch } from "../components/ThemeSwitch";
@@ -180,8 +180,9 @@ function Crumbs() {
   if (uuid)
     trail = [
       { label: t("nav.servers"), to: "/" },
-      { label: server.data?.name ?? "…" },
-      { label: TAB_INFO.find((info) => info.id === tab)?.label ?? "" },
+      ...(server.error instanceof ApiError && server.error.status === 404
+        ? [{ label: t("serverDetailPage.notFound") }]
+        : [{ label: server.data?.name ?? "…" }, { label: TAB_INFO.find((info) => info.id === tab)?.label ?? "" }]),
     ];
   else if (path === "/servers/new") trail = [{ label: t("nav.servers"), to: "/" }, { label: t("createServerPage.newServer") }];
   else if (admin) trail = [{ label: t("common.admin") }, { label: t(admin[1]) }];

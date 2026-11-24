@@ -1,10 +1,13 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useParams, useSearch } from "@tanstack/react-router";
+import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { serverQuery } from "../api/queries";
+import { ApiError } from "../api/client";
 import { useServerSocket } from "../api/ws";
 import type { TerminalHandle } from "../components/Terminal";
-import { ErrorBox, Spinner } from "../components/ui";
+import { Empty, ErrorBox, Spinner } from "../components/ui";
+import { ServerOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { ActivityTab } from "./ActivityTab";
 import { BackupsTab } from "./BackupsTab";
 import { ConsolePanel } from "./server/ConsolePanel";
@@ -63,6 +66,7 @@ export function ServerDetailPage() {
   }, [ready]);
 
   if (server.isPending) return <Spinner />;
+  if (server.error instanceof ApiError && server.error.status === 404) return <ServerNotFound />;
   if (server.error) return <ErrorBox error={server.error} />;
   const s = server.data;
   const state = ws.state ?? s.state;
@@ -114,6 +118,21 @@ export function ServerDetailPage() {
       {tab === "activity" && can("activity.read") && <ActivityTab uuid={uuid} />}
       {tab === "users" && s.owner && <UsersTab uuid={uuid} ownerEmail={s.owner_email} />}
       {tab === "settings" && <SettingsTab server={s} />}
+    </div>
+  );
+}
+
+/** A deleted server, or one this account can no longer see. */
+function ServerNotFound() {
+  const { t } = useTranslation();
+  return (
+    <div className="mx-auto max-w-md pt-16">
+      <Empty icon={<ServerOff className="h-5 w-5" aria-hidden />} title={t("serverDetailPage.notFound")}>
+        {t("serverDetailPage.notFoundHint")}{" "}
+        <Link to="/" className="link">
+          {t("router.backToYourServers")}
+        </Link>
+      </Empty>
     </div>
   );
 }
