@@ -850,6 +850,7 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 	d.emitState(ctx, uuid, StateInstalling)
 	d.sendConsole(uuid, "[gamepanel] preparing the server's image "+spec.Image)
 	abs, _ := filepath.Abs(d.serverDir(uuid))
+	prepared := false
 	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: spec, DataDir: abs}); err != nil {
 		d.log.Warn("could not build a new server's container", "server", uuid, "err", err)
 		d.sendConsole(uuid, "\x1b[33m[gamepanel] could not prepare the server's image: "+err.Error()+". It is tried again when the server starts.\x1b[0m")
@@ -862,9 +863,14 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 			m.stale = false
 		}
 		d.mu.Unlock()
+		prepared = true
 	}
 	if spec.Install == nil {
 		d.setInstall(uuid, "")
+		if prepared {
+			// Without an install script nothing else says the server is ready.
+			d.sendConsole(uuid, "\x1b[32m[gamepanel] install complete\x1b[0m")
+		}
 		d.emitState(ctx, uuid, runtime.StateOffline)
 	} else {
 		d.runInstall(ctx, uuid)

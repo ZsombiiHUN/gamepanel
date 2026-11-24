@@ -38,6 +38,23 @@ func (r *slowRuntime) Create(ctx context.Context, s runtime.Spec) error {
 
 func (r *slowRuntime) set(f func(*slowRuntime)) { r.mu.Lock(); f(r); r.mu.Unlock() }
 
+// consoleSays records console lines and reports whether one contained want.
+func consoleSays(d *Daemon) func(want string) bool {
+	var mu sync.Mutex
+	var sent []proto.Envelope
+	d.sendHook = func(e proto.Envelope) { mu.Lock(); sent = append(sent, e); mu.Unlock() }
+	return func(want string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, e := range sent {
+			if e.Type == proto.EvtConsole && strings.Contains(string(e.Data), want) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func provisioned(d *Daemon, id string) func() bool {
 	return func() bool { st, _ := d.installState(id); return st == "" }
 }
@@ -49,6 +66,7 @@ func TestCreateRepliesBeforeTheImageIsPulled(t *testing.T) {
 	t.Parallel()
 	rt := &slowRuntime{Fake: runtime.NewFake(), gate: make(chan struct{})}
 	d := newTestDaemon(t, rt)
+	said := consoleSays(d)
 	id := uuidN(1)
 	done := make(chan error, 1)
 	go func() {
@@ -81,6 +99,10 @@ func TestCreateRepliesBeforeTheImageIsPulled(t *testing.T) {
 	if _, ok := rt.SpecOf(id); !ok {
 		t.Fatal("no container")
 	}
+	// Without an install script, this line is the only sign it is done.
+	if !eventually(5*time.Second, func() bool { return said("install complete") }) {
+		t.Fatal("the console was not told the install is complete")
+	}
 }
 
 // When the container cannot be built the server is still created, says why on
@@ -90,9 +112,7 @@ func TestAFailedImagePullIsRetriedAtStart(t *testing.T) {
 	t.Parallel()
 	rt := &slowRuntime{Fake: runtime.NewFake(), failing: true}
 	d := newTestDaemon(t, rt)
-	var mu sync.Mutex
-	var sent []proto.Envelope
-	d.sendHook = func(e proto.Envelope) { mu.Lock(); sent = append(sent, e); mu.Unlock() }
+	said := consoleSays(d)
 	id := uuidN(1)
 	if err := d.create(context.Background(), proto.ServerSpec{UUID: id, Image: "img", Startup: "run", MemoryMB: 128}); err != nil {
 		t.Fatal(err)
@@ -103,18 +123,11 @@ func TestAFailedImagePullIsRetriedAtStart(t *testing.T) {
 	if !d.isStale(id) {
 		t.Fatal("a server without a container must be stale")
 	}
-	told := func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		for _, e := range sent {
-			if e.Type == proto.EvtConsole && strings.Contains(string(e.Data), "pull access denied") {
-				return true
-			}
-		}
-		return false
-	}
-	if !eventually(5*time.Second, told) {
+	if !eventually(5*time.Second, func() bool { return said("pull access denied") }) {
 		t.Fatal("the console was not told why")
+	}
+	if said("install complete") {
+		t.Fatal("claimed the install is complete without a container")
 	}
 
 	// A daemon restart remembers that the container still has to be built.
