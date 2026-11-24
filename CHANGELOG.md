@@ -17,6 +17,9 @@ Upgrade the panel and every node to the same version together. See
   addresses that wrap a private IPv4 address, or to IPv4-compatible (`::/96`)
   addresses. Only nodes with such a tunnel set up by hand could have reached
   their own network that way.
+- `install.sh node` runs Docker's install script only from a pinned
+  docker/docker-install commit whose SHA-256 matches, instead of piping
+  get.docker.com straight into `sh`.
 
 ## [0.1.1] - 2026-11-24
 
