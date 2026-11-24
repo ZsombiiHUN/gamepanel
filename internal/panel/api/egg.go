@@ -50,6 +50,11 @@ type ptdlEgg struct {
 
 var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// ImportPTDL turns a PTDL egg into GamePanel's form, with the same checks as
+// the admin egg import. The Pterodactyl panel import uses it for eggs it
+// rebuilds from Pterodactyl's database.
+func ImportPTDL(raw []byte) (store.Egg, error) { return importPTDL(raw) }
+
 func importPTDL(raw []byte) (store.Egg, error) {
 	var p ptdlEgg
 	if err := json.Unmarshal(raw, &p); err != nil {

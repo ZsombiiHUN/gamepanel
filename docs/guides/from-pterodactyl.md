@@ -3,8 +3,18 @@
 GamePanel does the same job as Pterodactyl and Pelican and reads the same eggs, but it is built differently. This page maps what you know to how GamePanel does it.
 
 ::: warning
-There is no automatic migration of a Pterodactyl database (users, servers, schedules). Move servers one at a time: create them in GamePanel with the same egg, then copy the files over.
+An automatic import of a Pterodactyl panel is being built ([#95](https://github.com/ZsombiiHUN/gamepanel/issues/95)). Today you can [preview](#preview-an-import) what it will do; to move now, move servers one at a time: create them in GamePanel with the same egg, then copy the files over.
 :::
+
+## Preview an import
+
+`panel import-pterodactyl` reads your Pterodactyl database (read-only) and lists what an import would bring over, change or leave out. Run it on the Pterodactyl host:
+
+```sh
+panel import-pterodactyl --env /var/www/pterodactyl/.env
+```
+
+It plans users (passwords and, with the `APP_KEY`, two-factor kept), nodes, eggs, servers with their ports, limits and variables, subusers, schedules, database hosts and databases. Server UUIDs and ports stay the same. The report ends with what must be fixed first and what will work differently, for example subuser permissions that have no exact match. See [Command line](/panel/cli#panel-import-pterodactyl) for the flags.
 
 ## Names
 

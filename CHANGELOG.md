@@ -13,6 +13,11 @@ Upgrade the panel and every node to the same version together. See
 
 ### Added
 
+- `panel import-pterodactyl` previews importing a Pterodactyl 1.x panel: it
+  reads Pterodactyl's database read-only (the login and `APP_KEY` can come
+  from Pterodactyl's `.env`) and reports which users, nodes, eggs, servers,
+  ports, subusers, schedules and databases would come over, what would change
+  and what is left out. It writes nothing; applying comes later (#95).
 - Accounts can carry a bcrypt password hash from Pterodactyl (`$2y$`), so
   people moved over by the coming Pterodactyl import keep their password. The
   first sign-in replaces it with an Argon2id hash; bcrypt hashes are never
