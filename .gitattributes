@@ -1,0 +1,17 @@
+# Normalise line endings: everything in the repository is LF, also on Windows
+# checkouts (the shell scripts and Go embeds break with CRLF).
+* text=auto eol=lf
+
+*.woff2 binary
+*.webp  binary
+*.png   binary
+*.ico   binary
+
+# Generated files: collapsed in GitHub diffs and left out of the language bar.
+# Regenerate them instead of editing them (see Makefile).
+internal/web/dist/**       linguist-generated
+web/openapi.json           linguist-generated
+web/src/api/schema.d.ts    linguist-generated
+eggs/**/*.json             linguist-generated
+go.sum                     linguist-generated
+**/pnpm-lock.yaml          linguist-generated
