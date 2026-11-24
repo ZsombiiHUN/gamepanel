@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
@@ -364,9 +365,20 @@ func publicIP(ip net.IP) bool {
 		}
 		return true
 	}
-	// IPv4-mapped and NAT64 forms of private addresses.
-	if len(ip) == net.IPv6len && ip[0] == 0x00 && ip[1] == 0x64 && ip[2] == 0xff && ip[3] == 0x9b {
+	if len(ip) != net.IPv6len {
+		return false
+	}
+	switch {
+	// NAT64 (64:ff9b::/96): the gateway connects to the IPv4 address inside.
+	case ip[0] == 0x00 && ip[1] == 0x64 && ip[2] == 0xff && ip[3] == 0x9b:
 		return publicIP(ip[12:16])
+	// 6to4 (2002::/16): a relay connects to the IPv4 address inside.
+	case ip[0] == 0x20 && ip[1] == 0x02:
+		return publicIP(ip[2:6])
+	// IPv4-compatible (::/96), deprecated since RFC 4291 and never a real
+	// destination; a host with an old tunnel set up could route it to IPv4.
+	case bytes.Equal(ip[:12], make([]byte, 12)):
+		return false
 	}
 	return true
 }
