@@ -127,4 +127,13 @@ describe("state in the address", () => {
     await screen.findByRole("region", { name: "Console" });
     expect(router.state.location.search).toMatchObject({ tab: "console" });
   });
+
+  it("moves a subuser off a tab they may not open, instead of showing its permission errors", async () => {
+    const viewer = { ...sampleServers()[0]!, owner: false, permissions: ["console.read", "activity.read"] };
+    const api = new FakeApi({ ...base(), [`GET /api/servers/${viewer.uuid}`]: viewer });
+    const { router } = renderApp(api, `/servers/${viewer.uuid}?tab=files`);
+    await screen.findByRole("region", { name: "Console" });
+    expect(router.state.location.search).toMatchObject({ tab: "console" });
+    expect(api.callsTo(`GET /api/servers/${viewer.uuid}/files`)).toHaveLength(0);
+  });
 });

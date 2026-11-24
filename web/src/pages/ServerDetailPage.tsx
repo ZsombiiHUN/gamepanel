@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearch } from "@tanstack/react-router";
+import { Link, Navigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { serverQuery } from "../api/queries";
 import { ApiError } from "../api/client";
@@ -25,6 +25,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { detectProblem, minecraftKind, startsRun, type Problem } from "../lib/minecraft";
 import { MinecraftNotice } from "./server/MinecraftNotice";
 import { MinecraftTab } from "./MinecraftTab";
+import { TAB_INFO, tabShown } from "../lib/tabs";
 
 const FilesTab = lazy(() => import("./FilesTab").then((m) => ({ default: m.FilesTab })));
 
@@ -73,6 +74,12 @@ export function ServerDetailPage() {
   const stats = ws.stats ?? s.stats ?? null;
 
   const can = (need?: string) => !need || (need === "owner" ? s.owner : s.permissions.includes(need));
+  // A link to a tab this viewer may not open (shared by the owner, say) lands on one they may.
+  const info = TAB_INFO.find((i) => i.id === tab);
+  if (info && !tabShown(info, s)) {
+    const first = TAB_INFO.find((i) => tabShown(i, s))?.id ?? "settings";
+    return <Navigate to="/servers/$uuid" params={{ uuid }} search={{ tab: first }} replace />;
+  }
   return (
     <div className="space-y-5">
       <div className="space-y-5">
