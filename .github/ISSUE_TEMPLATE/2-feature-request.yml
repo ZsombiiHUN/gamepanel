@@ -1,6 +1,6 @@
 name: Feature request
 description: Suggest something GamePanel should do.
-labels: [enhancement]
+labels: [enhancement, triage]
 body:
   - type: markdown
     attributes:
