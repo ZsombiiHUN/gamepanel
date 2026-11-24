@@ -11,6 +11,20 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Changed
+
+- **Daemon**: `GAMEPANEL_PANEL_URL` accepts the panel's plain address
+  (`https://panel.example.com`); `http(s)` becomes `ws(s)` and
+  `/daemon/connect` is added. A bad scheme stops the daemon at start-up
+  instead of failing every reconnect.
+- **New server**: the node and game are picked for you when there is only one.
+
+### Fixed
+
+- A deleted or inaccessible server shows a "Server not found" page with a way
+  back, instead of a bare error and a "… / Console" breadcrumb.
+- Files toolbar fits on one line on phones.
+
 ## [0.1.0] - unreleased
 
 The first release. GamePanel is pre-alpha: it works end to end and is well
