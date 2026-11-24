@@ -69,8 +69,12 @@ type Config struct {
 type managed struct {
 	spec     proto.ServerSpec
 	stdin    io.Writer
-	attached bool   // a console reader is active for the current run
-	install  string // "", StateInstalling or StateInstallFailed; "" = ready
+	attached bool // a console reader is active for the current run
+	// attachGen counts console attachments. A reader only clears stdin and
+	// attached if no later run has attached since, so an old run's stream
+	// that ends late cannot take the current run's console with it.
+	attachGen uint64
+	install   string // "", StateInstalling or StateInstallFailed; "" = ready
 
 	// op is the exclusive operation running on this server ("" = none), see
 	// begin. backups counts archives being written, which may overlap with
@@ -548,6 +552,9 @@ func (d *Daemon) watchEvents(ctx context.Context) {
 		}
 		first = false
 		for ev := range ch {
+			if ev.Exit != nil || ev.State == runtime.StateOffline {
+				d.detach(ev.UUID)
+			}
 			if ev.Exit != nil && d.exited(ctx, ev.UUID, *ev.Exit) {
 				continue
 			}
@@ -613,6 +620,19 @@ func (d *Daemon) sendStats(ctx context.Context) {
 	_ = d.send(ctx, proto.Envelope{Type: proto.EvtStatsBatch, Data: proto.Marshal(batch)})
 }
 
+// detach forgets the console of a run that has ended, as soon as the runtime
+// reports the exit: input then fails at once ("not running") instead of being
+// written to the dead run's stream, and the next run's attach is not skipped
+// while the old stream is still draining.
+func (d *Daemon) detach(uuid string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if m := d.servers[uuid]; m != nil {
+		m.attached, m.stdin = false, nil
+		m.attachGen++
+	}
+}
+
 // attach streams a server's console to the panel and keeps its stdin handle.
 // It is idempotent: both the power handler and the runtime event watcher may
 // call it for the same run, and only the first starts a reader.
@@ -624,6 +644,8 @@ func (d *Daemon) attach(ctx context.Context, uuid string) {
 		return
 	}
 	m.attached = true
+	m.attachGen++
+	gen := m.attachGen
 	d.mu.Unlock()
 
 	// The stream must outlive the request or session that started it: it ends
@@ -632,18 +654,24 @@ func (d *Daemon) attach(ctx context.Context, uuid string) {
 	if err != nil {
 		d.log.Warn("attach failed", "server", uuid, "err", err)
 		d.mu.Lock()
-		m.attached = false
+		if m.attachGen == gen {
+			m.attached = false
+		}
 		d.mu.Unlock()
 		return
 	}
 	d.mu.Lock()
-	m.stdin = w
+	if m.attachGen == gen {
+		m.stdin = w
+	}
 	d.mu.Unlock()
 	go func() {
 		defer r.Close()
 		defer func() {
 			d.mu.Lock()
-			m.attached, m.stdin = false, nil
+			if m.attachGen == gen {
+				m.attached, m.stdin = false, nil
+			}
 			d.mu.Unlock()
 		}()
 		out := d.newConsole(uuid)
