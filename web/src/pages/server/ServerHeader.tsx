@@ -8,6 +8,7 @@ import { ErrorBox, OnlineDot, ServerIcon, StateBadge } from "../../components/ui
 import { shownState } from "../../lib/servers";
 import { copyText } from "../../lib/clipboard";
 import { useTranslation } from "react-i18next";
+import { useDetailsPopover } from "../../hooks/useDetailsPopover";
 
 type ServerView = components["schemas"]["ServerView"];
 type PowerAction = "start" | "stop" | "restart" | "kill";
@@ -156,8 +157,12 @@ function CopyChip({ text, label }: { text: string; label: string }) {
 
 function MoreMenu({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
+  const { ref: menuRef, close: closeMenu } = useDetailsPopover();
   return (
-    <details className="relative">
+    // Choosing an item closes the menu. Items are buttons, so Enter and Space
+    // reach this as clicks too.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+    <details ref={menuRef} className="relative" onClick={(e) => (e.target as HTMLElement).closest("[role=menuitem]") && closeMenu()}>
       <summary
         className="btn !w-9 cursor-pointer list-none !px-0 [&::-webkit-details-marker]:hidden"
         aria-label={t("serverHeader.moreActions")}

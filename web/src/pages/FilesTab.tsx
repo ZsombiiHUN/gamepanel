@@ -20,6 +20,7 @@ import {
   Plug,
   Trash2,
   Upload,
+  type LucideIcon,
   X,
 } from "lucide-react";
 import { api, call, type components } from "../api/client";
@@ -174,50 +175,27 @@ export function FilesTab({ uuid }: { uuid: string }) {
       <div className="flex flex-wrap items-center gap-2">
         {canWrite && (
           <>
-            <button type="button" className="btn btn-primary" onClick={() => fileInput.current?.click()}>
-              <Upload className="h-4 w-4" aria-hidden /> {t("filesTab.uploadFiles")}
+            <button
+              type="button"
+              className="btn btn-primary"
+              aria-label={t("filesTab.uploadFiles")}
+              onClick={() => fileInput.current?.click()}
+            >
+              <Upload className="h-4 w-4" aria-hidden />
+              {/* Short label on phones so the toolbar stays on one line. */}
+              <span className="sm:hidden">{t("filesTab.upload")}</span>
+              <span className="hidden sm:inline">{t("filesTab.uploadFiles")}</span>
             </button>
             {/* Secondary actions keep their names for screen readers but show only icons on phones. */}
-            <button
-              type="button"
-              className="btn !px-3"
-              aria-label={t("filesTab.uploadFolder")}
-              title={t("filesTab.uploadFolder")}
-              onClick={() => folderInput.current?.click()}
-            >
-              <FolderInput className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">{t("filesTab.uploadFolder")}</span>
-            </button>
-            <button
-              type="button"
-              className="btn !px-3"
-              aria-label={t("filesTab.newFolder")}
-              title={t("filesTab.newFolder")}
-              onClick={() => setAction({ kind: "newFolder", dir })}
-            >
-              <FolderPlus className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">{t("filesTab.newFolder")}</span>
-            </button>
-            <button
-              type="button"
-              className="btn !px-3"
-              aria-label={t("filesTab.newFile")}
-              title={t("filesTab.newFile")}
-              onClick={() => setAction({ kind: "newFile", dir })}
-            >
-              <FilePlus className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">{t("filesTab.newFile")}</span>
-            </button>
-            <button
-              type="button"
-              className="btn !px-3"
-              aria-label={t("filesTab.fromUrl")}
+            <IconAction icon={FolderInput} label={t("filesTab.uploadFolder")} onClick={() => folderInput.current?.click()} />
+            <IconAction icon={FolderPlus} label={t("filesTab.newFolder")} onClick={() => setAction({ kind: "newFolder", dir })} />
+            <IconAction icon={FilePlus} label={t("filesTab.newFile")} onClick={() => setAction({ kind: "newFile", dir })} />
+            <IconAction
+              icon={Link2}
+              label={t("filesTab.fromUrl")}
               title={t("filesTab.downloadFromAUrl")}
               onClick={() => setAction({ kind: "pull", dir })}
-            >
-              <Link2 className="h-4 w-4" aria-hidden />
-              <span className="hidden sm:inline">{t("filesTab.fromUrl")}</span>
-            </button>
+            />
             <input
               ref={fileInput}
               type="file"
@@ -513,5 +491,15 @@ export function FilesTab({ uuid }: { uuid: string }) {
         onOpenFile={setOpenFile}
       />
     </div>
+  );
+}
+
+/** A secondary toolbar button: icon only on phones, icon and label from sm up. */
+function IconAction({ icon: Icon, label, title, onClick }: { icon: LucideIcon; label: string; title?: string; onClick: () => void }) {
+  return (
+    <button type="button" className="btn !px-3" aria-label={label} title={title ?? label} onClick={onClick}>
+      <Icon className="h-4 w-4" aria-hidden />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }

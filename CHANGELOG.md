@@ -11,6 +11,28 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Changed
+
+- **Daemon**: `GAMEPANEL_PANEL_URL` accepts the panel's plain address
+  (`https://panel.example.com`); `http(s)` becomes `ws(s)` and
+  `/daemon/connect` is added. A bad scheme stops the daemon at start-up
+  instead of failing every reconnect.
+- **New server**: the node and game are picked for you when there is only one.
+
+### Fixed
+
+- A deleted or inaccessible server shows a "Server not found" page with a way
+  back, instead of a bare error and a "… / Console" breadcrumb.
+- Files toolbar fits on one line on phones.
+- The "New backup" form closes once the backup is made; before, it stayed open
+  over the list and hid the Restore buttons. It and the server's ⋯ menu now
+  also close on Escape or a click outside, and the menu closes after a choice.
+- A subuser following a link to a tab they may not open (Files, Backups, …)
+  lands on one they may, instead of a permission error.
+- A new server whose game has no install script now says
+  `[gamepanel] install complete` on its console, like one that has.
+- "Backups kept" counted "of 20" in English in every language.
+
 ## [0.1.0] - unreleased
 
 The first release. GamePanel is pre-alpha: it works end to end and is well

@@ -1,10 +1,13 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useParams, useSearch } from "@tanstack/react-router";
+import { Link, Navigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { serverQuery } from "../api/queries";
+import { ApiError } from "../api/client";
 import { useServerSocket } from "../api/ws";
 import type { TerminalHandle } from "../components/Terminal";
-import { ErrorBox, Spinner } from "../components/ui";
+import { Empty, ErrorBox, Spinner } from "../components/ui";
+import { ServerOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { ActivityTab } from "./ActivityTab";
 import { BackupsTab } from "./BackupsTab";
 import { ConsolePanel } from "./server/ConsolePanel";
@@ -22,6 +25,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { detectProblem, minecraftKind, startsRun, type Problem } from "../lib/minecraft";
 import { MinecraftNotice } from "./server/MinecraftNotice";
 import { MinecraftTab } from "./MinecraftTab";
+import { TAB_INFO, tabShown } from "../lib/tabs";
 
 const FilesTab = lazy(() => import("./FilesTab").then((m) => ({ default: m.FilesTab })));
 
@@ -63,12 +67,19 @@ export function ServerDetailPage() {
   }, [ready]);
 
   if (server.isPending) return <Spinner />;
+  if (server.error instanceof ApiError && server.error.status === 404) return <ServerNotFound />;
   if (server.error) return <ErrorBox error={server.error} />;
   const s = server.data;
   const state = ws.state ?? s.state;
   const stats = ws.stats ?? s.stats ?? null;
 
   const can = (need?: string) => !need || (need === "owner" ? s.owner : s.permissions.includes(need));
+  // A link to a tab this viewer may not open (shared by the owner, say) lands on one they may.
+  const info = TAB_INFO.find((i) => i.id === tab);
+  if (info && !tabShown(info, s)) {
+    const first = TAB_INFO.find((i) => tabShown(i, s))?.id ?? "settings";
+    return <Navigate to="/servers/$uuid" params={{ uuid }} search={{ tab: first }} replace />;
+  }
   return (
     <div className="space-y-5">
       <div className="space-y-5">
@@ -114,6 +125,21 @@ export function ServerDetailPage() {
       {tab === "activity" && can("activity.read") && <ActivityTab uuid={uuid} />}
       {tab === "users" && s.owner && <UsersTab uuid={uuid} ownerEmail={s.owner_email} />}
       {tab === "settings" && <SettingsTab server={s} />}
+    </div>
+  );
+}
+
+/** A deleted server, or one this account can no longer see. */
+function ServerNotFound() {
+  const { t } = useTranslation();
+  return (
+    <div className="mx-auto max-w-md pt-16">
+      <Empty icon={<ServerOff className="h-5 w-5" aria-hidden />} title={t("serverDetailPage.notFound")}>
+        {t("serverDetailPage.notFoundHint")}{" "}
+        <Link to="/" className="link">
+          {t("router.backToYourServers")}
+        </Link>
+      </Empty>
     </div>
   );
 }

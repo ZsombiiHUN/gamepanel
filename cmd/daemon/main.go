@@ -36,6 +36,12 @@ func main() {
 		// On by default: servers running when the node went down start again.
 		NoResume: os.Getenv("GAMEPANEL_RESUME") == "off",
 	}
+	panelURL, err := daemon.NormalizePanelURL(cfg.PanelURL)
+	if err != nil {
+		log.Error("bad panel address", "err", err)
+		os.Exit(1)
+	}
+	cfg.PanelURL = panelURL
 	if cfg.Token == "" {
 		log.Error("GAMEPANEL_NODE_TOKEN is required (create a node in the panel to get one)")
 		os.Exit(1)

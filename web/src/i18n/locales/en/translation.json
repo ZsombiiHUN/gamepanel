@@ -737,7 +737,10 @@
     "unused_other": "{{count}} unused recovery codes.",
     "fileHeader": "GamePanel recovery codes for {{host}}\nEach code works once."
   },
-  "serverDetailPage": {},
+  "serverDetailPage": {
+    "notFound": "Server not found",
+    "notFoundHint": "It may have been deleted, or you no longer have access to it."
+  },
   "appShell": {
     "gamepanel": "GamePanel",
     "serversAndPages": "servers and pages",
@@ -771,6 +774,7 @@
     "signOutAt": "Sign out {{name}} at {{where}}"
   },
   "filesTab": {
+    "upload": "Upload",
     "uploadFiles": "Upload files",
     "uploadFolder": "Upload folder",
     "newFolder": "New folder",
@@ -885,6 +889,7 @@
   },
   "backupsTab": {
     "backupsKept": "Backups kept",
+    "ofMax": "of {{max}}",
     "fullTheOldestUnlockedOne": "Full: the oldest unlocked one goes next",
     "storageUsed": "Storage used",
     "countsAgainstTheNodeS": "Counts against the node's disk",

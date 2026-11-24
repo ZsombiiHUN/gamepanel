@@ -89,8 +89,10 @@ test.describe("signed in", () => {
     await expect(page.getByRole("heading", { name: "Servers" })).toBeVisible();
   });
 
-  test("a server that does not exist shows an error, not a blank page", async ({ page }) => {
+  test("a server that does not exist shows a not-found page with a way back", async ({ page }) => {
     await page.goto("/servers/00000000-0000-4000-8000-000000000000");
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.getByText("It may have been deleted, or you no longer have access to it.")).toBeVisible();
+    await page.getByRole("link", { name: "Back to your servers" }).click();
+    await expect(page.getByRole("heading", { name: "Servers" })).toBeVisible();
   });
 });

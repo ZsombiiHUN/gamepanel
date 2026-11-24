@@ -15,8 +15,12 @@ export function CreateServerPage() {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
-  const [nodeId, setNodeId] = useState("");
-  const [eggId, setEggId] = useState("");
+  const [pickedNode, setNodeId] = useState("");
+  const [pickedEgg, setEggId] = useState("");
+  // With only one choice there is nothing to pick: use it.
+  const only = (list?: { id: number }[]) => (list?.length === 1 ? String(list[0]?.id) : "");
+  const nodeId = pickedNode || only(nodes.data);
+  const eggId = pickedEgg || only(eggs.data);
   const [limits, setLimits] = useState<LimitsForm>(defaultLimitsForm);
   const [port, setPort] = useState("");
   // Variables start from the egg's defaults; what the admin typed is kept per egg, so picking another egg starts clean.
