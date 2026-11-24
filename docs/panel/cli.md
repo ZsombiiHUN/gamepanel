@@ -11,7 +11,7 @@ sudo -u gamepanel sh -c 'set -a; . /etc/gamepanel/panel.env; exec /usr/local/bin
 The commands are safe to run while the panel is running.
 
 ::: warning
-Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it. `version` and `help` are the exceptions: they open nothing.
+Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it. `version`, `help` and `import-pterodactyl` are the exceptions: they open nothing.
 :::
 
 ## `panel version`
@@ -51,6 +51,33 @@ Using the link signs the account out everywhere.
 Turns off authenticator two-factor for an account and deletes its recovery codes. This is the last way back for someone who lost their authenticator **and** their recovery codes. It is recorded in the audit log as `totp.reset`, by `cli`.
 
 Check who is asking before you run it: it removes a protection. Passkeys are not touched.
+
+## `panel import-pterodactyl`
+
+Reads a Pterodactyl 1.x panel's database and prints what importing it would do: what comes over, what changes, and what is left out. It is a **dry run**: it writes nothing, to Pterodactyl or to GamePanel. Applying the import comes in a later version. See [Coming from Pterodactyl](/guides/from-pterodactyl#preview-an-import).
+
+```sh
+# On the Pterodactyl host: read the database login and APP_KEY from its .env
+panel import-pterodactyl --env /var/www/pterodactyl/.env
+
+# Or name the database yourself
+GAMEPANEL_PTERO_DSN='reader:secret@tcp(127.0.0.1:3306)/panel' \
+GAMEPANEL_PTERO_APP_KEY='base64:...' panel import-pterodactyl
+```
+
+| Flag | |
+|---|---|
+| `--env FILE` | Pterodactyl's `.env`; `DB_*` and `APP_KEY` are read from it |
+| `--dsn DSN` | `user:password@tcp(host:3306)/panel`, or `GAMEPANEL_PTERO_DSN` |
+| `--app-key KEY` | Pterodactyl's `APP_KEY`, or `GAMEPANEL_PTERO_APP_KEY`. Without it, two-factor is reported as turned off and database hosts as skipped, because Pterodactyl encrypts them with this key |
+| `--unlimited-memory MB` | Memory for servers that had no limit (default 4096); GamePanel always sets one |
+
+The database is read in one read-only transaction, so it is safe while Pterodactyl runs. Prefer the environment variables or `--env` to `--dsn` and `--app-key`, which other users on the host can see in the process list. For a database user that can only read:
+
+```sql
+CREATE USER 'gp_import'@'127.0.0.1' IDENTIFIED BY '...';
+GRANT SELECT ON panel.* TO 'gp_import'@'127.0.0.1';
+```
 
 ## `panel --addr <address>`
 

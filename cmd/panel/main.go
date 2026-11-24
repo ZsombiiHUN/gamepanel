@@ -63,6 +63,11 @@ func run(args []string) error {
 		_, err = os.Stdout.Write(b)
 		return err
 	}
+	if len(args) > 0 && args[0] == "import-pterodactyl" {
+		// A dry run reads only Pterodactyl's database; this panel's own
+		// database is not opened (or created).
+		return importPterodactyl(args[1:])
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	dbPath := env("GAMEPANEL_DB", "./panel.db")
 	st, err := store.Open(dbPath)
@@ -96,6 +101,8 @@ Commands:
   create-admin <email>        create an admin account and print its password
   reset-2fa <email>           remove an account's second factors
   reset-link <email>          print a one-time password reset link
+  import-pterodactyl          show what importing a Pterodactyl panel would do
+                              (dry run; see import-pterodactyl -h)
   openapi                     print the OpenAPI description
   version                     print the version
 
