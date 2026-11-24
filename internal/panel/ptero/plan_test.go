@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/go-sql-driver/mysql"
 )
@@ -294,5 +295,16 @@ func TestReadRealPterodactyl(t *testing.T) {
 	}
 	if len(p.Eggs) != len(src.Eggs) {
 		t.Errorf("only %d of %d eggs imported: %+v", len(p.Eggs), len(src.Eggs), p.Notes)
+	}
+}
+
+func TestPlanNodeNamesStayWithinLimit(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("é", 70)
+	src := &Source{Nests: map[int64]string{}, Nodes: []Node{{ID: 1, Name: long}, {ID: 2, Name: long}}}
+	p := Build(src, Options{})
+	a, b := p.Nodes[0].Name, p.Nodes[1].Name
+	if a == b || utf8.RuneCountInString(a) > 64 || utf8.RuneCountInString(b) > 64 || !utf8.ValidString(b) || !strings.HasSuffix(b, " (2)") {
+		t.Fatalf("names %q / %q", a, b)
 	}
 }

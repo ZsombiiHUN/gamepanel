@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
@@ -223,12 +224,11 @@ func (b *builder) planNodes() {
 	}
 	for _, n := range b.src.Nodes {
 		subj := quote("node", n.Name)
-		name := strings.TrimSpace(n.Name)
-		if len(name) > 64 {
-			name = name[:64]
-		}
+		base := truncRunes(strings.TrimSpace(n.Name), 64)
+		name := base
 		for i := 2; names[strings.ToLower(name)]; i++ {
-			name = fmt.Sprintf("%s (%d)", strings.TrimSpace(n.Name), i)
+			suffix := fmt.Sprintf(" (%d)", i)
+			name = truncRunes(base, 64-len(suffix)) + suffix
 		}
 		if name != n.Name {
 			b.p.note(Info, subj, "renamed to %q (GamePanel node names are unique and at most 64 characters)", name)
@@ -262,6 +262,14 @@ func (b *builder) planNodes() {
 	if len(b.p.Nodes) > 0 {
 		b.p.note(Info, "", "each node gets a new enrollment token; Wings is replaced by the GamePanel daemon (see Next steps)")
 	}
+}
+
+// truncRunes cuts s to at most n characters, never inside a character.
+func truncRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	return string([]rune(s)[:n])
 }
 
 // ptdl is the PTDL egg JSON that api.ImportPTDL reads.
