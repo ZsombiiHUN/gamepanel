@@ -47,6 +47,14 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+# Keyless Sigstore signature of checksums.txt, published as checksums.txt.sigstore.json.
+# The signing identity is this repository's release workflow; see SECURITY.md.
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: [sign-blob, "--bundle=${signature}", "${artifact}", --yes]
+
 release:
   github:
     owner: ZsombiiHUN
