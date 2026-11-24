@@ -7,6 +7,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha">
   <img src="https://img.shields.io/badge/go-1.27-00ADD8.svg" alt="Go 1.27">
+  <a href="https://scorecard.dev/viewer/?uri=github.com/ZsombiiHUN/gamepanel"><img src="https://api.scorecard.dev/projects/github.com/ZsombiiHUN/gamepanel/badge" alt="OpenSSF Scorecard"></a>
 </p>
 
 <p align="center">
@@ -197,6 +198,10 @@ make hooks       # format and lint staged files before each commit
 [CONTRIBUTING.md](CONTRIBUTING.md) lists the code standards CI enforces.
 
 [`web/README.md`](web/README.md) lists the checks CI runs.
+
+## Community
+
+Questions, setup help and ideas go to [Discussions](https://github.com/ZsombiiHUN/gamepanel/discussions); [Q&A](https://github.com/ZsombiiHUN/gamepanel/discussions/categories/q-a) is the place for "how do I…". Bugs go to [issues](https://github.com/ZsombiiHUN/gamepanel/issues/new/choose).
 
 ## Contributing and security
 
