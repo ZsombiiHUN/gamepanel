@@ -23,6 +23,8 @@ func TestPublicIP(t *testing.T) {
 		"169.254.169.254": false, "100.64.0.1": false, "0.0.0.0": false, "::1": false,
 		"fe80::1": false, "fc00::1": false, "::ffff:127.0.0.1": false, "64:ff9b::a00:1": false,
 		"224.0.0.1": false, "255.255.255.255": false, "198.18.0.1": false,
+		"2002:7f00:1::1": false, "2002:a00:1::1": false, "2002:a9fe:a9fe::1": false, "2002:808:808::1": true,
+		"::127.0.0.1": false, "::10.0.0.1": false, "::8.8.8.8": false,
 	} {
 		if got := publicIP(net.ParseIP(addr)); got != want {
 			t.Errorf("publicIP(%s) = %v, want %v", addr, got, want)

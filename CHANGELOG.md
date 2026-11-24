@@ -11,6 +11,13 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Security
+
+- Downloading a file from a URL no longer connects to 6to4 (`2002::/16`)
+  addresses that wrap a private IPv4 address, or to IPv4-compatible (`::/96`)
+  addresses. Only nodes with such a tunnel set up by hand could have reached
+  their own network that way.
+
 ## [0.1.1] - 2026-11-24
 
 ### Security
