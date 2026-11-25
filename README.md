@@ -1,13 +1,36 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/logo.svg">
+    <img src="docs/public/logo-light.svg" alt="" width="72" height="72">
+  </picture>
+</p>
+
 <h1 align="center">GamePanel</h1>
 
 <p align="center"><b>A game server panel that is small, secure by default, and runs your Pterodactyl eggs unchanged.</b></p>
 
 <p align="center">
+  <a href="https://github.com/ZsombiiHUN/gamepanel/releases/latest"><img src="https://img.shields.io/github/v/release/ZsombiiHUN/gamepanel?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="https://github.com/ZsombiiHUN/gamepanel/stargazers"><img src="https://img.shields.io/github/stars/ZsombiiHUN/gamepanel?style=flat&logo=github&label=stars" alt="GitHub stars"></a>
   <a href="https://github.com/ZsombiiHUN/gamepanel/actions/workflows/ci.yml"><img src="https://github.com/ZsombiiHUN/gamepanel/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/status-pre--alpha-orange.svg" alt="Status: pre-alpha">
-  <img src="https://img.shields.io/badge/go-1.27-00ADD8.svg" alt="Go 1.27">
+  <img src="https://img.shields.io/badge/go-1.27-00ADD8.svg?logo=go&logoColor=white" alt="Go 1.27">
+</p>
+<p align="center">
+  <a href="https://zsombiihun.github.io/gamepanel/"><img src="https://img.shields.io/badge/docs-read-5b5bd6.svg?logo=readthedocs&logoColor=white" alt="Documentation"></a>
+  <a href="https://github.com/ZsombiiHUN/gamepanel/pkgs/container/gamepanel"><img src="https://img.shields.io/badge/ghcr.io-gamepanel-2496ED.svg?logo=docker&logoColor=white" alt="Container image on GHCR"></a>
+  <a href="https://github.com/ZsombiiHUN/gamepanel/discussions"><img src="https://img.shields.io/github/discussions/ZsombiiHUN/gamepanel?logo=github&label=discussions" alt="GitHub Discussions"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/ZsombiiHUN/gamepanel"><img src="https://api.scorecard.dev/projects/github.com/ZsombiiHUN/gamepanel/badge" alt="OpenSSF Scorecard"></a>
+</p>
+
+<p align="center">
+  <a href="https://zsombiihun.github.io/gamepanel/"><b>Documentation</b></a> ·
+  <a href="#install"><b>Install</b></a> ·
+  <a href="#try-it-from-source"><b>Try it</b></a> ·
+  <a href="https://zsombiihun.github.io/gamepanel/guides/compare"><b>Compare</b></a> ·
+  <a href="https://github.com/ZsombiiHUN/gamepanel/discussions"><b>Discussions</b></a> ·
+  <a href="https://github.com/ZsombiiHUN/gamepanel/issues/new/choose"><b>Report a bug</b></a>
 </p>
 
 <p align="center">
@@ -20,6 +43,9 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 
 > [!WARNING]
 > **Pre-alpha.** It works end to end and is well tested, but it has not been run in production and the API may change. Read [Status](#status) before you trust it with anything you care about.
+
+> [!TIP]
+> **Like where this is going?** Give it a ⭐ at the top of the page. Stars are how other people find a new project, and they tell me what to keep working on. Trying it and [saying what broke](https://github.com/ZsombiiHUN/gamepanel/issues/new/choose) helps even more.
 
 ## Why GamePanel
 
@@ -53,12 +79,36 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 | **API** | Everything the UI does goes through a documented OpenAPI 3.1 API ([`web/openapi.json`](web/openapi.json)) |
 | **Pterodactyl client API** | `/api/client` answers like Pterodactyl's for account, server list and details, resources, power, commands, files and backups, so bots and apps made for Pterodactyl work with a GamePanel API key |
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/console-dark.webp">
-    <img src="docs/public/screenshots/console-light.webp" alt="A running server: the live console beside CPU, memory and storage charts" width="900">
-  </picture>
-</p>
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/console-dark.webp"><img src="docs/public/screenshots/console-light.webp" alt="A running server: the live console beside CPU, memory and storage charts"></picture></td>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/files-dark.webp"><img src="docs/public/screenshots/files-light.webp" alt="The file manager: a server folder with upload, new file and pull-from-URL actions"></picture></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Console and live charts</sub></td>
+    <td align="center"><sub>Files</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/startup-dark.webp"><img src="docs/public/screenshots/startup-light.webp" alt="The startup page: the startup command, Docker image picker and the egg's variables"></picture></td>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/backups-dark.webp"><img src="docs/public/screenshots/backups-light.webp" alt="Backups: two kept backups with restore, download, lock and delete"></picture></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Startup variables</sub></td>
+    <td align="center"><sub>Backups</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/nodes-dark.webp"><img src="docs/public/screenshots/nodes-light.webp" alt="A node with its port range, memory and disk allocated, and its servers"></picture></td>
+    <td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/new-dark.webp"><img src="docs/public/screenshots/new-light.webp" alt="Creating a server: pick a game, a node and its limits"></picture></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Nodes</sub></td>
+    <td align="center"><sub>New server</sub></td>
+  </tr>
+</table>
+
+<p align="center"><sub>Every page follows your system theme, so GitHub shows you the light or dark version to match.</sub></p>
 
 ## Install
 
@@ -199,6 +249,15 @@ make hooks       # format and lint staged files before each commit
 ## Community
 
 Questions, setup help and ideas go to [Discussions](https://github.com/ZsombiiHUN/gamepanel/discussions); [Q&A](https://github.com/ZsombiiHUN/gamepanel/discussions/categories/q-a) is the place for "how do I…". Bugs go to [issues](https://github.com/ZsombiiHUN/gamepanel/issues/new/choose).
+
+## Support the project
+
+GamePanel is built by one person in the open. If you want it to exist:
+
+- ⭐ **Star the repo**, so others can find it.
+- 🧪 **Try it** on a spare machine and [report what broke](https://github.com/ZsombiiHUN/gamepanel/issues/new/choose), however small.
+- 💬 **Tell someone** who runs game servers, or post your setup in [Show and tell](https://github.com/ZsombiiHUN/gamepanel/discussions/categories/show-and-tell).
+- 🛠️ **Send a fix.** Issues labelled [good first issue](https://github.com/ZsombiiHUN/gamepanel/labels/good%20first%20issue) are a good start.
 
 ## Contributing and security
 
