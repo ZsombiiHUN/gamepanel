@@ -1141,7 +1141,7 @@ func (d *Daemon) applyConfigFiles(ctx context.Context, spec proto.ServerSpec) {
 	}
 	dir, err := d.dir(spec.UUID)
 	if err != nil {
-		d.log.Warn("could not open the server's files to update its config", "server", spec.UUID, "err", err)
+		d.log.Warn("could not open the server's files to update its config", "server", oneLine(spec.UUID), "err", err)
 		return
 	}
 	defer closeQuiet(dir)
@@ -1153,11 +1153,17 @@ func (d *Daemon) applyConfigFiles(ctx context.Context, spec proto.ServerSpec) {
 	}
 	for _, f := range spec.ConfigFiles {
 		if err := cfgfile.Apply(dir, f, iface); err != nil {
-			d.log.Warn("could not update a config file", "server", spec.UUID, "file", f.Path, "err", err)
+			d.log.Warn("could not update a config file", "server", oneLine(spec.UUID), "file", oneLine(f.Path), "err", oneLine(err.Error()))
 			d.sendConsole(spec.UUID, "\x1b[33m[gamepanel] could not update "+f.Path+": "+forPeople(err).Error()+"\x1b[0m")
 		}
 	}
 	d.cacheFor(spec.UUID).invalidate()
+}
+
+// oneLine drops line breaks from a value the panel sent before it is logged.
+// slog's text handler already escapes them; this also says so to scanners.
+func oneLine(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", ""), "\r", "")
 }
 
 // stop stops the server gracefully. It claims the server, so a stop cannot
