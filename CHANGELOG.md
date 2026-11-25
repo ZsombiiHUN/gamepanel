@@ -13,6 +13,9 @@ Upgrade the panel and every node to the same version together. See
 
 ### Added
 
+- Docs: [GamePanel compared](docs/guides/compare.md) sets GamePanel beside
+  Pterodactyl, Pelican, PufferPanel, Crafty Controller and AMP, including
+  where GamePanel is behind. The README opens with a 30-second demo.
 - `panel import-pterodactyl` previews importing a Pterodactyl 1.x panel: it
   reads Pterodactyl's database read-only (the login and `APP_KEY` can come
   from Pterodactyl's `.env`) and reports which users, nodes, eggs, servers,
