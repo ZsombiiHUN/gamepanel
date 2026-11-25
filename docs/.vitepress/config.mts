@@ -145,7 +145,10 @@ export default defineConfig({
       },
       {
         text: 'Guides',
-        items: [{ text: 'Coming from Pterodactyl', link: '/guides/from-pterodactyl' }],
+        items: [
+          { text: 'Compared with other panels', link: '/guides/compare' },
+          { text: 'Coming from Pterodactyl', link: '/guides/from-pterodactyl' },
+        ],
       },
       {
         text: 'Reference',

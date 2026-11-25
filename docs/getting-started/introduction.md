@@ -9,7 +9,7 @@ It has two parts:
 - **The panel** is one Go program. It serves the web interface and the API and keeps everything in one SQLite file. You run one panel.
 - **The daemon** runs on every machine that hosts game servers (a *node*). It drives Docker and connects out to the panel. You run one daemon per node. The panel's machine can be a node too.
 
-It is a simpler, stricter alternative to [Pterodactyl](https://pterodactyl.io) and [Pelican](https://pelican.dev). It reads their *egg* files (the recipes that say how to install and start a game) as they are, so the games you already run keep working.
+It is a simpler, stricter alternative to [Pterodactyl](https://pterodactyl.io) and [Pelican](https://pelican.dev). It reads their *egg* files (the recipes that say how to install and start a game) as they are, so the games you already run keep working. [GamePanel compared](/guides/compare) sets it beside Pterodactyl, Pelican, PufferPanel, Crafty and AMP, including where it is still behind.
 
 ## Who it is for
 

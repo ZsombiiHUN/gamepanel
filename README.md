@@ -11,15 +11,12 @@
 </p>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/public/screenshots/servers-dark.webp">
-    <img src="docs/public/screenshots/servers-light.webp" alt="The server list: cards with live CPU, memory and disk, status filters and a quick switcher" width="900">
-  </picture>
+  <a href="docs/public/demo/gamepanel-demo.mp4"><img src="docs/public/demo/gamepanel-demo.gif" alt="A 30-second tour: the server list, jumping to a server with Ctrl K, starting a Paper server and watching its console and charts, sending a command, the Minecraft status page, searching Modrinth for plugins, and back to the list with two servers running" width="900"></a>
 </p>
 
 GamePanel has two parts. The **panel** is one Go binary that serves the API and the web UI. The **daemon** runs on each machine that hosts servers and drives Docker. You manage everything from the browser: start and stop servers, watch the console, edit files, take backups, and share access.
 
-It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterodactyl/panel) and Pelican. It reads their egg files as they are, so the games you already run keep working.
+It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterodactyl/panel) and Pelican. It reads their egg files as they are, so the games you already run keep working. See [how it compares](https://zsombiihun.github.io/gamepanel/guides/compare), including where it is still behind.
 
 > [!WARNING]
 > **Pre-alpha.** It works end to end and is well tested, but it has not been run in production and the API may change. Read [Status](#status) before you trust it with anything you care about.
