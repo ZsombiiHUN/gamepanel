@@ -167,6 +167,15 @@ echo $s->uuid;
 echo "    server $UUID"
 VOL=/var/lib/pterodactyl/volumes/$UUID
 mc() { docker exec "$NODE" python3 /slp.py 127.0.0.1 25565 2>/dev/null; }
+# Paper stops on its first start until its EULA is accepted, which a person
+# does in Pterodactyl's interface: do that, then start it through Pterodactyl.
+for _ in $(seq 200); do docker exec "$NODE" test -f "$VOL/eula.txt" && break; sleep 3; done
+docker exec "$NODE" sh -c "echo eula=true >$VOL/eula.txt" || die "accepting the EULA"
+for _ in $(seq 60); do [ "$(docker exec "$NODE" docker inspect -f '{{.State.Running}}' "$UUID" 2>/dev/null)" = false ] && break; sleep 2; done
+php "$BOOT"'
+$s = Pterodactyl\Models\Server::where("uuid", "'"$UUID"'")->firstOrFail();
+$app->make(Pterodactyl\Repositories\Wings\DaemonPowerRepository::class)->setServer($s)->send("start");
+' || die "starting the server through Pterodactyl"
 for _ in $(seq 300); do mc >/dev/null && break; sleep 3; done
 mc >/dev/null || {
 	docker exec "$NODE" sh -c "tail -40 /var/log/wings.log; ls -la $VOL"
