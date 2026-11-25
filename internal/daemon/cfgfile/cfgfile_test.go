@@ -197,6 +197,22 @@ func TestJSONKeepsOrderAndTypes(t *testing.T) {
 	}
 }
 
+func TestINIKeepsQuotes(t *testing.T) {
+	t.Parallel()
+	m := &memFS{files: map[string]string{"a.ini": "name = \"Old name\"\nmotd='hi'\nport=1\n"}}
+	f := proto.ConfigFile{Path: "a.ini", Parser: "ini", Set: []proto.ConfigSet{
+		{Key: "name", Value: "New name"},
+		{Key: "motd", Value: "hello"},
+		{Key: "port", Value: "2"},
+	}}
+	if err := Apply(m, f, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := m.files["a.ini"], "name = \"New name\"\nmotd='hello'\nport=2\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestINIMumble(t *testing.T) {
 	t.Parallel()
 	m := &memFS{files: map[string]string{"murmur.ini": `; Murmur configuration file

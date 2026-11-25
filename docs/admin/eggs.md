@@ -113,10 +113,12 @@ The panel always sets:
 |---|---|
 | `SERVER_MEMORY` | The server's memory limit in MB |
 | `SERVER_PORT` | The server's primary port |
+| `SERVER_IP` | `0.0.0.0`: ports are published on all of the node's addresses |
+| `P_SERVER_UUID` | The server's id |
 
 They cannot be overridden through the API, and neither can any variable the egg does not declare (so nobody can set `LD_PRELOAD` and the like).
 
-Pterodactyl also sets `SERVER_IP`, `P_SERVER_UUID`, `P_SERVER_LOCATION`, `P_SERVER_ALLOCATION_LIMIT` and `TZ`. GamePanel does **not**. An egg whose startup uses `{{SERVER_IP}}` gets an empty value; servers should listen on all addresses (`0.0.0.0`), which is what most eggs do anyway.
+Pterodactyl also sets `P_SERVER_LOCATION`, `P_SERVER_ALLOCATION_LIMIT` and `TZ`. GamePanel does **not**; an egg whose startup uses one of them gets an empty value.
 
 ## Startup and safety
 

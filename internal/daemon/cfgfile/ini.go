@@ -15,25 +15,27 @@ func iniKey(k string) (section, key string) {
 	return "", k
 }
 
-// iniEntry reads "key = value" (or key: value); ok is false for anything else.
-func iniEntry(l string) (key, before, value string, ok bool) {
+// iniEntry reads "key = value" (or key: value); ok is false for anything
+// else. quote is the quote the value is wrapped in, if any, so a new value
+// can be written the same way.
+func iniEntry(l string) (key, before, value, quote string, ok bool) {
 	t := strings.TrimSpace(l)
 	if t == "" || t[0] == ';' || t[0] == '#' || t[0] == '[' {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	i := strings.IndexAny(l, "=:")
 	if i < 0 {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 	key = strings.TrimSpace(l[:i])
 	rest := l[i+1:]
 	v := strings.TrimLeft(rest, " \t")
 	before = l[:i+1] + rest[:len(rest)-len(v)]
 	value = strings.TrimSpace(v)
-	if len(value) >= 2 && (value[0] == '"' && value[len(value)-1] == '"' || value[0] == '\'' && value[len(value)-1] == '\'') {
-		value = value[1 : len(value)-1]
+	if len(value) >= 2 && (value[0] == '"' || value[0] == '\'') && value[len(value)-1] == value[0] {
+		quote, value = value[:1], value[1:len(value)-1]
 	}
-	return key, before, value, key != ""
+	return key, before, value, quote, key != ""
 }
 
 // iniSection returns a [section] line's name.
@@ -68,7 +70,7 @@ func editINI(data []byte, sets []proto.ConfigSet) []byte {
 			if cur != section {
 				continue
 			}
-			k, before, v, ok := iniEntry(l)
+			k, before, v, quote, ok := iniEntry(l)
 			if !ok {
 				continue
 			}
@@ -78,7 +80,7 @@ func editINI(data []byte, sets []proto.ConfigSet) []byte {
 			}
 			found = true
 			if nv, ok := change(s, v, true); ok {
-				ls[i] = before + nv
+				ls[i] = before + quote + nv + quote
 			}
 		}
 		if found {
