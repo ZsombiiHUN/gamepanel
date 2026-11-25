@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -64,78 +65,194 @@ func setPath(n *yaml.Node, segs []string, s proto.ConfigSet) {
 	}
 	seg, rest := segs[0], segs[1:]
 	if seg == "*" {
+		var kids []*yaml.Node
 		switch n.Kind {
 		case yaml.MappingNode:
 			for i := 1; i < len(n.Content); i += 2 {
-				setPath(n.Content[i], rest, s)
+				kids = append(kids, n.Content[i])
 			}
 		case yaml.SequenceNode:
-			for _, c := range n.Content {
+			kids = n.Content
+		}
+		for _, c := range kids {
+			if len(rest) == 0 {
+				setLeaf(c, s, true)
+			} else {
 				setPath(c, rest, s)
 			}
 		}
 		return
 	}
-	var child *yaml.Node
-	added := false
-	switch n.Kind {
-	case yaml.MappingNode:
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == seg {
-				child = n.Content[i+1]
-			}
-		}
-		if child == nil {
-			if s.IfValue != "" {
-				return // only existing values are changed
-			}
-			child = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-			if len(rest) == 0 {
-				child = &yaml.Node{Kind: yaml.ScalarNode}
-			}
-			n.Content = append(n.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: seg}, child)
-			added = true
-		}
-	case yaml.SequenceNode:
-		i, err := strconv.Atoi(seg)
-		if err != nil || i < 0 || i >= len(n.Content) {
-			return
-		}
-		child = n.Content[i]
-	default:
+	child, added := childAt(n, seg, rest, s)
+	if child == nil {
 		return
 	}
 	if len(rest) > 0 {
 		setPath(child, rest, s)
 		return
 	}
-	cur, found := scalarText(child)
-	if v, ok := change(s, cur, found && !added); ok {
-		setScalar(child, v)
+	setLeaf(child, s, !added)
+}
+
+// setLeaf applies s to a value; existed is false for one just added.
+func setLeaf(n *yaml.Node, s proto.ConfigSet, existed bool) {
+	cur, found := scalarText(n)
+	if v, ok := change(s, cur, found && existed); ok {
+		setScalar(n, v)
 	}
 }
 
-// parseTree reads YAML or JSON; an empty file is an empty mapping.
-func parseTree(data []byte) (*yaml.Node, error) {
+func isIndex(seg string) bool {
+	i, err := strconv.Atoi(seg)
+	return err == nil && i >= 0
+}
+
+// newNode is an empty node for a missing key: a list when the path goes on
+// with an index ("listeners[0]"), a mapping when it goes on with a key, or a
+// value at the end of the path.
+func newNode(rest []string) *yaml.Node {
+	switch {
+	case len(rest) == 0:
+		return &yaml.Node{Kind: yaml.ScalarNode}
+	case isIndex(rest[0]):
+		return &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	}
+	return &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+}
+
+// childAt finds (or, for an unconditional set, adds) the child seg of n.
+// A list gets a new element only right after its last one.
+func childAt(n *yaml.Node, seg string, rest []string, s proto.ConfigSet) (*yaml.Node, bool) {
+	switch n.Kind {
+	case yaml.MappingNode:
+		var child *yaml.Node
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			if n.Content[i].Value == seg {
+				child = n.Content[i+1]
+			}
+		}
+		if child != nil {
+			return child, false
+		}
+		if s.IfValue != nil {
+			return nil, false // only existing values are changed
+		}
+		child = newNode(rest)
+		n.Content = append(n.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: seg}, child)
+		return child, true
+	case yaml.SequenceNode:
+		if !isIndex(seg) {
+			return nil, false
+		}
+		i, _ := strconv.Atoi(seg)
+		if i < len(n.Content) {
+			return n.Content[i], false
+		}
+		if i > len(n.Content) || s.IfValue != nil {
+			return nil, false
+		}
+		child := newNode(rest)
+		n.Content = append(n.Content, child)
+		return child, true
+	}
+	return nil, false
+}
+
+// emptyDoc is a document holding an empty mapping: a new or empty file.
+func emptyDoc() *yaml.Node {
+	return &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}}
+}
+
+// parseYAML reads a YAML file of one document. A file with several is
+// refused: writing back only the first would delete the rest.
+func parseYAML(data []byte) (*yaml.Node, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	if err := dec.Decode(&doc); err != nil {
+		if errors.Is(err, io.EOF) {
+			return emptyDoc(), nil
+		}
 		return nil, err
 	}
-	if doc.Kind == 0 || len(doc.Content) == 0 {
-		doc = yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}}
+	var more yaml.Node
+	if err := dec.Decode(&more); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("the file has more than one YAML document, which cannot be edited")
+	}
+	if len(doc.Content) == 0 {
+		return emptyDoc(), nil
 	}
 	return &doc, nil
 }
 
-func editTree(data []byte, sets []proto.ConfigSet) (*yaml.Node, error) {
-	doc, err := parseTree(data)
+// parseJSON reads JSON with Go's JSON decoder (YAML's rejects some valid
+// JSON, such as \uD83D\uDE00 escapes) into a node tree in key order.
+func parseJSON(data []byte) (*yaml.Node, error) {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return emptyDoc(), nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	root, err := jsonNode(dec)
 	if err != nil {
 		return nil, err
 	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return nil, errors.New("the file has more than one JSON value")
+	}
+	return &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}}, nil
+}
+
+func jsonNode(dec *json.Decoder) (*yaml.Node, error) {
+	t, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	switch v := t.(type) {
+	case json.Delim:
+		n := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		if v == '[' {
+			n = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		}
+		for dec.More() {
+			if n.Kind == yaml.MappingNode {
+				k, err := dec.Token()
+				if err != nil {
+					return nil, err
+				}
+				key, _ := k.(string)
+				n.Content = append(n.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key})
+			}
+			c, err := jsonNode(dec)
+			if err != nil {
+				return nil, err
+			}
+			n.Content = append(n.Content, c)
+		}
+		if _, err := dec.Token(); err != nil { // the closing } or ]
+			return nil, err
+		}
+		return n, nil
+	case string:
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v}, nil
+	case json.Number:
+		tag := "!!float"
+		if _, err := v.Int64(); err == nil {
+			tag = "!!int"
+		}
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: v.String()}, nil
+	case bool:
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: strconv.FormatBool(v)}, nil
+	}
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"}, nil
+}
+
+func editTree(doc *yaml.Node, sets []proto.ConfigSet) {
 	for _, s := range sets {
 		setPath(doc.Content[0], path(s.Key), s)
 	}
-	return doc, nil
 }
 
 // indent guesses the indentation a file uses, from its first indented line.
@@ -150,10 +267,11 @@ func indent(data []byte, def int) int {
 }
 
 func editYAML(data []byte, sets []proto.ConfigSet) ([]byte, error) {
-	doc, err := editTree(data, sets)
+	doc, err := parseYAML(data)
 	if err != nil {
 		return nil, err
 	}
+	editTree(doc, sets)
 	var b bytes.Buffer
 	enc := yaml.NewEncoder(&b)
 	enc.SetIndent(indent(data, 2))
@@ -167,10 +285,11 @@ func editYAML(data []byte, sets []proto.ConfigSet) ([]byte, error) {
 }
 
 func editJSON(data []byte, sets []proto.ConfigSet) ([]byte, error) {
-	doc, err := editTree(data, sets)
+	doc, err := parseJSON(data)
 	if err != nil {
 		return nil, err
 	}
+	editTree(doc, sets)
 	var b bytes.Buffer
 	if err := writeJSON(&b, doc.Content[0], strings.Repeat(" ", indent(data, 4)), ""); err != nil {
 		return nil, err

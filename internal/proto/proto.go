@@ -234,10 +234,11 @@ type ConfigSet struct {
 	// Key is the property, "section.key" (ini), a dotted path with [n] and
 	// * (yaml, json), or the start of a line (file).
 	Key string `json:"key"`
-	// IfValue, when set, applies the change only while the current value is
-	// this; "regex:<re>" replaces the part that matches, with $1-style groups.
-	IfValue string `json:"if_value,omitempty"`
-	Value   string `json:"value"`
+	// IfValue, when set (even to ""), applies the change only while the
+	// key exists with this value; "regex:<re>" replaces the part that
+	// matches, with $1-style groups. Unset: always set the key.
+	IfValue *string `json:"if_value,omitempty"`
+	Value   string  `json:"value"`
 }
 
 // InstallSpec describes a one-shot installer container. The script is

@@ -281,7 +281,7 @@ func configFiles(raw json.RawMessage) ([]store.EggConfigFile, error) {
 			conds, _ := members(fd.Val)
 			for _, c := range conds {
 				if v, ok := scalarText(c.Val); ok {
-					cf.Find = append(cf.Find, store.EggFind{Key: fd.Key, IfValue: c.Key, Value: v})
+					cf.Find = append(cf.Find, store.EggFind{Key: fd.Key, IfValue: &c.Key, Value: v})
 				}
 			}
 		}

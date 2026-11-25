@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"regexp"
 	"strings"
@@ -22,10 +23,12 @@ import (
 )
 
 // FS is the server's directory (an *fsx.Dir): reads and writes are confined
-// to it, and files it creates belong to the directory's owner.
+// to it, and files it creates belong to the directory's owner. WriteStream
+// writes a temporary file and renames it into place, so a write that fails
+// (a full disk) leaves the old file as it was.
 type FS interface {
 	Read(p string) ([]byte, error)
-	Write(p string, data []byte) error
+	WriteStream(p string, r io.Reader, limit int64) (int64, error)
 }
 
 // Parsers lists the supported config.files parsers.
@@ -81,25 +84,26 @@ func Apply(fsys FS, f proto.ConfigFile, iface string) error {
 	if !missing && bytes.Equal(out, old) {
 		return nil
 	}
-	return fsys.Write(f.Path, out)
+	_, err = fsys.WriteStream(f.Path, bytes.NewReader(out), 0)
+	return err
 }
 
 // change decides what a set does to a key whose current value is cur
 // (found reports whether the key exists): the new value, and whether to
 // write it at all.
 func change(s proto.ConfigSet, cur string, found bool) (string, bool) {
-	if s.IfValue == "" {
+	if s.IfValue == nil {
 		return s.Value, true
 	}
 	if !found {
 		return "", false
 	}
-	if expr, ok := strings.CutPrefix(s.IfValue, "regex:"); ok {
+	if expr, ok := strings.CutPrefix(*s.IfValue, "regex:"); ok {
 		re, err := regexp.Compile(expr)
 		if err != nil || !re.MatchString(cur) {
 			return "", false
 		}
 		return re.ReplaceAllString(cur, s.Value), true
 	}
-	return s.Value, cur == s.IfValue
+	return s.Value, cur == *s.IfValue
 }

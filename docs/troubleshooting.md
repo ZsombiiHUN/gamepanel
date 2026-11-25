@@ -69,7 +69,7 @@ The install script's output is in the server's console.
 | Stops by itself, console says disk limit | The server is over its disk limit. Delete files or ask for more |
 | Crashed, console says out of memory | Raise the memory limit, or lower what the game uses (for Java, `-Xmx` below the limit) |
 | Crashes again within a minute and stays stopped | The crash loop guard. Read the console for the real error |
-| Running, but nobody can connect | The game is not listening on the server's port. Restart it so its egg writes the port into its config; an egg that does not needs `server-port` (or its game's equivalent) set by hand. See [Ports](/servers/network). Then check the node's firewall allows the port, TCP and UDP |
+| Running, but nobody can connect | The game is not listening on the server's port. Restart it so its egg writes the port into its config. If the console then says `could not update <file>`, that file is broken (for example invalid YAML) and is left as it was: fix it in **Files** and restart. An egg that writes no config file needs `server-port` (or its game's equivalent) set by hand. See [Ports](/servers/network). Then check the node's firewall allows the port, TCP and UDP |
 | Shows **Unknown** | Its node is not connected. See [A node stays offline](#a-node-stays-offline) |
 | Offline after the node rebooted | Servers are not started automatically at boot yet. Start them |
 

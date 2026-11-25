@@ -230,6 +230,9 @@ func editProperties(data []byte, sets []proto.ConfigSet) []byte {
 			found = true
 			if v, ok := change(s, pl.value, true); ok {
 				pl.value = v
+				if pl.sep == "" { // a key alone: "key" means key=""
+					pl.sep = "="
+				}
 				pl.raw = []string{pl.keyText + pl.sep + escapeProp(v, false)}
 			}
 		}

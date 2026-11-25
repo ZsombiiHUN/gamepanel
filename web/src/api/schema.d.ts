@@ -1960,6 +1960,7 @@ export interface components {
             parser: "properties" | "ini" | "yaml" | "yml" | "json" | "file" | "xml";
         };
         EggFind: {
+            /** @description absent: always set the key; "": only while its value is empty */
             if_value?: string;
             key: string;
             value: string;

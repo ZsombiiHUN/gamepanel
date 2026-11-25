@@ -171,7 +171,7 @@ func TestImportConfigFiles(t *testing.T) {
 	want := []store.EggConfigFile{{File: "config.yml", Parser: "yaml", Find: []store.EggFind{
 		{Key: "listeners[0].query_port", Value: "{{server.build.default.port}}"},
 		{Key: "listeners[0].host", Value: "0.0.0.0:{{server.build.default.port}}"},
-		{Key: "servers.*.address", IfValue: `regex:^(127\.0\.0\.1|localhost)(:\d{1,5})?$`, Value: "{{config.docker.interface}}$2"},
+		{Key: "servers.*.address", IfValue: ptr(`regex:^(127\.0\.0\.1|localhost)(:\d{1,5})?$`), Value: "{{config.docker.interface}}$2"},
 	}}}
 	got, _ := json.Marshal(e.ConfigFiles)
 	exp, _ := json.Marshal(want)
@@ -220,3 +220,5 @@ func TestSpecConfigFilesUseOnlyTheServersValues(t *testing.T) {
 		t.Fatal("no config files should send none")
 	}
 }
+
+func ptr(s string) *string { return &s }

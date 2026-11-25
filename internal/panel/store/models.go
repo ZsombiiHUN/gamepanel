@@ -465,8 +465,8 @@ type EggFind struct {
 	Key string `json:"key"`
 	// IfValue: only change the key while its value is this ("regex:" for a
 	// pattern, whose match is replaced).
-	IfValue string `json:"if_value,omitempty"`
-	Value   string `json:"value"`
+	IfValue *string `json:"if_value,omitempty" doc:"absent: always set the key; \"\": only while its value is empty"`
+	Value   string  `json:"value"`
 }
 
 func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
