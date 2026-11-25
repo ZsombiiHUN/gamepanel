@@ -57,6 +57,11 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 - **Fast to use.** Press `Ctrl K` to jump to any server or page. Filters and folders live in the URL, so you can link to them and Back works.
 - **Tested against a real browser.** Go tests, component tests and a Playwright suite (with accessibility scans at three screen sizes) run on every change.
 
+## What can it run?
+
+- **Minecraft, with extra care.** GamePanel ships its own eggs for Paper, Purpur, Folia, Vanilla, Fabric, Forge, NeoForge, Velocity and BungeeCord, on Java 8 to 25. They size the JVM to fit the container, write the port before every start, and check every download against its published checksum. See [Minecraft eggs](https://zsombiihun.github.io/gamepanel/admin/minecraft-eggs).
+- **Anything with a Pterodactyl egg.** The [pelican-eggs](https://github.com/pelican-eggs) library covers Steam games (Rust, ARK, Valheim and many more), plus applications, bots and databases. Eggs that pass the port on the command line, as most Steam game eggs do, work as they are. A few eggs edit config files to set the port, and with those you set it once by hand until [#86](https://github.com/ZsombiiHUN/gamepanel/issues/86) lands.
+
 ## Features
 
 | | |
@@ -160,57 +165,38 @@ The full documentation is at **[zsombiihun.github.io/gamepanel](https://zsombiih
 
 ## Configuration
 
-All settings are environment variables.
+All settings are environment variables. These are the ones most setups touch:
 
-**Panel**
+| Variable | What it does |
+|---|---|
+| `GAMEPANEL_PUBLIC_URL` | The panel's address, e.g. `https://panel.example.com`. Emails, passkeys and single sign-on need it |
+| `GAMEPANEL_DB` | SQLite path (default `./panel.db`). The key file `<db>.key` sits next to it: **back up both** |
+| `GAMEPANEL_TRUSTED_PROXIES` | Your reverse proxy's IPs, so rate limits and the audit log see real client addresses |
+| `GAMEPANEL_SMTP_HOST` and friends | Email for password resets and invitations |
+| `GAMEPANEL_REQUIRE_MFA` | `admins` or `all` to require a second factor |
+| `GAMEPANEL_NODE_TOKEN`, `GAMEPANEL_PANEL_URL` | On each node: the token from **Nodes → Create node**, and where to reach the panel |
 
-| Variable | Default | Description |
-|---|---|---|
-| `GAMEPANEL_ADDR` | `127.0.0.1:8080` | Listen address |
-| `GAMEPANEL_DB` | `./panel.db` | SQLite path |
-| `GAMEPANEL_COOKIE_SECURE` | unset | Set to `1` to always treat browsers as on HTTPS. Not needed when HTTPS reaches the panel directly or through a trusted proxy that sends `X-Forwarded-Proto: https`; then the session cookie is `__Host-gp_session`, marked `Secure`, and HSTS is sent |
-| `GAMEPANEL_REQUIRE_MFA` | `off` | `admins` or `all`: those accounts must use two factors (authenticator code or passkey). Until they set one up they can only use their account page, and their API keys stop working. An account that has a second factor but signed in without it (password alone with only a passkey, or single sign-on) must sign in again with it |
-| `GAMEPANEL_HSTS` | `host` | `subdomains` adds `includeSubDomains` to `Strict-Transport-Security`; `preload` also adds `preload` with a two-year `max-age`. Both affect every subdomain of the panel's domain, so only use them when all of those serve HTTPS |
-| `GAMEPANEL_SESSION_IDLE` | `30m` | Sign out a session after this long without use |
-| `GAMEPANEL_SESSION_MAX` | `12h` | Sign out a session this long after sign-in, however busy |
-| `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxy. Only then is `X-Forwarded-For` believed, which per-IP rate limits and audit IPs need. The proxy must also keep the `Host` header |
-| `GAMEPANEL_PUBLIC_URL` | unset | The panel's address, e.g. `https://panel.example.com`. Links in emails are built from it, never from a request's `Host` header. Passkeys and single sign-on need it too; passkeys need a domain name (or `localhost`), not an IP address |
-| `GAMEPANEL_SMTP_HOST` | unset | Send password resets and invitations by email. Needs `GAMEPANEL_PUBLIC_URL` too |
-| `GAMEPANEL_SMTP_PORT`, `GAMEPANEL_SMTP_USERNAME`, `GAMEPANEL_SMTP_PASSWORD`, `GAMEPANEL_SMTP_FROM` | 587 | `FROM` like `GamePanel <panel@example.com>` |
-| `GAMEPANEL_SMTP_TLS` | `starttls` | `tls` for implicit TLS (port 465), `none` only for a relay on the same machine |
-| `GAMEPANEL_SSO_GITHUB_CLIENT_ID`, `GAMEPANEL_SSO_GITHUB_CLIENT_SECRET` | unset | Sign in with GitHub. Callback: `<public url>/api/auth/sso/github/callback` |
-| `GAMEPANEL_SSO_DISCORD_CLIENT_ID`, `GAMEPANEL_SSO_DISCORD_CLIENT_SECRET` | unset | Sign in with Discord. Callback: `<public url>/api/auth/sso/discord/callback` |
-| `GAMEPANEL_SSO_OIDC_ISSUER`, `GAMEPANEL_SSO_OIDC_CLIENT_ID`, `GAMEPANEL_SSO_OIDC_CLIENT_SECRET`, `GAMEPANEL_SSO_OIDC_NAME` | unset | Any OpenID Connect provider; the name is shown on the button. Callback: `<public url>/api/auth/sso/oidc/callback`. Single sign-on needs `GAMEPANEL_PUBLIC_URL` |
-| `GAMEPANEL_SIGNUP` | `invite` | `open` lets anyone make an account; otherwise only invitations do |
-| `GAMEPANEL_S3_ENDPOINT` | unset | Store new backups in S3 instead of on the node, e.g. `https://s3.eu-central-1.amazonaws.com`. Nodes only get presigned URLs, never the keys. Backups already on a node stay there |
-| `GAMEPANEL_S3_BUCKET`, `GAMEPANEL_S3_ACCESS_KEY`, `GAMEPANEL_S3_SECRET_KEY` | unset | Required with an endpoint |
-| `GAMEPANEL_S3_REGION` | `us-east-1` | |
-| `GAMEPANEL_S3_PREFIX` | empty | Folder inside the bucket, e.g. `gamepanel/` |
-| `GAMEPANEL_S3_PATH_STYLE` | unset | Set to `1` for MinIO and most self-hosted stores (bucket in the path, not the host name) |
-| `GAMEPANEL_SECRET_KEY` | key file `<db>.key` | 64 hex characters that encrypt two-factor secrets at rest. If unset, a key file is created next to the database (mode 0600). **Back it up with the database**, or enrolled authenticators cannot be read |
-
-**Daemon**
-
-| Variable | Default | Description |
-|---|---|---|
-| `GAMEPANEL_NODE_TOKEN` | required | From node creation |
-| `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | Where to reach the panel |
-| `GAMEPANEL_DATA_DIR` | `./daemon-data` | Server files |
-| `GAMEPANEL_RUNTIME` | `docker` | `fake` for development |
-| `GAMEPANEL_PULL_ALLOW_PRIVATE` | unset | Set to `1` to let "download from a URL" fetch from private and local addresses. Off by default, so server owners cannot make the node reach its own network |
-| `GAMEPANEL_RESUME` | on | `off` keeps servers offline when the daemon starts. Otherwise servers that were running when the node or Docker went down start again |
-| `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | SFTP listener; `off` disables it. Sign in as `<email>.<first 8 characters of the server uuid>` with an **API key** (Account page) as the password. The host key is created in the data dir on first start |
-
-For production, run the panel behind a TLS reverse proxy and point the daemon at it with `wss://`.
+Every setting, with its default, is in [Panel configuration](https://zsombiihun.github.io/gamepanel/panel/configuration) and [Node configuration](https://zsombiihun.github.io/gamepanel/nodes/configuration). For production, run the panel behind a TLS reverse proxy and point each daemon at it with `wss://`.
 
 ## How it works
 
+```mermaid
+flowchart LR
+  B["Browser"] -- "HTTPS" --> P
+  subgraph P["Panel: one Go binary"]
+    API["REST API, OpenAPI 3.1"]
+    UI["React UI, embedded"]
+    DB[("SQLite")]
+  end
+  D1["Daemon on node 1"] -- "websocket, dials out" --> P
+  D2["Daemon on node 2"] -- "websocket, dials out" --> P
+  D1 --> C1["Game servers in Docker"]
+  D2 --> C2["Game servers in Docker"]
+  PL["Players"] -- "game ports" --> C1
+  PL -- "game ports" --> C2
 ```
- Browser ──HTTPS──▶  Panel (Go binary)  ◀──websocket──  Daemon ──▶ Docker
-                     ├─ REST API (OpenAPI 3.1)          (one per node, dials out)
-                     ├─ React UI, embedded
-                     └─ SQLite
-```
+
+The browser only ever talks to the panel. Each node opens its own connection out to the panel, so nodes need no inbound control port and can sit behind NAT. See [How it works](https://zsombiihun.github.io/gamepanel/getting-started/architecture) for the details.
 
 - **Stack:** Go `net/http` with [huma](https://github.com/danielgtaylor/huma), SQLite ([modernc](https://gitlab.com/cznic/sqlite)) with goose, coder/websocket, Docker through `moby/moby/client`. The UI is React 19, Vite, TanStack Query and Router, Tailwind 4, xterm.js and CodeMirror, embedded with `go:embed`.
 - **Eggs:** `{{VAR}}` becomes `${VAR}`, and values reach the process only as environment variables. A variable can never inject shell syntax, and no secret is ever substituted into a script.
@@ -219,19 +205,65 @@ For production, run the panel behind a TLS reverse proxy and point the daemon at
 
 ## Status
 
-**Works and is tested** (`make test` runs with the race detector, `make e2e` drives a real browser): auth, two-factor, access control, node enrollment, egg import, server create and delete, power, console streaming, file read, write and search, symlink escape rejection, backups with restore, schedules, subusers, SFTP, disk quotas, and cross-origin websocket rejection.
+- ✅ **Tested on every change.** `make test` runs the Go tests with the race detector, and `make e2e` drives a real browser. Covered: sign-in, two-factor, access control, node enrollment, egg import, creating and deleting servers, power, console streaming, reading, writing and searching files, refusing symlink escapes, backups and restores, schedules, subusers, SFTP, disk quotas, and refusing cross-origin websockets.
+- ✅ **Docker runtime** is checked against a real engine by [`scripts/docker-smoke.sh`](scripts/docker-smoke.sh): image pulls, environment, memory, CPU and process limits, dropped capabilities, ports, console input, stats, stop, restart, kill and cleanup.
+- ✅ **Server databases** are checked against a real MariaDB (`TestServerDatabases`), including that a database's user cannot reach anything else.
+- ✅ **S3 backups** are checked against a real S3-compatible store (`TestS3Backups`), and request signing against AWS's published example.
+- ✅ **Network limits** are checked with iperf3 by [`scripts/bandwidth-smoke.sh`](scripts/bandwidth-smoke.sh). At 10 and 100 Mbit/s, both directions hold at about 96% of the limit, including after restarts. They need root, `tc`, `ip` and `nsenter` on the node; see [Network limits](https://zsombiihun.github.io/gamepanel/nodes/network-limits).
+- ⚠️ **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
+- 🚧 **Not built yet:** Pterodactyl's application (admin) API and console websocket, Postgres, Windows servers, billing modules, CurseForge.
 
-**Docker runtime** is verified against a real engine by [`scripts/docker-smoke.sh`](scripts/docker-smoke.sh): image pull, env, memory, CPU and PID limits, dropped capabilities, port publishing, console input, stats, stop, restart, kill and cleanup.
+## Roadmap
 
-**Server databases** are verified against a real MariaDB by `TestServerDatabases` when `GAMEPANEL_TEST_MYSQL` is set, including that a database's user cannot reach anything else.
+These are next, roughly in this order. There are no dates, and the order may change.
 
-**S3 backups** are verified against a real S3-compatible store (RustFS) by `TestS3Backups` when `GAMEPANEL_TEST_S3_ENDPOINT` is set, and request signing against AWS's published example.
+- [ ] **Import a Pterodactyl panel**: users, nodes, eggs, servers and files ([#95](https://github.com/ZsombiiHUN/gamepanel/issues/95)). The preview, `panel import-pterodactyl`, already works.
+- [ ] **Apply egg `config.files` rules**, so every community egg sets its own port ([#86](https://github.com/ZsombiiHUN/gamepanel/issues/86))
+- [ ] **Move a server to another node** ([#93](https://github.com/ZsombiiHUN/gamepanel/issues/93))
+- [ ] **Pterodactyl's application API**, so WHMCS, Paymenter and Blesta modules work ([#88](https://github.com/ZsombiiHUN/gamepanel/issues/88))
+- [ ] **Pterodactyl's console websocket**, for bots that stream the console ([#89](https://github.com/ZsombiiHUN/gamepanel/issues/89))
+- [ ] **CurseForge mods** ([#87](https://github.com/ZsombiiHUN/gamepanel/issues/87))
+- [ ] **Translations**: the interface is ready, and it needs translators
 
-**Network limits** are applied inside the container's network namespace: a token bucket on what the server sends, and the same on what it receives by redirecting it through an ifb device (needs root, `tc`, `ip` and `nsenter` on the node; if they are missing the server starts unlimited and its console says so; a kernel without ifb gets a policer on incoming traffic instead). [`scripts/bandwidth-smoke.sh`](scripts/bandwidth-smoke.sh) checks them against a real Docker engine with iperf3: at 10 and 100 Mbit/s both directions hold at about 96% of the limit, including after a restart, a crash restart and a daemon restart. A daemon that runs in a container needs the host's PID namespace (`--pid=host`) and `CAP_SYS_ADMIN` and `CAP_NET_ADMIN` to reach the servers' namespaces.
+Want to help with one? Issues labelled [help wanted](https://github.com/ZsombiiHUN/gamepanel/labels/help%20wanted) and [good first issue](https://github.com/ZsombiiHUN/gamepanel/labels/good%20first%20issue) are open for anyone.
 
-**Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
+## FAQ
 
-**Not built yet:** Pterodactyl's application (admin) API and websocket, Postgres, Windows servers, billing, CurseForge.
+<details>
+<summary><b>Can I move over from Pterodactyl or Pelican?</b></summary>
+
+Your eggs work as they are: import them under **Eggs**. `panel import-pterodactyl` already shows what an import of your users, nodes, servers and the rest would bring over. Applying the import is coming in [#95](https://github.com/ZsombiiHUN/gamepanel/issues/95). Until then, create the servers in GamePanel and copy their files over with SFTP. See [Coming from Pterodactyl](https://zsombiihun.github.io/gamepanel/guides/from-pterodactyl).
+</details>
+
+<details>
+<summary><b>Do my nodes keep running Wings?</b></summary>
+
+No. Each node runs the GamePanel daemon instead. It is one binary, it uses Docker like Wings does, and it connects out to the panel, so the node needs no open control port.
+</details>
+
+<details>
+<summary><b>Why only SQLite?</b></summary>
+
+One panel with one SQLite file handles many nodes and servers, and backing it up means copying two files. The limit is that several panels cannot share one database. Postgres is not built.
+</details>
+
+<details>
+<summary><b>Will my Pterodactyl bot or app work?</b></summary>
+
+If it uses the REST client API (`/api/client`), it does: give it a GamePanel API key. Bots that stream the console over Pterodactyl's websocket ([#89](https://github.com/ZsombiiHUN/gamepanel/issues/89)) and billing modules that use the application API ([#88](https://github.com/ZsombiiHUN/gamepanel/issues/88)) do not work yet.
+</details>
+
+<details>
+<summary><b>Is it ready for production?</b></summary>
+
+Not yet. It is pre-alpha: well tested, but it has not run in production. If you try it with real players, go through the [production checklist](https://zsombiihun.github.io/gamepanel/getting-started/production-checklist) first, and keep backups.
+</details>
+
+<details>
+<summary><b>Does it run on Windows?</b></summary>
+
+No. The panel and nodes run on Linux, and game servers run in Docker. For Windows game servers, look at Crafty Controller (Minecraft only) or AMP. See [how GamePanel compares](https://zsombiihun.github.io/gamepanel/guides/compare).
+</details>
 
 ## Development
 
@@ -242,9 +274,7 @@ make e2e         # browser tests (first time: cd web && pnpm e2e:install)
 make hooks       # format and lint staged files before each commit
 ```
 
-[CONTRIBUTING.md](CONTRIBUTING.md) lists the code standards CI enforces.
-
-[`web/README.md`](web/README.md) lists the checks CI runs.
+[CONTRIBUTING.md](CONTRIBUTING.md) lists the code standards CI enforces, and [`web/README.md`](web/README.md) covers the web app's own commands.
 
 ## Community
 
