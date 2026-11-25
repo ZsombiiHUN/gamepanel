@@ -2,19 +2,79 @@
 
 GamePanel does the same job as Pterodactyl and Pelican and reads the same eggs, but it is built differently. This page maps what you know to how GamePanel does it.
 
-::: warning
-An automatic import of a Pterodactyl panel is being built ([#95](https://github.com/ZsombiiHUN/gamepanel/issues/95)). Today you can [preview](#preview-an-import) what it will do; to move now, move servers one at a time: create them in GamePanel with the same egg, then copy the files over.
-:::
+`panel import-pterodactyl` moves a whole Pterodactyl 1.x panel over: accounts with their passwords and two-factor, nodes, eggs, servers with their ports, limits and variables, subusers, schedules, database hosts and databases. On each node, the daemon takes over the server files Wings kept, so nothing is reinstalled and every server keeps its UUID, port and world.
 
-## Preview an import
+## What comes over
 
-`panel import-pterodactyl` reads your Pterodactyl database (read-only) and lists what an import would bring over, change or leave out. Run it on the Pterodactyl host:
+| | |
+|---|---|
+| **Accounts** | Email, admin flag and password: people sign in with the password they had. With the `APP_KEY`, two-factor too (recovery codes do not carry over; people make new ones). Usernames and names are dropped: sign-in is by email |
+| **Nodes** | Name, memory and disk capacity, overallocation, SFTP host and port. Each gets a new token |
+| **Eggs** | Every egg, with inherited scripts and config resolved, including `config.files` rules |
+| **Servers** | UUID, name, owner, egg, image, startup, variables, limits, primary and extra ports, suspension and install state. Block IO weight is left unset, as current Wings no longer applies it |
+| **Subusers** | With their permissions mapped. A GamePanel permission that covers several of Pterodactyl's is only given when all of them were (start, stop and restart for **power**, say), so nobody can do more than before |
+| **Schedules** | With their tasks |
+| **Database hosts and databases** | With the `APP_KEY`, which their passwords are encrypted with |
+
+Not imported: activity logs, API keys, locations, mounts and backup records (backup files stay where they are). Read the dry run's report: it lists everything that is changed or left out, for your panel.
+
+## Before you start
+
+- **A new GamePanel panel**, installed (see [Installing the panel](/panel/installing)) and started once, with no nodes, eggs or servers yet. You do not need to make an admin account: yours comes over. If you made one, give it an email that is not in Pterodactyl.
+- **The same GamePanel version** on the panel and every node.
+- **Your Pterodactyl `.env`** (for the database login and `APP_KEY`), or a database user that can read Pterodactyl's database (see [Command line](/panel/cli#panel-import-pterodactyl)).
+- **A Pterodactyl backup**: its database and `/var/lib/pterodactyl` on each node. The import only reads Pterodactyl's database, and on each node the server folders are moved, not changed.
+- Tell your users. Their servers restart once, and anything they change in Pterodactyl after the import is not carried over.
+
+## 1. Preview
+
+Run a dry run on the GamePanel panel host. It writes nothing:
 
 ```sh
-panel import-pterodactyl --env /var/www/pterodactyl/.env
+sudo panel import-pterodactyl --env /var/www/pterodactyl/.env
+# or, with Pterodactyl's database on another host:
+GAMEPANEL_PTERO_DSN='reader:secret@tcp(ptero.example.com:3306)/panel' \
+GAMEPANEL_PTERO_APP_KEY='base64:...' sudo -E panel import-pterodactyl
 ```
 
-It plans users (passwords and, with the `APP_KEY`, two-factor kept), nodes, eggs, servers with their ports, limits and variables, subusers, schedules, database hosts and databases. Server UUIDs and ports stay the same. The report ends with what must be fixed first and what will work differently, for example subuser permissions that have no exact match. See [Command line](/panel/cli#panel-import-pterodactyl) for the flags.
+The report lists what would come over, then three sections: **Must be fixed before --apply** (for example two accounts whose emails differ only in case), **Imported differently: check these**, and **Good to know**. Fix the first in Pterodactyl and run it again until it says `Result: ready`.
+
+## 2. Import
+
+Add `--apply`:
+
+```sh
+sudo panel import-pterodactyl --env /var/www/pterodactyl/.env --apply
+```
+
+It writes everything in one transaction, so either all of it is imported or none of it. It finds the panel's database in `/etc/gamepanel/panel.env`. At the end it prints, for each node, a **new token** and the commands to run there. The tokens are shown only this once.
+
+## 3. Switch each node
+
+On each node, as root:
+
+```sh
+systemctl disable --now wings
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
+  | bash -s -- node --panel panel.example.com --token <token> --adopt-wings /var/lib/pterodactyl/volumes
+```
+
+- Stopping Wings leaves its game servers running.
+- `--adopt-wings` moves each server's folder into the daemon's data directory before the daemon first starts. Files keep their owner, since a server runs as whoever owns its folder, as under Wings. Nothing is reinstalled: the daemon builds each server's container and skips the egg's install script.
+- When the daemon connects, it stops each server that was running under Wings the way Wings would, with the egg's stop command so the game saves its world. Then it starts the server again under GamePanel, on the same port.
+
+If `/var/lib/pterodactyl` and the daemon's data directory (`/var/lib/gamepanel-daemon`) are on different disks, the folders are copied instead of moved. Stop the servers in Pterodactyl first, because a copy of a running server's files is not safe. Delete the copies under `/var/lib/pterodactyl/volumes` once everything works. To run the takeover by hand, use `gamepanel-daemon adopt-wings --from /var/lib/pterodactyl/volumes` with the settings from `/etc/gamepanel/daemon.env`. Run it **before** the daemon first starts: a server the panel creates before its files are there is installed from scratch.
+
+If the node's SFTP port was not 2022, set `GAMEPANEL_SFTP_ADDR=0.0.0.0:<port>` in `/etc/gamepanel/daemon.env` and restart `gamepanel-daemon`, so SFTP clients keep their address.
+
+## 4. Check and finish
+
+- Sign in with your Pterodactyl email and password.
+- Open a few servers: the console, files and players should be as they were.
+- Point your domain or users at the new panel.
+- Remove Pterodactyl and Wings when you are happy. Wings' stopped containers can go with `docker rm`.
+
+**Things people notice**: SFTP logins change (the user name is `<email>.<server id>` and the password is an API key), and API keys must be made again.
 
 ## Names
 
@@ -46,18 +106,17 @@ It plans users (passwords and, with the `APP_KEY`, two-factor kept), nodes, eggs
 
 ## Eggs
 
-Import your eggs as they are, from your Pterodactyl panel (**Nests → egg → Export**) or from [pelican-eggs](https://github.com/pelican-eggs). Read [Eggs → What is not imported](/admin/eggs#what-is-not-imported-yet) first. The important difference:
+The import brings your eggs. To add more, import them as they are, from Pterodactyl (**Nests → egg → Export**) or from [pelican-eggs](https://github.com/pelican-eggs). Their `config.files` rules are applied before each start, as Wings does, except for XML files. See [Eggs](/admin/eggs).
 
-**Config file rules (`config.files`) are not applied.** Pterodactyl rewrites files like Minecraft's `server.properties` with the server's port before each start. GamePanel does not, so set the port in those files yourself. Eggs that pass the port on the command line are not affected.
+## Moving one server by hand
 
-## Moving a server
+To move a single server without an import:
 
 1. In Pterodactyl, stop the server and make a backup, or download the files over SFTP.
 2. In GamePanel, create a server with the same egg, limits and variables. Let the install finish.
 3. Stop it, upload the files (SFTP is best for large worlds) and extract them if they are an archive.
-4. Set the new port in the game's config files if the egg relies on `config.files`.
-5. Start it and check the console.
-6. Point players at the new address and port.
+4. Start it and check the console.
+5. Point players at the new address and port.
 
 ## Tools and bots
 
@@ -68,7 +127,7 @@ Import your eggs as they are, from your Pterodactyl panel (**Nests → egg → E
 ## Things that work differently
 
 - **SFTP password**: an API key, not your account password. See [SFTP](/nodes/sftp).
-- **Running state**: a server counts as running as soon as its container runs, not when a "done" line appears.
+- **Running state**: with an egg's "done" text, a server shows **starting** until the line appears, as in Pterodactyl.
 - **Strangers get 404**: someone without access to a server cannot tell it exists.
 - **Crash restarts**: a server that crashes is restarted once; if it crashes again within a minute it stays stopped.
 - **Schedules**: run with the permissions of whoever last saved them, in UTC.

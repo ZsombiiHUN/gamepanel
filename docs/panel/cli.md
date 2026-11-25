@@ -11,7 +11,7 @@ sudo -u gamepanel sh -c 'set -a; . /etc/gamepanel/panel.env; exec /usr/local/bin
 The commands are safe to run while the panel is running.
 
 ::: warning
-Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it. `version`, `help` and `import-pterodactyl` are the exceptions: they open nothing.
+Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it. `version`, `help` and `import-pterodactyl` are the exceptions: they open nothing (`import-pterodactyl --apply` opens the existing database and never creates one).
 :::
 
 ## `panel version`
@@ -54,7 +54,7 @@ Check who is asking before you run it: it removes a protection. Passkeys are not
 
 ## `panel import-pterodactyl`
 
-Reads a Pterodactyl 1.x panel's database and prints what importing it would do: what comes over, what changes, and what is left out. It is a **dry run**: it writes nothing, to Pterodactyl or to GamePanel. Applying the import comes in a later version. See [Coming from Pterodactyl](/guides/from-pterodactyl#preview-an-import).
+Reads a Pterodactyl 1.x panel's database and prints what importing it would do: what comes over, what changes, and what is left out. Without `--apply` it is a **dry run** and writes nothing. With `--apply` it writes the import into this panel's database in one transaction: all of it or none. Pterodactyl's database is only ever read. See [Coming from Pterodactyl](/guides/from-pterodactyl).
 
 ```sh
 # On the Pterodactyl host: read the database login and APP_KEY from its .env
@@ -71,6 +71,9 @@ GAMEPANEL_PTERO_APP_KEY='base64:...' panel import-pterodactyl
 | `--dsn DSN` | `user:password@tcp(host:3306)/panel`, or `GAMEPANEL_PTERO_DSN` |
 | `--app-key KEY` | Pterodactyl's `APP_KEY`, or `GAMEPANEL_PTERO_APP_KEY`. Without it, two-factor is reported as turned off and database hosts as skipped, because Pterodactyl encrypts them with this key |
 | `--unlimited-memory MB` | Memory for servers that had no limit (default 4096); GamePanel always sets one |
+| `--apply` | Import into the panel database in `GAMEPANEL_DB`. The panel must have no nodes, servers, eggs or database hosts yet; accounts already there stay, unless one has the same email as an imported one. Prints each node's new token, **once** |
+
+`--apply` finds the panel's database through `GAMEPANEL_DB`, or else in `/etc/gamepanel/panel.env` as `install.sh` writes it, so on a panel installed that way `sudo panel import-pterodactyl --env /var/www/pterodactyl/.env --apply` is enough. The panel must have started once (it makes its key file then), and it may keep running.
 
 The database is read in one read-only transaction, so it is safe while Pterodactyl runs. Prefer the environment variables or `--env` to `--dsn` and `--app-key`, which other users on the host can see in the process list. For a database user that can only read:
 

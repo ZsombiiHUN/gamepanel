@@ -16,11 +16,19 @@ Upgrade the panel and every node to the same version together. See
 - Docs: [GamePanel compared](docs/guides/compare.md) sets GamePanel beside
   Pterodactyl, Pelican, PufferPanel, Crafty Controller and AMP, including
   where GamePanel is behind. The README opens with a 30-second demo.
-- `panel import-pterodactyl` previews importing a Pterodactyl 1.x panel: it
-  reads Pterodactyl's database read-only (the login and `APP_KEY` can come
+- `panel import-pterodactyl` moves a Pterodactyl 1.x panel to GamePanel (#95).
+  It reads Pterodactyl's database read-only (the login and `APP_KEY` can come
   from Pterodactyl's `.env`) and reports which users, nodes, eggs, servers,
-  ports, subusers, schedules and databases would come over, what would change
-  and what is left out. It writes nothing; applying comes later (#95).
+  ports, subusers, schedules and databases come over, what changes and what
+  is left out. With `--apply` it writes them into a new panel in one
+  transaction, keeping server UUIDs and ports, passwords and (with the
+  `APP_KEY`) two-factor, and prints a token for each node.
+- `gamepanel-daemon adopt-wings` (or `install.sh node --adopt-wings DIR`)
+  takes over the server folders Wings kept on a node: files keep their owner
+  and nothing is reinstalled. Servers still running under Wings are stopped
+  with their egg's stop command, so they save their world, and started again
+  under GamePanel. `scripts/ptero-import-smoke.sh` runs the whole move against
+  a real Pterodactyl and Wings.
 - Eggs' `config.files` are applied before each start, as Pterodactyl's Wings
   does: Minecraft's `server.properties` gets the server's port, BungeeCord's
   `config.yml` its bind address, and so on, for the `properties`, `ini`,
