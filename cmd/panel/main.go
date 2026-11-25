@@ -363,11 +363,11 @@ func loadSecretKey(st *store.Store, dbPath string) error {
 		return st.SetSecretKey(k)
 	}
 	path := dbPath + ".key"
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // G703: next to the database the admin configured
 	if errors.Is(err, os.ErrNotExist) {
 		k := make([]byte, 32)
 		rand.Read(k)
-		if err := os.WriteFile(path, []byte(hex.EncodeToString(k)), 0o600); err != nil {
+		if err := os.WriteFile(path, []byte(hex.EncodeToString(k)), 0o600); err != nil { //nolint:gosec // G703: as above
 			return fmt.Errorf("create %s: %w", path, err)
 		}
 		return st.SetSecretKey(k)

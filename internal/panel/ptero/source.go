@@ -49,6 +49,7 @@ type Node struct {
 	Maintenance        bool
 	SFTPPort           int
 	Base               string // Wings' volume directory, e.g. /var/lib/pterodactyl/volumes
+	FQDN               string // where people reach the node (SFTP)
 }
 
 type Allocation struct {
@@ -214,9 +215,9 @@ func Read(ctx context.Context, db *sql.DB) (*Source, error) {
 			s.Users = append(s.Users, u)
 			return err
 		}},
-		{"nodes", "SELECT id,name,memory,memory_overallocate,disk,disk_overallocate,maintenance_mode,daemonSFTP,daemonBase FROM nodes ORDER BY id", func(r *sql.Rows) error {
+		{"nodes", "SELECT id,name,memory,memory_overallocate,disk,disk_overallocate,maintenance_mode,daemonSFTP,daemonBase,fqdn FROM nodes ORDER BY id", func(r *sql.Rows) error {
 			var n Node
-			err := r.Scan(&n.ID, &n.Name, &n.Memory, &n.MemoryOverallocate, &n.Disk, &n.DiskOverallocate, &n.Maintenance, &n.SFTPPort, &n.Base)
+			err := r.Scan(&n.ID, &n.Name, &n.Memory, &n.MemoryOverallocate, &n.Disk, &n.DiskOverallocate, &n.Maintenance, &n.SFTPPort, &n.Base, &n.FQDN)
 			s.Nodes = append(s.Nodes, n)
 			return err
 		}},

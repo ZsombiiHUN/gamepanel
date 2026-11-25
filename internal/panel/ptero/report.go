@@ -4,18 +4,24 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
 // WriteReport prints the plan for an admin to read before applying it.
-func WriteReport(out io.Writer, src *Source, p *Plan) error {
+func WriteReport(out io.Writer, src *Source, p *Plan, applying bool) error {
 	var w strings.Builder
-	report(&w, src, p)
+	report(&w, src, p, applying)
 	_, err := io.WriteString(out, w.String())
 	return err
 }
 
-func report(w *strings.Builder, src *Source, p *Plan) {
-	fmt.Fprintln(w, "Pterodactyl import: dry run (nothing has been written)")
+func report(w *strings.Builder, src *Source, p *Plan, applying bool) {
+	if applying {
+		fmt.Fprintln(w, "Pterodactyl import")
+	} else {
+		fmt.Fprintln(w, "Pterodactyl import: dry run (nothing has been written)")
+	}
 	fmt.Fprintln(w)
 	rows := []struct {
 		what       string
@@ -79,19 +85,46 @@ func report(w *strings.Builder, src *Source, p *Plan) {
 		fmt.Fprintln(w, "Result: cannot be applied yet. Fix the items above in Pterodactyl and run this again.")
 		return
 	}
-	fmt.Fprintln(w, "Result: ready. Applying is not available in this version yet; this report shows what it will do.")
-	if len(p.Nodes) == 0 {
+	if !applying {
+		fmt.Fprintln(w, "Result: ready. Run this again with --apply to import it into this panel.")
 		return
 	}
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Next steps, once applying is available:")
-	fmt.Fprintln(w, "  1. Stop Wings on every node, so no server changes during the move.")
-	fmt.Fprintln(w, "  2. Run this command again with --apply; it prints a token for each node.")
-	fmt.Fprintln(w, "  3. On each node, install the GamePanel daemon and adopt the server files:")
-	for _, n := range p.Nodes {
-		fmt.Fprintf(w, "       %-20s files in %s\n", n.Name, n.WingsDir)
+	fmt.Fprintln(w, "Result: ready. Importing...")
+}
+
+// WriteApplied prints what an applied import created and what to do on
+// each node: the node's new token is shown here only.
+func WriteApplied(out io.Writer, p *Plan, res store.ImportResult, dbPath, panelURL string) error {
+	var b strings.Builder
+	w := &b
+	fmt.Fprintf(w, "\nImported into %s:\n", dbPath)
+	fmt.Fprintf(w, "  %d account(s), %d node(s), %d egg(s), %d server(s), %d subuser(s), %d schedule(s), %d database host(s), %d database(s).\n",
+		len(p.Users), len(p.Nodes), len(p.Eggs), len(p.Servers), len(p.Subusers), len(p.Schedules), len(p.DBHosts), len(p.Databases))
+	panel := panelURL
+	if panel == "" {
+		panel = "<panel address>"
 	}
-	fmt.Fprintln(w, "  4. Start the daemons, check each server's console, then remove Wings.")
+	fmt.Fprintln(w, "\nNext, on each node (as root). Each token is shown only now; keep it until the node is set up.")
+	for _, n := range p.Nodes {
+		servers := 0
+		for _, s := range p.Servers {
+			if s.Server.NodeID == n.PteroID {
+				servers++
+			}
+		}
+		fmt.Fprintf(w, "\n  Node %q (%d server(s), Wings files in %s)\n", n.Name, servers, n.WingsDir)
+		fmt.Fprintf(w, "    token: %s\n", res.NodeTokens[n.PteroID])
+		fmt.Fprintln(w, "    1. systemctl disable --now wings")
+		fmt.Fprintf(w, "    2. curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \\\n")
+		fmt.Fprintf(w, "         | bash -s -- node --panel %s --token <token> --adopt-wings %s\n", panel, n.WingsDir)
+		if n.SFTPPort != 0 && n.SFTPPort != 2022 {
+			fmt.Fprintf(w, "    3. Set GAMEPANEL_SFTP_ADDR=0.0.0.0:%d in /etc/gamepanel/daemon.env (SFTP keeps its port) and restart gamepanel-daemon\n", n.SFTPPort)
+		}
+	}
+	fmt.Fprintln(w, "\nThe node's servers appear as soon as its daemon connects; ones Wings had running start again.")
+	fmt.Fprintln(w, "Sign in with your Pterodactyl email and password.")
+	_, err := io.WriteString(out, b.String())
+	return err
 }
 
 // wrap breaks s into lines of at most width runes; later lines get indent.

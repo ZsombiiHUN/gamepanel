@@ -9,19 +9,22 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/ptero"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
 const importUsage = `Usage: panel import-pterodactyl [flags]
 
 Reads a Pterodactyl 1.x panel's database (read-only) and prints what an
 import into GamePanel would bring over, change or leave out. Nothing is
-written anywhere.
+written anywhere unless --apply is given.
 
 Where to read from (one of):
   --env FILE       Pterodactyl's .env (e.g. /var/www/pterodactyl/.env): the
@@ -33,6 +36,9 @@ Flags:
                    needed to keep two-factor and import database hosts
   --unlimited-memory MB
                    memory for servers that had no limit (default 4096)
+  --apply          write the import into this panel's database (GAMEPANEL_DB),
+                   all at once; the panel must have no nodes, servers, eggs or
+                   database hosts yet. Prints each node's new token.
 
 Use a database user that can only read (GRANT SELECT).
 `
@@ -44,6 +50,7 @@ func importPterodactyl(args []string) error {
 	dsn := fs.String("dsn", os.Getenv("GAMEPANEL_PTERO_DSN"), "")
 	appKey := fs.String("app-key", os.Getenv("GAMEPANEL_PTERO_APP_KEY"), "")
 	unlimited := fs.Int64("unlimited-memory", ptero.DefaultUnlimitedMemoryMB, "")
+	apply := fs.Bool("apply", false, "")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -76,7 +83,73 @@ func importPterodactyl(args []string) error {
 		return fmt.Errorf("read Pterodactyl's database: %w", err)
 	}
 	plan := ptero.Build(src, ptero.Options{AppKey: k, UnlimitedMemoryMB: *unlimited})
-	return ptero.WriteReport(os.Stdout, src, plan)
+	if err := ptero.WriteReport(os.Stdout, src, plan, *apply); err != nil || !*apply {
+		return err
+	}
+	if plan.Blocked() {
+		return errors.New("nothing was imported: fix the items under \"Must be fixed before --apply\" first")
+	}
+	return applyImport(ctx, plan)
+}
+
+// panelEnvFile is where the installer keeps the panel's settings.
+const panelEnvFile = "/etc/gamepanel/panel.env"
+
+// applyImport writes the plan into this panel's database.
+func applyImport(ctx context.Context, plan *ptero.Plan) error {
+	dbPath := os.Getenv("GAMEPANEL_DB")
+	if dbPath == "" {
+		// Installed with install.sh: use the panel's own settings, so a
+		// plain `sudo panel import-pterodactyl ... --apply` finds them.
+		if env, err := readDotEnv(panelEnvFile); err == nil && env["GAMEPANEL_DB"] != "" {
+			dbPath = env["GAMEPANEL_DB"]
+			if k := env["GAMEPANEL_SECRET_KEY"]; k != "" && os.Getenv("GAMEPANEL_SECRET_KEY") == "" {
+				_ = os.Setenv("GAMEPANEL_SECRET_KEY", k)
+			}
+		} else {
+			dbPath = "./panel.db"
+		}
+	}
+	fi, err := os.Stat(dbPath) //nolint:gosec // G703: the admin's own setting, run by the admin
+	if err != nil {
+		return fmt.Errorf("%s: %w. Set GAMEPANEL_DB to the panel's database (see %s), and start the panel once first", dbPath, err, panelEnvFile)
+	}
+	if _, err := os.Stat(dbPath + ".key"); err != nil && os.Getenv("GAMEPANEL_SECRET_KEY") == "" { //nolint:gosec // G703: as above
+		// loadSecretKey would make a new key the panel then cannot read.
+		return fmt.Errorf("%s.key: %w. Start the panel once first, or set GAMEPANEL_SECRET_KEY as the panel has it", dbPath, err)
+	}
+	st, err := store.Open(dbPath)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	if err := loadSecretKey(st, dbPath); err != nil {
+		_ = st.Close()
+		return err
+	}
+	res, err := st.ImportPanel(ctx, plan.Import())
+	cerr := st.Close()
+	giveBack(dbPath, fi)
+	if err != nil {
+		return fmt.Errorf("nothing was imported: %w", err)
+	}
+	if cerr != nil {
+		return cerr
+	}
+	abs, _ := filepath.Abs(dbPath)
+	return ptero.WriteApplied(os.Stdout, plan, res, abs, os.Getenv("GAMEPANEL_PUBLIC_URL"))
+}
+
+// giveBack hands SQLite's side files back to the database's owner: run as
+// root, the import may have created them, and the panel (its own user) must
+// still open them.
+func giveBack(dbPath string, db os.FileInfo) {
+	st, ok := db.Sys().(*syscall.Stat_t)
+	if !ok || os.Geteuid() != 0 {
+		return
+	}
+	for _, suffix := range []string{"-wal", "-shm", "-journal"} {
+		_ = os.Lchown(dbPath+suffix, int(st.Uid), int(st.Gid)) // absent files are fine
+	}
 }
 
 // importSource works out the database to read and the APP_KEY, from a

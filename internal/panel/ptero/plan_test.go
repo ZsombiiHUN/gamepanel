@@ -183,7 +183,7 @@ func TestPlanServers(t *testing.T) {
 	if v.Env["MC_VERSION"] != "1.21.4" || len(v.Env) != 1 {
 		t.Errorf("env: %v", v.Env)
 	}
-	if v.PortLimit != 2 || v.DatabaseLimit != 2 || v.BackupLimit != 5 || v.IOWeight != 500 || v.ExternalID != "order-1" {
+	if v.PortLimit != 2 || v.DatabaseLimit != 2 || v.BackupLimit != 5 || v.IOWeight != 0 || v.ExternalID != "order-1" {
 		t.Errorf("limits: %+v", v.Limits)
 	}
 	if v.InstallStatus != "installed" || v.Suspended {
