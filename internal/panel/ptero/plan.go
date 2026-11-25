@@ -283,6 +283,7 @@ type ptdl struct {
 	Config       struct {
 		Stop    string `json:"stop"`
 		Startup string `json:"startup"`
+		Files   string `json:"files"`
 	} `json:"config"`
 	Scripts struct {
 		Installation struct {
@@ -331,7 +332,7 @@ func (b *builder) planEggs() {
 	for _, e := range b.src.Eggs {
 		nameCount[strings.ToLower(e.Name)]++
 	}
-	var withConfigFiles []string
+	var xmlFiles []string
 	for _, e := range b.src.Eggs {
 		subj := quote("egg", e.Name)
 		// config_from and copy_script_from inherit from another egg where
@@ -370,6 +371,7 @@ func (b *builder) planEggs() {
 		}
 		j.Config.Stop = cfg.ConfigStop.String
 		j.Config.Startup = cfg.ConfigStartup.String
+		j.Config.Files = cfg.ConfigFiles.String
 		j.Scripts.Installation.Script = script.ScriptInstall.String
 		j.Scripts.Installation.Container = script.ScriptImage
 		j.Scripts.Installation.Entrypoint = script.ScriptEntry
@@ -397,8 +399,11 @@ func (b *builder) planEggs() {
 		if j.Name != e.Name {
 			b.p.note(Info, subj, "renamed to %q: another nest has an egg with the same name", j.Name)
 		}
-		if hasRules(cfg.ConfigFiles.String) {
-			withConfigFiles = append(withConfigFiles, e.Name)
+		for _, f := range egg.ConfigFiles {
+			if f.Parser == "xml" {
+				xmlFiles = append(xmlFiles, e.Name)
+				break
+			}
 		}
 		if hasRules(e.FileDenylist.String) {
 			b.p.note(Changed, subj, "has a file denylist (%s); GamePanel does not enforce one yet, so owners can edit those files", strings.TrimSpace(e.FileDenylist.String))
@@ -411,9 +416,9 @@ func (b *builder) planEggs() {
 	for i := range b.p.Eggs {
 		b.eggs[b.p.Eggs[i].PteroID] = &b.p.Eggs[i].Egg
 	}
-	if len(withConfigFiles) > 0 {
-		b.p.note(Info, "", "%d egg(s) rewrite config files before each start (config.files), which GamePanel does not do yet. Imported servers keep their ports, so files already written stay right; new servers need the port set by hand: %s",
-			len(withConfigFiles), strings.Join(withConfigFiles, ", "))
+	if len(xmlFiles) > 0 {
+		b.p.note(Changed, "", "%d egg(s) edit XML config files before each start, which GamePanel does not do yet (their other config files are edited). Imported servers keep their ports, so files already written stay right; new servers need the port set by hand: %s",
+			len(xmlFiles), strings.Join(xmlFiles, ", "))
 	}
 }
 

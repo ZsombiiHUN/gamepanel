@@ -216,6 +216,28 @@ type ServerSpec struct {
 	// StartOnCompletion starts a new server once it is installed. Only a
 	// create reads it.
 	StartOnCompletion bool `json:"start_on_completion,omitempty"`
+	// ConfigFiles are edited before each start (an egg's config.files).
+	ConfigFiles []ConfigFile `json:"config_files,omitempty"`
+}
+
+// ConfigFile is one file the node edits before a server starts, as
+// Pterodactyl's Wings does for an egg's config.files.
+type ConfigFile struct {
+	Path   string      `json:"path"`   // relative to the server's directory
+	Parser string      `json:"parser"` // properties, ini, yaml, json or file
+	Set    []ConfigSet `json:"set"`
+}
+
+// ConfigSet sets one key. The panel has filled in the server's values; the
+// only placeholder left is {{config.docker.interface}}, which the node fills.
+type ConfigSet struct {
+	// Key is the property, "section.key" (ini), a dotted path with [n] and
+	// * (yaml, json), or the start of a line (file).
+	Key string `json:"key"`
+	// IfValue, when set, applies the change only while the current value is
+	// this; "regex:<re>" replaces the part that matches, with $1-style groups.
+	IfValue string `json:"if_value,omitempty"`
+	Value   string `json:"value"`
 }
 
 // InstallSpec describes a one-shot installer container. The script is

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -40,6 +41,25 @@ func TestShellStartupHasNoInjection(t *testing.T) {
 	}
 }
 
+func TestShellStartupPanelPlaceholders(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ in, want string }{
+		{"java -Xmx{{server.build.memory}}M -jar server.jar", "java -Xmx${SERVER_MEMORY}M -jar server.jar"},
+		{"java -Xmx{{ server.build.memory }}M", "java -Xmx${SERVER_MEMORY}M"},
+		{"./srv --port {{server.build.default.port}}", "./srv --port ${SERVER_PORT}"},
+		{"./srv --port {{  server.build.default.port}}", "./srv --port ${SERVER_PORT}"},
+		{"./srv +ip {{server.build.default.ip}}", "./srv +ip ${SERVER_IP}"},
+		{"./srv --id {{server.uuid}}", "./srv --id ${P_SERVER_UUID}"},
+		// No equivalent: left as written, never filled with panel data.
+		{"./srv {{config.docker.interface}} {{server.build.env.X}}", "./srv {{config.docker.interface}} {{server.build.env.X}}"},
+		{"./srv {{SERVER_PORT}} {{server.build.default.port}}", "./srv ${SERVER_PORT} ${SERVER_PORT}"},
+	} {
+		if got := shellStartup(c.in); got != c.want {
+			t.Errorf("shellStartup(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestBuildEnvIgnoresUnknownOverrides(t *testing.T) {
 	t.Parallel()
 	egg := store.Egg{Variables: []store.EggVar{{Env: "SERVER_JARFILE", Default: "server.jar"}}}
@@ -47,14 +67,15 @@ func TestBuildEnvIgnoresUnknownOverrides(t *testing.T) {
 		"SERVER_JARFILE": "paper.jar",
 		"LD_PRELOAD":     "/evil.so", // not an egg variable: must be dropped
 		"SERVER_PORT":    "1",        // built-ins cannot be overridden
-	}, 2048, 25570)
+		"SERVER_IP":      "10.0.0.1",
+	}, 2048, 25570, "u1")
 	if env["SERVER_JARFILE"] != "paper.jar" {
 		t.Fatal("legit override lost")
 	}
 	if _, ok := env["LD_PRELOAD"]; ok {
 		t.Fatal("unknown variable leaked into the container env")
 	}
-	if env["SERVER_PORT"] != "25570" || env["SERVER_MEMORY"] != "2048" {
+	if env["SERVER_PORT"] != "25570" || env["SERVER_MEMORY"] != "2048" || env["SERVER_IP"] != "0.0.0.0" || env["P_SERVER_UUID"] != "u1" {
 		t.Fatalf("built-ins wrong: %v", env)
 	}
 }
@@ -132,5 +153,70 @@ func TestImportDoneAndFeatures(t *testing.T) {
 				t.Errorf("features %q", e.Features)
 			}
 		})
+	}
+}
+
+// The stock BungeeCord egg's config.files, as Pterodactyl exports it (a JSON
+// string inside the JSON).
+const bungeeFiles = `"{\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"listeners[0].query_port\": \"{{server.build.default.port}}\",\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"servers.*.address\": {\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\n            }\n        }\n    }\n}"`
+
+func TestImportConfigFiles(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`{"name":"Bungee","docker_images":{"J":"ghcr.io/pterodactyl/yolks:java_21"},"startup":"java -jar b.jar",
+	  "config":{"files":` + bungeeFiles + `}}`)
+	e, err := importPTDL(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []store.EggConfigFile{{File: "config.yml", Parser: "yaml", Find: []store.EggFind{
+		{Key: "listeners[0].query_port", Value: "{{server.build.default.port}}"},
+		{Key: "listeners[0].host", Value: "0.0.0.0:{{server.build.default.port}}"},
+		{Key: "servers.*.address", IfValue: `regex:^(127\.0\.0\.1|localhost)(:\d{1,5})?$`, Value: "{{config.docker.interface}}$2"},
+	}}}
+	got, _ := json.Marshal(e.ConfigFiles)
+	exp, _ := json.Marshal(want)
+	if !bytes.Equal(got, exp) {
+		t.Fatalf("got  %s\nwant %s", got, exp)
+	}
+
+	// Objects, numbers and booleans; unusable entries are skipped.
+	raw = []byte(`{"name":"X","docker_image":"img","startup":"x","config":{"files":{
+	  "a.json":{"parser":"json","find":{"n":5,"b":true,"s":"v","skip":null}},
+	  "bad.txt":{"parser":"nope","find":{"a":"b"}},
+	  "worse":"not an object"}}}`)
+	if e, err = importPTDL(raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.ConfigFiles) != 1 || len(e.ConfigFiles[0].Find) != 3 || e.ConfigFiles[0].Find[0].Value != "5" || e.ConfigFiles[0].Find[1].Value != "true" {
+		t.Fatalf("%+v", e.ConfigFiles)
+	}
+	for _, empty := range []string{`"{}"`, `{}`, `""`, `null`, `[]`} {
+		e, err := importPTDL([]byte(`{"name":"X","docker_image":"img","startup":"x","config":{"files":` + empty + `}}`))
+		if err != nil || len(e.ConfigFiles) != 0 {
+			t.Fatalf("%s: %v %+v", empty, err, e.ConfigFiles)
+		}
+	}
+}
+
+func TestSpecConfigFilesUseOnlyTheServersValues(t *testing.T) {
+	t.Parallel()
+	files := []store.EggConfigFile{{File: "murmur.ini", Parser: "ini", Find: []store.EggFind{
+		{Key: "port", Value: "{{server.build.default.port}}"},
+		{Key: "users", Value: "{{server.build.env.MAX_USERS}}"},
+		{Key: "users2", Value: "{{env.MAX_USERS}}"},
+		{Key: "mem", Value: "{{server.build.memory}}M on {{server.build.default.ip}}"},
+		{Key: "iface", Value: "{{config.docker.interface}}"},
+		{Key: "unknown", Value: "[{{server.secret}}][{{SERVER_PORT}}][{{ server.build.memory }}]"},
+	}}}
+	s := store.Server{UUID: "u1", Port: 30000, Limits: store.Limits{MemoryMB: 512}}
+	got := specConfigFiles(files, s, "img", map[string]string{"MAX_USERS": "20"})
+	want := []string{"30000", "20", "20", "512M on 0.0.0.0", "{{config.docker.interface}}", "[][{{SERVER_PORT}}][{{ server.build.memory }}]"}
+	for i, w := range want {
+		if got[0].Set[i].Value != w {
+			t.Errorf("%s = %q, want %q", got[0].Set[i].Key, got[0].Set[i].Value, w)
+		}
+	}
+	if specConfigFiles(nil, s, "img", nil) != nil {
+		t.Fatal("no config files should send none")
 	}
 }

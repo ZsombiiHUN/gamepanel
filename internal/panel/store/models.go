@@ -446,6 +446,27 @@ type Egg struct {
 	// Done lists console text that means the server has started; while it
 	// is set, the server reports "starting" until one is printed.
 	Done []string `json:"done" nullable:"false"`
+	// ConfigFiles are the egg's config.files: config files the node edits
+	// before each start, such as the port in server.properties.
+	ConfigFiles []EggConfigFile `json:"config_files" nullable:"false"`
+}
+
+// EggConfigFile is one file of an egg's config.files.
+type EggConfigFile struct {
+	File   string `json:"file"`
+	Parser string `json:"parser" enum:"properties,ini,yaml,yml,json,file,xml"`
+	// Find lists the keys to set, in the egg's order. Values may hold
+	// Pterodactyl placeholders such as {{server.build.default.port}}.
+	Find []EggFind `json:"find" nullable:"false"`
+}
+
+// EggFind sets one key of a config file.
+type EggFind struct {
+	Key string `json:"key"`
+	// IfValue: only change the key while its value is this ("regex:" for a
+	// pattern, whose match is replaced).
+	IfValue string `json:"if_value,omitempty"`
+	Value   string `json:"value"`
 }
 
 func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
@@ -464,6 +485,13 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	if e.Done == nil {
 		e.Done = []string{}
 	}
+	if e.ConfigFiles == nil {
+		e.ConfigFiles = []EggConfigFile{}
+	}
+	files, err := json.Marshal(e.ConfigFiles)
+	if err != nil {
+		return Egg{}, err
+	}
 	feats, err := json.Marshal(e.Features)
 	if err != nil {
 		return Egg{}, err
@@ -480,8 +508,8 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	if err != nil {
 		return Egg{}, err
 	}
-	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, string(feats), string(done), now())
+	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done,config_files,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, string(feats), string(done), string(files), now())
 	if err != nil {
 		return Egg{}, err
 	}
@@ -491,9 +519,15 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 
 func scanEgg(sc rowScanner) (Egg, error) {
 	var e Egg
-	var vars, imgs, feats, done string
-	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript, &feats, &done); err != nil {
+	var vars, imgs, feats, done, files string
+	if err := sc.Scan(&e.ID, &e.Name, &e.Description, &e.DockerImage, &imgs, &e.Startup, &e.Stop, &vars, &e.InstallImage, &e.InstallEntrypoint, &e.InstallScript, &feats, &done, &files); err != nil {
 		return e, nf(err)
+	}
+	if err := json.Unmarshal([]byte(files), &e.ConfigFiles); err != nil {
+		return e, fmt.Errorf("egg %d config files: %w", e.ID, err)
+	}
+	if e.ConfigFiles == nil {
+		e.ConfigFiles = []EggConfigFile{}
 	}
 	if err := json.Unmarshal([]byte(feats), &e.Features); err != nil {
 		return e, fmt.Errorf("egg %d features: %w", e.ID, err)
@@ -522,7 +556,7 @@ func scanEgg(sc rowScanner) (Egg, error) {
 	return e, nil
 }
 
-const eggCols = `id,name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done`
+const eggCols = `id,name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done,config_files`
 
 func (s *Store) GetEgg(ctx context.Context, id int64) (Egg, error) {
 	return scanEgg(s.DB.QueryRowContext(ctx, `SELECT `+eggCols+` FROM eggs WHERE id=?`, id))

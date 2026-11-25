@@ -41,14 +41,14 @@ func fixture() *Source {
 		Eggs: []Egg{
 			{
 				ID: 1, NestID: 1, Name: "Paper", DockerImages: ns(`{"Java 21":"ghcr.io/x/java:21","Java 17":"ghcr.io/x/java:17"}`),
-				Startup: ns(paperStartup), ConfigStop: ns("stop"), ConfigFiles: ns(`{"server.properties":{}}`), ConfigStartup: ns(`{"done":")! For help"}`),
+				Startup: ns(paperStartup), ConfigStop: ns("stop"), ConfigFiles: ns(`{"server.properties":{"parser":"properties","find":{"server-port":"{{server.build.default.port}}"}}}`), ConfigStartup: ns(`{"done":")! For help"}`),
 				ScriptImage: "ghcr.io/x/installer", ScriptEntry: "bash", ScriptInstall: ns("echo install"),
 			},
 			{
 				ID: 2, NestID: 1, Name: "Paper child", DockerImages: ns(`{"Java 21":"ghcr.io/x/java:21"}`), Startup: ns(paperStartup),
 				ConfigFrom: ni(1), CopyScriptFrom: ni(1), ScriptImage: "alpine:3.4", ScriptEntry: "ash", FileDenylist: ns(`["server.jar"]`),
 			},
-			{ID: 3, NestID: 2, Name: "paper", DockerImages: ns(`["ghcr.io/x/old:1"]`), Startup: ns("./run")},
+			{ID: 3, NestID: 2, Name: "paper", DockerImages: ns(`["ghcr.io/x/old:1"]`), Startup: ns("./run"), ConfigFiles: ns(`{"serverconfig.xml":{"parser":"xml","find":{"a":"b"}}}`)},
 			{ID: 4, NestID: 2, Name: "Broken", DockerImages: ns(`{}`), Startup: ns("./run")},
 		},
 		EggVars: []EggVar{
@@ -152,8 +152,14 @@ func TestPlanEggs(t *testing.T) {
 	if child.Egg.InstallScript != "echo install" || child.Egg.InstallImage != "ghcr.io/x/installer" || child.Egg.Stop != "stop" {
 		t.Errorf("child did not inherit script and config: %+v", child.Egg)
 	}
-	if !hasNote(p, Changed, "file denylist") || !hasNote(p, Info, "config.files") {
-		t.Error("denylist / config.files not reported")
+	if !hasNote(p, Changed, "file denylist") || !hasNote(p, Changed, "XML config files") {
+		t.Error("denylist / XML config files not reported")
+	}
+	// The child inherits config.files from its parent (config_from).
+	for _, e := range []PlanEgg{paper, child} {
+		if len(e.Egg.ConfigFiles) != 1 || e.Egg.ConfigFiles[0].File != "server.properties" || e.Egg.ConfigFiles[0].Find[0].Value != "{{server.build.default.port}}" {
+			t.Errorf("%s config files: %+v", e.Egg.Name, e.Egg.ConfigFiles)
+		}
 	}
 	if !hasNote(p, Changed, `egg "Broken" skipped`) {
 		t.Error("an unused broken egg should be skipped with a note")

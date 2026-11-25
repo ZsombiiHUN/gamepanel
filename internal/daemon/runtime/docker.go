@@ -44,6 +44,21 @@ func NewDocker() (*Docker, error) {
 
 func name(uuid string) string { return namePrefix + uuid }
 
+// Gateway is the address containers reach the host on: the gateway of the
+// default bridge network, which server containers use.
+func (d *Docker) Gateway(ctx context.Context) (string, error) {
+	res, err := d.cli.NetworkInspect(ctx, "bridge", client.NetworkInspectOptions{})
+	if err != nil {
+		return "", err
+	}
+	for _, c := range res.Network.IPAM.Config {
+		if c.Gateway.Is4() {
+			return c.Gateway.String(), nil
+		}
+	}
+	return "", errors.New("the bridge network has no IPv4 gateway")
+}
+
 func (d *Docker) Ping(ctx context.Context) error {
 	_, err := d.cli.Ping(ctx, client.PingOptions{})
 	return err

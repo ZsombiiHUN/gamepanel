@@ -16,9 +16,9 @@ Notes help you remember what each port is for ("query", "RCON", "voice").
 A port is published on the same number inside the container as outside. The game must listen on that port:
 
 - Eggs that pass `{{SERVER_PORT}}` on the command line do so automatically.
-- Games that read the port from a config file need it set there. For **Minecraft**, set `server-port=` in `server.properties` to the primary port. See [Eggs → Ports and config files](/admin/eggs#ports-and-config-files).
+- Eggs that write the port into a config file, such as Minecraft's `server.properties`, write the new one before each start. See [Eggs → Config files](/admin/eggs#config-files).
 
-When you switch the primary port, update the game's config the same way.
+When you switch the primary port, restart the server so it picks up the new one. A game whose egg does neither needs the port set in its config by hand.
 
 ## When changes apply
 
