@@ -152,9 +152,18 @@ func TestAdoptWings(t *testing.T) {
 		t.Error("a server Wings had stopped was started")
 	}
 
-	// A second run finds nothing left to take over.
+	// A second run (install.sh run again) finds nothing left to take over,
+	// which is not an error.
+	var out strings.Builder
+	opts.Out = &out
+	if res, err := AdoptWings(ctx, opts); err != nil || len(res.Moved)+len(res.Copied) != 0 || !strings.Contains(out.String(), "nothing left") {
+		t.Fatalf("second run: %v %+v %q", err, res, out.String())
+	}
+	// An empty Wings folder with nothing adopted yet is a mistake (a wrong
+	// --from), and is reported.
+	opts.DataDir = t.TempDir()
 	if _, err := AdoptWings(ctx, opts); err == nil || !strings.Contains(err.Error(), "no server folders") {
-		t.Fatalf("second run: %v", err)
+		t.Fatalf("wrong --from: %v", err)
 	}
 }
 

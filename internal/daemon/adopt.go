@@ -115,6 +115,12 @@ func AdoptWings(ctx context.Context, o AdoptOptions) (AdoptResult, error) {
 	}
 	sort.Strings(ids)
 	if len(ids) == 0 {
+		// A second run (install.sh run again after a later step failed)
+		// finds the folders already moved: that is done, not an error.
+		if have, _ := os.ReadDir(filepath.Join(o.DataDir, "servers")); len(have) > 0 {
+			_, _ = fmt.Fprintf(out, "nothing left to take over in %s; %d server folder(s) are already in %s\n", o.From, len(have), o.DataDir) // progress only
+			return res, nil
+		}
 		return res, fmt.Errorf("no server folders in %s", o.From)
 	}
 

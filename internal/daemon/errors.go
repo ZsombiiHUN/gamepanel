@@ -39,6 +39,9 @@ func forPeople(err error) error {
 		return &proto.Error{Code: proto.CodeDiskFull, Msg: "that does not fit in the server's disk limit"}
 	case errors.Is(err, syscall.EINVAL):
 		return proto.Invalid("a folder cannot be moved or copied into itself")
+	case strings.Contains(err.Error(), "io.weight"):
+		// runc, on a kernel without the io controller's weight file.
+		return proto.Invalid("this node cannot apply an IO weight; set the server's IO weight to 0 and start it again")
 	case strings.Contains(err.Error(), "unsafe path in archive"):
 		return proto.Invalid("the archive contains unsafe paths and was not extracted")
 	case strings.Contains(err.Error(), "damaged") || strings.Contains(err.Error(), "not a gzip"):

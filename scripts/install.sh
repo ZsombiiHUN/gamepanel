@@ -21,6 +21,7 @@ DOMAIN=""
 EMAIL=""
 PANEL=""
 TOKEN=""
+ADOPT=""
 CADDY=auto
 DOCKER=auto
 YES=0
@@ -59,6 +60,9 @@ Options:
   --panel <domain>    node: the panel's domain (or a full wss:// URL)
   --token <token>     node: the token from Nodes -> Create node
   --no-docker         node: do not install Docker if it is missing
+  --adopt-wings <dir> node: take over the server files Pterodactyl's Wings kept
+                      in <dir> (e.g. /var/lib/pterodactyl/volumes) before the
+                      daemon first starts; see docs/guides/from-pterodactyl.md
   -y, --yes           do not ask before installing Docker or Caddy
 EOF
 }
@@ -276,6 +280,19 @@ EOF
 		command -v "$t" >/dev/null || warn "$t is missing: network limits are off (install iproute2 and util-linux)"
 	done
 
+	if [ -n "$ADOPT" ]; then
+		# Before the daemon's first start: once it connects, the panel creates
+		# the imported servers here, and any whose files are not here yet would
+		# be installed from scratch.
+		if systemctl is-active --quiet wings 2>/dev/null; then
+			die "Wings is still running; stop it first: systemctl disable --now wings"
+		fi
+		say "Taking over Wings' servers from $ADOPT"
+		# shellcheck source=/dev/null
+		(set -a && . "$ETC/daemon.env" && "$BIN/gamepanel-daemon" adopt-wings --from "$ADOPT") ||
+			die "adopt-wings failed; the daemon was not started. Fix the problem above and run this again"
+	fi
+
 	install -m 0644 "$tmp/packaging/systemd/gamepanel-daemon.service" /etc/systemd/system/gamepanel-daemon.service
 	systemctl daemon-reload
 	systemctl enable --now gamepanel-daemon
@@ -355,6 +372,7 @@ while [ $# -gt 0 ]; do
 	--token) TOKEN=${2:?--token needs a value} && shift ;;
 	--no-caddy) CADDY=no ;;
 	--no-docker) DOCKER=no ;;
+	--adopt-wings) ADOPT=${2:?--adopt-wings needs a directory} && shift ;;
 	-y | --yes) YES=1 ;;
 	-h | --help) cmd=help ;;
 	*) die "unknown option $1 (see install.sh help)" ;;
