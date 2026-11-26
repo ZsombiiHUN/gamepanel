@@ -607,6 +607,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List locations (admin) */
+        get: operations["listLocations"];
+        put?: never;
+        /** Create a location (admin) */
+        post: operations["createLocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/locations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a location that has no nodes (admin) */
+        delete: operations["deleteLocation"];
+        options?: never;
+        head?: never;
+        /** Rename a location (admin) */
+        patch: operations["updateLocation"];
+        trace?: never;
+    };
     "/nodes": {
         parameters: {
             query?: never;
@@ -652,6 +688,23 @@ export interface paths {
         get?: never;
         /** Set what a node can hold (0 = not tracked); existing servers are not touched */
         put: operations["setNodeCapacity"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{id}/location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put a node in a location (admin) */
+        put: operations["setNodeLocation"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2245,6 +2298,31 @@ export interface components {
              */
             swap_mb: number;
         };
+        Location: {
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            id: number;
+            /** @description a description, e.g. Frankfurt, Germany */
+            long: string;
+            /**
+             * Format: int64
+             * @description nodes in this location
+             */
+            nodes: number;
+            /** @description a short code, unique, e.g. eu-west */
+            short: string;
+        };
+        LocationInBody: {
+            /** @description a description, e.g. Frankfurt, Germany */
+            long?: string;
+            /** @description a short code, unique, e.g. eu-west */
+            short: string;
+        };
+        LocationUpdateInBody: {
+            long?: string;
+            short?: string;
+        };
         LoginInBody: {
             /** Format: email */
             email: string;
@@ -2325,6 +2403,8 @@ export interface components {
             /** Format: int64 */
             id: number;
             /** Format: int64 */
+            location_id: number;
+            /** Format: int64 */
             memory_mb: number;
             name: string;
             /** Format: int64 */
@@ -2375,6 +2455,13 @@ export interface components {
             /** @description Shown once. Set as GAMEPANEL_NODE_TOKEN on the daemon. */
             token: string;
         };
+        NodeLocationInBody: {
+            /**
+             * Format: int64
+             * @description 0 takes the node out of any location
+             */
+            location_id: number;
+        };
         NodeSFTPInBody: {
             /** @description host name or IP address SFTP clients connect to; empty = the panel's host */
             host: string;
@@ -2393,6 +2480,8 @@ export interface components {
             disk_mb: number;
             /** Format: int64 */
             id: number;
+            /** Format: int64 */
+            location_id: number;
             /** Format: int64 */
             memory_mb: number;
             name: string;
@@ -2594,6 +2683,8 @@ export interface components {
              * @description 0 = default, else 10-1000
              */
             io_weight?: number;
+            /** @description when node_id is 0, pick only nodes in these locations (and in node_ids, if given) */
+            location_ids?: number[] | null;
             /** Format: int64 */
             memory_mb: number;
             name: string;
@@ -4235,6 +4326,132 @@ export interface operations {
             };
         };
     };
+    listLocations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Location"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    createLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationInBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Location"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    deleteLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    updateLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationUpdateInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Location"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     listNodes: {
         parameters: {
             query?: never;
@@ -4338,6 +4555,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["NodeCapacityInBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    setNodeLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeLocationInBody"];
             };
         };
         responses: {
