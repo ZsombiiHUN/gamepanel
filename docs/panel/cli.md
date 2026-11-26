@@ -11,7 +11,7 @@ sudo -u gamepanel sh -c 'set -a; . /etc/gamepanel/panel.env; exec /usr/local/bin
 The commands are safe to run while the panel is running.
 
 ::: warning
-Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it. `version`, `help` and `import-pterodactyl` are the exceptions: they open nothing (`import-pterodactyl --apply` opens the existing database and never creates one).
+Without `GAMEPANEL_DB`, a command opens (and creates) `./panel.db` in the current folder, and a `panel.db.key` next to it. `version`, `help`, `healthcheck` and `import-pterodactyl` are the exceptions: they open nothing (`import-pterodactyl --apply` opens the existing database and never creates one).
 :::
 
 ## `panel version`
@@ -81,6 +81,10 @@ The database is read in one read-only transaction, so it is safe while Pterodact
 CREATE USER 'gp_import'@'127.0.0.1' IDENTIFIED BY '...';
 GRANT SELECT ON panel.* TO 'gp_import'@'127.0.0.1';
 ```
+
+## `panel healthcheck`
+
+Asks the panel listening on `GAMEPANEL_ADDR` (default `127.0.0.1:8080`; a wildcard address is asked on loopback) for `/readyz`, and exits `0` when it is ready. The Docker image uses it as its `HEALTHCHECK`. See [Monitoring](/panel/monitoring).
 
 ## `panel --addr <address>`
 

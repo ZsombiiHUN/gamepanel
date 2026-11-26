@@ -11,6 +11,23 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Added
+
+- `/healthz` (the panel serves requests) and `/readyz` (and its database
+  answers), for load balancers and orchestrators, and `panel healthcheck`,
+  which the Docker image now uses as its `HEALTHCHECK`. Docker Compose starts
+  Caddy once the panel is healthy.
+- `/metrics` in Prometheus format, behind `GAMEPANEL_METRICS_TOKEN`: nodes
+  (and how many are connected), servers, accounts, webhook deliveries, request
+  rates and latencies by area. Not served without a token. See
+  [Monitoring](docs/panel/monitoring.md).
+- The Nodes page shows the version each node's daemon runs, and warns when it
+  differs from the panel's.
+
+### Fixed
+
+- The API description reported version 0.1.0 whatever the panel ran.
+
 ### Security
 
 - Game servers are isolated from each other and from the node. Every server

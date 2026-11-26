@@ -88,6 +88,7 @@ export default defineConfig({
           { text: 'Backups in S3', link: '/panel/s3-backups' },
           { text: 'Command line', link: '/panel/cli' },
           { text: 'Backing up the panel', link: '/panel/backing-up' },
+          { text: 'Monitoring', link: '/panel/monitoring' },
           { text: 'Upgrading', link: '/panel/upgrading' },
           { text: 'Repair, settings, uninstall', link: '/panel/managing' },
         ],

@@ -25,6 +25,12 @@ services:
     volumes:
       - panel-data:/data # panel.db and panel.db.key: back up both
     networks: [gamepanel]
+    healthcheck: # also in the image; repeated so older Compose versions see it
+      test: ["CMD", "/usr/local/bin/panel", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
   caddy:
     image: caddy:2.10-alpine
@@ -37,7 +43,9 @@ services:
     volumes:
       - caddy-data:/data
     networks: [gamepanel]
-    depends_on: [panel]
+    depends_on:
+      panel:
+        condition: service_healthy
 
   # A node on this machine. It talks to the host's Docker, so server folders
   # are host paths: the data directory is mounted at the same path inside and

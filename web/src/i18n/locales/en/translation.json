@@ -280,6 +280,9 @@
   },
   "nodesPage": {
     "nodes": "Nodes",
+    "daemonVersion": "Daemon {{version}}",
+    "versionMismatch": "This node runs a different version ({{version}}) than the panel",
+    "upgradeTogether": "Mixed versions are not tested. Upgrade the panel and every node to the same version.",
     "itIsShownOnlyOnce": "It is shown only once. Set it on the daemon as an environment variable:",
     "daemonEnvironment": "Daemon environment",
     "copyEnvLine": "Copy env line",

@@ -19,6 +19,8 @@ const node = (over: Record<string, unknown> = {}) => ({
   location_id: 0,
   online: true,
   unknown_servers: [],
+  version: "",
+  version_mismatch: false,
   ...over,
 });
 
@@ -65,5 +67,25 @@ describe("Node locations", () => {
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Location" }), "No location");
     await userEvent.click(screen.getByRole("button", { name: "Save location" }));
     await waitFor(() => expect(api.callsTo("PUT /api/nodes/1/location")[0]?.body).toEqual({ location_id: 0 }));
+  });
+});
+
+describe("Node versions", () => {
+  it("shows each node's daemon version and warns when it differs from the panel's", async () => {
+    const api = new FakeApi({
+      "GET /api/servers": [],
+      "GET /api/nodes": [
+        node({ version: "0.3.0" }),
+        node({ id: 2, name: "old-1", version: "0.2.1", version_mismatch: true }),
+        node({ id: 3, name: "off-1", online: false }),
+      ],
+      "GET /api/locations": [],
+    });
+    renderApp(api, "/nodes");
+    expect(await screen.findByText("Daemon 0.3.0")).toBeInTheDocument();
+    expect(screen.getByText("Daemon 0.2.1")).toBeInTheDocument();
+    const warnings = screen.getAllByText(/runs a different version/);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toHaveTextContent("(0.2.1)");
   });
 });

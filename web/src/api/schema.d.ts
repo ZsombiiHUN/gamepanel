@@ -2496,6 +2496,8 @@ export interface components {
             /** Format: int64 */
             sftp_port: number;
             unknown_servers: string[];
+            version: string;
+            version_mismatch: boolean;
         };
         OptionsOutBody: {
             passkeys: boolean;

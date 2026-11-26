@@ -186,3 +186,28 @@ func (s *Store) execBestEffort(ctx context.Context, what, q string, a ...any) {
 		s.Log.WarnContext(ctx, "best-effort database write failed", "what", what, "err", err)
 	}
 }
+
+// Ping checks that the database answers a query.
+func (s *Store) Ping(ctx context.Context) error {
+	var one int
+	return s.DB.QueryRowContext(ctx, `SELECT 1`).Scan(&one)
+}
+
+// Totals are counts for monitoring (/metrics).
+type Totals struct {
+	Users, Nodes, Servers, SuspendedServers, PendingDeliveries, FailedDeliveries int
+}
+
+// Totals counts what /metrics reports, in one query.
+func (s *Store) Totals(ctx context.Context) (Totals, error) {
+	var t Totals
+	err := s.DB.QueryRowContext(ctx, `SELECT
+		(SELECT COUNT(*) FROM users),
+		(SELECT COUNT(*) FROM nodes),
+		(SELECT COUNT(*) FROM servers),
+		(SELECT COUNT(*) FROM servers WHERE suspended),
+		(SELECT COUNT(*) FROM webhook_deliveries WHERE status='pending'),
+		(SELECT COUNT(*) FROM webhook_deliveries WHERE status='failed')`).
+		Scan(&t.Users, &t.Nodes, &t.Servers, &t.SuspendedServers, &t.PendingDeliveries, &t.FailedDeliveries)
+	return t, err
+}
