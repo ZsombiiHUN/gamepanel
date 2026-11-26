@@ -45,7 +45,7 @@ const sections: { title: string; who: string; items: Entry[] }[] = [
       { text: 'API overview', link: '/api/overview', note: 'keys, OpenAPI, errors' },
       { text: 'Shops and billing', link: '/server-creation#selling-servers-the-shop-api', note: 'create servers on payment' },
       { text: 'Webhooks', link: '/server-creation#webhooks', note: 'signed events, retries' },
-      { text: 'Pterodactyl client API', link: '/api/pterodactyl', note: 'the routes that work as they are' },
+      { text: 'Pterodactyl API', link: '/api/pterodactyl', note: 'for bots, apps and billing modules' },
       { text: 'Development', link: '/reference/development', note: 'build, run, test' },
     ],
   },

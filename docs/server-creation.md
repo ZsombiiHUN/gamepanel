@@ -81,7 +81,8 @@ Content-Type: application/json
 | `name` | yes | 1–64 characters, one line, plain text. Trimmed. |
 | `owner_id` | no | The account that owns the server. Defaults to the caller. |
 | `node_id` | no | The node to run it on. Leave out (or 0) to let the panel pick: the online node with the most free memory that has room and a free port. |
-| `node_ids` | no | With no `node_id`: the nodes the panel may pick from (a region, say). Default: all. |
+| `node_ids` | no | With no `node_id`: the nodes the panel may pick from. Default: all. |
+| `location_ids` | no | With no `node_id`: pick only nodes in these [locations](/admin/nodes#locations) (a region, say), and in `node_ids` if given too. `422` when no node is in them. |
 | `external_id` | no | Your own id for the server (an order number), up to 191 characters, unique. A create whose `external_id` is already used returns that server with `200` and changes nothing, so a shop can retry safely. |
 | `start_on_completion` | no | Start the server once it is installed. |
 | `egg_id` | yes | The egg (game and install script). |
@@ -289,7 +290,7 @@ on those servers are turned off (they ran with its permissions).
 ### Choosing the node
 
 Leave `node_id` out and the panel picks, among the online nodes (only those in
-`node_ids`, if given):
+`node_ids` and in the locations in `location_ids`, if given):
 
 1. Nodes that track memory capacity, the one with the most free memory first
    (counting the overallocation percentage);
@@ -319,12 +320,15 @@ Invitations (`POST /api/invites`) and open sign-up still work, for hosts that
 want the customer to make their own account first. Hand a server to an
 existing account with `PUT /api/servers/{uuid}/owner` (by email).
 
+### Billing modules made for Pterodactyl
+
+WHMCS, Paymenter and Blesta modules for Pterodactyl work unchanged: GamePanel
+answers the part of [Pterodactyl's application API](/api/pterodactyl#application-api)
+they use, with an administrator's API key. Use this page's API when you write
+your own integration: it adds safe retries and webhooks.
+
 ### Not done yet
 
-- **Pterodactyl Application API compatibility** (`/api/application/...`), so
-  existing WHMCS, Paymenter and Blesta modules for Pterodactyl work unchanged.
-  The client API is already compatible. Until then a shop needs a module
-  written for this API (the calls above).
 - **A page for accounts and webhooks** in the interface. Both are API only for
   now; suspension has a button in each server's settings.
 

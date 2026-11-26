@@ -28,12 +28,28 @@ Changing a node's capacity (`PUT /api/nodes/{id}/capacity`) never touches server
 
 ### Choosing a node automatically
 
-When a server is created without a node, the panel picks one among the online nodes (or the ones listed in `node_ids`):
+When a server is created without a node, the panel picks one among the online nodes (or the ones listed in `node_ids`, or in the locations in `location_ids`):
 
 1. nodes that track memory, the one with the most free memory first;
 2. then nodes that do not track it, the least used first;
 
 and takes the first with room for the memory and disk and a free port. See [Creating servers](/server-creation#choosing-the-node).
+
+## Locations
+
+A location groups nodes: a data centre or a region (`eu-west`, "Frankfurt"). Shops sell a server *in a location* and the panel picks a node there, the same way as above. Billing modules made for Pterodactyl ([WHMCS, Paymenter, Blesta](/api/pterodactyl#application-api)) need at least one location with nodes in it.
+
+Put a node in a location on the Nodes page (a node's settings → **Location**), where you can also make a new one. Through the API:
+
+| Call | Does |
+|---|---|
+| `GET /api/locations` | List locations, with how many nodes each has |
+| `POST /api/locations` | `{"short": "eu-west", "long": "Frankfurt"}`. The short code is unique, ignoring case |
+| `PATCH /api/locations/{id}` | Change the short code or description |
+| `DELETE /api/locations/{id}` | Only a location without nodes |
+| `PUT /api/nodes/{id}/location` | `{"location_id": 3}`; `0` takes the node out of any location |
+
+A node can be in one location, or none. [Imported](/guides/from-pterodactyl) panels keep Pterodactyl's locations, with their ids.
 
 ## SFTP address
 

@@ -14,7 +14,7 @@ How to build, run and test GamePanel from source. The code standards CI enforces
 | Path | What |
 |---|---|
 | `cmd/panel`, `cmd/daemon` | The two programs |
-| `internal/panel/api` | HTTP API, auth, websockets, webhooks, the Pterodactyl client API |
+| `internal/panel/api` | HTTP API, auth, websockets, webhooks, the Pterodactyl client and application APIs |
 | `internal/panel/store` | SQLite access and migrations |
 | `internal/panel/hub` | Connected nodes and request routing |
 | `internal/panel/{s3,mail,dbhost,modrinth}` | Outside services |

@@ -140,7 +140,7 @@ export default defineConfig({
           { text: 'API reference', link: '/api/reference' },
           { text: 'Shops and billing', link: '/server-creation#selling-servers-the-shop-api' },
           { text: 'Webhooks', link: '/server-creation#webhooks' },
-          { text: 'Pterodactyl client API', link: '/api/pterodactyl' },
+          { text: 'Pterodactyl API', link: '/api/pterodactyl' },
         ],
       },
       {

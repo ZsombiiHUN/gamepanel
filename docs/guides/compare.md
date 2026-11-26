@@ -39,7 +39,7 @@ These versions were compared: GamePanel v0.1.1, Pterodactyl Panel v1.15.2 with W
 | Plugins or extensions | No | Third-party (version 2 adds extensions) | Yes, with an in-app plugin hub | No |
 | Languages | English | English | Many | Several |
 | Mod installer | Modrinth, built in | Add-ons | Plugins | Not documented |
-| API | OpenAPI 3.1, plus Pterodactyl's client API | Client and application API | Client and application API | REST API |
+| API | OpenAPI 3.1, plus Pterodactyl's client API and the application API's billing part | Client and application API | Client and application API | REST API |
 | Windows nodes | No | No | No | No (dropped in 3.0) |
 
 "Not documented" means we could not find it in that project's docs. It does not mean the feature is missing.
@@ -66,7 +66,7 @@ Read this before you move anything that matters.
 - **XML config files in eggs are not edited.** GamePanel applies an egg's `config.files` before each start, as Wings does, for properties, ini, yaml, json and plain files. The few eggs that edit an XML file need the port set there by hand. See [Config files](/admin/eggs#config-files).
 - **No server transfers and no mounts.** To move a server to another node, back it up and restore it there by hand. See [Moving or rebuilding a node](/nodes/data-directory#moving-or-rebuilding-a-node).
 - **The Pterodactyl import is new.** `panel import-pterodactyl --apply` and `adopt-wings` move a whole panel and its nodes, and a smoke test runs them against a real Pterodactyl and Wings, but they have not moved a large production panel yet. Keep a backup. Pelican can take over a Pterodactyl install in place.
-- **No billing modules.** WHMCS, Paymenter and Blesta modules use Pterodactyl's application API, which GamePanel does not have. A shop needs to call [GamePanel's API](/server-creation#selling-servers-the-shop-api) instead.
+- **Billing modules are new here.** WHMCS, Paymenter and Blesta modules for Pterodactyl work through the [part of the application API](/api/pterodactyl#application-api) they use, tested against their source but not yet in a live shop.
 - **No plugins.** Pelican has a plugin hub and Pterodactyl has a large add-on market. Changing GamePanel means changing its code.
 - **English only.** The interface is ready for translations, but none exist yet.
 - **SQLite only.** This is fine for one panel with many servers, but you cannot point several panels at one shared database.
@@ -78,7 +78,7 @@ Read this before you move anything that matters.
 
 ## Which one should you use?
 
-- **You sell servers and need WHMCS or Paymenter today:** Pterodactyl.
+- **You sell servers and need a billing system that has run for years:** Pterodactyl. GamePanel works with the same WHMCS, Paymenter and Blesta modules, but has not run in a live shop yet.
 - **You run Pterodactyl and want plugins, passkeys and an in-place upgrade:** Pelican.
 - **You run only Minecraft, possibly on Windows:** Crafty Controller.
 - **You want one commercial product with support, on Windows or Linux:** AMP.
