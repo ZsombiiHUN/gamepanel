@@ -19,7 +19,7 @@ type Passkey struct {
 // first time.
 func (s *Store) WebAuthnHandle(ctx context.Context, userID int64) ([]byte, error) {
 	var h []byte
-	if err := s.DB.QueryRowContext(ctx, `SELECT webauthn_id FROM users WHERE id=?`, userID).Scan(&h); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT webauthn_id FROM users WHERE id=?`, userID).Scan(&h); err != nil {
 		return nil, nf(err)
 	}
 	if len(h) > 0 {
@@ -31,20 +31,20 @@ func (s *Store) WebAuthnHandle(ctx context.Context, userID int64) ([]byte, error
 		return nil, err
 	}
 	// Read back: a concurrent request may have set it first.
-	err := s.DB.QueryRowContext(ctx, `SELECT webauthn_id FROM users WHERE id=?`, userID).Scan(&h)
+	err := s.RO.QueryRowContext(ctx, `SELECT webauthn_id FROM users WHERE id=?`, userID).Scan(&h)
 	return h, err
 }
 
 // UserByWebAuthnHandle finds the account a passkey says it belongs to.
 func (s *Store) UserByWebAuthnHandle(ctx context.Context, handle []byte) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled FROM users WHERE webauthn_id=?`, handle).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
+	err := s.RO.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled FROM users WHERE webauthn_id=?`, handle).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
 	return u, nf(err)
 }
 
 // PasskeyData returns the stored credential records of an account.
 func (s *Store) PasskeyData(ctx context.Context, userID int64) ([][]byte, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) ([]byte, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) ([]byte, error) {
 		var d []byte
 		err := sc.Scan(&d)
 		return d, err
@@ -78,7 +78,7 @@ func (s *Store) UsePasskey(ctx context.Context, userID int64, credID, data []byt
 }
 
 func (s *Store) ListPasskeys(ctx context.Context, userID int64) ([]Passkey, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (Passkey, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (Passkey, error) {
 		var p Passkey
 		err := sc.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.LastUsedAt)
 		return p, err

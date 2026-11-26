@@ -24,9 +24,18 @@ Upgrade the panel and every node to the same version together. See
 - The Nodes page shows the version each node's daemon runs, and warns when it
   differs from the panel's.
 
+### Changed
+
+- Database reads use a pool of read-only connections next to the one
+  connection that writes, so long lists and counts no longer queue every
+  other request behind them.
+
 ### Fixed
 
 - The API description reported version 0.1.0 whatever the panel ran.
+- A slow database could stall a node's whole connection (console, replies,
+  usage) while install statuses waited to be written; they now queue without
+  blocking it.
 
 ### Security
 

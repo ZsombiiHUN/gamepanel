@@ -36,7 +36,7 @@ func enrolTOTP(t *testing.T, s *Store) (int64, []byte, []string) {
 func TestTOTPLockoutHoldsUnderConcurrency(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	s, err := Open(filepath.Join(t.TempDir(), "p.db"))
+	s, err := openT(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestSessionUpgradeMigration(t *testing.T) {
 	}
 	db.Close()
 
-	s, err := Open(path)
+	s, err := openT(path)
 	if err != nil {
 		t.Fatal(err)
 	}

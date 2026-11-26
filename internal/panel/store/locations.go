@@ -48,12 +48,12 @@ func checkLocation(short, long string) (string, string, error) {
 
 // ListLocations returns every location, by id.
 func (s *Store) ListLocations(ctx context.Context) ([]Location, error) {
-	return queryAll(ctx, s.DB, scanLocation, `SELECT `+locationCols+` FROM locations ORDER BY id`)
+	return queryAll(ctx, s.RO, scanLocation, `SELECT `+locationCols+` FROM locations ORDER BY id`)
 }
 
 // GetLocation loads one location.
 func (s *Store) GetLocation(ctx context.Context, id int64) (Location, error) {
-	return scanLocation(s.DB.QueryRowContext(ctx, `SELECT `+locationCols+` FROM locations WHERE id=?`, id))
+	return scanLocation(s.RO.QueryRowContext(ctx, `SELECT `+locationCols+` FROM locations WHERE id=?`, id))
 }
 
 // CreateLocation adds a location.

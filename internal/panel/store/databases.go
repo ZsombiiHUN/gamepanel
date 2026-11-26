@@ -32,7 +32,7 @@ func scanHost(sc rowScanner) (DatabaseHost, error) {
 }
 
 func (s *Store) ListDatabaseHosts(ctx context.Context) ([]DatabaseHost, error) {
-	return queryAll(ctx, s.DB, scanHost, `SELECT `+hostCols+` FROM database_hosts ORDER BY name`)
+	return queryAll(ctx, s.RO, scanHost, `SELECT `+hostCols+` FROM database_hosts ORDER BY name`)
 }
 
 // CreateDatabaseHost saves a host; the password is sealed.
@@ -57,7 +57,7 @@ func (s *Store) CreateDatabaseHost(ctx context.Context, h DatabaseHost, password
 // HostWithSecret loads a host and opens its password.
 func (s *Store) HostWithSecret(ctx context.Context, id int64) (HostSecret, error) {
 	var enc string
-	row := s.DB.QueryRowContext(ctx, `SELECT `+hostCols+`,password_enc FROM database_hosts WHERE id=?`, id)
+	row := s.RO.QueryRowContext(ctx, `SELECT `+hostCols+`,password_enc FROM database_hosts WHERE id=?`, id)
 	var h HostSecret
 	if err := row.Scan(&h.ID, &h.Name, &h.Host, &h.Port, &h.Username, &h.MaxDatabases, &h.NodeID, &h.Databases, &enc); err != nil {
 		return h, nf(err)
@@ -71,7 +71,7 @@ func (s *Store) HostWithSecret(ctx context.Context, id int64) (HostSecret, error
 var ErrHostInUse = userErr("delete the databases on this host first")
 
 func (s *Store) DeleteDatabaseHost(ctx context.Context, id int64) error {
-	n, err := count(ctx, s.DB, `SELECT COUNT(*) FROM server_databases WHERE host_id=?`, id)
+	n, err := count(ctx, s.RO, `SELECT COUNT(*) FROM server_databases WHERE host_id=?`, id)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (s *Store) DeleteDatabaseHost(ctx context.Context, id int64) error {
 // to the server's node if there is one with room, else any host with room.
 func (s *Store) PickDatabaseHost(ctx context.Context, nodeID int64) (int64, error) {
 	var id int64
-	err := s.DB.QueryRowContext(ctx, `SELECT id FROM database_hosts h
+	err := s.RO.QueryRowContext(ctx, `SELECT id FROM database_hosts h
 		WHERE (max_databases = 0 OR (SELECT COUNT(*) FROM server_databases WHERE host_id=h.id) < max_databases)
 		ORDER BY (COALESCE(node_id,0) = ?) DESC, (node_id IS NULL) DESC,
 		         (SELECT COUNT(*) FROM server_databases WHERE host_id=h.id), id
@@ -125,11 +125,11 @@ func scanSDB(sc rowScanner) (ServerDatabase, error) {
 }
 
 func (s *Store) ListServerDatabases(ctx context.Context, server string) ([]ServerDatabase, error) {
-	return queryAll(ctx, s.DB, scanSDB, `SELECT `+sdbCols+` FROM server_databases d JOIN database_hosts h ON h.id=d.host_id WHERE d.server_uuid=? ORDER BY d.name`, server)
+	return queryAll(ctx, s.RO, scanSDB, `SELECT `+sdbCols+` FROM server_databases d JOIN database_hosts h ON h.id=d.host_id WHERE d.server_uuid=? ORDER BY d.name`, server)
 }
 
 func (s *Store) GetServerDatabase(ctx context.Context, server string, id int64) (ServerDatabase, error) {
-	return scanSDB(s.DB.QueryRowContext(ctx, `SELECT `+sdbCols+` FROM server_databases d JOIN database_hosts h ON h.id=d.host_id WHERE d.server_uuid=? AND d.id=?`, server, id))
+	return scanSDB(s.RO.QueryRowContext(ctx, `SELECT `+sdbCols+` FROM server_databases d JOIN database_hosts h ON h.id=d.host_id WHERE d.server_uuid=? AND d.id=?`, server, id))
 }
 
 // ErrDatabaseLimit means the server has as many databases as it may.
@@ -172,7 +172,7 @@ func (s *Store) DeleteServerDatabase(ctx context.Context, id int64) error {
 // DatabasePassword opens a database's password.
 func (s *Store) DatabasePassword(ctx context.Context, id int64) (string, error) {
 	var enc string
-	if err := s.DB.QueryRowContext(ctx, `SELECT password_enc FROM server_databases WHERE id=?`, id).Scan(&enc); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT password_enc FROM server_databases WHERE id=?`, id).Scan(&enc); err != nil {
 		return "", nf(err)
 	}
 	return s.open(enc)

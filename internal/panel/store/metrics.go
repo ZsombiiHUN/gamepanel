@@ -96,7 +96,7 @@ func (s *Store) Metrics(ctx context.Context, server string, since time.Time, ste
 	if step < MetricMinute {
 		step = MetricMinute
 	}
-	return queryAll(ctx, s.DB, func(sc rowScanner) (Metric, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (Metric, error) {
 		var m Metric
 		var mem float64
 		var samples int64

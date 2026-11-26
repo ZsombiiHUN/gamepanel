@@ -44,7 +44,7 @@ func TestLimitsNormalize(t *testing.T) {
 func TestNodeCapacityAccounting(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	s, _ := Open(filepath.Join(t.TempDir(), "p.db"))
+	s, _ := openT(filepath.Join(t.TempDir(), "p.db"))
 	defer s.Close()
 	u, _ := s.CreateUser(ctx, "a@example.com", "correct-horse-battery", true)
 	n, _, _ := s.CreateNode(ctx, "n", 25565, 25600)

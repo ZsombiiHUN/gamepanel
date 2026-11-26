@@ -90,7 +90,7 @@ func ValidateTask(t Task) error {
 }
 
 func (s *Store) tasks(ctx context.Context, scheduleID int64) ([]Task, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (Task, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (Task, error) {
 		var t Task
 		err := sc.Scan(&t.ID, &t.Seq, &t.Action, &t.Payload, &t.OffsetSeconds, &t.ContinueOnFailure)
 		return t, err
@@ -119,7 +119,7 @@ func (s *Store) loadTasks(ctx context.Context, list []Schedule) ([]Schedule, err
 }
 
 func (s *Store) ListSchedules(ctx context.Context, server string) ([]Schedule, error) {
-	out, err := queryAll(ctx, s.DB, scanSchedule, `SELECT `+schedCols+` FROM schedules WHERE server_uuid=? ORDER BY id`, server)
+	out, err := queryAll(ctx, s.RO, scanSchedule, `SELECT `+schedCols+` FROM schedules WHERE server_uuid=? ORDER BY id`, server)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (s *Store) ListSchedules(ctx context.Context, server string) ([]Schedule, e
 }
 
 func (s *Store) GetSchedule(ctx context.Context, server string, id int64) (Schedule, error) {
-	v, err := scanSchedule(s.DB.QueryRowContext(ctx, `SELECT `+schedCols+` FROM schedules WHERE id=? AND server_uuid=?`, id, server))
+	v, err := scanSchedule(s.RO.QueryRowContext(ctx, `SELECT `+schedCols+` FROM schedules WHERE id=? AND server_uuid=?`, id, server))
 	if err != nil {
 		return v, err
 	}
@@ -220,7 +220,7 @@ func (s *Store) DeleteSchedule(ctx context.Context, server string, id int64) err
 // advances its next_run, so each firing is claimed by exactly one caller and a
 // panel that was down runs a missed schedule once, not once per missed slot.
 func (s *Store) ClaimDue(ctx context.Context, at time.Time) ([]Schedule, error) {
-	due, err := queryAll(ctx, s.DB, scanSchedule, `SELECT `+schedCols+` FROM schedules WHERE enabled=1 AND next_run>0 AND next_run<=?`, at.Unix())
+	due, err := queryAll(ctx, s.RO, scanSchedule, `SELECT `+schedCols+` FROM schedules WHERE enabled=1 AND next_run>0 AND next_run<=?`, at.Unix())
 	if err != nil {
 		return nil, err
 	}

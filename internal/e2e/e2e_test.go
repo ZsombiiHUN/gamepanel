@@ -23,6 +23,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 )
 
 const egg = `{"name":"Echo","docker_images":{"x":"echo:latest"},"startup":"run {{GREETING}}",
@@ -63,7 +64,7 @@ func TestFullFlow(t *testing.T) {
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	st, err := store.Open(filepath.Join(t.TempDir(), "panel.db"))
+	st, err := storetest.Open(filepath.Join(t.TempDir(), "panel.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestFullFlow(t *testing.T) {
 func TestDaemonRejectsBadToken(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, _ := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, _ := storetest.Open(filepath.Join(t.TempDir(), "p.db"))
 	defer st.Close()
 	ts := httptest.NewServer(api.New(api.Deps{Store: st, Hub: hub.New(log), Log: log}))
 	defer ts.Close()
@@ -177,7 +178,7 @@ func TestCrossOriginConsoleBlocked(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, _ := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, _ := storetest.Open(filepath.Join(t.TempDir(), "p.db"))
 	defer st.Close()
 	u, _ := st.CreateUser(ctx, "a@example.com", "correct-horse-battery", true)
 	n, _, _ := st.CreateNode(ctx, "n", 25565, 25570)
@@ -246,7 +247,7 @@ func TestStoppedServerStateSurvivesPanelRestart(t *testing.T) {
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	st, err := store.Open(filepath.Join(t.TempDir(), "panel.db"))
+	st, err := storetest.Open(filepath.Join(t.TempDir(), "panel.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

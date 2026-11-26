@@ -51,7 +51,7 @@ const maxKeysPerUser = 25
 
 // CreateAPIKey returns the metadata and the secret, which is shown only once.
 func (s *Store) CreateAPIKey(ctx context.Context, userID int64, name string, ttl time.Duration) (APIKey, string, error) {
-	n, err := count(ctx, s.DB, `SELECT COUNT(*) FROM api_keys WHERE user_id=?`, userID)
+	n, err := count(ctx, s.RO, `SELECT COUNT(*) FROM api_keys WHERE user_id=?`, userID)
 	if err != nil {
 		return APIKey{}, "", err
 	}
@@ -75,7 +75,7 @@ func (s *Store) CreateAPIKey(ctx context.Context, userID int64, name string, ttl
 }
 
 func (s *Store) ListAPIKeys(ctx context.Context, userID int64) ([]APIKey, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (APIKey, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (APIKey, error) {
 		var k APIKey
 		err := sc.Scan(&k.ID, &k.Name, &k.Prefix, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt)
 		return k, err
@@ -99,7 +99,7 @@ func (s *Store) UserByAPIKey(ctx context.Context, token string) (User, error) {
 	var u User
 	var keyID, last int64
 	h := HashToken(token)
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=u.id),k.id,k.last_used_at
+	err := s.RO.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=u.id),k.id,k.last_used_at
 		FROM api_keys k JOIN users u ON u.id=k.user_id
 		WHERE k.token_hash=? AND (k.expires_at=0 OR k.expires_at>?)`, h, now()).
 		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.HasPasskey, &keyID, &last)

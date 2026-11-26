@@ -12,7 +12,7 @@ import (
 func testServer(t *testing.T) (*Store, string) {
 	t.Helper()
 	ctx := context.Background()
-	s, err := Open(filepath.Join(t.TempDir(), "p.db"))
+	s, err := openT(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -85,10 +85,10 @@ func (s *Store) AddSubuser(ctx context.Context, server, email string, perms []st
 	}
 	var uid, owner int64
 	var mail string
-	if err := s.DB.QueryRowContext(ctx, `SELECT id,email FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&uid, &mail); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT id,email FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&uid, &mail); err != nil {
 		return Subuser{}, userErr("no account with that email")
 	}
-	if err := s.DB.QueryRowContext(ctx, `SELECT owner_id FROM servers WHERE uuid=?`, server).Scan(&owner); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT owner_id FROM servers WHERE uuid=?`, server).Scan(&owner); err != nil {
 		return Subuser{}, nf(err)
 	}
 	if uid == owner {
@@ -131,7 +131,7 @@ func (s *Store) RemoveSubuser(ctx context.Context, server string, userID int64) 
 }
 
 func (s *Store) ListSubusers(ctx context.Context, server string) ([]Subuser, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (Subuser, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (Subuser, error) {
 		var v Subuser
 		var p string
 		err := sc.Scan(&v.UserID, &v.Email, &p, &v.CreatedAt)
@@ -143,7 +143,7 @@ func (s *Store) ListSubusers(ctx context.Context, server string) ([]Subuser, err
 // SubuserServers returns, for every server a user is a subuser of, the
 // permissions they hold there (one query for a whole server list).
 func (s *Store) SubuserServers(ctx context.Context, userID int64) (map[string][]string, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT server_uuid,permissions FROM server_users WHERE user_id=?`, userID)
+	rows, err := s.RO.QueryContext(ctx, `SELECT server_uuid,permissions FROM server_users WHERE user_id=?`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (s *Store) SubuserServers(ctx context.Context, userID int64) (map[string][]
 // subuser, and whether they are one at all.
 func (s *Store) SubuserPermissions(ctx context.Context, server string, userID int64) ([]string, bool) {
 	var p string
-	if err := s.DB.QueryRowContext(ctx, `SELECT permissions FROM server_users WHERE server_uuid=? AND user_id=?`, server, userID).Scan(&p); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT permissions FROM server_users WHERE server_uuid=? AND user_id=?`, server, userID).Scan(&p); err != nil {
 		return nil, false
 	}
 	return splitPerms(p), true

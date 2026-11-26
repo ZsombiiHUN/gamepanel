@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -260,7 +261,46 @@ func (a *App) onState(uuid, state string) {
 	if state != "installing" && state != "install_failed" && state != "offline" && state != "starting" && state != "running" {
 		return
 	}
-	a.states <- [2]string{uuid, state}
+	if !a.states.push([2]string{uuid, state}) {
+		a.Log.Error("install status queue full; dropped a state", "server", uuid, "state", state)
+	}
+}
+
+// stateQueue hands node states to runStates in order. push never blocks:
+// it runs on the goroutine that reads a node's connection, and a slow
+// database must not stall that node's console, replies and stats.
+type stateQueue struct {
+	mu    sync.Mutex
+	items [][2]string
+	wake  chan struct{}
+}
+
+// maxQueuedStates bounds the queue if the database stops answering: at a
+// few states per server start, far more than any burst.
+const maxQueuedStates = 1 << 16
+
+func (q *stateQueue) push(st [2]string) bool {
+	q.mu.Lock()
+	if len(q.items) >= maxQueuedStates {
+		q.mu.Unlock()
+		return false
+	}
+	q.items = append(q.items, st)
+	q.mu.Unlock()
+	select {
+	case q.wake <- struct{}{}:
+	default:
+	}
+	return true
+}
+
+// take returns everything queued so far, oldest first.
+func (q *stateQueue) take() [][2]string {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	out := q.items
+	q.items = nil
+	return out
 }
 
 func (a *App) runStates(ctx context.Context) {
@@ -268,20 +308,26 @@ func (a *App) runStates(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case st := <-a.states:
-			to, err := a.Store.NoteInstallState(ctx, st[0], st[1])
-			if err != nil {
-				a.Log.Warn("could not record the install status", "server", st[0], "err", err)
-				continue
-			}
-			ev := map[string]string{store.InstallInstalled: EvServerInstalled, store.InstallFailed: EvServerInstallFailed}[to]
-			if ev == "" {
-				continue
-			}
-			if s, err := a.Store.GetServer(ctx, st[0]); err == nil {
-				a.emit(ctx, ev, serverData(s))
+		case <-a.states.wake:
+			for _, st := range a.states.take() {
+				a.noteState(ctx, st[0], st[1])
 			}
 		}
+	}
+}
+
+func (a *App) noteState(ctx context.Context, uuid, state string) {
+	to, err := a.Store.NoteInstallState(ctx, uuid, state)
+	if err != nil {
+		a.Log.Warn("could not record the install status", "server", uuid, "err", err)
+		return
+	}
+	ev := map[string]string{store.InstallInstalled: EvServerInstalled, store.InstallFailed: EvServerInstallFailed}[to]
+	if ev == "" {
+		return
+	}
+	if s, err := a.Store.GetServer(ctx, uuid); err == nil {
+		a.emit(ctx, ev, serverData(s))
 	}
 }
 

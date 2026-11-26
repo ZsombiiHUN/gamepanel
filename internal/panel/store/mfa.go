@@ -126,7 +126,7 @@ func (s *Store) BeginTOTP(ctx context.Context, userID int64) (string, error) {
 func (s *Store) totpSecret(ctx context.Context, userID int64) (secret []byte, enabled bool, last int64, err error) {
 	var enc string
 	var en int
-	if err := s.DB.QueryRowContext(ctx, `SELECT totp_secret,totp_enabled,totp_last_step FROM users WHERE id=?`, userID).Scan(&enc, &en, &last); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT totp_secret,totp_enabled,totp_last_step FROM users WHERE id=?`, userID).Scan(&enc, &en, &last); err != nil {
 		return secret, enabled, last, err
 	}
 	if enc == "" {
@@ -241,7 +241,7 @@ type RecoveryStatus struct {
 func (s *Store) RecoveryCodeStatus(ctx context.Context, userID int64) (RecoveryStatus, error) {
 	var st RecoveryStatus
 	var legacy int
-	err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(legacy),0) FROM recovery_codes WHERE user_id=?`, userID).Scan(&st.Remaining, &legacy)
+	err := s.RO.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(legacy),0) FROM recovery_codes WHERE user_id=?`, userID).Scan(&st.Remaining, &legacy)
 	st.Outdated = legacy > 0
 	return st, err
 }
@@ -366,7 +366,7 @@ func (s *Store) DisableTOTP(ctx context.Context, userID int64) error {
 // CheckPassword verifies a user's current password (for sensitive actions).
 func (s *Store) CheckPassword(ctx context.Context, userID int64, pw string) bool {
 	var enc string
-	if s.DB.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id=?`, userID).Scan(&enc) != nil {
+	if s.RO.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id=?`, userID).Scan(&enc) != nil {
 		checkPassword(pw, dummyHash)
 		return false
 	}
@@ -380,6 +380,6 @@ func (s *Store) CheckPassword(ctx context.Context, userID int64, pw string) bool
 // UserIDByEmail is used by the offline reset command.
 func (s *Store) UserIDByEmail(ctx context.Context, email string) (int64, error) {
 	var id int64
-	err := s.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&id)
+	err := s.RO.QueryRowContext(ctx, `SELECT id FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&id)
 	return id, nf(err)
 }

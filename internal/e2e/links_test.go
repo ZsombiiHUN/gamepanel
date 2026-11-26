@@ -19,6 +19,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/mail"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 )
 
 type outbox struct {
@@ -61,7 +62,7 @@ var tokenRe = regexp.MustCompile(`#token=([A-Za-z0-9_-]+)`)
 func linkPanel(t *testing.T, deps api.Deps) (*client, *store.Store, string) {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, _ := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, _ := storetest.Open(filepath.Join(t.TempDir(), "p.db"))
 	t.Cleanup(func() { st.Close() })
 	st.CreateUser(context.Background(), "admin@example.com", "correct-horse-battery", true)
 	deps.Store, deps.Hub, deps.Log = st, hub.New(log), log

@@ -18,7 +18,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
-	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 )
 
 func installEgg(script string) string {
@@ -38,7 +38,7 @@ func TestInstallScriptLifecycle(t *testing.T) {
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	st, err := store.Open(filepath.Join(t.TempDir(), "panel.db"))
+	st, err := storetest.Open(filepath.Join(t.TempDir(), "panel.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestEggImportRejectsBadInstallEntrypoint(t *testing.T) {
 	b := installEgg("echo hi")
 	b = strings.Replace(b, `"ash"`, `"ash; rm -rf /"`, 1)
 	ctx := context.Background()
-	st, _ := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, _ := storetest.Open(filepath.Join(t.TempDir(), "p.db"))
 	defer st.Close()
 	st.CreateUser(ctx, "admin@example.com", "correct-horse-battery", true)
 	ts := httptest.NewServer(api.New(api.Deps{Store: st, Hub: hub.New(slog.New(slog.NewTextHandler(io.Discard, nil))), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}))

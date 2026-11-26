@@ -93,7 +93,7 @@ func (s *Store) NewInvite(ctx context.Context, email string, by int64, server st
 			return "", Invite{}, err
 		}
 	}
-	exists, err := count(ctx, s.DB, `SELECT COUNT(*) FROM users WHERE email=?`, email)
+	exists, err := count(ctx, s.RO, `SELECT COUNT(*) FROM users WHERE email=?`, email)
 	if err != nil {
 		return "", Invite{}, err
 	}
@@ -141,7 +141,7 @@ func scanInvite(sc rowScanner) (Invite, error) {
 
 // GetInvite looks up a valid invitation by its token.
 func (s *Store) GetInvite(ctx context.Context, token string) (Invite, error) {
-	inv, err := scanInvite(s.DB.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM user_tokens t LEFT JOIN servers s ON s.uuid=t.server_uuid
+	inv, err := scanInvite(s.RO.QueryRowContext(ctx, `SELECT `+inviteCols+` FROM user_tokens t LEFT JOIN servers s ON s.uuid=t.server_uuid
 		WHERE t.token_hash=? AND t.kind='invite' AND t.expires_at>?`, HashToken(token), now()))
 	if err != nil {
 		return inv, ErrBadLink
@@ -151,7 +151,7 @@ func (s *Store) GetInvite(ctx context.Context, token string) (Invite, error) {
 
 // ListInvites returns a server's pending invitations ("" = account invites).
 func (s *Store) ListInvites(ctx context.Context, server string) ([]Invite, error) {
-	return queryAll(ctx, s.DB, scanInvite, `SELECT `+inviteCols+` FROM user_tokens t LEFT JOIN servers s ON s.uuid=t.server_uuid
+	return queryAll(ctx, s.RO, scanInvite, `SELECT `+inviteCols+` FROM user_tokens t LEFT JOIN servers s ON s.uuid=t.server_uuid
 		WHERE t.kind='invite' AND COALESCE(t.server_uuid,'')=? AND t.expires_at>? ORDER BY t.created_at DESC`, server, now())
 }
 
@@ -223,7 +223,7 @@ func (s *Store) Register(ctx context.Context, token, email, password string) (Us
 // UserByEmail finds an account.
 func (s *Store) UserByEmail(ctx context.Context, email string) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
+	err := s.RO.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled FROM users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
 	if errors.Is(err, sql.ErrNoRows) {
 		return u, ErrNotFound
 	}

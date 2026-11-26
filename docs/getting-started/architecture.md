@@ -17,6 +17,17 @@ It listens on plain HTTP (`127.0.0.1:8080` by default). In production, a reverse
 
 The panel also runs the background work: schedules, webhook deliveries, and folding usage history into longer buckets.
 
+### One panel process
+
+Run **one** panel process per database. Several things live in its memory, not the database:
+
+- node connections (each node keeps one websocket to one panel);
+- sign-in rate limits and failed-login counters (they start again from zero when the panel restarts);
+- single sign-on and passkey sign-ins in progress, and upload and download transfers in flight;
+- the list of unknown containers each node reported.
+
+Two panels behind a load balancer would split nodes between them, each knowing only half, and each counting failed logins separately. SQLite also allows only one writer. For availability, restart the one process quickly (systemd does) and [back up the database](/panel/backing-up); for capacity, one panel serves many nodes, since the game servers' work happens on the nodes.
+
 ## The daemon
 
 The daemon, `daemon`, runs on each node. It:

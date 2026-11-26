@@ -204,7 +204,7 @@ func (s *Store) CreateUser(ctx context.Context, email, password string, admin bo
 }
 
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
-	return count(ctx, s.DB, `SELECT COUNT(*) FROM users`)
+	return count(ctx, s.RO, `SELECT COUNT(*) FROM users`)
 }
 
 // dummyHash lets Login spend the same time for unknown emails (no user enumeration by timing).
@@ -212,7 +212,7 @@ var dummyHash = hashPassword("dummy-password-for-timing")
 
 func (s *Store) Login(ctx context.Context, email, password string) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=users.id),password_hash FROM users WHERE email=?`, email).
+	err := s.RO.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=users.id),password_hash FROM users WHERE email=?`, email).
 		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.HasPasskey, &u.hash)
 	if err != nil {
 		checkPassword(password, dummyHash)
@@ -258,7 +258,7 @@ func (s *Store) UserBySession(ctx context.Context, token, ip string) (User, erro
 	var seen int64
 	var lastIP string
 	h := HashToken(token)
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,s.mfa,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=u.id),
+	err := s.RO.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled,s.mfa,EXISTS(SELECT 1 FROM passkeys p WHERE p.user_id=u.id),
 		s.last_seen_at,s.last_ip FROM sessions s JOIN users u ON u.id=s.user_id
 		WHERE s.token_hash=? AND s.expires_at>? AND s.last_seen_at>?`, h, now(), s.idleCutoff()).
 		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled, &u.SessionMFA, &u.HasPasskey, &seen, &lastIP)
@@ -294,7 +294,7 @@ func (s *Store) ClaimLegacySession(ctx context.Context, token string) (time.Time
 // every session except keepToken (the caller's own).
 func (s *Store) ChangePassword(ctx context.Context, userID int64, current, next, keepToken string) error {
 	var enc, email string
-	if err := s.DB.QueryRowContext(ctx, `SELECT password_hash,email FROM users WHERE id=?`, userID).Scan(&enc, &email); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT password_hash,email FROM users WHERE id=?`, userID).Scan(&enc, &email); err != nil {
 		checkPassword(current, dummyHash)
 		return ErrBadPassword
 	}
@@ -321,7 +321,7 @@ func (s *Store) DeleteOtherSessions(ctx context.Context, userID int64, keepToken
 // GetUser loads an account by id.
 func (s *Store) GetUser(ctx context.Context, id int64) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled FROM users WHERE id=?`, id).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
+	err := s.RO.QueryRowContext(ctx, `SELECT id,email,is_admin,totp_enabled FROM users WHERE id=?`, id).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
 	return u, nf(err)
 }
 
@@ -373,23 +373,23 @@ func (s *Store) CreateNode(ctx context.Context, name string, ps, pe int) (Node, 
 }
 
 func (s *Store) NodeByToken(ctx context.Context, token string) (Node, error) {
-	n, err := scanNode(s.DB.QueryRowContext(ctx, `SELECT `+nodeCols+` FROM nodes WHERE token_hash=?`, HashToken(token)))
+	n, err := scanNode(s.RO.QueryRowContext(ctx, `SELECT `+nodeCols+` FROM nodes WHERE token_hash=?`, HashToken(token)))
 	return n, nf(err)
 }
 
 func (s *Store) GetNode(ctx context.Context, id int64) (Node, error) {
-	n, err := scanNode(s.DB.QueryRowContext(ctx, `SELECT `+nodeCols+` FROM nodes WHERE id=?`, id))
+	n, err := scanNode(s.RO.QueryRowContext(ctx, `SELECT `+nodeCols+` FROM nodes WHERE id=?`, id))
 	return n, nf(err)
 }
 
 func (s *Store) ListNodes(ctx context.Context) ([]Node, error) {
-	return queryAll(ctx, s.DB, scanNode, `SELECT `+nodeCols+` FROM nodes ORDER BY id`)
+	return queryAll(ctx, s.RO, scanNode, `SELECT `+nodeCols+` FROM nodes ORDER BY id`)
 }
 
 // DeleteNode removes a node that hosts no servers (ErrNodeInUse otherwise).
 func (s *Store) DeleteNode(ctx context.Context, id int64) error {
 	var n int
-	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM servers WHERE node_id=?`, id).Scan(&n); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT COUNT(*) FROM servers WHERE node_id=?`, id).Scan(&n); err != nil {
 		return err
 	}
 	if n > 0 {
@@ -566,11 +566,11 @@ func scanEgg(sc rowScanner) (Egg, error) {
 const eggCols = `id,name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done,config_files`
 
 func (s *Store) GetEgg(ctx context.Context, id int64) (Egg, error) {
-	return scanEgg(s.DB.QueryRowContext(ctx, `SELECT `+eggCols+` FROM eggs WHERE id=?`, id))
+	return scanEgg(s.RO.QueryRowContext(ctx, `SELECT `+eggCols+` FROM eggs WHERE id=?`, id))
 }
 
 func (s *Store) ListEggs(ctx context.Context) ([]Egg, error) {
-	return queryAll(ctx, s.DB, scanEgg, `SELECT `+eggCols+` FROM eggs ORDER BY name`)
+	return queryAll(ctx, s.RO, scanEgg, `SELECT `+eggCols+` FROM eggs ORDER BY name`)
 }
 
 // ---- servers ----
@@ -637,7 +637,7 @@ func scanServer(sc rowScanner) (Server, error) {
 }
 
 func (s *Store) GetServer(ctx context.Context, uuid string) (Server, error) {
-	return scanServer(s.DB.QueryRowContext(ctx, `SELECT `+srvCols+` FROM servers WHERE uuid=?`, uuid))
+	return scanServer(s.RO.QueryRowContext(ctx, `SELECT `+srvCols+` FROM servers WHERE uuid=?`, uuid))
 }
 
 // ListServers returns every server for admins, otherwise the user's own and shared ones.
@@ -646,7 +646,7 @@ func (s *Store) ListServers(ctx context.Context, u User) ([]Server, error) {
 	if !u.IsAdmin {
 		q, args = `SELECT `+srvCols+` FROM servers WHERE owner_id=? OR uuid IN (SELECT server_uuid FROM server_users WHERE user_id=?) ORDER BY name`, []any{u.ID, u.ID}
 	}
-	return queryAll(ctx, s.DB, scanServer, q, args...)
+	return queryAll(ctx, s.RO, scanServer, q, args...)
 }
 
 // CreateServer allocates the first free port in the node's range.
@@ -697,7 +697,7 @@ func (s *Store) DeleteServer(ctx context.Context, uuid string) error {
 }
 
 func (s *Store) ServersOnNode(ctx context.Context, nodeID int64) ([]Server, error) {
-	return queryAll(ctx, s.DB, scanServer, `SELECT `+srvCols+` FROM servers WHERE node_id=?`, nodeID)
+	return queryAll(ctx, s.RO, scanServer, `SELECT `+srvCols+` FROM servers WHERE node_id=?`, nodeID)
 }
 
 // ServerByPrefix finds the server on a node whose uuid starts with prefix
@@ -708,7 +708,7 @@ func (s *Store) ServerByPrefix(ctx context.Context, nodeID int64, prefix string)
 			return Server{}, ErrNotFound
 		}
 	}
-	found, err := queryAll(ctx, s.DB, scanServer, `SELECT `+srvCols+` FROM servers WHERE node_id=? AND uuid LIKE ? LIMIT 2`, nodeID, prefix+"%")
+	found, err := queryAll(ctx, s.RO, scanServer, `SELECT `+srvCols+` FROM servers WHERE node_id=? AND uuid LIKE ? LIMIT 2`, nodeID, prefix+"%")
 	if err != nil {
 		return Server{}, err
 	}
@@ -727,7 +727,7 @@ func (s *Store) Labels(ctx context.Context) (eggs, nodes map[int64]string, err e
 			id   int64
 			name string
 		}
-		labels, qerr := queryAll(ctx, s.DB, func(sc rowScanner) (label, error) {
+		labels, qerr := queryAll(ctx, s.RO, func(sc rowScanner) (label, error) {
 			var l label
 			err := sc.Scan(&l.id, &l.name)
 			return l, err
@@ -748,7 +748,7 @@ func (s *Store) EggFeatures(ctx context.Context) (map[int64][]string, error) {
 		id    int64
 		feats []string
 	}
-	rows, err := queryAll(ctx, s.DB, func(sc rowScanner) (row, error) {
+	rows, err := queryAll(ctx, s.RO, func(sc rowScanner) (row, error) {
 		var r row
 		var raw string
 		if err := sc.Scan(&r.id, &raw); err != nil {
@@ -826,7 +826,7 @@ func (s *Store) ForceDeleteServer(ctx context.Context, v Server) error {
 
 // NodeCleanup lists the servers a node still has to remove.
 func (s *Store) NodeCleanup(ctx context.Context, nodeID int64) ([]string, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (string, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (string, error) {
 		var id string
 		err := sc.Scan(&id)
 		return id, err
