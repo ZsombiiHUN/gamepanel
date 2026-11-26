@@ -169,6 +169,11 @@ func (a *App) pushServer(ctx context.Context, s store.Server, start bool) error 
 		return err
 	}
 	spec.StartOnCompletion = start
+	// A server imported from Pterodactyl has backups before it exists on the
+	// node; the node finds their archives by these ids.
+	if spec.Backups, err = a.Store.BackupsOnDisk(ctx, s.UUID, "local"); err != nil {
+		return err
+	}
 	_, err = a.Hub.Request(ctx, s.NodeID, proto.ReqServerCreate, spec)
 	return err
 }

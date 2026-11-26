@@ -2,10 +2,41 @@ package store
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
 const KeyPrefix = "gp_"
+
+// pteroKeyPrefixes start Pterodactyl's account and application keys. Keys
+// imported from Pterodactyl keep working, so a bot or billing module set up
+// with one does not need a new key.
+var pteroKeyPrefixes = []string{"ptlc_", "ptla_"}
+
+// LooksLikeAPIKey reports whether a bearer token has the form of an API key:
+// GamePanel's own, or one imported from Pterodactyl (ptlc_ or ptla_ and 43
+// letters and digits, or, from before Pterodactyl added those prefixes, 48).
+// Only the form is checked; the key itself is looked up by its hash.
+func LooksLikeAPIKey(tok string) bool {
+	if strings.HasPrefix(tok, KeyPrefix) {
+		return true
+	}
+	// Pterodactyl's keys are a 16-character identifier (the prefix
+	// included) and a 32-character secret.
+	if len(tok) != 48 {
+		return false
+	}
+	rest := tok
+	for _, p := range pteroKeyPrefixes {
+		if r, ok := strings.CutPrefix(tok, p); ok {
+			rest = r
+			break
+		}
+	}
+	return strings.IndexFunc(rest, func(c rune) bool {
+		return (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9')
+	}) < 0
+}
 
 type APIKey struct {
 	ID         int64  `json:"id"`

@@ -89,7 +89,19 @@ func TestAdoptWings(t *testing.T) {
 	volumes := wingsNode(t, a, b)
 	data := t.TempDir()
 	dk := &fakeWings{running: map[string]bool{a: true}}
-	opts := AdoptOptions{From: volumes, DataDir: data, States: filepath.Join(filepath.Dir(volumes), "states.json"), Docker: dk}
+	// Wings' local backups: one of a's, one the panel does not know (a
+	// deleted server's), and files that are not backups.
+	backups := filepath.Join(filepath.Dir(volumes), "backups")
+	ba, orphan := uuidN(11), uuidN(12)
+	if err := os.MkdirAll(backups, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{ba + ".tar.gz": "a's backup", orphan + ".tar.gz": "orphan", "notes.txt": "x"} {
+		if err := os.WriteFile(filepath.Join(backups, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	opts := AdoptOptions{From: volumes, DataDir: data, States: filepath.Join(filepath.Dir(volumes), "states.json"), Backups: backups, Docker: dk}
 
 	// a still runs under Wings. On one file system its folder moves anyway:
 	// the container's mount follows it.
@@ -97,7 +109,7 @@ func TestAdoptWings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(res.Moved, []string{a, b}) || len(dk.stops()) != 0 {
+	if !slices.Equal(res.Moved, []string{a, b}) || res.Backups != 2 || len(dk.stops()) != 0 {
 		t.Fatalf("result %+v, stopped %v", res, dk.stops())
 	}
 	if _, err := os.Stat(filepath.Join(volumes, a)); err == nil {
@@ -114,6 +126,9 @@ func TestAdoptWings(t *testing.T) {
 		spec := proto.ServerSpec{
 			UUID: id, Image: "img", Startup: "run", Stop: "stop", MemoryMB: 128,
 			Install: &proto.InstallSpec{Image: "installer", Entrypoint: "bash", Script: "download the game"},
+		}
+		if id == a {
+			spec.Backups = []string{ba, uuidN(13), "../../etc"} // one Wings lost, one bogus
 		}
 		if err := d.create(ctx, spec); err != nil {
 			t.Fatal(err)
@@ -137,6 +152,20 @@ func TestAdoptWings(t *testing.T) {
 			t.Errorf("%s: adopted marker left behind", id)
 		}
 	}
+	// a claimed its backup; the orphan waits, and nothing else moved.
+	if got, err := os.ReadFile(d.backupPath(a, ba)); err != nil || string(got) != "a's backup" {
+		t.Errorf("a's backup not taken over: %q %v", got, err)
+	}
+	if _, err := os.Stat(d.wingsBackupPath(ba)); err == nil {
+		t.Error("a claimed backup is still waiting")
+	}
+	if _, err := os.Stat(d.wingsBackupPath(orphan)); err != nil {
+		t.Errorf("a backup no server claimed went missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(backups, "notes.txt")); err != nil {
+		t.Error("a file that is not a backup was moved")
+	}
+
 	// a was still running under Wings: stopped there with the egg's stop
 	// command, then started here. b stays offline.
 	if !eventually(5*time.Second, stateIs(rt, a, runtime.StateRunning)) {

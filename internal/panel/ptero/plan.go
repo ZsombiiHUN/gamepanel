@@ -129,6 +129,8 @@ type Plan struct {
 	Schedules []store.Schedule // ServerUUID set; CreatedBy 0 (runs as owner)
 	DBHosts   []PlanDBHost
 	Databases []PlanDatabase
+	APIKeys   []store.ImportAPIKey // UserKey is a Pterodactyl user id
+	Backups   []store.ImportBackup
 	Notes     []Note
 }
 
@@ -156,6 +158,8 @@ func Build(src *Source, opt Options) *Plan {
 	b.planSubusers()
 	b.planSchedules()
 	b.planDatabases()
+	b.planAPIKeys()
+	b.planBackups()
 	b.leftOut()
 	return p
 }
@@ -872,12 +876,6 @@ func (b *builder) planDatabases() {
 }
 
 func (b *builder) leftOut() {
-	if n := b.src.Backups; n > 0 {
-		b.p.note(Info, "", "%d backup record(s) are not imported yet; the backup files stay where they are", n)
-	}
-	if n := b.src.APIKeys; n > 0 {
-		b.p.note(Info, "", "%d API key(s) are not imported; people create new ones (Account → API keys)", n)
-	}
 	if n := b.src.Mounts; n > 0 {
 		b.p.note(Changed, "", "%d mount(s) are not supported and not imported", n)
 	}
@@ -888,4 +886,127 @@ func (b *builder) leftOut() {
 		b.p.note(Info, "", "block IO weight (io) is not imported: Wings does not apply it either; set it per server in GamePanel if you need it")
 	}
 	b.p.note(Info, "", "activity logs are not imported")
+}
+
+// Pterodactyl's api_keys.key_type values that people make.
+const (
+	keyAccount     = 1
+	keyApplication = 2
+)
+
+// planAPIKeys keeps API keys working: the key a client sends is the
+// identifier and the decrypted secret, and GamePanel stores its hash. A key
+// GamePanel could not limit the same way (to IP addresses, or an
+// application key to part of the API) is not imported, so no key can do
+// more than it could.
+func (b *builder) planAPIKeys() {
+	admin := map[int64]bool{}
+	for _, u := range b.p.Users {
+		admin[u.PteroID] = u.Admin
+	}
+	var noKey, expired, other int
+	for _, k := range b.src.APIKeys {
+		if !b.users[k.UserID] {
+			continue
+		}
+		id := k.Identifier.String
+		subj := fmt.Sprintf("API key %s", id)
+		if k.Type != keyAccount && k.Type != keyApplication {
+			other++
+			continue
+		}
+		if k.ExpiresAt != 0 && k.ExpiresAt <= time.Now().Unix() {
+			expired++
+			continue
+		}
+		if b.opt.AppKey == nil {
+			noKey++
+			continue
+		}
+		if ips := strings.TrimSpace(k.AllowedIPs.String); ips != "" && ips != "[]" && ips != "null" {
+			b.p.note(Changed, subj, "not imported: it only works from some IP addresses, which a GamePanel key cannot be limited to; its owner makes a new one")
+			continue
+		}
+		if k.Type == keyApplication {
+			if !admin[k.UserID] {
+				b.p.note(Changed, subj, "not imported: an application key of an account that is not an administrator")
+				continue
+			}
+			if slices.ContainsFunc(k.Perms[:], func(p int) bool { return p != 3 }) {
+				b.p.note(Changed, subj, "not imported: an application key limited to part of the API; a GamePanel administrator's key can do everything, so make a new one where full access is meant")
+				continue
+			}
+		}
+		secret, err := b.opt.AppKey.Decrypt(k.Token)
+		tok := id + secret
+		if err != nil || len(id) != 16 || len(secret) != 32 || !store.LooksLikeAPIKey(tok) {
+			b.p.note(Changed, subj, "not imported: its secret could not be decrypted (wrong APP_KEY?)")
+			continue
+		}
+		name := truncRunes(strings.TrimSpace(k.Memo.String), 64)
+		if name == "" {
+			name = "Pterodactyl key"
+		}
+		b.p.APIKeys = append(b.p.APIKeys, store.ImportAPIKey{
+			UserKey: k.UserID, Name: name, Token: tok, Prefix: id, CreatedAt: k.CreatedAt, LastUsedAt: k.LastUsedAt, ExpiresAt: k.ExpiresAt,
+		})
+	}
+	if noKey > 0 {
+		b.p.note(Changed, "", "%d API key(s) are not imported because no --app-key was given (their secrets are encrypted); people make new ones (Account → API keys)", noKey)
+	}
+	if expired > 0 {
+		b.p.note(Info, "", "%d expired API key(s) are not imported", expired)
+	}
+	if other > 0 {
+		b.p.note(Info, "", "%d internal API key(s) (Wings and old daemon keys) are not imported", other)
+	}
+	if n := len(b.p.APIKeys); n > 0 {
+		b.p.note(Info, "", "%d API key(s) keep working, so bots, scripts and billing modules need no new key; an application key (ptla_) works as its administrator's API key", n)
+	}
+}
+
+// planBackups brings over finished backups. Wings' local archives move with
+// adopt-wings; ones in S3 are where GamePanel looks for them
+// (<server uuid>/<backup uuid>.tar.gz) once its backup storage is the same
+// bucket.
+func (b *builder) planBackups() {
+	var unfinished, local, remote int
+	for _, v := range b.src.Backups {
+		srv := b.servers[v.ServerID]
+		if srv == nil {
+			continue
+		}
+		if !v.Successful || v.CompletedAt == 0 {
+			unfinished++
+			continue
+		}
+		disk := "local"
+		switch v.Disk {
+		case "wings":
+			local++
+		case "s3":
+			disk = "s3"
+			remote++
+		default:
+			b.p.note(Changed, fmt.Sprintf("backup %q of %q", v.Name, srv.Server.Name), "not imported: it is in %q storage, which GamePanel does not have", v.Disk)
+			continue
+		}
+		var ignore []string
+		if err := json.Unmarshal([]byte(v.IgnoredFiles), &ignore); err != nil {
+			ignore = strings.Split(v.IgnoredFiles, "\n")
+		}
+		b.p.Backups = append(b.p.Backups, store.ImportBackup{
+			ServerUUID: srv.Server.UUID, UUID: v.UUID, Name: v.Name, Size: v.Bytes, Ignore: strings.TrimSpace(strings.Join(ignore, "\n")),
+			Locked: v.Locked, Disk: disk, CreatedAt: v.CreatedAt, CompletedAt: v.CompletedAt,
+		})
+	}
+	if unfinished > 0 {
+		b.p.note(Info, "", "%d failed or unfinished backup(s) are not imported", unfinished)
+	}
+	if local > 0 {
+		b.p.note(Info, "", "%d backup(s) are on the nodes: adopt-wings takes their archives over from Wings' backup folder (/var/lib/pterodactyl/backups)", local)
+	}
+	if remote > 0 {
+		b.p.note(Changed, "", "%d backup(s) are in S3 storage: set GamePanel's backup storage (GAMEPANEL_S3_*) to the same bucket, with GAMEPANEL_S3_PREFIX empty; until then they are listed but cannot be restored or deleted", remote)
+	}
 }

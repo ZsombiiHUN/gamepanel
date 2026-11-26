@@ -120,6 +120,8 @@ Flags:
   --from DIR       Wings' volumes directory (default /var/lib/pterodactyl/volumes)
   --states FILE    Wings' states.json; servers it lists as running start again
                    once the panel creates them (default: next to --from)
+  --backups DIR    Wings' local backups; each server keeps its own once the
+                   panel creates it (default: backups next to --from)
   --stop-running   if the folders must be copied (another file system), stop
                    servers Wings still runs (SIGINT, then killed) instead of
                    refusing; stopping them in Pterodactyl first is safer
@@ -131,6 +133,7 @@ func adoptWings(args []string) error {
 	fs.Usage = func() { fmt.Fprint(os.Stderr, adoptUsage) }
 	from := fs.String("from", "/var/lib/pterodactyl/volumes", "")
 	states := fs.String("states", "", "")
+	backups := fs.String("backups", "", "")
 	stop := fs.Bool("stop-running", false, "")
 	timeout := fs.Int("stop-timeout", 60, "")
 	if err := fs.Parse(args); err != nil {
@@ -144,6 +147,9 @@ func adoptWings(args []string) error {
 	}
 	if *states == "" {
 		*states = filepath.Join(filepath.Dir(filepath.Clean(*from)), "states.json")
+	}
+	if *backups == "" {
+		*backups = filepath.Join(filepath.Dir(filepath.Clean(*from)), "backups")
 	}
 	dataDir := env("GAMEPANEL_DATA_DIR", "./daemon-data")
 	var dk daemon.WingsContainers
@@ -161,9 +167,9 @@ func adoptWings(args []string) error {
 	defer cancel()
 	fmt.Printf("Taking over Wings' servers from %s into %s\n", *from, filepath.Join(dataDir, "servers"))
 	res, err := daemon.AdoptWings(ctx, daemon.AdoptOptions{
-		From: *from, DataDir: dataDir, States: *states, StopRunning: *stop, StopTimeout: *timeout, Docker: dk, Out: os.Stdout,
+		From: *from, DataDir: dataDir, States: *states, Backups: *backups, StopRunning: *stop, StopTimeout: *timeout, Docker: dk, Out: os.Stdout,
 	})
-	fmt.Printf("\nMoved %d, copied %d.\n", len(res.Moved), len(res.Copied))
+	fmt.Printf("\nMoved %d, copied %d; %d backup archive(s).\n", len(res.Moved), len(res.Copied), res.Backups)
 	if len(res.Copied) > 0 {
 		fmt.Printf("Copied folders are still in %s; delete them once the servers work.\n", *from)
 	}

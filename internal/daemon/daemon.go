@@ -917,6 +917,9 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 		}
 		d.setInstall(uuid, "")
 		d.sendConsole(uuid, "\x1b[32m[gamepanel] kept the server's files from Pterodactyl; nothing was reinstalled\x1b[0m")
+		if n := d.claimBackups(uuid, spec.Backups); n > 0 {
+			d.sendConsole(uuid, fmt.Sprintf("[gamepanel] kept %d backup(s) from Pterodactyl", n))
+		}
 		d.handOver(ctx, spec)
 		d.emitState(ctx, uuid, runtime.StateOffline)
 	case spec.Install == nil:

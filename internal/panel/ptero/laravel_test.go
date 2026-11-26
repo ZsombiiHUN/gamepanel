@@ -1,6 +1,18 @@
 package ptero
 
-import "testing"
+import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"testing"
+)
 
 // Made by Pterodactyl 1.15.2's own encrypt() with a throwaway key.
 const (
@@ -65,5 +77,36 @@ func TestUnserializeString(t *testing.T) {
 		if got := unserializeString(in); got != want {
 			t.Errorf("%q -> %q, want %q", in, got, want)
 		}
+	}
+}
+
+// laravelEncrypt is Laravel's encrypt() (AES-CBC, HMAC-SHA256, the value
+// PHP-serialized), for test data that Decrypt must open as Pterodactyl's.
+func laravelEncrypt(t *testing.T, k AppKey, plain string) string {
+	t.Helper()
+	msg := []byte(fmt.Sprintf("s:%d:%q;", len(plain), plain))
+	pad := aes.BlockSize - len(msg)%aes.BlockSize
+	msg = append(msg, bytes.Repeat([]byte{byte(pad)}, pad)...)
+	iv := make([]byte, aes.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		t.Fatal(err)
+	}
+	b, err := aes.NewCipher(k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cipher.NewCBCEncrypter(b, iv).CryptBlocks(msg, msg)
+	ivs, val := base64.StdEncoding.EncodeToString(iv), base64.StdEncoding.EncodeToString(msg)
+	m := hmac.New(sha256.New, k)
+	m.Write([]byte(ivs + val))
+	j, _ := json.Marshal(map[string]string{"iv": ivs, "value": val, "mac": hex.EncodeToString(m.Sum(nil)), "tag": ""})
+	return base64.StdEncoding.EncodeToString(j)
+}
+
+func TestLaravelEncryptRoundTrip(t *testing.T) {
+	t.Parallel()
+	k, _ := ParseAppKey(testAppKey)
+	if got, err := k.Decrypt(laravelEncrypt(t, k, "abc")); err != nil || got != "abc" {
+		t.Fatalf("%q %v", got, err)
 	}
 }

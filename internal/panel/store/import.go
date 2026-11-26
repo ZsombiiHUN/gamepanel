@@ -24,6 +24,8 @@ type Import struct {
 	Schedules []Schedule // ServerUUID set; run as the server's owner
 	DBHosts   []ImportDBHost
 	Databases []ImportDatabase
+	APIKeys   []ImportAPIKey
+	Backups   []ImportBackup
 }
 
 type ImportUser struct {
@@ -89,6 +91,32 @@ type ImportDatabase struct {
 	Password   string
 }
 
+// ImportAPIKey is an API key that keeps working as it is: Token is the whole
+// key a client sends, and only its hash is stored, as for keys made here.
+type ImportAPIKey struct {
+	UserKey    int64
+	Name       string
+	Token      string
+	Prefix     string // shown to recognise the key
+	CreatedAt  int64
+	LastUsedAt int64
+	ExpiresAt  int64 // 0 = never
+}
+
+// ImportBackup is a finished backup whose archive is on the server's node
+// (Disk "local") or in S3 storage at the same key GamePanel uses.
+type ImportBackup struct {
+	ServerUUID  string
+	UUID        string
+	Name        string
+	Size        int64
+	Ignore      string // newline separated patterns
+	Locked      bool
+	Disk        string // local or s3
+	CreatedAt   int64
+	CompletedAt int64
+}
+
 // ImportResult says what an import created.
 type ImportResult struct {
 	// NodeTokens are the new nodes' enrollment tokens by key. They are shown
@@ -146,7 +174,7 @@ func (s *Store) ImportPanel(ctx context.Context, in Import) (ImportResult, error
 	}
 	t := now()
 	imp := importer{s: s, tx: tx, ctx: ctx, t: t, res: &res, eggIDs: map[int64]int64{}, hostIDs: map[int64]int64{}, locIDs: map[int64]bool{}}
-	steps := []func(Import) error{imp.users, imp.locations, imp.nodes, imp.eggs, imp.servers, imp.subusers, imp.schedules, imp.databases}
+	steps := []func(Import) error{imp.users, imp.locations, imp.nodes, imp.eggs, imp.servers, imp.subusers, imp.schedules, imp.databases, imp.apiKeys, imp.backups}
 	for _, step := range steps {
 		if err := step(in); err != nil {
 			return res, err
@@ -382,6 +410,36 @@ func (m *importer) databases(in Import) error {
 		if _, err := m.exec(`INSERT INTO server_databases(server_uuid,host_id,name,username,password_enc,remote,created_at) VALUES(?,?,?,?,?,?,?)`,
 			d.ServerUUID, host, d.Name, d.Username, enc, d.Remote, m.t); err != nil {
 			return fmt.Errorf("database %s: %w", d.Name, err)
+		}
+	}
+	return nil
+}
+
+func (m *importer) apiKeys(in Import) error {
+	for _, k := range in.APIKeys {
+		uid, err := ref(m.res.UserIDs, k.UserKey, "account", "API key "+k.Prefix)
+		if err != nil {
+			return err
+		}
+		if !LooksLikeAPIKey(k.Token) {
+			return fmt.Errorf("API key %s: not in a format the panel accepts", k.Prefix)
+		}
+		if _, err := m.exec(`INSERT INTO api_keys(user_id,name,token_hash,prefix,created_at,last_used_at,expires_at) VALUES(?,?,?,?,?,?,?)`,
+			uid, k.Name, HashToken(k.Token), k.Prefix, k.CreatedAt, k.LastUsedAt, k.ExpiresAt); err != nil {
+			return fmt.Errorf("API key %s: %w", k.Prefix, err)
+		}
+	}
+	return nil
+}
+
+func (m *importer) backups(in Import) error {
+	for _, b := range in.Backups {
+		if b.Disk != "local" && b.Disk != "s3" {
+			return fmt.Errorf("backup %s: unknown storage %q", b.UUID, b.Disk)
+		}
+		if _, err := m.exec(`INSERT INTO backups(uuid,server_uuid,name,status,size,ignore,locked,disk,created_at,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+			b.UUID, b.ServerUUID, b.Name, BackupOK, b.Size, b.Ignore, b.Locked, b.Disk, b.CreatedAt, b.CompletedAt); err != nil {
+			return fmt.Errorf("backup %s: %w", b.UUID, err)
 		}
 	}
 	return nil

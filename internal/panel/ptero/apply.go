@@ -47,5 +47,7 @@ func (p *Plan) Import() store.Import {
 			ServerUUID: d.ServerUUID, HostKey: d.HostPteroID, Name: d.Name, Username: d.Username, Remote: d.Remote, Password: d.Password,
 		})
 	}
+	in.APIKeys = append(in.APIKeys, p.APIKeys...)
+	in.Backups = append(in.Backups, p.Backups...)
 	return in
 }

@@ -52,7 +52,7 @@ These versions were compared: GamePanel v0.1.1, Pterodactyl Panel v1.15.2 with W
 
 **It is strict about security by default.** File access on nodes goes through Go's `os.Root` and is tested against symlink tricks, the class of bug behind several Wings advisories. Egg variables are passed as environment variables and never reach a shell. Containers drop all Linux capabilities. People without access to a server get a 404, not a 403, so they cannot tell it exists. Every account control is mapped to its [OWASP ASVS](/asvs) requirement and test. See [Security model](/security/model).
 
-**It keeps your eggs.** Pterodactyl's PTDL v1 and v2 eggs, which is also the format of the [pelican-eggs](https://github.com/pelican-eggs) library, import unchanged, install scripts included. Tools built for Pterodactyl's client API work with a GamePanel API key. See [Pterodactyl client API](/api/pterodactyl).
+**It keeps your eggs.** Pterodactyl's PTDL v1 and v2 eggs, which is also the format of the [pelican-eggs](https://github.com/pelican-eggs) library, import unchanged, install scripts included. Tools built for Pterodactyl's client API work with a GamePanel API key, and after an import with the Pterodactyl key they had. See [Pterodactyl client API](/api/pterodactyl).
 
 **Minecraft gets extra care.** The bundled [Minecraft eggs](/admin/minecraft-eggs) pick JVM flags, set the port and check the EULA on every start. The server page adds a status card with the MOTD preview and online players, a form for `server.properties`, and Modrinth search that installs mods and plugins checked against Modrinth's hashes.
 

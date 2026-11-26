@@ -69,7 +69,7 @@ GAMEPANEL_PTERO_APP_KEY='base64:...' panel import-pterodactyl
 |---|---|
 | `--env FILE` | Pterodactyl's `.env`; `DB_*` and `APP_KEY` are read from it |
 | `--dsn DSN` | `user:password@tcp(host:3306)/panel`, or `GAMEPANEL_PTERO_DSN` |
-| `--app-key KEY` | Pterodactyl's `APP_KEY`, or `GAMEPANEL_PTERO_APP_KEY`. Without it, two-factor is reported as turned off and database hosts as skipped, because Pterodactyl encrypts them with this key |
+| `--app-key KEY` | Pterodactyl's `APP_KEY`, or `GAMEPANEL_PTERO_APP_KEY`. Without it, two-factor is reported as turned off, and database hosts and API keys as skipped, because Pterodactyl encrypts them with this key |
 | `--unlimited-memory MB` | Memory for servers that had no limit (default 4096); GamePanel always sets one |
 | `--apply` | Import into the panel database in `GAMEPANEL_DB`. The panel must have no nodes, servers, eggs or database hosts yet; accounts already there stay, unless one has the same email as an imported one. Prints each node's new token, **once** |
 

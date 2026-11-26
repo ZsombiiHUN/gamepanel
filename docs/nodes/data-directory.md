@@ -12,8 +12,9 @@ Everything a daemon keeps is under `GAMEPANEL_DATA_DIR` (e.g. `/var/lib/gamepane
 │   ├── <server uuid>.stale     the container must be (re)built at next start
 │   └── install-*/              temporary, while an install script runs
 ├── backups/
-│   └── <server uuid>/
-│       └── <backup uuid>.tar.gz local backups
+│   ├── <server uuid>/
+│   │   └── <backup uuid>.tar.gz local backups
+│   └── wings/                  backups taken over from Wings, until their server claims them
 └── sftp_host_ed25519           the SFTP host key
 ```
 
@@ -36,6 +37,8 @@ Do not edit these by hand. The panel sends a fresh description whenever somethin
 ## Local backups
 
 Backups made while S3 is not configured are kept in `backups/<server uuid>/`. They count against the node's disk, not the server's disk limit. With [S3 backups](/panel/s3-backups), new backups go to the bucket instead.
+
+`adopt-wings` puts the archives of Wings' local backups in `backups/wings/`, since Wings names them by the backup alone. When the panel creates an imported server on the node, the server's backups move to its own folder. Archives still in `backups/wings/` once every server is up belong to no imported server (Pterodactyl had deleted it, or the backup had failed) and can be deleted.
 
 ## Disk usage
 

@@ -218,6 +218,10 @@ type ServerSpec struct {
 	StartOnCompletion bool `json:"start_on_completion,omitempty"`
 	// ConfigFiles are edited before each start (an egg's config.files).
 	ConfigFiles []ConfigFile `json:"config_files,omitempty"`
+	// Backups are the ids of the server's backups kept on its node. Only a
+	// create reads it: a server taken over from Wings (adopt-wings) claims
+	// the archives Wings kept for these backups.
+	Backups []string `json:"backups,omitempty"`
 }
 
 // ConfigFile is one file the node edits before a server starts, as
