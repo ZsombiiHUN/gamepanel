@@ -11,7 +11,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
-	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
 // What a shop selling servers uses beyond creating them: safe retries
@@ -39,12 +38,20 @@ func (a *App) existingCreate(ctx context.Context, u store.User, externalID strin
 // placeServer stores a new server on its node, or, when it names none, on
 // the best online node that has room: candidates (all nodes if empty) are
 // tried from the one with the most free memory down; nodes that do not track
-// memory come last, the least used first.
-func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int64) (store.Server, error) {
+// memory come last, the least used first. With ranges, the primary port is
+// the lowest free one in them, and a node without one is skipped.
+func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int64, ranges []store.PortRange) (store.Server, error) {
 	if err := v.Normalize(); err != nil {
 		return v, userErr(http.StatusUnprocessableEntity, err)
 	}
 	if v.NodeID != 0 {
+		if len(ranges) > 0 {
+			p, err := a.Store.FreePortIn(ctx, v.NodeID, ranges)
+			if err != nil {
+				return v, userErr(http.StatusUnprocessableEntity, err)
+			}
+			v.Port = p
+		}
 		s, err := a.Store.CreateServer(ctx, v)
 		return s, createErr(err)
 	}
@@ -59,7 +66,7 @@ func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int6
 		}
 	}
 	if len(pool) == 0 {
-		return v, huma.Error503ServiceUnavailable("none of the nodes the server may go on is online")
+		return v, noNode(http.StatusServiceUnavailable, "none of the nodes the server may go on is online")
 	}
 	free := func(n store.Node) int64 {
 		return n.MemoryMB*(100+n.OverallocatePct)/100 - n.AllocatedMemory
@@ -78,6 +85,15 @@ func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int6
 	})
 	for _, n := range pool {
 		v.NodeID = n.ID
+		if len(ranges) > 0 {
+			p, err := a.Store.FreePortIn(ctx, n.ID, ranges)
+			if errors.Is(err, store.ErrNoPortInRange) {
+				continue
+			} else if err != nil {
+				return v, huma.Error500InternalServerError("db error", err)
+			}
+			v.Port = p
+		}
 		s, err := a.Store.CreateServer(ctx, v)
 		if err == nil {
 			return s, nil
@@ -89,7 +105,7 @@ func (a *App) placeServer(ctx context.Context, v store.Server, candidates []int6
 		}
 		// This node is full (memory, disk or ports): try the next.
 	}
-	return v, huma.Error422UnprocessableEntity("no node has room for this server")
+	return v, noNode(http.StatusUnprocessableEntity, "no node has room for this server")
 }
 
 // createErr maps a failed CreateServer to an HTTP error.
@@ -122,26 +138,8 @@ func (a *App) registerShop(api huma.API) {
 			if err != nil {
 				return nil, huma.Error404NotFound("server not found")
 			}
-			changed, err := a.Store.SetSuspended(ctx, s.UUID, to)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("db error", err)
-			}
-			s.Suspended = to
-			if changed {
-				// The node stops the server and refuses to start it. The panel's
-				// record is what counts: a node that is offline now gets the
-				// change when it reconnects.
-				if spec, err := a.specFor(ctx, s); err == nil {
-					if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerUpdate, spec); err != nil {
-						a.Log.Warn("the node did not take the suspension yet", "server", s.UUID, "suspended", to, "err", err)
-					}
-				}
-				action, ev := "server.unsuspend", EvServerUnsuspended
-				if to {
-					action, ev = "server.suspend", EvServerSuspended
-				}
-				a.audit(ctx, u, action, s.UUID, s.Name)
-				a.emit(ctx, ev, serverData(s))
+			if s, err = a.setSuspended(ctx, u, s, to); err != nil {
+				return nil, err
 			}
 			v := a.viewFor(ctx, u, s)
 			a.label(ctx, &v)

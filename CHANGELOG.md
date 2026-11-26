@@ -40,6 +40,20 @@ Upgrade the panel and every node to the same version together. See
   `{{server.build.memory}}`, `{{server.build.default.ip}}` and
   `{{server.uuid}}`; each becomes the environment variable that holds it
   (#84). Servers also get Wings' `SERVER_IP` and `P_SERVER_UUID` variables.
+- Pterodactyl's application API (`/api/application`), the part WHMCS,
+  Paymenter and Blesta modules use (#88): accounts, servers (create, details,
+  build, startup, suspend, unsuspend, reinstall, delete), nodes and
+  allocations, locations, nests and eggs, in Pterodactyl's shapes and error
+  format. It takes an administrator's API key, never a browser session, and
+  runs through the same code as GamePanel's own API, so the activity log and
+  webhooks see it. Each server gets a numeric id that is never reused. See
+  [Pterodactyl API](docs/api/pterodactyl.md).
+- Locations group nodes by data centre or region: `location_ids` on
+  `POST /api/servers`, `/api/locations`, and a picker in each node's settings.
+- The Pterodactyl import keeps locations, and the ids of locations, nodes,
+  eggs and servers, so a billing system's products keep pointing at them.
+- `/server/<identifier>`, Pterodactyl's address for a server, opens it in
+  GamePanel, so links billing modules give customers work.
 - Accounts can carry a bcrypt password hash from Pterodactyl (`$2y$`), so
   people moved over by the coming Pterodactyl import keep their password. The
   first sign-in replaces it with an Argon2id hash; bcrypt hashes are never
@@ -47,6 +61,8 @@ Upgrade the panel and every node to the same version together. See
 
 ### Fixed
 
+- Errors from the Pterodactyl client API now carry the status as a number
+  (`"status": "404"`), as Pterodactyl's do, instead of its text.
 - After a restart, a server could be left without a console, and a stop sent
   right after the restart could be lost and wait out the full 30-second
   graceful stop. A run's console now belongs to that run: it is let go as soon

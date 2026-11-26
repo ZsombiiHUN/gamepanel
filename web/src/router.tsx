@@ -157,6 +157,24 @@ const serverRoute = createRoute({
   loader: ({ context, params }) => void context.queryClient.query(serverQuery(params.uuid)).catch(noop),
 });
 
+/**
+ * Pterodactyl's address for a server, /server/<first 8 characters of its id>: billing
+ * modules (WHMCS, Paymenter) link customers there. Opens that server, or the server
+ * list searched for it when the identifier matches none or several.
+ */
+const pteroServerRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/server/$identifier",
+  beforeLoad: async ({ context, params }) => {
+    const id = params.identifier.toLowerCase();
+    const servers = await context.queryClient.query(serversQuery).catch(() => []);
+    const hits = /^[0-9a-f-]{8,36}$/.test(id) ? servers.filter((s) => s.uuid.startsWith(id)) : [];
+    const [only, ...more] = hits;
+    if (only && more.length === 0) throw redirect({ to: "/servers/$uuid", params: { uuid: only.uuid }, search: { tab: "console" } });
+    throw redirect({ to: "/", search: { q: params.identifier } });
+  },
+});
+
 const accountRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/account",
@@ -224,6 +242,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     indexRoute,
     serverRoute,
+    pteroServerRoute,
     accountRoute,
     adminRoute.addChildren([newServerRoute, nodesRoute, eggsRoute, databaseHostsRoute, auditRoute]),
   ]),

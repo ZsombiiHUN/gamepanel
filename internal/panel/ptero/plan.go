@@ -61,8 +61,15 @@ type PlanUser struct {
 	ExternalID   string
 }
 
+type PlanLocation struct {
+	PteroID int64
+	Short   string
+	Long    string
+}
+
 type PlanNode struct {
 	PteroID         int64
+	LocationID      int64 // Pterodactyl's location id, kept as it is
 	Name            string
 	PortStart       int
 	PortEnd         int
@@ -114,6 +121,7 @@ type PlanDatabase struct {
 // Plan is everything an import would write, and why anything is left out.
 type Plan struct {
 	Users     []PlanUser
+	Locations []PlanLocation
 	Nodes     []PlanNode
 	Eggs      []PlanEgg
 	Servers   []PlanServer
@@ -141,6 +149,7 @@ func Build(src *Source, opt Options) *Plan {
 	p := &Plan{}
 	b := builder{src: src, opt: opt, p: p}
 	b.planUsers()
+	b.planLocations()
 	b.planNodes()
 	b.planEggs()
 	b.planServers()
@@ -219,6 +228,24 @@ func validTOTPSecret(s string) bool {
 	return err == nil && len(raw) >= 10
 }
 
+// planLocations keeps Pterodactyl's locations with their ids, so a billing
+// module's products still name the right ones.
+func (b *builder) planLocations() {
+	seen := map[string]bool{}
+	for _, l := range b.src.Locations {
+		short := truncRunes(strings.TrimSpace(l.Short), 60)
+		for i := 2; seen[strings.ToLower(short)]; i++ {
+			suffix := fmt.Sprintf("-%d", i)
+			short = truncRunes(strings.TrimSpace(l.Short), 60-len(suffix)) + suffix
+		}
+		if short != l.Short {
+			b.p.note(Info, quote("location", l.Short), "renamed to %q (location codes are unique, case-insensitively, and at most 60 characters)", short)
+		}
+		seen[strings.ToLower(short)] = true
+		b.p.Locations = append(b.p.Locations, PlanLocation{PteroID: l.ID, Short: short, Long: truncRunes(strings.TrimSpace(l.Long.String), 191)})
+	}
+}
+
 func (b *builder) planNodes() {
 	b.nodes = map[int64]*PlanNode{}
 	names := map[string]bool{}
@@ -238,7 +265,7 @@ func (b *builder) planNodes() {
 			b.p.note(Info, subj, "renamed to %q (GamePanel node names are unique and at most 64 characters)", name)
 		}
 		names[strings.ToLower(name)] = true
-		pn := PlanNode{PteroID: n.ID, Name: name, SFTPHost: n.FQDN, SFTPPort: n.SFTPPort, WingsDir: n.Base, PortStart: 25565, PortEnd: 25665}
+		pn := PlanNode{PteroID: n.ID, LocationID: n.LocationID, Name: name, SFTPHost: n.FQDN, SFTPPort: n.SFTPPort, WingsDir: n.Base, PortStart: 25565, PortEnd: 25665}
 		if ps := ports[n.ID]; len(ps) > 0 {
 			pn.PortStart, pn.PortEnd = slices.Min(ps), slices.Max(ps)
 		}
@@ -853,9 +880,6 @@ func (b *builder) leftOut() {
 	}
 	if n := b.src.Mounts; n > 0 {
 		b.p.note(Changed, "", "%d mount(s) are not supported and not imported", n)
-	}
-	if n := b.src.Locations; n > 0 {
-		b.p.note(Info, "", "locations are not imported; GamePanel picks nodes directly")
 	}
 	if len(b.p.Servers) > 0 {
 		b.p.note(Changed, "", "SFTP logins change: the user name is <email>.<first 8 characters of the server id> and the password is an API key (Account → API keys), not the Pterodactyl user name and password")

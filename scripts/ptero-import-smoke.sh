@@ -17,7 +17,10 @@
 # 3. Checks: the Pterodactyl password signs in, the server starts by itself
 #    on the same port with the same world and jar (nothing reinstalled), the
 #    egg's config file rule wrote the port, stop and start work, and the
-#    subuser and schedule came over.
+#    subuser and schedule came over. Then, as a billing module would through
+#    Pterodactyl's application API: the server, egg, node and location keep
+#    their Pterodactyl ids, the server is found by its external id, and
+#    suspending and unsuspending it work.
 set -u
 PANEL_IMAGE=${PTERO_PANEL_IMAGE:-ghcr.io/pterodactyl/panel:latest}
 WINGS_URL=${WINGS_URL:-https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_amd64}
@@ -154,6 +157,7 @@ $s = $app->make(Pterodactyl\Services\Servers\ServerCreationService::class)->hand
   "memory" => 2048, "swap" => 0, "disk" => 0, "io" => 500, "cpu" => 0, "threads" => null,
   "startup" => $egg->startup, "image" => "ghcr.io/pterodactyl/yolks:java_21",
   "database_limit" => 0, "allocation_limit" => 2, "backup_limit" => 2, "start_on_completion" => true, "oom_disabled" => true,
+  "external_id" => "whmcs-1001",
 ]);
 $app->make(Pterodactyl\Services\Subusers\SubuserCreationService::class)->handle($s, "friend@example.com",
   ["websocket.connect", "control.console", "control.start", "control.stop", "control.restart", "file.read", "file.read-content"]);
@@ -165,6 +169,12 @@ Task::create(["schedule_id" => $sc->id, "sequence_id" => 2, "action" => "power",
 echo $s->uuid;
 ') || die "creating the server"
 echo "    server $UUID"
+# The ids a billing module stored: they must still work against GamePanel.
+read -r PT_SERVER PT_EGG PT_NODE PT_LOCATION < <(php "$BOOT"'
+$s = Pterodactyl\Models\Server::where("uuid", "'"$UUID"'")->firstOrFail();
+echo $s->id, " ", $s->egg_id, " ", $s->node_id, " ", $s->node->location_id, PHP_EOL;
+') || die "reading the server's ids"
+echo "    ids: server $PT_SERVER, egg $PT_EGG, node $PT_NODE, location $PT_LOCATION"
 VOL=/var/lib/pterodactyl/volumes/$UUID
 mc() { docker exec "$NODE" python3 /slp.py 127.0.0.1 25565 2>/dev/null; }
 # Paper stops on its first start until its EULA is accepted, which a person
@@ -246,6 +256,18 @@ check "the extra port came over" 'api admin "$B/servers/$UUID/network" | jq -e "
 check "the schedule came over" '[ "$(api admin "$B/servers/$UUID/schedules" | jq "length")" = 1 ]'
 check "the subuser signs in and sees the server" 'login friend "$FRIEND_PW" >/dev/null && api friend "$B/servers" | jq -e "map(.uuid) | index(\"$UUID\")" >/dev/null'
 check "Wings' container is stopped" '[ "$(docker exec $NODE docker inspect -f "{{.State.Running}}" $UUID)" = false ]'
+
+echo "billing (Pterodactyl's application API, as WHMCS calls it)"
+KEY=$(api admin -d "{\"name\":\"billing\",\"password\":\"$ADMIN_PW\"}" "$B/auth/keys" | jq -r .token)
+app() { docker exec "$NODE" curl -s -H "Authorization: Bearer $KEY" -H 'Accept: Application/vnd.pterodactyl.v1+json' -H 'content-type: application/json' -w '\n%{http_code}' "${@:2}" "$B/application/$1"; }
+code() { tail -1; }
+body() { sed '$d'; }
+check "the server keeps its Pterodactyl id" '[ "$(app servers/$PT_SERVER | body | jq -r .attributes.uuid)" = "$UUID" ]'
+check "and is found by its external id" '[ "$(app servers/external/whmcs-1001 | body | jq -r .attributes.id)" = "$PT_SERVER" ]'
+check "the egg keeps its id, with its variables" 'app "eggs/$PT_EGG?include=variables" | body | jq -e ".attributes.name == \"Paper\" and (.attributes.relationships.variables.data | length > 0)" >/dev/null'
+check "the node keeps its id and location" '[ "$(app nodes/$PT_NODE | body | jq -r .attributes.location_id)" = "$PT_LOCATION" ]'
+check "suspending it (invoice overdue) stops it" '[ "$(app servers/$PT_SERVER/suspend -X POST | code)" = 204 ] && wait_state offline 90'
+check "unsuspending it lets it start again" '[ "$(app servers/$PT_SERVER/unsuspend -X POST | code)" = 204 ] && [ "$(api admin -o /dev/null -w "%{http_code}" -d "{\"action\":\"start\"}" "$B/servers/$UUID/power")" = 202 ] && wait_state running 120'
 
 if [ $fail -ne 0 ]; then
 	echo "--- apply"

@@ -2,9 +2,10 @@ import { useState, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { HardDrive, Loader2, Plus, Settings2, Trash2, X } from "lucide-react";
 import { api, call, type components } from "../api/client";
-import { invalidates, keys, nodesQuery, serversQuery } from "../api/queries";
+import { invalidates, keys, locationsQuery, nodesQuery, serversQuery } from "../api/queries";
 import { ConfirmDialog, CopyButton, Empty, ErrorBox, Field, Meter, PageHeader, Pill, Section, ServerIcon, Spinner } from "../components/ui";
 import { useTranslation } from "react-i18next";
+import { locationLabel, NodeLocationForm } from "./NodeLocationForm";
 
 type NodeView = components["schemas"]["NodeView"];
 
@@ -12,6 +13,7 @@ export function NodesPage() {
   const { t } = useTranslation();
   const nodes = useQuery(nodesQuery);
   const servers = useQuery(serversQuery);
+  const locations = useQuery(locationsQuery);
   const byNode = new Map<number, { uuid: string; name: string }[]>();
   for (const sv of servers.data ?? []) byNode.set(sv.node_id, [...(byNode.get(sv.node_id) ?? []), sv]);
   const [name, setName] = useState("");
@@ -244,6 +246,16 @@ export function NodesPage() {
                       </Pill>
                     </h2>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[12px] text-zinc-500">
+                      {n.location_id > 0 && (
+                        <>
+                          <span>
+                            {t("nodesPage.inLocation", {
+                              location: locationLabel(locations.data?.find((l) => l.id === n.location_id)) ?? `#${n.location_id}`,
+                            })}
+                          </span>
+                          <span aria-hidden>·</span>
+                        </>
+                      )}
                       <span className="font-mono">{t("nodesPage.ports", { from: n.port_start, to: n.port_end })}</span>
                       <span aria-hidden>·</span>
                       <span title={t("nodesPage.whereSftpClientsConnect")}>
@@ -457,6 +469,7 @@ export function NodesPage() {
                     </div>
                   </form>
                 )}
+                {open && <NodeLocationForm node={n} />}
               </li>
             );
           })}

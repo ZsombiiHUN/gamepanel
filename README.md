@@ -212,14 +212,13 @@ The browser only ever talks to the panel. Each node opens its own connection out
 - ✅ **S3 backups** are checked against a real S3-compatible store (`TestS3Backups`), and request signing against AWS's published example.
 - ✅ **Network limits** are checked with iperf3 by [`scripts/bandwidth-smoke.sh`](scripts/bandwidth-smoke.sh). At 10 and 100 Mbit/s, both directions hold at about 96% of the limit, including after restarts. They need root, `tc`, `ip` and `nsenter` on the node; see [Network limits](https://zsombiihun.github.io/gamepanel/nodes/network-limits).
 - ⚠️ **Not verified:** Windows and macOS Docker hosts, Podman, and bind-mount edge cases.
-- 🚧 **Not built yet:** Pterodactyl's application (admin) API and console websocket, Postgres, Windows servers, billing modules, CurseForge.
+- 🚧 **Not built yet:** Pterodactyl's console websocket, Postgres, Windows servers, CurseForge.
 
 ## Roadmap
 
 These are next, roughly in this order. There are no dates, and the order may change.
 
 - [ ] **Move a server to another node** ([#93](https://github.com/ZsombiiHUN/gamepanel/issues/93))
-- [ ] **Pterodactyl's application API**, so WHMCS, Paymenter and Blesta modules work ([#88](https://github.com/ZsombiiHUN/gamepanel/issues/88))
 - [ ] **Pterodactyl's console websocket**, for bots that stream the console ([#89](https://github.com/ZsombiiHUN/gamepanel/issues/89))
 - [ ] **CurseForge mods** ([#87](https://github.com/ZsombiiHUN/gamepanel/issues/87))
 - [ ] **Translations**: the interface is ready, and it needs translators
@@ -249,7 +248,7 @@ One panel with one SQLite file handles many nodes and servers, and backing it up
 <details>
 <summary><b>Will my Pterodactyl bot or app work?</b></summary>
 
-If it uses the REST client API (`/api/client`), it does: give it a GamePanel API key. Bots that stream the console over Pterodactyl's websocket ([#89](https://github.com/ZsombiiHUN/gamepanel/issues/89)) and billing modules that use the application API ([#88](https://github.com/ZsombiiHUN/gamepanel/issues/88)) do not work yet.
+If it uses the REST client API (`/api/client`), it does: give it a GamePanel API key. Billing modules (WHMCS, Paymenter, Blesta) work too, through the application API with an admin's API key; see [Pterodactyl API](https://zsombiihun.github.io/gamepanel/api/pterodactyl). Bots that stream the console over Pterodactyl's websocket ([#89](https://github.com/ZsombiiHUN/gamepanel/issues/89)) do not work yet.
 </details>
 
 <details>

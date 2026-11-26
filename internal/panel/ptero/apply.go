@@ -3,9 +3,14 @@ package ptero
 import "github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 
 // Import turns the plan into what store.ImportPanel writes. Records keep
-// pointing at each other by their Pterodactyl ids.
+// pointing at each other by their Pterodactyl ids, and locations, nodes, eggs
+// and servers keep those ids in GamePanel too, so a billing module set up for
+// Pterodactyl's application API still finds them.
 func (p *Plan) Import() store.Import {
 	var in store.Import
+	for _, l := range p.Locations {
+		in.Locations = append(in.Locations, store.ImportLocation{Key: l.PteroID, Short: l.Short, Long: l.Long})
+	}
 	for _, u := range p.Users {
 		in.Users = append(in.Users, store.ImportUser{
 			Key: u.PteroID, Email: u.Email, Admin: u.Admin, PasswordHash: u.PasswordHash, TOTPSecret: u.TOTPSecret, ExternalID: u.ExternalID,
@@ -13,7 +18,7 @@ func (p *Plan) Import() store.Import {
 	}
 	for _, n := range p.Nodes {
 		in.Nodes = append(in.Nodes, store.ImportNode{
-			Key: n.PteroID, Name: n.Name, PortStart: n.PortStart, PortEnd: n.PortEnd,
+			Key: n.PteroID, LocationKey: n.LocationID, Name: n.Name, PortStart: n.PortStart, PortEnd: n.PortEnd,
 			MemoryMB: n.MemoryMB, DiskMB: n.DiskMB, OverallocatePct: n.OverallocatePct, SFTPHost: n.SFTPHost, SFTPPort: n.SFTPPort,
 		})
 	}
@@ -21,7 +26,7 @@ func (p *Plan) Import() store.Import {
 		in.Eggs = append(in.Eggs, store.ImportEgg{Key: e.PteroID, Egg: e.Egg})
 	}
 	for _, s := range p.Servers {
-		is := store.ImportServer{Server: s.Server}
+		is := store.ImportServer{Key: s.PteroID, Server: s.Server}
 		// Wings restarts a server that crashes, and so does GamePanel when
 		// this is on.
 		is.Server.CrashRestart = true

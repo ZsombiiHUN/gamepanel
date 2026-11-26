@@ -13,6 +13,7 @@ import (
 // Source is what the import reads from Pterodactyl, as stored there.
 type Source struct {
 	Users       []User
+	Locations   []Location
 	Nodes       []Node
 	Allocations []Allocation
 	Nests       map[int64]string // id -> name
@@ -26,7 +27,13 @@ type Source struct {
 	DBHosts     []DBHost
 	Databases   []Database
 	// Counted only: not imported in this version.
-	Backups, APIKeys, Mounts, Locations int
+	Backups, APIKeys, Mounts int
+}
+
+type Location struct {
+	ID    int64
+	Short string
+	Long  sql.NullString
 }
 
 type User struct {
@@ -42,6 +49,7 @@ type User struct {
 
 type Node struct {
 	ID                 int64
+	LocationID         int64
 	Name               string
 	Memory, Disk       int64
 	MemoryOverallocate int64
@@ -215,9 +223,15 @@ func Read(ctx context.Context, db *sql.DB) (*Source, error) {
 			s.Users = append(s.Users, u)
 			return err
 		}},
-		{"nodes", "SELECT id,name,memory,memory_overallocate,disk,disk_overallocate,maintenance_mode,daemonSFTP,daemonBase,fqdn FROM nodes ORDER BY id", func(r *sql.Rows) error {
+		{"locations", "SELECT id,short,`long` FROM locations ORDER BY id", func(r *sql.Rows) error {
+			var l Location
+			err := r.Scan(&l.ID, &l.Short, &l.Long)
+			s.Locations = append(s.Locations, l)
+			return err
+		}},
+		{"nodes", "SELECT id,location_id,name,memory,memory_overallocate,disk,disk_overallocate,maintenance_mode,daemonSFTP,daemonBase,fqdn FROM nodes ORDER BY id", func(r *sql.Rows) error {
 			var n Node
-			err := r.Scan(&n.ID, &n.Name, &n.Memory, &n.MemoryOverallocate, &n.Disk, &n.DiskOverallocate, &n.Maintenance, &n.SFTPPort, &n.Base, &n.FQDN)
+			err := r.Scan(&n.ID, &n.LocationID, &n.Name, &n.Memory, &n.MemoryOverallocate, &n.Disk, &n.DiskOverallocate, &n.Maintenance, &n.SFTPPort, &n.Base, &n.FQDN)
 			s.Nodes = append(s.Nodes, n)
 			return err
 		}},
@@ -305,7 +319,6 @@ func Read(ctx context.Context, db *sql.DB) (*Source, error) {
 		{&s.Backups, `SELECT COUNT(*) FROM backups WHERE deleted_at IS NULL`},
 		{&s.APIKeys, `SELECT COUNT(*) FROM api_keys`},
 		{&s.Mounts, `SELECT COUNT(*) FROM mounts`},
-		{&s.Locations, `SELECT COUNT(*) FROM locations`},
 	} {
 		if err := tx.QueryRowContext(ctx, c.query).Scan(c.dst); err != nil {
 			return nil, fmt.Errorf("count: %w", err)

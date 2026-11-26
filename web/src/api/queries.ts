@@ -10,6 +10,7 @@ export const keys = {
   servers: ["servers"] as const,
   server: (uuid: string) => ["server", uuid] as const,
   nodes: ["nodes"] as const,
+  locations: ["locations"] as const,
   eggs: ["eggs"] as const,
   permissions: ["permissions"] as const,
   apiKeys: ["apikeys"] as const,
@@ -160,6 +161,11 @@ export const nodesQuery = queryOptions({
   queryKey: keys.nodes,
   queryFn: async () => (await call(api.GET("/nodes"))) ?? [],
   refetchInterval: 10_000,
+});
+
+export const locationsQuery = queryOptions({
+  queryKey: keys.locations,
+  queryFn: async () => (await call(api.GET("/locations"))) ?? [],
 });
 
 export const eggsQuery = queryOptions({

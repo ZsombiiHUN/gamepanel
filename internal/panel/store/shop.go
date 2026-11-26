@@ -106,9 +106,9 @@ type AccountFilter struct {
 	Offset     int
 }
 
-// ListAccounts lists accounts, oldest first.
-func (s *Store) ListAccounts(ctx context.Context, f AccountFilter) ([]Account, error) {
-	q, args := `SELECT `+accountCols+` FROM users WHERE 1=1`, []any{}
+// where returns the filter's SQL condition and arguments.
+func (f AccountFilter) where() (string, []any) {
+	q, args := `1=1`, []any{}
 	if f.Email != "" {
 		q += ` AND email=?`
 		args = append(args, strings.ToLower(strings.TrimSpace(f.Email)))
@@ -117,12 +117,23 @@ func (s *Store) ListAccounts(ctx context.Context, f AccountFilter) ([]Account, e
 		q += ` AND external_id=?`
 		args = append(args, f.ExternalID)
 	}
+	return q, args
+}
+
+// ListAccounts lists accounts, oldest first.
+func (s *Store) ListAccounts(ctx context.Context, f AccountFilter) ([]Account, error) {
+	w, args := f.where()
 	if f.Limit <= 0 {
 		f.Limit = 100
 	}
-	q += ` ORDER BY id LIMIT ? OFFSET ?`
 	args = append(args, f.Limit, f.Offset)
-	return queryAll(ctx, s.DB, scanAccount, q, args...)
+	return queryAll(ctx, s.DB, scanAccount, `SELECT `+accountCols+` FROM users WHERE `+w+` ORDER BY id LIMIT ? OFFSET ?`, args...)
+}
+
+// CountAccounts counts the accounts ListAccounts would page through.
+func (s *Store) CountAccounts(ctx context.Context, f AccountFilter) (int, error) {
+	w, args := f.where()
+	return count(ctx, s.DB, `SELECT COUNT(*) FROM users WHERE `+w, args...)
 }
 
 // NewAccount is what CreateAccount needs. An empty Password makes an account

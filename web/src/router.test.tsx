@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { bob, sampleServers } from "./test/fixtures";
+import { bob, sampleServers, server } from "./test/fixtures";
 import { FakeApi, problem, renderApp } from "./test/harness";
 
 // The sidebar lists every server too, so look for cards inside the page itself.
@@ -135,5 +135,24 @@ describe("state in the address", () => {
     await screen.findByRole("region", { name: "Console" });
     expect(router.state.location.search).toMatchObject({ tab: "console" });
     expect(api.callsTo(`GET /api/servers/${viewer.uuid}/files`)).toHaveLength(0);
+  });
+});
+
+describe("Pterodactyl server links", () => {
+  // Billing modules send customers to /server/<the first 8 characters of the server's id>.
+  const servers = () => [
+    server({ name: "Survival", uuid: "1a2b3c4d-0000-4000-8000-000000000001" }),
+    server({ name: "Creative", uuid: "9f8e7d6c-0000-4000-8000-000000000002" }),
+  ];
+
+  it("opens the server the identifier names", async () => {
+    const { router } = renderApp(new FakeApi({ "GET /api/servers": servers() }), "/server/9F8E7D6C");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/9f8e7d6c-0000-4000-8000-000000000002"));
+  });
+
+  it("falls back to the server list, searched, when it names no server", async () => {
+    const { router } = renderApp(new FakeApi({ "GET /api/servers": servers() }), "/server/deadbeef");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(router.state.location.search).toMatchObject({ q: "deadbeef" });
   });
 });

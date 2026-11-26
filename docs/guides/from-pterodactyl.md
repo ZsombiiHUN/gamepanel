@@ -2,21 +2,22 @@
 
 GamePanel does the same job as Pterodactyl and Pelican and reads the same eggs, but it is built differently. This page maps what you know to how GamePanel does it.
 
-`panel import-pterodactyl` moves a whole Pterodactyl 1.x panel over: accounts with their passwords and two-factor, nodes, eggs, servers with their ports, limits and variables, subusers, schedules, database hosts and databases. On each node, the daemon takes over the server files Wings kept, so nothing is reinstalled and every server keeps its UUID, port and world.
+`panel import-pterodactyl` moves a whole Pterodactyl 1.x panel over: accounts with their passwords and two-factor, locations, nodes, eggs, servers with their ports, limits and variables, subusers, schedules, database hosts and databases. On each node, the daemon takes over the server files Wings kept, so nothing is reinstalled and every server keeps its UUID, port and world. Your billing system keeps working: point its Pterodactyl module at GamePanel (see [Billing](#billing)).
 
 ## What comes over
 
 | | |
 |---|---|
 | **Accounts** | Email, admin flag and password: people sign in with the password they had. With the `APP_KEY`, two-factor too (recovery codes do not carry over; people make new ones). Usernames and names are dropped: sign-in is by email |
-| **Nodes** | Name, memory and disk capacity, overallocation, SFTP host and port. Each gets a new token |
-| **Eggs** | Every egg, with inherited scripts and config resolved, including `config.files` rules |
-| **Servers** | UUID, name, owner, egg, image, startup, variables, limits, primary and extra ports, suspension and install state. Block IO weight is left unset, as current Wings no longer applies it |
+| **Locations** | Short code and description, with their ids |
+| **Nodes** | Name, location, memory and disk capacity, overallocation, SFTP host and port, with their ids. Each gets a new token |
+| **Eggs** | Every egg, with inherited scripts and config resolved, including `config.files` rules, with their ids |
+| **Servers** | Id, UUID, external id, name, owner, egg, image, startup, variables, limits, primary and extra ports, suspension and install state. Block IO weight is left unset, as current Wings no longer applies it |
 | **Subusers** | With their permissions mapped. A GamePanel permission that covers several of Pterodactyl's is only given when all of them were (start, stop and restart for **power**, say), so nobody can do more than before |
 | **Schedules** | With their tasks |
 | **Database hosts and databases** | With the `APP_KEY`, which their passwords are encrypted with |
 
-Not imported: activity logs, API keys, locations, mounts and backup records (backup files stay where they are). Read the dry run's report: it lists everything that is changed or left out, for your panel.
+Not imported: activity logs, API keys, mounts and backup records (backup files stay where they are). Accounts get new ids (an admin may already be there); billing modules find them by external id or email. Read the dry run's report: it lists everything that is changed or left out, for your panel.
 
 ## Before you start
 
@@ -83,10 +84,10 @@ If the node's SFTP port was not 2022, set `GAMEPANEL_SFTP_ADDR=0.0.0.0:<port>` i
 | Panel (PHP, Laravel) | Panel (one Go binary) |
 | Wings | Daemon |
 | MySQL/MariaDB + Redis + queue worker + cron | One SQLite file |
-| Location | No equivalent; use `node_ids` to pick among nodes |
+| Location | [Location](/admin/nodes#locations) |
 | Node | Node |
 | Allocation | Port |
-| Nest + Egg | Egg |
+| Nest + Egg | Egg (every egg is in nest 1 in the application API) |
 | Application API key | An admin account's API key |
 | Client API key | An API key |
 | Subuser | Subuser (under **Access**) |
@@ -102,7 +103,7 @@ If the node's SFTP port was not 2022, set `GAMEPANEL_SFTP_ADDR=0.0.0.0:<port>` i
 | Browser to node | The browser talks to Wings directly for the console websocket and file transfers | **The browser only talks to the panel**, which relays to the node |
 | Egg variables | Substituted into the startup command as text | Passed only as environment variables; `{{VAR}}` becomes `${VAR}` |
 | Install status | Reported by Wings | The same, plus webhooks |
-| Billing | Through the application API | Through [GamePanel's API](/server-creation#selling-servers-the-shop-api) with safe retries and webhooks |
+| Billing | Through the application API | Through the same [application API](/api/pterodactyl#application-api), or [GamePanel's API](/server-creation#selling-servers-the-shop-api) with safe retries and webhooks |
 
 ## Eggs
 
@@ -122,7 +123,18 @@ To move a single server without an import:
 
 - **Client API**: tools that use Pterodactyl's client API for power, commands, files, resources and backups work with a GamePanel key. See [Pterodactyl client API](/api/pterodactyl).
 - **Console websocket**: not compatible.
-- **Billing modules** (WHMCS, Paymenter, Blesta): not compatible yet, because the application API is not built. They need a module for GamePanel's API.
+- **Billing modules** (WHMCS, Paymenter, Blesta): work with an admin's API key. See [Billing](#billing).
+
+## Billing
+
+GamePanel answers the part of Pterodactyl's [application API](/api/pterodactyl#application-api) that WHMCS, Paymenter and Blesta modules use. After an import:
+
+1. Make an API key on your (admin) account: **Account → API keys**.
+2. In the billing system, change the Pterodactyl server's address to GamePanel's and its application API key to that key. Leave the products as they are.
+
+Products keep working because the import keeps the ids they point at: locations, nodes, eggs and servers have the same ids as in Pterodactyl, and servers keep their external ids (the billing system's service ids). Nest ids in products are accepted as they are; GamePanel has no nests.
+
+What differs: a memory limit of 0 (unlimited) is refused, a weak password from the billing system is replaced by a link to choose one, and block IO weight is ignored. The [mapping table](/api/pterodactyl#how-it-maps) has the details.
 
 ## Things that work differently
 

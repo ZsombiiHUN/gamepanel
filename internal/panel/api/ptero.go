@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -30,28 +29,6 @@ func pteroJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	writeBody(w, v)
-}
-
-// pteroError answers in Pterodactyl's error format.
-func pteroError(w http.ResponseWriter, err error) {
-	status, detail := http.StatusInternalServerError, "Something went wrong on the panel."
-	var se huma.StatusError
-	if errors.As(err, &se) {
-		status = se.GetStatus()
-		m := &huma.ErrorModel{}
-		if errors.As(err, &m) {
-			detail = m.Detail
-		}
-	}
-	code := map[int]string{
-		400: "BadRequestHttpException", 401: "AuthenticationException", 403: "AccessDeniedHttpException",
-		404: "NotFoundHttpException", 409: "ConflictHttpException", 422: "ValidationException", 429: "TooManyRequestsHttpException",
-		502: "HttpException", 503: "HttpException", 504: "HttpException",
-	}[status]
-	if code == "" {
-		code = "HttpException"
-	}
-	pteroJSON(w, status, map[string]any{"errors": []any{map[string]string{"code": code, "status": http.StatusText(status), "detail": detail}}})
 }
 
 // pteroServer finds a server by Pterodactyl's identifier (the first 8

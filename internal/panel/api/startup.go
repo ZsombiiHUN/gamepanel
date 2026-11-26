@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"slices"
 	"sort"
@@ -231,36 +232,45 @@ func (a *App) registerStartup(api huma.API) {
 				return nil, err
 			}
 			c.CrashRestart = b.CrashRestart
-			next := s
-			next.Env = map[string]string{}
-			for k, v := range s.Env {
-				next.Env[k] = v
-			}
-			for k, v := range c.Env {
-				next.Env[k] = v
-			}
-			if c.Image != nil {
-				next.Image = *c.Image
-			}
-			if c.Startup != nil {
-				next.Startup = *c.Startup
-			}
-			if c.CrashRestart != nil {
-				next.CrashRestart = *c.CrashRestart
-			}
-			pending, err := a.applySpec(ctx, next)
+			saved, pending, err := a.changeStartup(ctx, u, s, egg, c)
 			if err != nil {
 				return nil, err
 			}
-			saved, err := a.Store.UpdateStartup(ctx, s.UUID, c)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("the node took the change but the panel could not save it", err)
-			}
-			a.audit(ctx, u, "server.startup", s.UUID, startupAuditText(c, egg))
 			v := startupFor(u, perms, saved, egg)
-			v.Pending = pending || a.pendingStartup(s.UUID)
+			v.Pending = pending
 			return &startupOut{Body: v}, nil
 		})
+}
+
+// changeStartup applies a checked startup change on the node, then saves
+// it. pending reports that the server was running, so the change waits for
+// its next start.
+func (a *App) changeStartup(ctx context.Context, u store.User, s store.Server, egg store.Egg, c store.StartupChange) (store.Server, bool, error) {
+	next := s
+	next.Env = maps.Clone(s.Env)
+	if next.Env == nil {
+		next.Env = map[string]string{}
+	}
+	maps.Copy(next.Env, c.Env)
+	if c.Image != nil {
+		next.Image = *c.Image
+	}
+	if c.Startup != nil {
+		next.Startup = *c.Startup
+	}
+	if c.CrashRestart != nil {
+		next.CrashRestart = *c.CrashRestart
+	}
+	pending, err := a.applySpec(ctx, next)
+	if err != nil {
+		return s, false, err
+	}
+	saved, err := a.Store.UpdateStartup(ctx, s.UUID, c)
+	if err != nil {
+		return s, false, huma.Error500InternalServerError("the node took the change but the panel could not save it", err)
+	}
+	a.audit(ctx, u, "server.startup", s.UUID, startupAuditText(c, egg))
+	return saved, pending || a.pendingStartup(s.UUID), nil
 }
 
 // applySpec sends a server's spec to its node. pending reports that the
