@@ -78,7 +78,7 @@ func (a *App) registerAccounts(api huma.API) {
 					return &accountCreateOut{Status: http.StatusOK, Body: accountCreated{Account: l[0]}}, nil
 				}
 			}
-			acct, err := a.Store.CreateAccount(ctx, store.NewAccount{Email: b.Email, Password: b.Password, Admin: b.Admin, ExternalID: b.ExternalID})
+			out, err := a.createAccount(ctx, u, store.NewAccount{Email: b.Email, Password: b.Password, Admin: b.Admin, ExternalID: b.ExternalID}, b.SendEmail == nil || *b.SendEmail)
 			switch {
 			case errors.Is(err, store.ErrEmailTaken):
 				if l, lerr := a.Store.ListAccounts(ctx, store.AccountFilter{Email: b.Email}); lerr == nil && len(l) == 1 {
@@ -88,24 +88,8 @@ func (a *App) registerAccounts(api huma.API) {
 			case errors.Is(err, store.ErrExternalIDTaken):
 				return nil, userErr(http.StatusConflict, err)
 			case err != nil:
-				return nil, userErr(http.StatusUnprocessableEntity, err)
+				return nil, err
 			}
-			out := accountCreated{Account: acct}
-			if b.Password == "" {
-				tok, err := a.Store.NewSetupToken(ctx, acct.ID)
-				if err != nil {
-					return nil, huma.Error500InternalServerError("the account was made, but not its password link; send a password reset", err)
-				}
-				out.SetupLink = a.link("/reset", tok)
-				if a.mailOn() && (b.SendEmail == nil || *b.SendEmail) {
-					a.sendMail(mail.Message{To: acct.Email, Subject: "Your GamePanel account", Text: fmt.Sprintf(
-						"An account was made for you on GamePanel (%s).\n\nChoose your password here within 7 days:\n%s\n\nAfter that, use \"forgot password\" on the sign-in page.\n",
-						acct.Email, out.SetupLink)})
-					out.Emailed = true
-				}
-			}
-			a.audit(ctx, u, "account.create", acct.Email, map[bool]string{true: "admin", false: ""}[acct.IsAdmin])
-			a.emit(ctx, EvUserCreated, userEventData{ID: acct.ID, Email: acct.Email, ExternalID: acct.ExternalID})
 			return &accountCreateOut{Status: http.StatusCreated, Body: out}, nil
 		})
 
@@ -152,33 +136,13 @@ func (a *App) registerAccountChanges(api huma.API) {
 				return nil, huma.Error404NotFound("account not found")
 			}
 			b := in.Body
-			// Taking over another admin (or yourself, past the current-password
-			// check) through this route is not allowed.
-			if acct.IsAdmin && (b.Email != nil || b.Password != nil) {
-				return nil, huma.Error403Forbidden("change an admin account's email or password from its own account settings")
-			}
-			if b.ExternalID != nil {
-				t := strings.TrimSpace(*b.ExternalID)
-				b.ExternalID = &t
-			}
-			acct, err = a.Store.UpdateAccount(ctx, in.ID, store.AccountChange{Email: b.Email, ExternalID: b.ExternalID, Password: b.Password})
+			acct, err = a.updateAccount(ctx, u, acct, store.AccountChange{Email: b.Email, ExternalID: b.ExternalID, Password: b.Password})
 			switch {
 			case errors.Is(err, store.ErrEmailTaken), errors.Is(err, store.ErrExternalIDTaken):
 				return nil, userErr(http.StatusConflict, err)
 			case err != nil:
-				return nil, userErr(http.StatusUnprocessableEntity, err)
+				return nil, err
 			}
-			var what []string
-			if b.Email != nil {
-				what = append(what, "email")
-			}
-			if b.ExternalID != nil {
-				what = append(what, "external id")
-			}
-			if b.Password != nil {
-				what = append(what, "password (signed out everywhere)")
-			}
-			a.audit(ctx, u, "account.update", acct.Email, strings.Join(what, ", "))
 			return &accountOut{Body: acct}, nil
 		})
 
@@ -191,24 +155,94 @@ func (a *App) registerAccountChanges(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			if in.ID == u.ID {
-				return nil, huma.Error409Conflict("you cannot delete your own account")
-			}
-			acct, err := a.Store.GetAccount(ctx, in.ID)
-			if err != nil {
-				return nil, huma.Error404NotFound("account not found")
-			}
-			switch err := a.Store.DeleteAccount(ctx, in.ID); {
-			case errors.Is(err, store.ErrOwnsServers):
-				return nil, userErr(http.StatusConflict, err)
-			case errors.Is(err, store.ErrNotFound):
-				return nil, huma.Error404NotFound("account not found")
-			case err != nil:
-				return nil, huma.Error500InternalServerError("db error", err)
-			}
-			a.fails.reset(acct.Email)
-			a.audit(ctx, u, "account.delete", acct.Email, strconv.FormatInt(acct.ID, 10))
-			a.emit(ctx, EvUserDeleted, userEventData{ID: acct.ID, Email: acct.Email, ExternalID: acct.ExternalID})
-			return nil, nil
+			return nil, a.deleteAccount(ctx, u, in.ID)
 		})
+}
+
+// createAccount makes an account for someone else. Without a password it
+// makes a link to choose one, emailed when sendEmail is set and the panel
+// can send email. Taken emails and external ids come back as the store's
+// errors; other refusals (a weak password) as 422.
+func (a *App) createAccount(ctx context.Context, u store.User, n store.NewAccount, sendEmail bool) (accountCreated, error) {
+	acct, err := a.Store.CreateAccount(ctx, n)
+	switch {
+	case errors.Is(err, store.ErrEmailTaken), errors.Is(err, store.ErrExternalIDTaken):
+		return accountCreated{}, err
+	case err != nil:
+		return accountCreated{}, userErr(http.StatusUnprocessableEntity, err)
+	}
+	out := accountCreated{Account: acct}
+	if n.Password == "" {
+		tok, err := a.Store.NewSetupToken(ctx, acct.ID)
+		if err != nil {
+			return out, huma.Error500InternalServerError("the account was made, but not its password link; send a password reset", err)
+		}
+		out.SetupLink = a.link("/reset", tok)
+		if a.mailOn() && sendEmail {
+			a.sendMail(mail.Message{To: acct.Email, Subject: "Your GamePanel account", Text: fmt.Sprintf(
+				"An account was made for you on GamePanel (%s).\n\nChoose your password here within 7 days:\n%s\n\nAfter that, use \"forgot password\" on the sign-in page.\n",
+				acct.Email, out.SetupLink)})
+			out.Emailed = true
+		}
+	}
+	a.audit(ctx, u, "account.create", acct.Email, map[bool]string{true: "admin", false: ""}[acct.IsAdmin])
+	a.emit(ctx, EvUserCreated, userEventData{ID: acct.ID, Email: acct.Email, ExternalID: acct.ExternalID})
+	return out, nil
+}
+
+// updateAccount changes an account's email, external id or password. An
+// admin account's email and password cannot be changed this way: a stolen
+// shop key must not be a way into the other admins' accounts. Taken emails
+// and external ids come back as the store's errors.
+func (a *App) updateAccount(ctx context.Context, u store.User, acct store.Account, c store.AccountChange) (store.Account, error) {
+	if acct.IsAdmin && (c.Email != nil || c.Password != nil) {
+		return acct, huma.Error403Forbidden("change an admin account's email or password from its own account settings")
+	}
+	if c.ExternalID != nil {
+		t := strings.TrimSpace(*c.ExternalID)
+		c.ExternalID = &t
+	}
+	next, err := a.Store.UpdateAccount(ctx, acct.ID, c)
+	switch {
+	case errors.Is(err, store.ErrEmailTaken), errors.Is(err, store.ErrExternalIDTaken):
+		return acct, err
+	case err != nil:
+		return acct, userErr(http.StatusUnprocessableEntity, err)
+	}
+	var what []string
+	if c.Email != nil {
+		what = append(what, "email")
+	}
+	if c.ExternalID != nil {
+		what = append(what, "external id")
+	}
+	if c.Password != nil {
+		what = append(what, "password (signed out everywhere)")
+	}
+	a.audit(ctx, u, "account.update", next.Email, strings.Join(what, ", "))
+	return next, nil
+}
+
+// deleteAccount deletes an account that owns no servers, other than the
+// caller's own.
+func (a *App) deleteAccount(ctx context.Context, u store.User, id int64) error {
+	if id == u.ID {
+		return huma.Error409Conflict("you cannot delete your own account")
+	}
+	acct, err := a.Store.GetAccount(ctx, id)
+	if err != nil {
+		return huma.Error404NotFound("account not found")
+	}
+	switch err := a.Store.DeleteAccount(ctx, id); {
+	case errors.Is(err, store.ErrOwnsServers):
+		return userErr(http.StatusConflict, err)
+	case errors.Is(err, store.ErrNotFound):
+		return huma.Error404NotFound("account not found")
+	case err != nil:
+		return huma.Error500InternalServerError("db error", err)
+	}
+	a.fails.reset(acct.Email)
+	a.audit(ctx, u, "account.delete", acct.Email, strconv.FormatInt(acct.ID, 10))
+	a.emit(ctx, EvUserDeleted, userEventData{ID: acct.ID, Email: acct.Email, ExternalID: acct.ExternalID})
+	return nil
 }

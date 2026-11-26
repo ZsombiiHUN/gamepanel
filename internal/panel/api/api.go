@@ -189,6 +189,7 @@ func New(d Deps) http.Handler {
 
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
 	a.registerPtero(mux)
+	a.registerApplication(mux)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
 	mux.HandleFunc("POST /daemon/sftp-auth", a.sftpAuth)
 	// File transfers stream outside huma (it would buffer the bodies).
@@ -246,6 +247,7 @@ func (a *App) register(api huma.API) {
 	a.registerWebhooks(api)
 	a.registerAccounts(api)
 	a.registerShop(api)
+	a.registerLocations(api)
 }
 
 // OpenAPI returns the API description as JSON, the same document a running

@@ -16,6 +16,12 @@ const totpIssuer = "GamePanel"
 
 type viaKeyCtx struct{}
 
+// viaKey reports whether the request was made with an API key.
+func viaKey(ctx context.Context) bool {
+	v, _ := ctx.Value(viaKeyCtx{}).(bool)
+	return v
+}
+
 // requireSession is requireUser for sensitive account actions: a leaked API
 // key must not be able to mint more keys, change the password or touch 2FA.
 func requireSession(ctx context.Context) (store.User, error) {
@@ -23,7 +29,7 @@ func requireSession(ctx context.Context) (store.User, error) {
 	if err != nil {
 		return u, err
 	}
-	if v, _ := ctx.Value(viaKeyCtx{}).(bool); v {
+	if viaKey(ctx) {
 		return u, huma.Error403Forbidden("this action needs a browser session, not an API key")
 	}
 	return u, nil

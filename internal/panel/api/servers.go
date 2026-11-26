@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -99,10 +100,11 @@ type (
 	serverListOut  struct{ Body []serverView }
 	serverCreateIn struct {
 		Body struct {
-			Name    string  `json:"name" minLength:"1" maxLength:"64"`
-			OwnerID int64   `json:"owner_id,omitempty" doc:"Defaults to you."`
-			NodeID  int64   `json:"node_id,omitempty" doc:"0 = the panel picks an online node with room, from node_ids if given"`
-			NodeIDs []int64 `json:"node_ids,omitempty" maxItems:"100" doc:"nodes the panel may pick from when node_id is 0 (default: all)"`
+			Name        string  `json:"name" minLength:"1" maxLength:"64"`
+			OwnerID     int64   `json:"owner_id,omitempty" doc:"Defaults to you."`
+			NodeID      int64   `json:"node_id,omitempty" doc:"0 = the panel picks an online node with room, from node_ids if given"`
+			NodeIDs     []int64 `json:"node_ids,omitempty" maxItems:"100" doc:"nodes the panel may pick from when node_id is 0 (default: all)"`
+			LocationIDs []int64 `json:"location_ids,omitempty" maxItems:"100" doc:"when node_id is 0, pick only nodes in these locations (and in node_ids, if given)"`
 			// ExternalID is the shop's id for this server. A create whose
 			// external_id is already used returns that server (200) instead of
 			// making another, so a shop can safely retry.
@@ -254,14 +256,32 @@ func (a *App) registerServerCreate(api huma.API) {
 			if err := checkCreateEnv(egg, b.Env); err != nil {
 				return nil, err
 			}
-			s, err := a.placeServer(ctx, store.Server{
-				UUID: newUUID(), Name: name, OwnerID: b.OwnerID, NodeID: b.NodeID, EggID: b.EggID,
-				Port: b.Port, Env: b.Env, ExternalID: b.ExternalID,
-				Limits: store.Limits{
-					MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
-					PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit, DatabaseLimit: b.DatabaseLimit, BandwidthMbit: b.BandwidthMbit,
+			candidates := b.NodeIDs
+			if len(b.LocationIDs) > 0 && b.NodeID == 0 {
+				in, err := a.nodesIn(ctx, b.LocationIDs)
+				if err != nil {
+					return nil, err
+				}
+				if len(candidates) > 0 {
+					in = slices.DeleteFunc(in, func(id int64) bool { return !slices.Contains(candidates, id) })
+				}
+				if len(in) == 0 {
+					return nil, huma.Error422UnprocessableEntity("no node is in those locations")
+				}
+				candidates = in
+			}
+			s, err := a.createServer(ctx, u, newServer{
+				Server: store.Server{
+					UUID: newUUID(), Name: name, OwnerID: b.OwnerID, NodeID: b.NodeID, EggID: b.EggID,
+					Port: b.Port, Env: b.Env, ExternalID: b.ExternalID,
+					Limits: store.Limits{
+						MemoryMB: b.MemoryMB, SwapMB: b.SwapMB, CPUPct: b.CPUPct, CPUSet: b.CPUSet,
+						PidsLimit: b.PidsLimit, IOWeight: b.IOWeight, DiskMB: b.DiskMB, BackupLimit: b.BackupLimit, PortLimit: b.PortLimit, DatabaseLimit: b.DatabaseLimit, BandwidthMbit: b.BandwidthMbit,
+					},
 				},
-			}, b.NodeIDs)
+				Candidates: candidates,
+				Start:      b.StartOnCompletion,
+			})
 			if errors.Is(err, store.ErrExternalIDTaken) {
 				// The same create, sent twice at once: the other one won.
 				if out, err := a.existingCreate(ctx, u, b.ExternalID); out != nil || err != nil {
@@ -272,17 +292,6 @@ func (a *App) registerServerCreate(api huma.API) {
 			if err != nil {
 				return nil, err
 			}
-			// Provision on the node. If that fails the DB row is rolled back so the
-			// panel never lists a server that does not exist anywhere.
-			if err := a.pushServer(ctx, s, b.StartOnCompletion); err != nil {
-				if derr := a.Store.DeleteServer(ctx, s.UUID); derr != nil {
-					a.Log.Error("could not roll back a server the node refused", "server", s.UUID, "err", derr)
-				}
-				a.Hub.Forget(s.UUID)
-				return nil, nodeErr(err)
-			}
-			a.audit(ctx, u, "server.create", s.UUID, s.Name)
-			a.emit(ctx, EvServerCreated, serverData(s))
 			v := a.viewFor(ctx, u, s)
 			a.label(ctx, &v)
 			return &serverCreateOut{Status: http.StatusCreated, Body: v}, nil
@@ -317,38 +326,15 @@ func (a *App) registerServerAdmin(api huma.API) {
 			"and the node removes the rest when it next connects.",
 	},
 		func(ctx context.Context, in *deleteServerIn) (*struct{}, error) {
-			if _, err := requireAdmin(ctx); err != nil {
+			u, err := requireAdmin(ctx)
+			if err != nil {
 				return nil, err
 			}
 			s, err := a.Store.GetServer(ctx, in.UUID)
 			if err != nil {
 				return nil, huma.Error404NotFound("server not found")
 			}
-			// Node first: if it is unreachable we keep the row so data is never
-			// orphaned, unless an admin forces it, which queues the cleanup.
-			forced := false
-			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerDelete, proto.UUIDOnly{UUID: s.UUID}); err != nil {
-				if !in.Force || !errors.Is(err, hub.ErrNodeOffline) {
-					return nil, nodeErr(err)
-				}
-				forced = true
-			}
-			a.removeRemoteBackups(ctx, s.UUID) // before the rows that list them go
-			a.dropServerDatabases(ctx, s.UUID)
-			detail := s.Name
-			if forced {
-				err = a.Store.ForceDeleteServer(ctx, s)
-				detail += " (node offline: it removes the files when it reconnects)"
-			} else {
-				err = a.Store.DeleteServer(ctx, s.UUID)
-			}
-			if err != nil {
-				return nil, huma.Error500InternalServerError("the panel could not delete the server", err)
-			}
-			a.Hub.Forget(s.UUID)
-			a.audit(ctx, mustUser(ctx), "server.delete", s.UUID, detail)
-			a.emit(ctx, EvServerDeleted, serverData(s))
-			return nil, nil
+			return nil, a.deleteServer(ctx, u, s, in.Force)
 		})
 
 	huma.Register(api, huma.Operation{
@@ -364,32 +350,7 @@ func (a *App) registerServerAdmin(api huma.API) {
 			if err != nil {
 				return nil, huma.Error404NotFound("server not found")
 			}
-			l := in.Body
-			if err := l.Normalize(); err != nil {
-				return nil, userErr(http.StatusUnprocessableEntity, err)
-			}
-			// Validate against node capacity before touching the node.
-			next := s
-			next.Limits = l
-			if err := a.Store.CheckLimits(ctx, s.UUID, l); err != nil {
-				var ce store.CapacityError
-				if errors.As(err, &ce) {
-					return nil, userErr(http.StatusConflict, err)
-				}
-				return nil, userErr(http.StatusUnprocessableEntity, err)
-			}
-			spec, err := a.specFor(ctx, next)
-			if err != nil {
-				return nil, huma.Error500InternalServerError("could not build the server spec", err)
-			}
-			if _, err := a.Hub.Request(ctx, s.NodeID, proto.ReqServerUpdate, spec); err != nil {
-				return nil, nodeErr(err)
-			}
-			if err := a.Store.UpdateLimits(ctx, s.UUID, l); err != nil {
-				return nil, huma.Error500InternalServerError("limits were applied on the node but could not be saved", err)
-			}
-			a.audit(ctx, u, "server.limits", s.UUID, fmt.Sprintf("mem=%d swap=%d cpu=%d disk=%d", l.MemoryMB, l.SwapMB, l.CPUPct, l.DiskMB))
-			return nil, nil
+			return nil, a.setLimits(ctx, u, s, in.Body)
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "reinstall", Method: "POST", Path: "/servers/{uuid}/reinstall", Summary: "Re-run the egg install script (server must be offline)", DefaultStatus: 202},
