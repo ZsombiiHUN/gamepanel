@@ -172,9 +172,12 @@ func (s *Store) execBestEffort(ctx context.Context, what, q string, a ...any) {
 	}
 }
 
-// Ping checks that the database answers a query.
+// Ping checks that the database answers a query, on both pools.
 func (s *Store) Ping(ctx context.Context) error {
 	var one int
+	if err := s.RO.QueryRowContext(ctx, `SELECT 1`).Scan(&one); err != nil {
+		return err
+	}
 	return s.DB.QueryRowContext(ctx, `SELECT 1`).Scan(&one)
 }
 
@@ -186,7 +189,7 @@ type Totals struct {
 // Totals counts what /metrics reports, in one query.
 func (s *Store) Totals(ctx context.Context) (Totals, error) {
 	var t Totals
-	err := s.DB.QueryRowContext(ctx, `SELECT
+	err := s.RO.QueryRowContext(ctx, `SELECT
 		(SELECT COUNT(*) FROM users),
 		(SELECT COUNT(*) FROM nodes),
 		(SELECT COUNT(*) FROM servers),
