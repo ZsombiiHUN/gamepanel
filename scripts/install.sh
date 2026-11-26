@@ -34,6 +34,7 @@ CADDY=auto
 DOCKER=auto
 YES=0
 ACCEPT=0
+PURGE=0
 
 ETC=/etc/gamepanel
 PANEL_HOME=/var/lib/gamepanel
@@ -81,13 +82,15 @@ esac
 
 say() { printf '%s==>%s %s\n' "$BOLD" "$RST" "$*"; }
 warn() {
-	if [ "$PRETTY" -eq 1 ]; then
+	if [ "${IN_STEP:-0}" -eq 1 ]; then
+		# Inside a step stderr goes to the log; run shows the warning after it.
+		printf 'warning: %s\n' "$*" >&2
+		printf '%s\n' "$*" >>"$TMP/warnings"
+	elif [ "$PRETTY" -eq 1 ]; then
 		printf '  %s%s %s%s\n' "$YLW" "$WRN" "$*" "$RST" >&2
 	else
 		printf 'warning: %s\n' "$*" >&2
 	fi
-	# Inside a step stderr goes to the log; keep the warning to show the user.
-	if [ "$PRETTY" -eq 1 ] && [ -n "$TMP" ]; then printf '%s\n' "$*" >>"$TMP/warnings"; fi
 }
 die() {
 	printf '%serror:%s %s\n' "$RED" "$RST" "$*" >&2
@@ -180,6 +183,7 @@ run() {
 	# failing command explains itself; the step's own log is shown below.
 	(
 		trap - ERR
+		IN_STEP=1
 		"$@"
 	) >>"$LOG" 2>&1 </dev/null &
 	RUN_PID=$!
@@ -521,6 +525,41 @@ fetch() {
 
 installed_version() { [ -x "$1" ] && "$1" version 2>/dev/null | awk '{print $2}' || true; }
 
+# get_env <file> <key>: one setting from an env file.
+get_env() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n1; }
+
+# set_env <file> <key> <value>: changes one setting and keeps the rest of the
+# file, its owner and its mode.
+set_env() {
+	local f=$1 k=$2 v=$3 t
+	if grep -q "^$k=" "$f"; then
+		t=$(mktemp)
+		awk -v k="$k" -v v="$v" 'index($0, k "=") == 1 {print k "=" v; next} {print}' "$f" >"$t"
+		cat "$t" >"$f"
+		rm -f "$t"
+	else
+		printf '%s=%s\n' "$k" "$v" >>"$f"
+	fi
+}
+
+# has_panel, has_node: installed here, even if a file went missing.
+has_panel() { [ -x "$BIN/panel" ] || [ -f /etc/systemd/system/gamepanel.service ]; }
+has_node() { [ -x "$BIN/gamepanel-daemon" ] || [ -f /etc/systemd/system/gamepanel-daemon.service ]; }
+
+# panel_domain: the domain in the existing panel.env.
+panel_domain() { get_env "$ETC/panel.env" GAMEPANEL_PUBLIC_URL | sed 's|^https\{0,1\}://||; s|/.*||'; }
+
+# caddy_site: whether Caddy serves the panel (a site this script wrote).
+caddy_site() { [ -f /etc/caddy/Caddyfile ] && grep -q "reverse_proxy 127.0.0.1:8080" /etc/caddy/Caddyfile; }
+
+# node_url <panel>: the daemon's address for a panel domain or URL.
+node_url() {
+	case $1 in
+	ws://* | wss://*) echo "$1" ;;
+	*) echo "wss://$1/daemon/connect" ;;
+	esac
+}
+
 # begin: root checks, a private scratch folder and the log.
 begin() {
 	need_root
@@ -538,12 +577,12 @@ begin() {
 # ready <line...>: the plan, then one last chance to stop.
 ready() {
 	[ "$INTERACTIVE" -eq 1 ] || return 0
-	rule "Ready to install"
+	rule "${READY_TITLE:-Ready to install}"
 	local l
 	for l in "$@"; do printf '    %s%s%s %s\n' "$DIM" "$DOT" "$RST" "$l"; done
 	printf '\n'
-	ask_yn "Install now?" y || die "stopped; nothing was installed"
-	rule "Installing"
+	ask_yn "${READY_ASK:-Install now?}" y || die "stopped; nothing was changed"
+	rule "${DOING_TITLE:-Installing}"
 }
 
 # ---------------------------------------------------------------- panel
@@ -571,6 +610,7 @@ configure_caddy() {
 	fi
 	echo "Configuring Caddy for https://$DOMAIN"
 	printf '%s {\n\treverse_proxy 127.0.0.1:8080\n}\n' "$DOMAIN" >"$file"
+	systemctl enable caddy
 	systemctl reload-or-restart caddy
 }
 
@@ -633,6 +673,10 @@ EOF
 		chmod 0640 "$ETC/panel.env"
 	else
 		echo "Keeping the existing $ETC/panel.env"
+		if [ -n "$DOMAIN" ] && [ "$(panel_domain)" != "$DOMAIN" ]; then
+			echo "Setting the domain to $DOMAIN"
+			set_env "$ETC/panel.env" GAMEPANEL_PUBLIC_URL "https://$DOMAIN"
+		fi
 	fi
 	install -m 0644 "$TMP/packaging/systemd/gamepanel.service" /etc/systemd/system/gamepanel.service
 	systemctl daemon-reload
@@ -685,6 +729,11 @@ cmd_panel() {
 
 	local started=$SECONDS
 	run "Downloading GamePanel $VERSION" fetch panel "$TMP"
+	if [ -x "$BIN/panel" ] && [ "$HAD_DB" -eq 1 ]; then
+		local dest
+		dest="$BACKUPS/pre-$VERSION-$(date +%Y%m%d-%H%M%S)"
+		run "Backing up the panel to $dest" backup_panel "$dest" "$(installed_version "$BIN/panel")"
+	fi
 	run "Installing the panel" panel_files
 	[ -n "$EMAIL" ] && run "Creating the admin account" create_admin
 	run "Starting the panel" start_panel
@@ -703,7 +752,6 @@ cmd_panel() {
 		[ "$CADDY" = no ] || run "Setting up HTTPS for $DOMAIN" configure_caddy
 	fi
 	[ "$CADDY" != no ] || warn "no HTTPS proxy set up: put one in front of 127.0.0.1:8080 (docs/panel/reverse-proxy.md)"
-	: >"$TMP/warnings" # warn already printed those outside a step
 	panel_done "$started"
 }
 
@@ -778,6 +826,11 @@ install_docker() {
 }
 
 node_questions() {
+	if [ -f "$ETC/daemon.env" ] && [ -z "$PANEL$TOKEN" ]; then
+		# Reinstalling over a kept daemon.env: its panel and token still apply.
+		[ "$INTERACTIVE" -eq 0 ] || check_line ok "Using the panel and token in $ETC/daemon.env" "change them with: install.sh configure"
+		return 0
+	fi
 	if [ "$INTERACTIVE" -eq 0 ]; then
 		[ -n "$PANEL" ] || die "--panel is required (the panel's domain)"
 		[ -n "$TOKEN" ] || die "--token is required (Nodes -> Create node in the panel)"
@@ -820,6 +873,15 @@ GAMEPANEL_SFTP_ADDR=0.0.0.0:2022
 EOF
 	else
 		echo "Keeping the existing $ETC/daemon.env"
+		# A token or panel given now is meant to be used, not ignored.
+		if [ -n "$TOKEN" ] && [ "$(get_env "$ETC/daemon.env" GAMEPANEL_NODE_TOKEN)" != "$TOKEN" ]; then
+			echo "Replacing the node token"
+			set_env "$ETC/daemon.env" GAMEPANEL_NODE_TOKEN "$TOKEN"
+		fi
+		if [ -n "${NODE_URL:-}" ] && [ "$(get_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL)" != "$NODE_URL" ]; then
+			echo "Setting the panel address to $NODE_URL"
+			set_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL "$NODE_URL"
+		fi
 	fi
 	if modprobe ifb 2>/dev/null; then
 		echo ifb >/etc/modules-load.d/ifb.conf
@@ -844,10 +906,14 @@ adopt_wings() {
 }
 
 start_daemon() {
-	date -u '+%F %T' >"$TMP/daemon-started"
 	install -m 0644 "$TMP/packaging/systemd/gamepanel-daemon.service" /etc/systemd/system/gamepanel-daemon.service
 	systemctl daemon-reload
-	systemctl enable --now gamepanel-daemon
+	systemctl enable gamepanel-daemon
+	restart_daemon
+}
+
+restart_daemon() {
+	date -u '+%F %T' >"$TMP/daemon-started"
 	systemctl restart gamepanel-daemon
 	sleep 2
 	systemctl is-active --quiet gamepanel-daemon || {
@@ -875,7 +941,7 @@ wait_connected() {
 		esac
 		sleep 1
 	done
-	warn "the node has not reached the panel at $NODE_URL yet; it keeps trying. See journalctl -u gamepanel-daemon -f"
+	warn "the node has not reached the panel at ${NODE_URL:-$(get_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL)} yet; it keeps trying. See journalctl -u gamepanel-daemon -f"
 }
 
 cmd_node() {
@@ -885,12 +951,10 @@ cmd_node() {
 		preflight node
 	}
 	node_questions
-	NODE_URL=$PANEL
+	NODE_URL=""
+	[ -z "$PANEL" ] || NODE_URL=$(node_url "$PANEL")
 	case "$NODE_URL" in
-	ws://* | wss://*) ;;
-	*) NODE_URL="wss://$NODE_URL/daemon/connect" ;;
-	esac
-	case "$NODE_URL" in
+	"") ;;
 	ws://127.0.0.1* | ws://localhost* | wss://*) ;;
 	*) warn "$NODE_URL is not encrypted: the node token crosses the network in the clear" ;;
 	esac
@@ -915,7 +979,7 @@ cmd_node() {
 	plan+=("GamePanel daemon $VERSION ($(arch)), checked against the release's checksums"
 		"$BIN/gamepanel-daemon, settings in $ETC/daemon.env"
 		"game server files in $DAEMON_DATA"
-		"systemd service gamepanel-daemon, connecting to $NODE_URL")
+		"systemd service gamepanel-daemon, connecting to ${NODE_URL:-$(get_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL)}")
 	[ -n "$ADOPT" ] && plan+=("Wings' servers moved over from $ADOPT")
 	ready "${plan[@]}"
 
@@ -1010,6 +1074,342 @@ cmd_upgrade() {
 	printf '\n  %s%s Up to date: GamePanel %s%s\n\n' "$ACC$BOLD" "$OK" "$VERSION" "$RST"
 }
 
+# ---------------------------------------------------------------- repair
+
+cmd_repair() {
+	begin
+	[ "${WIZARD:-0}" -eq 1 ] || banner
+	local has_panel=0 has_node=0 pv="" nv="" latest
+	has_panel && has_panel=1 pv=$(installed_version "$BIN/panel")
+	has_node && has_node=1 nv=$(installed_version "$BIN/gamepanel-daemon")
+	[ $has_panel -eq 1 ] || [ $has_node -eq 1 ] || die "nothing to repair: GamePanel is not installed here"
+	# Reinstall the version that runs; a build without a release version
+	# (dev) gets the newest release.
+	resolve_version
+	latest=$VERSION
+	[[ $pv == v* ]] || pv=$latest
+	[[ $nv == v* ]] || nv=$latest
+
+	if [ $has_panel -eq 1 ] && [ ! -f "$ETC/panel.env" ]; then
+		[ -n "$DOMAIN" ] || { [ "$INTERACTIVE" -eq 1 ] && ask DOMAIN "Panel domain (its settings file is missing)" "" check_domain; } ||
+			die "$ETC/panel.env is missing: add --domain"
+	fi
+	if [ $has_node -eq 1 ] && [ ! -f "$ETC/daemon.env" ]; then
+		if [ "$INTERACTIVE" -eq 1 ]; then
+			[ -n "$PANEL" ] || ask PANEL "Panel domain (the node's settings file is missing)" "" check_panel
+			[ -n "$TOKEN" ] || ask TOKEN "Node token" "" check_token secret
+		fi
+		[ -n "$PANEL" ] && [ -n "$TOKEN" ] || die "$ETC/daemon.env is missing: add --panel and --token"
+	fi
+	[ -z "$PANEL" ] || NODE_URL=$(node_url "$PANEL")
+
+	local -a plan=()
+	[ $has_panel -eq 1 ] && plan+=("reinstall the panel $pv: binary and service; the database and panel.env stay")
+	[ $has_node -eq 1 ] && plan+=("reinstall the daemon $nv: binary and service; server files and daemon.env stay")
+	READY_TITLE="Ready to repair" READY_ASK="Repair now?" DOING_TITLE="Repairing"
+	ready "${plan[@]}"
+	[ "$INTERACTIVE" -eq 1 ] || rule "Repairing"
+
+	if [ $has_panel -eq 1 ]; then
+		VERSION=$pv
+		run "Downloading the panel $pv" fetch panel "$TMP"
+		run "Reinstalling the panel" panel_files
+		run "Starting the panel" start_panel
+		caddy_site && run "Reloading Caddy" systemctl reload-or-restart caddy
+	fi
+	if [ $has_node -eq 1 ]; then
+		VERSION=$nv
+		if command -v docker >/dev/null && ! docker info >/dev/null 2>&1; then
+			run "Starting Docker" systemctl enable --now docker
+		fi
+		run "Downloading the daemon $nv" fetch daemon "$TMP"
+		run "Reinstalling the daemon" daemon_files
+		run "Starting the daemon" start_daemon
+		run "Connecting to the panel" wait_connected
+	fi
+	printf '\n  %s%s Repaired%s  %sdata and settings were not touched%s\n\n' "$ACC$BOLD" "$OK" "$RST" "$DIM" "$RST"
+}
+
+# ---------------------------------------------------------------- settings
+
+le_terms() {
+	[ "$ACCEPT" -eq 1 ] && return 0
+	[ "$INTERACTIVE" -eq 1 ] || die "HTTPS through Caddy means accepting the Let's Encrypt Subscriber Agreement ($LE_TERMS_URL): add --accept-terms"
+	printf '\n    The certificate comes from a public certificate authority, normally Let'"'"'s\n'
+	printf '    Encrypt. Continuing means you accept the Let'"'"'s Encrypt Subscriber Agreement:\n    %s\n\n' "$LE_TERMS_URL"
+	ask_yn "Do you accept it?" n || {
+		check_line warn "Not accepted; HTTPS was not set up"
+		return 1
+	}
+}
+
+apply_domain() { # apply_domain <old>
+	local old=$1 f=/etc/caddy/Caddyfile
+	set_env "$ETC/panel.env" GAMEPANEL_PUBLIC_URL "https://$DOMAIN"
+	if caddy_site && [ -n "$old" ] && grep -q "^${old//./\\.} {" "$f"; then
+		sed -i "s/^${old//./\\.} {/$DOMAIN {/" "$f"
+		systemctl reload-or-restart caddy
+	fi
+	start_panel
+}
+
+change_domain() {
+	local old
+	old=$(panel_domain)
+	if [ "$INTERACTIVE" -eq 1 ]; then
+		tty_note "Now $old. Passkeys belong to a domain: after the change, people sign in"
+		tty_note "with their password or authenticator app and add their passkeys again."
+		DOMAIN=""
+		ask DOMAIN "New panel domain" "" check_domain
+	fi
+	[ "$DOMAIN" != "$old" ] || {
+		check_line ok "The domain is already $DOMAIN"
+		return 0
+	}
+	dns_check
+	run "Moving the panel to https://$DOMAIN" apply_domain "$old"
+	caddy_site || warn "point your own HTTPS proxy at 127.0.0.1:8080 for $DOMAIN"
+}
+
+change_https() {
+	command -v apt-get >/dev/null || die "Caddy can only be installed for you on Debian or Ubuntu; see docs/panel/reverse-proxy.md"
+	DOMAIN=$(panel_domain)
+	le_terms || return 0
+	command -v caddy >/dev/null || run "Installing Caddy" install_caddy
+	run "Setting up HTTPS for $DOMAIN" configure_caddy
+	if [ -s "$TMP/caddy-snippet" ]; then
+		printf '\n    Add this to /etc/caddy/Caddyfile, then run %ssystemctl reload caddy%s:\n\n' "$BOLD" "$RST"
+		sed 's/^/      /' "$TMP/caddy-snippet"
+	fi
+}
+
+change_token() {
+	if [ "$INTERACTIVE" -eq 1 ]; then
+		tty_note "A node's token is shown once, at Nodes $ARROW Create node. If it is lost, delete"
+		tty_note "the node and create it again (possible while it has no servers)."
+		TOKEN=""
+		ask TOKEN "New node token" "" check_token secret
+	fi
+	run "Saving the token" set_env "$ETC/daemon.env" GAMEPANEL_NODE_TOKEN "$TOKEN"
+	run "Restarting the daemon" restart_daemon
+	run "Connecting to the panel" wait_connected
+}
+
+change_panel_url() {
+	if [ "$INTERACTIVE" -eq 1 ]; then
+		tty_note "Now $(get_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL)."
+		PANEL=""
+		ask PANEL "Panel domain (or a full wss:// URL)" "" check_panel
+	fi
+	NODE_URL=$(node_url "$PANEL")
+	run "Saving the panel address" set_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL "$NODE_URL"
+	run "Restarting the daemon" restart_daemon
+	run "Connecting to the panel" wait_connected
+}
+
+tty_note() { out '    %s%s%s\n' "$DIM" "$*" "$RST"; }
+
+cmd_settings() {
+	begin
+	[ "${WIZARD:-0}" -eq 1 ] || banner
+	local has_panel=0 has_node=0 what
+	[ -f "$ETC/panel.env" ] && has_panel && has_panel=1
+	[ -f "$ETC/daemon.env" ] && has_node && has_node=1
+	[ $has_panel -eq 1 ] || [ $has_node -eq 1 ] || die "GamePanel is not installed here"
+	if [ "$INTERACTIVE" -eq 0 ]; then
+		[ -n "$DOMAIN$TOKEN$PANEL" ] || [ "$CADDY" = yes ] || die "give what to change: --domain, --https, --token or --panel"
+		if [ -n "$DOMAIN" ]; then [ $has_panel -eq 1 ] || die "--domain: no panel here"; change_domain; fi
+		if [ "$CADDY" = yes ]; then [ $has_panel -eq 1 ] || die "--https: no panel here"; change_https; fi
+		if [ -n "$PANEL" ]; then [ $has_node -eq 1 ] || die "--panel: no node here"; change_panel_url; fi
+		if [ -n "$TOKEN" ]; then [ $has_node -eq 1 ] || die "--token: no node here"; change_token; fi
+		return 0
+	fi
+	while :; do
+		local -a opts=()
+		if [ $has_panel -eq 1 ]; then
+			opts+=("domain|Panel domain|now $(panel_domain)")
+			caddy_site || opts+=("https|Set up HTTPS with Caddy|not set up by this installer")
+		fi
+		if [ $has_node -eq 1 ]; then
+			opts+=("token|Node token|replace it, e.g. after creating the node again")
+			opts+=("panelurl|Panel address|now $(get_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL)")
+		fi
+		opts+=("done|Done|")
+		printf '\n'
+		choose what "What do you want to change?" "${opts[@]}"
+		case $what in
+		domain) change_domain ;;
+		https) change_https ;;
+		token) change_token ;;
+		panelurl) change_panel_url ;;
+		done) return 0 ;;
+		esac
+	done
+}
+
+# ---------------------------------------------------------------- uninstall
+
+gp_containers() {
+	command -v docker >/dev/null && docker info >/dev/null 2>&1 || return 0
+	{
+		docker ps -aq --filter label=gamepanel.server
+		docker ps -aq --filter label=gamepanel.installer
+	} 2>/dev/null | sort -u
+}
+
+remove_containers() {
+	local ids
+	ids=$(gp_containers)
+	[ -n "$ids" ] || return 0
+	# Like stopping a server in the panel: SIGTERM, 30 seconds to save.
+	# shellcheck disable=SC2086 # one id per word
+	docker stop -t 30 $ids
+	# shellcheck disable=SC2086
+	docker rm -f $ids
+}
+
+remove_daemon() {
+	systemctl disable --now gamepanel-daemon 2>/dev/null || true
+	rm -f /etc/systemd/system/gamepanel-daemon.service "$BIN/gamepanel-daemon" /etc/modules-load.d/ifb.conf
+	systemctl daemon-reload
+}
+
+remove_panel() {
+	systemctl disable --now gamepanel 2>/dev/null || true
+	rm -f /etc/systemd/system/gamepanel.service "$BIN/panel"
+	systemctl daemon-reload
+}
+
+caddy_remove_site() {
+	local f=/etc/caddy/Caddyfile d
+	d=$(awk '/^[^#[:space:]].*\{$/ {site=$1} /reverse_proxy 127\.0\.0\.1:8080/ {print site; exit}' "$f")
+	[ -n "$d" ] || return 0
+	cp -a "$f" "$f.before-gamepanel-uninstall"
+	awk -v d="$d" '$1 == d && /\{$/ {skip = 1; next} skip && /^\}/ {skip = 0; next} !skip' "$f" >"$f.tmp"
+	cat "$f.tmp" >"$f"
+	rm -f "$f.tmp"
+	if grep -q '[^[:space:]]' "$f"; then
+		systemctl reload-or-restart caddy
+	else
+		# Nothing else was served: Caddy has no work left.
+		systemctl disable --now caddy
+	fi
+}
+
+copy_panel_db() { # copy_panel_db <dest>
+	install -d -m 0700 "$1"
+	cp -a "$PANEL_HOME"/panel.db* "$1"/
+	cp -a "$ETC/panel.env" "$1"/ 2>/dev/null || true
+}
+
+purge_panel() {
+	rm -rf "$PANEL_HOME"
+	rm -f "$ETC/panel.env"
+	userdel gamepanel 2>/dev/null || true
+}
+
+purge_node() {
+	rm -rf "$DAEMON_DATA"
+	rm -f "$ETC/daemon.env"
+}
+
+check_delete() {
+	[ "$1" = delete ] || {
+		echo 'type the word delete, or press Ctrl-C to stop'
+		return 1
+	}
+}
+
+cmd_uninstall() {
+	begin
+	[ "${WIZARD:-0}" -eq 1 ] || banner
+	local rm_panel=0 rm_node=0 part=all n dest="" size started
+	has_panel && rm_panel=1
+	has_node && rm_node=1
+	[ $rm_panel -eq 1 ] || [ $rm_node -eq 1 ] || die "GamePanel is not installed here"
+	if [ $rm_panel -eq 1 ] && [ $rm_node -eq 1 ] && [ "$INTERACTIVE" -eq 1 ]; then
+		printf '\n'
+		choose part "What do you want to remove?" \
+			"all|Everything|the panel and the node" \
+			"panel|Only the panel|the node stays" \
+			"node|Only the node|the panel stays"
+		[ "$part" = node ] && rm_panel=0
+		[ "$part" = panel ] && rm_node=0
+	fi
+	n=$( (gp_containers || true) | grep -c . || true)
+
+	rule "Will be removed"
+	if [ $rm_node -eq 1 ]; then
+		printf '    %s%s%s the daemon: service gamepanel-daemon and %s\n' "$DIM" "$DOT" "$RST" "$BIN/gamepanel-daemon"
+		[ "$n" -gt 0 ] && printf '    %s%s%s game server containers (%s), stopped first with 30 seconds to save\n' "$DIM" "$DOT" "$RST" "$n"
+	fi
+	if [ $rm_panel -eq 1 ]; then
+		printf '    %s%s%s the panel: service gamepanel and %s\n' "$DIM" "$DOT" "$RST" "$BIN/panel"
+		caddy_site && printf '    %s%s%s the GamePanel site in /etc/caddy/Caddyfile (a copy is kept next to it)\n' "$DIM" "$DOT" "$RST"
+	fi
+	rule "Kept unless you delete them"
+	if [ $rm_panel -eq 1 ] && [ -d "$PANEL_HOME" ]; then
+		printf '    %s%s%s the panel'"'"'s database and key in %s, settings in %s\n' "$DIM" "$DOT" "$RST" "$PANEL_HOME" "$ETC/panel.env"
+	fi
+	if [ $rm_node -eq 1 ] && [ -d "$DAEMON_DATA" ]; then
+		size=$(du -sh "$DAEMON_DATA" 2>/dev/null | cut -f1) || size="?"
+		printf '    %s%s%s game server files and their backups in %s (%s), settings in %s\n' "$DIM" "$DOT" "$RST" "$DAEMON_DATA" "$size" "$ETC/daemon.env"
+	fi
+	printf '    %sAlways kept: Docker, Caddy (stopped if it serves nothing else), upgrade backups in %s, the install log.%s\n' "$DIM" "$BACKUPS" "$RST"
+	printf '\n'
+
+	if [ "$INTERACTIVE" -eq 1 ]; then
+		if [ "$PURGE" -eq 0 ]; then
+			tty_note "Keep the data to reinstall later with everything as it was."
+			ask_yn "Also delete the data? This cannot be undone" n && PURGE=1
+		fi
+		if [ "$PURGE" -eq 1 ]; then
+			[ $rm_node -eq 1 ] && tty_note "Game server files are deleted for good; download anything you want to keep first."
+			[ $rm_panel -eq 1 ] && tty_note "A copy of the panel's database goes to $BACKUPS first."
+			# shellcheck disable=SC2034 # only typing it matters
+			local word
+			ask word 'Type "delete" to confirm' "" check_delete
+		fi
+		ask_yn "Uninstall now?" n || die "stopped; nothing was changed"
+	else
+		[ "$YES" -eq 1 ] || die "without a terminal to ask on, add --yes to uninstall (and --purge to delete the data too)"
+	fi
+
+	rule "Uninstalling"
+	started=$SECONDS
+	if [ $rm_node -eq 1 ]; then
+		# The daemon first, so it does not start the servers again.
+		run "Removing the daemon" remove_daemon
+		[ "$n" -gt 0 ] && run "Stopping and removing the game server containers ($n)" remove_containers
+	fi
+	if [ $rm_panel -eq 1 ]; then
+		run "Removing the panel" remove_panel
+		# Stopped, the database is consistent on disk and safe to copy.
+		if [ "$PURGE" -eq 1 ] && [ -d "$PANEL_HOME" ]; then
+			dest="$BACKUPS/uninstall-$(date +%Y%m%d-%H%M%S)"
+			run "Copying the panel's database to $dest" copy_panel_db "$dest"
+		fi
+		caddy_site && run "Removing the GamePanel site from Caddy" caddy_remove_site
+	fi
+	if [ "$PURGE" -eq 1 ]; then
+		[ $rm_node -eq 1 ] && run "Deleting the game server files" purge_node
+		[ $rm_panel -eq 1 ] && run "Deleting the panel's data" purge_panel
+		if [ -d "$ETC" ] && [ ! -f "$ETC/panel.env" ] && [ ! -f "$ETC/daemon.env" ]; then
+			rm -rf "$ETC"
+		fi
+	fi
+
+	local secs=$((SECONDS - started))
+	printf '\n  %s%s GamePanel is uninstalled%s  %sin %dm %ds%s\n\n' "$ACC$BOLD" "$OK" "$RST" "$DIM" $((secs / 60)) $((secs % 60)) "$RST"
+	if [ "$PURGE" -eq 1 ]; then
+		[ -n "$dest" ] && printf '    The panel'"'"'s database is in %s; delete it when you no longer need it.\n' "$dest"
+	else
+		printf '    Your data is kept. Install again and everything is as it was:\n'
+		printf '      %scurl -fsSL https://github.com/%s/releases/latest/download/install.sh | sudo bash%s\n' "$BOLD" "$REPO" "$RST"
+	fi
+	printf '\n'
+}
+
 # ---------------------------------------------------------------- guided
 
 wizard() {
@@ -1021,21 +1421,17 @@ wizard() {
 	WIZARD=1
 	banner
 	local what
-	local -a opts=("panel|The panel|the website you manage everything from"
-		"node|A node|runs game servers in Docker, connects to a panel"
-		"both|Panel and node|everything on this one machine")
-	{ [ -x "$BIN/panel" ] || [ -x "$BIN/gamepanel-daemon" ]; } &&
-		opts=("upgrade|Upgrade|to the newest release, backing up the panel first" "${opts[@]}")
-	opts+=("quit|Quit|change nothing")
-	printf '\n'
-	choose what "What do you want to install?" "${opts[@]}"
-	case $what in
-	quit) exit 0 ;;
-	upgrade)
-		cmd_upgrade
+	if has_panel || has_node; then
+		manage
 		return
-		;;
-	esac
+	fi
+	printf '\n'
+	choose what "What do you want to install?" \
+		"panel|The panel|the website you manage everything from" \
+		"node|A node|runs game servers in Docker, connects to a panel" \
+		"both|Panel and node|everything on this one machine" \
+		"quit|Quit|change nothing"
+	[ "$what" = quit ] && exit 0
 	preflight "$what"
 	TERMS_ROLE=$what
 	case $what in
@@ -1043,6 +1439,12 @@ wizard() {
 	node) cmd_node ;;
 	both)
 		cmd_panel
+		if [ -f "$ETC/daemon.env" ]; then
+			# Reinstalling: the kept daemon.env has the panel and token.
+			VERSION=$(cat "$TMP/version")
+			cmd_node
+			return
+		fi
 		rule "Now the node"
 		printf '\n    Sign in, open %sNodes %s Create node%s and copy its token. The node talks to\n' "$BOLD" "$ARROW" "$RST"
 		printf '    the panel on this machine directly, so it works before HTTPS does.\n\n'
@@ -1057,6 +1459,70 @@ wizard() {
 	esac
 }
 
+# manage: the menu once GamePanel is installed here.
+manage() {
+	local has_panel=0 has_node=0 pv="" nv="" cur what old=0 broken=0
+	has_panel && has_panel=1 pv=$(installed_version "$BIN/panel")
+	has_node && has_node=1 nv=$(installed_version "$BIN/gamepanel-daemon")
+	cur=${pv:-$nv}
+	run "Checking for updates" resolve_version_file
+	VERSION=$(cat "$TMP/version")
+	rule "Installed here"
+	if [ $has_panel -eq 1 ]; then
+		check_line "$(systemctl is-active --quiet gamepanel && echo ok || echo warn)" \
+			"Panel ${pv:-(program missing)} at https://$(panel_domain)" "$(systemctl is-active gamepanel 2>/dev/null || true)"
+	fi
+	if [ $has_node -eq 1 ]; then
+		check_line "$(systemctl is-active --quiet gamepanel-daemon && echo ok || echo warn)" \
+			"Node ${nv:-(program missing)}, connecting to $(get_env "$ETC/daemon.env" GAMEPANEL_PANEL_URL)" "$(systemctl is-active gamepanel-daemon 2>/dev/null || true)"
+	fi
+	{ [ $has_panel -eq 1 ] && [ "$pv" != "$VERSION" ]; } && old=1
+	{ [ $has_node -eq 1 ] && [ "$nv" != "$VERSION" ]; } && old=1
+	{ [ $has_panel -eq 1 ] && [ -z "$pv" ]; } && broken=1
+	{ [ $has_node -eq 1 ] && [ -z "$nv" ]; } && broken=1
+	if [ $broken -eq 1 ]; then
+		check_line bad "Files are missing" "Repair puts them back; data and settings stay"
+	elif [ $old -eq 1 ]; then
+		check_line warn "$VERSION is out" "you run ${cur:-an unknown version}"
+	else
+		check_line ok "Up to date" "$VERSION is the newest release"
+	fi
+
+	local -a opts=()
+	if [ $broken -eq 1 ]; then
+		opts+=("repair|Repair|reinstall what is missing, keep data and settings")
+	else
+		[ $old -eq 1 ] && opts+=("upgrade|Upgrade|$cur $ARROW $VERSION, backs up the panel first")
+		opts+=("repair|Repair|reinstall $cur, keep data and settings")
+	fi
+	opts+=("settings|Change settings|$([ $has_panel -eq 1 ] && echo "domain, HTTPS")$([ $has_panel -eq 1 ] && [ $has_node -eq 1 ] && echo ", ")$([ $has_node -eq 1 ] && echo "node token, panel address")")
+	[ $has_panel -eq 1 ] && [ $has_node -eq 0 ] && opts+=("addnode|Add a node here|run game servers on this machine too")
+	[ $has_node -eq 1 ] && [ $has_panel -eq 0 ] && opts+=("addpanel|Install the panel here|")
+	opts+=("uninstall|Uninstall|keeps your data unless you ask")
+	opts+=("quit|Quit|change nothing")
+	printf '\n'
+	choose what "What do you want to do?" "${opts[@]}"
+	case $what in
+	quit) exit 0 ;;
+	upgrade) cmd_upgrade ;;
+	repair) cmd_repair ;;
+	settings) cmd_settings ;;
+	uninstall) cmd_uninstall ;;
+	addnode)
+		preflight node
+		TERMS_ROLE=node
+		printf '\n    In the panel, open %sNodes %s Create node%s and copy its token.\n' "$BOLD" "$ARROW" "$RST"
+		PANEL="ws://127.0.0.1:8080/daemon/connect"
+		cmd_node
+		;;
+	addpanel)
+		preflight panel
+		TERMS_ROLE=panel
+		cmd_panel
+		;;
+	esac
+}
+
 usage() {
 	cat <<'EOF'
 Usage: install.sh [command] [options]
@@ -1067,6 +1533,9 @@ Commands:
   panel      install the panel (and Caddy for HTTPS)
   node       install the daemon on a machine that will run game servers
   upgrade    upgrade whatever is installed here (backs up the panel first)
+  repair     reinstall the running version; data and settings stay
+  configure  change a setting: --domain, --https, --token or --panel
+  uninstall  remove GamePanel; keeps its data unless --purge
   download   only download and verify both archives into the current folder
   terms      show the terms that installing means accepting
   help       show this
@@ -1082,9 +1551,14 @@ Options:
   --adopt-wings <dir> node: take over the server files Pterodactyl's Wings kept
                       in <dir> (e.g. /var/lib/pterodactyl/volumes) before the
                       daemon first starts; see docs/guides/from-pterodactyl.md
+  --https             configure: set up Caddy for the panel's domain
+  --purge             uninstall: also delete the panel's database and the
+                      game server files (the database is copied to
+                      /var/backups/gamepanel first)
   --accept-terms      accept the terms (install.sh terms) without being asked
   -y, --yes           ask nothing: accept the terms and install Docker or
-                      Caddy when needed; missing options are errors
+                      Caddy when needed; missing options are errors.
+                      uninstall needs it to run without questions
 
 Set NO_COLOR=1 for plain output.
 EOF
@@ -1105,6 +1579,8 @@ while [ $# -gt 0 ]; do
 	--panel) PANEL=${2:?--panel needs a domain} && shift ;;
 	--token) TOKEN=${2:?--token needs a value} && shift ;;
 	--no-caddy) CADDY=no ;;
+	--https) CADDY=yes ;;
+	--purge) PURGE=1 ;;
 	--no-docker) DOCKER=no ;;
 	--adopt-wings) ADOPT=${2:?--adopt-wings needs a directory} && shift ;;
 	--accept-terms) ACCEPT=1 ;;
@@ -1130,6 +1606,9 @@ case "$CMD" in
 panel) cmd_panel ;;
 node) cmd_node ;;
 upgrade) cmd_upgrade ;;
+repair) cmd_repair ;;
+configure) cmd_settings ;;
+uninstall) cmd_uninstall ;;
 download)
 	resolve_version
 	fetch panel "$PWD"
