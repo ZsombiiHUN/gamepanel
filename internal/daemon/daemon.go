@@ -60,6 +60,9 @@ type Config struct {
 	// NoResume keeps servers offline after the daemon starts, even those that
 	// were running when it stopped (see resume).
 	NoResume bool
+	// ContainerUID and ContainerGID own new servers' files, and so are who
+	// their games run as (see provision). 0 means LegacyContainerID.
+	ContainerUID, ContainerGID int
 
 	// Test-only: the SSH handshake deadline (30 s) and how long a login
 	// waits for the panel (10 s).
@@ -219,6 +222,21 @@ func New(cfg Config, rt runtime.Runtime, log *slog.Logger) (*Daemon, error) {
 	return d, nil
 }
 
+// LegacyContainerID is who games ran as before ContainerUID existed, and
+// still do when it is not set: usually the node's first login account.
+const LegacyContainerID = 1000
+
+func (d *Daemon) containerIDs() (uid, gid int) {
+	uid, gid = d.cfg.ContainerUID, d.cfg.ContainerGID
+	if uid <= 0 {
+		uid = LegacyContainerID
+	}
+	if gid <= 0 {
+		gid = uid
+	}
+	return uid, gid
+}
+
 func (d *Daemon) serverDir(uuid string) string { return filepath.Join(d.cfg.DataDir, "servers", uuid) }
 
 func (d *Daemon) statePath(uuid string) string {
@@ -264,6 +282,7 @@ func (d *Daemon) loadState() {
 // exponential backoff. Losing the connection is never fatal, so there is no
 // error to return.
 func (d *Daemon) Run(ctx context.Context) {
+	d.markOutdated(ctx)
 	if n := d.resume(ctx); n > 0 {
 		d.log.Info("started servers that were running before the restart", "count", n)
 	}
@@ -828,7 +847,8 @@ func (d *Daemon) create(ctx context.Context, s proto.ServerSpec) error {
 	// Game images typically run as a non-root user; hand over the data dir.
 	// Files taken over from Wings keep the user Wings ran the server as.
 	if _, err := os.Stat(d.adoptedPath(s.UUID)); err != nil {
-		_ = os.Chown(dir, 1000, 1000)
+		uid, gid := d.containerIDs()
+		_ = os.Chown(dir, uid, gid)
 	}
 	// The container is built in the background, since pulling its image can
 	// take longer than the panel waits for a reply. Until it exists the server
@@ -891,6 +911,7 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 	}
 	d.sendConsole(uuid, "[gamepanel] preparing the server's image "+spec.Image)
 	abs, _ := filepath.Abs(d.serverDir(uuid))
+	d.migrateOwner(uuid)
 	prepared := false
 	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: spec, DataDir: abs}); err != nil {
 		d.log.Warn("could not build a new server's container", "server", uuid, "err", err)
@@ -1465,6 +1486,7 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 		return proto.UpdateResult{Pending: true}, nil
 	}
 	abs, _ := filepath.Abs(d.serverDir(s.UUID))
+	d.migrateOwner(s.UUID)
 	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: s, DataDir: abs}); err != nil {
 		// Put the previous container back so the server is not left without one.
 		if ob, merr := json.Marshal(old); merr == nil {
@@ -1539,6 +1561,7 @@ func (d *Daemon) rebuildIfStale(ctx context.Context, uuid string) error {
 	spec := m.spec
 	d.mu.Unlock()
 	abs, _ := filepath.Abs(d.serverDir(uuid))
+	d.migrateOwner(uuid)
 	if err := d.rt.Create(ctx, runtime.Spec{ServerSpec: spec, DataDir: abs}); err != nil {
 		return fmt.Errorf("could not apply the new settings: %w", err)
 	}

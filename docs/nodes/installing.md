@@ -76,6 +76,9 @@ Download the daemon for your CPU from the [releases page](https://github.com/Zso
 tar xzf gamepanel-daemon_${V}_linux_$A.tar.gz
 sudo install -m 0755 daemon /usr/local/bin/gamepanel-daemon
 sudo install -d -m 0700 /etc/gamepanel /var/lib/gamepanel-daemon
+# Game servers run as this user, which cannot log in anywhere.
+sudo useradd --system --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin gamepanel-game
+id gamepanel-game   # note the uid and gid for daemon.env
 ```
 
 Create `/etc/gamepanel/daemon.env`:
@@ -85,6 +88,7 @@ GAMEPANEL_NODE_TOKEN=<the token>
 GAMEPANEL_PANEL_URL=wss://panel.example.com/daemon/connect
 GAMEPANEL_DATA_DIR=/var/lib/gamepanel-daemon
 GAMEPANEL_SFTP_ADDR=0.0.0.0:2022
+GAMEPANEL_CONTAINER_USER=<uid>:<gid>   # of gamepanel-game, from id above
 ```
 
 ```sh
@@ -111,7 +115,7 @@ If it does not connect, see [Troubleshooting](/troubleshooting#a-node-stays-offl
 
 ## Run it as a service
 
-The daemon runs as **root**: it hands server folders to uid 1000, talks to Docker, and enters container network namespaces for bandwidth limits.
+The daemon runs as **root**: it hands server folders to the game servers' user, talks to Docker, keeps the servers' [firewall](/nodes/isolation) and enters container network namespaces for bandwidth limits. It needs `iptables`.
 
 `/etc/systemd/system/gamepanel-daemon.service` (also in the archive, as `packaging/systemd/gamepanel-daemon.service`):
 

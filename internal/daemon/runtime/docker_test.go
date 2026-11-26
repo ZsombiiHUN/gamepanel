@@ -18,7 +18,8 @@ import (
 type fakeEngine struct {
 	mu    sync.Mutex
 	calls []string
-	reply map[string]int // "METHOD path-substring" -> status
+	reply map[string]int    // "METHOD path-substring" -> status
+	body  map[string]string // "METHOD path-substring" -> body of a success
 }
 
 func (e *fakeEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +29,15 @@ func (e *fakeEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Api-Version", "1.47")
+	for k, b := range e.body {
+		if m, p, _ := strings.Cut(k, " "); m == r.Method && strings.Contains(r.URL.Path, p) {
+			if status := e.reply[k]; status != 0 {
+				w.WriteHeader(status)
+			}
+			w.Write([]byte(b))
+			return
+		}
+	}
 	for k, status := range e.reply {
 		if m, p, _ := strings.Cut(k, " "); m == r.Method && strings.Contains(r.URL.Path, p) {
 			w.WriteHeader(status)
@@ -62,7 +72,7 @@ func newFakeDocker(t *testing.T, reply map[string]int) (*Docker, *fakeEngine) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Docker{cli: cli}, e
+	return &Docker{cli: cli, iso: Isolation{Network: DefaultNetwork}}, e
 }
 
 // Recreating a server's container (new limits) must not delete the old one

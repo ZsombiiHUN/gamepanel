@@ -30,9 +30,10 @@ ENTRYPOINT ["/usr/local/bin/panel"]
 
 # The daemon drives the host's Docker through its socket, so server folders
 # are host paths: mount the data directory at the same path inside and out
-# (see compose.yml). iproute2 and util-linux (nsenter) are for network limits.
+# (see compose.yml). iproute2 and util-linux (nsenter) are for network limits;
+# iptables (both variants: it uses the one Docker uses) for isolating servers.
 FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS daemon
-RUN apk add --no-cache ca-certificates iproute2 iproute2-tc util-linux-misc tzdata
+RUN apk add --no-cache ca-certificates iproute2 iproute2-tc util-linux-misc tzdata iptables iptables-legacy
 COPY --from=build /out/daemon /usr/local/bin/daemon
 ENV GAMEPANEL_DATA_DIR=/var/lib/gamepanel-daemon
 EXPOSE 2022

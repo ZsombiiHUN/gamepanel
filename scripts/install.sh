@@ -858,6 +858,19 @@ node_questions() {
 	return 0
 }
 
+# container_user: game servers run as a system user of their own, which can
+# log in nowhere, rather than as uid 1000 (usually the first person's
+# account). Kept daemon.env files get it too; the daemon moves existing
+# servers' files over at their next start.
+container_user() {
+	id gamepanel-game >/dev/null 2>&1 ||
+		useradd --system --user-group --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin gamepanel-game
+	if [ -z "$(get_env "$ETC/daemon.env" GAMEPANEL_CONTAINER_USER)" ]; then
+		echo "Game servers run as the gamepanel-game user"
+		set_env "$ETC/daemon.env" GAMEPANEL_CONTAINER_USER "$(id -u gamepanel-game):$(id -g gamepanel-game)"
+	fi
+}
+
 daemon_files() {
 	install -m 0755 "$TMP/daemon" "$BIN/gamepanel-daemon"
 	install -d -m 0700 "$ETC" "$DAEMON_DATA"
@@ -888,9 +901,11 @@ EOF
 	else
 		warn "no ifb kernel module: incoming bandwidth limits fall back to a policer"
 	fi
+	container_user
 	for t in tc ip nsenter; do
 		command -v "$t" >/dev/null || warn "$t is missing: network limits are off (install iproute2 and util-linux)"
 	done
+	command -v iptables >/dev/null || die "iptables is missing: the daemon needs it to keep game servers away from this machine (install iptables)"
 }
 
 adopt_wings() {
@@ -1034,6 +1049,7 @@ replace_panel() {
 }
 
 replace_daemon() {
+	container_user
 	install -m 0755 "$TMP/daemon" "$BIN/gamepanel-daemon"
 	install -m 0644 "$TMP/packaging/systemd/gamepanel-daemon.service" /etc/systemd/system/gamepanel-daemon.service
 	systemctl daemon-reload

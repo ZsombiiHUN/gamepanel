@@ -84,6 +84,13 @@ type Gatewayer interface {
 	Gateway(ctx context.Context) (string, error)
 }
 
+// Outdateder is implemented by runtimes that can tell which servers'
+// containers were built by an earlier daemon in a way that has since
+// changed; the daemon rebuilds those at their next start.
+type Outdateder interface {
+	Outdated(ctx context.Context) ([]string, error)
+}
+
 // DefaultGateway is Docker's usual bridge gateway, used when the runtime
 // cannot say.
 const DefaultGateway = "172.17.0.1"

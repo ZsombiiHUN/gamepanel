@@ -11,6 +11,37 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Security
+
+- Game servers are isolated from each other and from the node. Every server
+  and install container joins a `gamepanel0` network with inter-container
+  traffic off, and the daemon keeps iptables chains so servers cannot reach
+  the node's own services (SSH, the panel, SFTP, databases) or cloud metadata
+  (`169.254.0.0/16`). Servers still reach the internet, and other servers'
+  published ports at the node's address (proxies). New settings:
+  `GAMEPANEL_FIREWALL`, `GAMEPANEL_HOST_PORTS`, `GAMEPANEL_BLOCK_PRIVATE`,
+  `GAMEPANEL_NETWORK`. See [Server isolation](docs/nodes/isolation.md).
+- Game servers run as a system user of their own (`GAMEPANEL_CONTAINER_USER`;
+  the installer creates `gamepanel-game`), not uid 1000, which on most
+  machines is a person's login account. Existing servers' files move to it at
+  their next start.
+- Container logs rotate (local driver, 3 × 10 MB). Docker's default log grew
+  without limit, outside the server's disk limit, so a server printing a lot
+  could fill the node's disk.
+
+### Upgrade notes
+
+- The daemon needs `iptables` and refuses to start when it cannot set up the
+  firewall. Where it cannot see Docker's network (Docker Desktop, rootless
+  Docker), set `GAMEPANEL_FIREWALL=off`.
+- Servers can no longer reach services on the node. A database on the node
+  that servers use needs `GAMEPANEL_HOST_PORTS=3306/tcp` (its port).
+- Running servers keep their old container until they next start; each is
+  then rebuilt on the new network. Restart servers to isolate them sooner.
+- `install.sh upgrade` creates the `gamepanel-game` user and sets
+  `GAMEPANEL_CONTAINER_USER`. Manual and Docker Compose installs should set
+  it themselves (docs/nodes/configuration.md).
+
 ## [0.2.1] - 2026-11-26
 
 ### Added

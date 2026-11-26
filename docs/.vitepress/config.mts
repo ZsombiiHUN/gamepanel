@@ -99,6 +99,7 @@ export default defineConfig({
           { text: 'Configuration reference', link: '/nodes/configuration' },
           { text: 'SFTP', link: '/nodes/sftp' },
           { text: 'Network limits', link: '/nodes/network-limits' },
+          { text: 'Server isolation', link: '/nodes/isolation' },
           { text: 'Data directory', link: '/nodes/data-directory' },
         ],
       },
