@@ -11,7 +11,7 @@ import (
 
 // ServerByExternalID finds the server a shop created with that external id.
 func (s *Store) ServerByExternalID(ctx context.Context, id string) (Server, error) {
-	return scanServer(s.DB.QueryRowContext(ctx, `SELECT `+srvCols+` FROM servers WHERE external_id=?`, id))
+	return scanServer(s.RO.QueryRowContext(ctx, `SELECT `+srvCols+` FROM servers WHERE external_id=?`, id))
 }
 
 // SetSuspended suspends or unsuspends a server. changed is false when it
@@ -95,7 +95,7 @@ var ErrEmailTaken = userErr("an account with that email already exists")
 
 // GetAccount loads an account by id.
 func (s *Store) GetAccount(ctx context.Context, id int64) (Account, error) {
-	return scanAccount(s.DB.QueryRowContext(ctx, `SELECT `+accountCols+` FROM users WHERE id=?`, id))
+	return scanAccount(s.RO.QueryRowContext(ctx, `SELECT `+accountCols+` FROM users WHERE id=?`, id))
 }
 
 // AccountFilter narrows ListAccounts; empty fields match everything.
@@ -127,13 +127,13 @@ func (s *Store) ListAccounts(ctx context.Context, f AccountFilter) ([]Account, e
 		f.Limit = 100
 	}
 	args = append(args, f.Limit, f.Offset)
-	return queryAll(ctx, s.DB, scanAccount, `SELECT `+accountCols+` FROM users WHERE `+w+` ORDER BY id LIMIT ? OFFSET ?`, args...)
+	return queryAll(ctx, s.RO, scanAccount, `SELECT `+accountCols+` FROM users WHERE `+w+` ORDER BY id LIMIT ? OFFSET ?`, args...)
 }
 
 // CountAccounts counts the accounts ListAccounts would page through.
 func (s *Store) CountAccounts(ctx context.Context, f AccountFilter) (int, error) {
 	w, args := f.where()
-	return count(ctx, s.DB, `SELECT COUNT(*) FROM users WHERE `+w, args...)
+	return count(ctx, s.RO, `SELECT COUNT(*) FROM users WHERE `+w, args...)
 }
 
 // NewAccount is what CreateAccount needs. An empty Password makes an account
@@ -319,11 +319,11 @@ func (s *Store) CreateWebhook(ctx context.Context, h Webhook) (Webhook, error) {
 }
 
 func (s *Store) GetWebhook(ctx context.Context, id int64) (Webhook, error) {
-	return scanHook(s.DB.QueryRowContext(ctx, `SELECT `+hookCols+` FROM webhooks WHERE id=?`, id))
+	return scanHook(s.RO.QueryRowContext(ctx, `SELECT `+hookCols+` FROM webhooks WHERE id=?`, id))
 }
 
 func (s *Store) ListWebhooks(ctx context.Context) ([]Webhook, error) {
-	return queryAll(ctx, s.DB, scanHook, `SELECT `+hookCols+` FROM webhooks ORDER BY id`)
+	return queryAll(ctx, s.RO, scanHook, `SELECT `+hookCols+` FROM webhooks ORDER BY id`)
 }
 
 // UpdateWebhook saves a webhook's address, description, events and switch;
@@ -401,7 +401,7 @@ func (s *Store) QueueEvent(ctx context.Context, event, payload string, hookID in
 
 // DueDeliveries returns pending deliveries whose time has come, oldest first.
 func (s *Store) DueDeliveries(ctx context.Context, limit int) ([]Delivery, error) {
-	return queryAll(ctx, s.DB, scanDelivery, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE status='pending' AND next_at<=? ORDER BY id LIMIT ?`, now(), limit)
+	return queryAll(ctx, s.RO, scanDelivery, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE status='pending' AND next_at<=? ORDER BY id LIMIT ?`, now(), limit)
 }
 
 // DeliveryDone records a successful delivery.
@@ -424,7 +424,7 @@ func (s *Store) DeliveryFailed(ctx context.Context, id int64, code int, msg stri
 
 // ListDeliveries returns a webhook's latest deliveries, newest first.
 func (s *Store) ListDeliveries(ctx context.Context, hookID int64, limit int) ([]Delivery, error) {
-	return queryAll(ctx, s.DB, scanDelivery, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE webhook_id=? ORDER BY id DESC LIMIT ?`, hookID, limit)
+	return queryAll(ctx, s.RO, scanDelivery, `SELECT `+deliveryCols+` FROM webhook_deliveries WHERE webhook_id=? ORDER BY id DESC LIMIT ?`, hookID, limit)
 }
 
 // RetryDelivery queues a finished delivery again, now.

@@ -101,7 +101,7 @@ type Session struct {
 func (s *Store) ListSessions(ctx context.Context, userID int64, current string) ([]Session, error) {
 	cur := HashToken(current)
 	idle := int64(s.SessionIdle.Seconds())
-	return queryAll(ctx, s.DB, func(sc rowScanner) (Session, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (Session, error) {
 		var x Session
 		err := sc.Scan(&x.ID, &x.Current, &x.CreatedAt, &x.LastSeen, &x.ExpiresAt, &x.IP, &x.LastIP, &x.UserAgent, &x.Method)
 		x.IdleEnds = min(x.LastSeen+idle, x.ExpiresAt)
@@ -119,7 +119,7 @@ var ErrCurrentSession = userErr("that is the session you are using; sign out ins
 // and also clears the cookie.
 func (s *Store) DeleteSessionByID(ctx context.Context, userID int64, id, current string) error {
 	var h string
-	if err := s.DB.QueryRowContext(ctx, `SELECT token_hash FROM sessions WHERE user_id=? AND public_id=? AND public_id<>''`, userID, id).Scan(&h); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT token_hash FROM sessions WHERE user_id=? AND public_id=? AND public_id<>''`, userID, id).Scan(&h); err != nil {
 		return nf(err)
 	}
 	if h == HashToken(current) {

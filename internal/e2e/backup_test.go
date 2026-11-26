@@ -19,6 +19,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 )
 
 type stack struct {
@@ -44,7 +45,7 @@ func newStackWith(t *testing.T, panel func(*api.Deps), nodeCfg func(*daemon.Conf
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, err := store.Open(filepath.Join(t.TempDir(), "panel.db"))
+	st, err := storetest.Open(filepath.Join(t.TempDir(), "panel.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -50,7 +50,7 @@ func pickPort(ctx context.Context, q querier, nodeID int64, want int) (int, erro
 
 // ListPorts returns a server's ports, the primary one first.
 func (s *Store) ListPorts(ctx context.Context, uuid string) ([]ServerPort, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (ServerPort, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (ServerPort, error) {
 		var p ServerPort
 		err := sc.Scan(&p.Port, &p.Notes, &p.Primary)
 		return p, err
@@ -89,7 +89,7 @@ var ErrPrimaryPort = userErr("the primary port cannot be removed; make another p
 // RemovePort takes a port away from a server.
 func (s *Store) RemovePort(ctx context.Context, uuid string, port int) error {
 	var primary int
-	if err := s.DB.QueryRowContext(ctx, `SELECT port FROM servers WHERE uuid=?`, uuid).Scan(&primary); err != nil {
+	if err := s.RO.QueryRowContext(ctx, `SELECT port FROM servers WHERE uuid=?`, uuid).Scan(&primary); err != nil {
 		return nf(err)
 	}
 	if port == primary {

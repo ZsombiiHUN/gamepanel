@@ -52,7 +52,7 @@ func (s *Store) listAudit(ctx context.Context, conds []string, args []any, q str
 		where = " WHERE " + strings.Join(conds, " AND ")
 	}
 	args = append(args, limit, offset)
-	return queryAll(ctx, s.DB, func(sc rowScanner) (AuditEntry, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (AuditEntry, error) {
 		var e AuditEntry
 		err := sc.Scan(&e.ID, &e.At, &e.ActorID, &e.ActorEmail, &e.Action, &e.Target, &e.IP, &e.Detail)
 		return e, err

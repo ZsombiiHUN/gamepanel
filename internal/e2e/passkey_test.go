@@ -22,7 +22,7 @@ import (
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
-	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 )
 
 // authenticator is a software passkey: a P-256 key that signs WebAuthn
@@ -122,7 +122,7 @@ func (a *authenticator) get(t *testing.T, options json.RawMessage, verified bool
 func passkeyPanel(t *testing.T) (string, *client) {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, err := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, err := storetest.Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

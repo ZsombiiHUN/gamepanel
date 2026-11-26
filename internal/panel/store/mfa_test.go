@@ -46,7 +46,7 @@ func TestVerifyTOTPWindowAndReplay(t *testing.T) {
 func TestSecretsEncryptedAtRest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	s, err := Open(filepath.Join(t.TempDir(), "p.db"))
+	s, err := openT(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestSecretsEncryptedAtRest(t *testing.T) {
 func TestRecoveryCodesAreSingleUse(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	s, _ := Open(filepath.Join(t.TempDir(), "p.db"))
+	s, _ := openT(filepath.Join(t.TempDir(), "p.db"))
 	defer s.Close()
 	u, _ := s.CreateUser(ctx, "a@example.com", "correct-horse-battery", false)
 	codes, err := s.NewRecoveryCodes(ctx, u.ID)

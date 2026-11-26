@@ -16,8 +16,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sync"
-	"testing"
 	"time"
 
 	"github.com/pressly/goose/v3"
@@ -28,7 +26,13 @@ import (
 var migrations embed.FS
 
 type Store struct {
+	// DB is the one connection that writes (SQLite allows one writer at a
+	// time; queueing here instead of in SQLite avoids SQLITE_BUSY). RO is a
+	// pool of read-only connections: WAL lets them read while DB writes, so
+	// a long list or count does not hold up every request behind it. RO
+	// refuses writes (query_only), so a misrouted one fails loudly.
 	DB  *sql.DB
+	RO  *sql.DB
 	key []byte // optional AES key for secrets at rest, see SetSecretKey
 
 	// SessionMax is how long a session lasts from sign-in, however busy it
@@ -49,14 +53,8 @@ const (
 )
 
 func Open(path string) (*Store, error) {
-	// WAL + busy timeout + FK enforcement; one writer connection avoids
-	// SQLITE_BUSY surprises at MVP scale.
+	// WAL + busy timeout + FK enforcement; see Store for the two pools.
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
-	if testing.Testing() {
-		if err := seedFromTemplate(path); err != nil {
-			return nil, err
-		}
-	}
 	// The database holds password hashes and node tokens: create it readable
 	// by the panel's user only. SQLite gives its -wal and -shm files the same
 	// mode as the database.
@@ -71,8 +69,17 @@ func Open(path string) (*Store, error) {
 	if err := migrate(db); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
-	return &Store{DB: db, SessionMax: DefaultSessionMax, SessionIdle: DefaultSessionIdle, Log: slog.Default()}, nil
+	ro, err := sql.Open("sqlite", dsn+"&_pragma=query_only(1)")
+	if err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
+	ro.SetMaxOpenConns(readers)
+	ro.SetMaxIdleConns(readers)
+	return &Store{DB: db, RO: ro, SessionMax: DefaultSessionMax, SessionIdle: DefaultSessionIdle, Log: slog.Default()}, nil
 }
+
+// readers is the size of the read-only pool.
+const readers = 4
 
 // migrator applies the embedded migrations to db. It keeps no package state
 // (unlike goose's global functions), so stores can be opened concurrently.
@@ -95,50 +102,28 @@ func migrate(db *sql.DB) error {
 	return nil
 }
 
-// template is an empty, fully migrated database, made once per test binary.
-var template struct {
-	once sync.Once
-	data []byte
-	err  error
-}
-
-// seedFromTemplate writes the migrated template to path when no database is
-// there yet. The race detector makes the SQLite engine (C compiled to Go)
-// slow, and running every migration took about 0.4s per store, which nearly
-// every test opens. Databases that already exist, such as the ones the upgrade
-// tests build at an old version, are left to migrate as usual.
-func seedFromTemplate(path string) error {
-	if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
-		return nil
+// Template returns an empty, fully migrated database file's bytes. Tests
+// copy it instead of running every migration for each store they open (see
+// storetest), which under the race detector took about 0.4 s a store.
+func Template() (data []byte, err error) {
+	dir, err := os.MkdirTemp("", "gamepanel-store-template-")
+	if err != nil {
+		return nil, err
 	}
-	template.once.Do(func() {
-		dir, err := os.MkdirTemp("", "gamepanel-store-template-")
-		if err != nil {
-			template.err = err
-			return
-		}
-		defer func() { template.err = errors.Join(template.err, os.RemoveAll(dir)) }()
-		db, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "t.db")+"?_pragma=foreign_keys(1)")
-		if err != nil {
-			template.err = err
-			return
-		}
-		defer db.Close()
-		out := filepath.Join(dir, "template.db")
-		if err := migrate(db); err != nil {
-			template.err = err
-			return
-		}
-		if _, err := db.ExecContext(context.Background(), `VACUUM INTO ?`, out); err != nil {
-			template.err = err
-			return
-		}
-		template.data, template.err = os.ReadFile(out)
-	})
-	if template.err != nil {
-		return fmt.Errorf("store template: %w", template.err)
+	defer func() { err = errors.Join(err, os.RemoveAll(dir)) }()
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "t.db")+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		return nil, err
 	}
-	return os.WriteFile(path, template.data, 0o600)
+	defer db.Close()
+	out := filepath.Join(dir, "template.db")
+	if err := migrate(db); err != nil {
+		return nil, err
+	}
+	if _, err := db.ExecContext(context.Background(), `VACUUM INTO ?`, out); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(out)
 }
 
 // createPrivate creates an empty file at path with mode 0600 unless something
@@ -155,7 +140,7 @@ func createPrivate(path string) error {
 	return f.Close()
 }
 
-func (s *Store) Close() error { return s.DB.Close() }
+func (s *Store) Close() error { return errors.Join(s.RO.Close(), s.DB.Close()) }
 
 func now() int64 { return time.Now().Unix() }
 

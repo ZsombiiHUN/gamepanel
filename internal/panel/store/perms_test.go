@@ -11,7 +11,7 @@ import (
 func TestNewDatabaseIsPrivate(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "panel.db")
-	s, err := Open(path)
+	s, err := openT(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestNewDatabaseIsPrivate(t *testing.T) {
 func TestExistingDatabaseKeepsMode(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "panel.db")
-	s, err := Open(path)
+	s, err := openT(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestExistingDatabaseKeepsMode(t *testing.T) {
 	if err := os.Chmod(path, 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if s, err = Open(path); err != nil {
+	if s, err = openT(path); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })

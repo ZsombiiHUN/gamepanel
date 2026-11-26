@@ -20,7 +20,7 @@ func (s *Store) ServerMetas(ctx context.Context) (map[string]ServerMeta, error) 
 		uuid string
 		m    ServerMeta
 	}
-	rows, err := queryAll(ctx, s.DB, func(sc rowScanner) (row, error) {
+	rows, err := queryAll(ctx, s.RO, func(sc rowScanner) (row, error) {
 		var r row
 		err := sc.Scan(&r.uuid, &r.m.ID, &r.m.CreatedAt)
 		return r, err
@@ -38,13 +38,13 @@ func (s *Store) ServerMetas(ctx context.Context) (map[string]ServerMeta, error) 
 // GetServerMeta returns one server's number and creation time.
 func (s *Store) GetServerMeta(ctx context.Context, uuid string) (ServerMeta, error) {
 	var m ServerMeta
-	err := s.DB.QueryRowContext(ctx, `SELECT i.id, s.created_at FROM servers s JOIN server_ids i ON i.uuid = s.uuid WHERE s.uuid=?`, uuid).Scan(&m.ID, &m.CreatedAt)
+	err := s.RO.QueryRowContext(ctx, `SELECT i.id, s.created_at FROM servers s JOIN server_ids i ON i.uuid = s.uuid WHERE s.uuid=?`, uuid).Scan(&m.ID, &m.CreatedAt)
 	return m, nf(err)
 }
 
 // ServerByNumber loads a server by its number.
 func (s *Store) ServerByNumber(ctx context.Context, id int64) (Server, error) {
-	return scanServer(s.DB.QueryRowContext(ctx, `SELECT `+srvCols+` FROM servers WHERE uuid=(SELECT uuid FROM server_ids WHERE id=?)`, id))
+	return scanServer(s.RO.QueryRowContext(ctx, `SELECT `+srvCols+` FROM servers WHERE uuid=(SELECT uuid FROM server_ids WHERE id=?)`, id))
 }
 
 // PortRange is an inclusive range of ports.
@@ -87,7 +87,7 @@ func (s *Store) UsedPorts(ctx context.Context, nodeID int64) (map[int]string, er
 		port int
 		uuid string
 	}
-	rows, err := queryAll(ctx, s.DB, func(sc rowScanner) (row, error) {
+	rows, err := queryAll(ctx, s.RO, func(sc rowScanner) (row, error) {
 		var r row
 		err := sc.Scan(&r.port, &r.uuid)
 		return r, err

@@ -106,7 +106,7 @@ func TestLegacyRecoveryCodes(t *testing.T) {
 	}
 	db.Close()
 
-	s, err := Open(path)
+	s, err := openT(path)
 	if err != nil {
 		t.Fatal(err)
 	}

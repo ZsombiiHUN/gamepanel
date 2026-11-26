@@ -25,6 +25,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/api"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 )
 
 // fakeIDP is an OpenID Connect provider that hands out codes for whichever
@@ -99,7 +100,7 @@ type ssoEnv struct {
 func newSSOEnv(t *testing.T, signup string) *ssoEnv {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, err := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, err := storetest.Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

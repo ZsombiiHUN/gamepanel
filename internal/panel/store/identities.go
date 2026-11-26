@@ -17,7 +17,7 @@ type Identity struct {
 // UserByIdentity finds the account an identity is linked to.
 func (s *Store) UserByIdentity(ctx context.Context, provider, subject string) (User, error) {
 	var u User
-	err := s.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled FROM user_identities i JOIN users u ON u.id=i.user_id
+	err := s.RO.QueryRowContext(ctx, `SELECT u.id,u.email,u.is_admin,u.totp_enabled FROM user_identities i JOIN users u ON u.id=i.user_id
 		WHERE i.provider=? AND i.subject=?`, provider, subject).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.TOTPEnabled)
 	return u, nf(err)
 }
@@ -29,7 +29,7 @@ var ErrIdentityTaken = userErr("that sign-in is already linked to another accoun
 // account just updates the email).
 func (s *Store) LinkIdentity(ctx context.Context, userID int64, provider, subject, email string) error {
 	var owner int64
-	err := s.DB.QueryRowContext(ctx, `SELECT user_id FROM user_identities WHERE provider=? AND subject=?`, provider, subject).Scan(&owner)
+	err := s.RO.QueryRowContext(ctx, `SELECT user_id FROM user_identities WHERE provider=? AND subject=?`, provider, subject).Scan(&owner)
 	if err == nil && owner != userID {
 		return ErrIdentityTaken
 	}
@@ -39,7 +39,7 @@ func (s *Store) LinkIdentity(ctx context.Context, userID int64, provider, subjec
 }
 
 func (s *Store) ListIdentities(ctx context.Context, userID int64) ([]Identity, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (Identity, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (Identity, error) {
 		var i Identity
 		err := sc.Scan(&i.Provider, &i.Email, &i.CreatedAt)
 		return i, err
@@ -109,7 +109,7 @@ func (s *Store) CreateSSOUser(ctx context.Context, email, provider, subject, inv
 // HasPassword reports whether an account has a password it can sign in with.
 func (s *Store) HasPassword(ctx context.Context, userID int64) (bool, error) {
 	var has bool
-	err := s.DB.QueryRowContext(ctx, `SELECT has_password FROM users WHERE id=?`, userID).Scan(&has)
+	err := s.RO.QueryRowContext(ctx, `SELECT has_password FROM users WHERE id=?`, userID).Scan(&has)
 	return has, nf(err)
 }
 

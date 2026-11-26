@@ -159,11 +159,11 @@ func (s *Store) FailStaleBackups(ctx context.Context) error {
 }
 
 func (s *Store) GetBackup(ctx context.Context, server, uuid string) (Backup, error) {
-	return scanBackup(s.DB.QueryRowContext(ctx, `SELECT `+backupCols+` FROM backups WHERE uuid=? AND server_uuid=?`, uuid, server))
+	return scanBackup(s.RO.QueryRowContext(ctx, `SELECT `+backupCols+` FROM backups WHERE uuid=? AND server_uuid=?`, uuid, server))
 }
 
 func (s *Store) ListBackups(ctx context.Context, server string) ([]Backup, error) {
-	return queryAll(ctx, s.DB, scanBackup, `SELECT `+backupCols+` FROM backups WHERE server_uuid=? ORDER BY created_at DESC, uuid`, server)
+	return queryAll(ctx, s.RO, scanBackup, `SELECT `+backupCols+` FROM backups WHERE server_uuid=? ORDER BY created_at DESC, uuid`, server)
 }
 
 func (s *Store) SetBackupLocked(ctx context.Context, server, uuid string, locked bool) error {
@@ -184,7 +184,7 @@ func (s *Store) DeleteBackup(ctx context.Context, server, uuid string) error {
 
 // BackupsOnDisk lists a server's backups kept on disk ("s3"), for cleanup.
 func (s *Store) BackupsOnDisk(ctx context.Context, server, disk string) ([]string, error) {
-	return queryAll(ctx, s.DB, func(sc rowScanner) (string, error) {
+	return queryAll(ctx, s.RO, func(sc rowScanner) (string, error) {
 		var id string
 		err := sc.Scan(&id)
 		return id, err

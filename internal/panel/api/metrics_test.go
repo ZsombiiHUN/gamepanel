@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 )
 
 func TestCollectorBucketsReadingsByMinute(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st, err := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	st, err := storetest.Open(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

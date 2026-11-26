@@ -22,6 +22,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/hub"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/panel/store/storetest"
 )
 
 // TestS3Backups runs against a real S3-compatible store. It is skipped unless
@@ -55,7 +56,7 @@ func TestS3Backups(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	st, _ := store.Open(filepath.Join(t.TempDir(), "panel.db"))
+	st, _ := storetest.Open(filepath.Join(t.TempDir(), "panel.db"))
 	defer st.Close()
 	st.CreateUser(ctx, "admin@example.com", "correct-horse-battery", true)
 	h := hub.New(log)

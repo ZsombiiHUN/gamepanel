@@ -25,8 +25,8 @@ func count(ctx context.Context, q querier, query string, args ...any) (int, erro
 }
 
 // queryAll runs query and scans every row. The rows are closed before it
-// returns: the panel uses one database connection, so a later query would
-// wait on rows left open. A failure partway through returns the error, never
+// returns: the writing connection is a single one, so a later query inside
+// a transaction would wait on rows left open. A failure partway through returns the error, never
 // a shortened list. An empty result is an empty, non-nil slice, which the API
 // encodes as [] rather than null.
 func queryAll[T any](ctx context.Context, q querier, scan func(rowScanner) (T, error), query string, args ...any) ([]T, error) {
