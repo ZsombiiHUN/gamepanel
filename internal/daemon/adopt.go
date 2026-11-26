@@ -275,7 +275,11 @@ func moveFile(src, dst string) error {
 // where its own backups are kept. A backup without one (Wings had already
 // lost it) is left for the panel to report when it is restored.
 func (d *Daemon) claimBackups(uuid string, ids []string) int {
-	n := 0
+	if !uuidRe.MatchString(uuid) {
+		return 0
+	}
+	n, failed := 0, 0
+	var why error
 	for _, id := range ids {
 		if !uuidRe.MatchString(id) {
 			continue
@@ -284,17 +288,35 @@ func (d *Daemon) claimBackups(uuid string, ids []string) int {
 		if _, err := os.Stat(src); err != nil {
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
-			d.log.Warn("could not take over a backup from Wings", "server", uuid, "backup", id, "err", err)
-			continue
+		err := os.MkdirAll(filepath.Dir(dst), 0o750)
+		if err == nil {
+			err = os.Rename(src, dst)
 		}
-		if err := os.Rename(src, dst); err != nil {
-			d.log.Warn("could not take over a backup from Wings", "server", uuid, "backup", id, "err", err)
+		if err != nil {
+			failed++
+			why = errnoOf(err)
 			continue
 		}
 		n++
 	}
+	if failed > 0 {
+		// Only the cause: the paths hold ids the panel sent.
+		d.log.Warn("could not take over backups from Wings; they stay in backups/wings", "count", failed, "err", why)
+	}
 	return n
+}
+
+// errnoOf strips the path from a file system error.
+func errnoOf(err error) error {
+	var pe *fs.PathError
+	var le *os.LinkError
+	switch {
+	case errors.As(err, &le):
+		return le.Err
+	case errors.As(err, &pe):
+		return pe.Err
+	}
+	return err
 }
 
 // adoptOne moves (or, across file systems, copies) one server folder and
