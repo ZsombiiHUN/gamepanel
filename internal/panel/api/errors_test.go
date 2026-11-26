@@ -20,6 +20,8 @@ import (
 )
 
 // captureLog points the hidden-error log at a buffer for the test.
+// captureLog swaps the package's error logger for the test's duration, so
+// tests that use it must not run in parallel with each other.
 func captureLog(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var buf bytes.Buffer
@@ -43,8 +45,7 @@ func detailOf(t *testing.T, err error) (int, string) {
 
 // Internal failures (database, file system, node) are logged with a reference
 // and the client sees only a generic message holding that reference.
-func TestInternalErrorsAreHiddenBehindAReference(t *testing.T) {
-	t.Parallel()
+func TestInternalErrorsAreHiddenBehindAReference(t *testing.T) { //nolint:paralleltest // captureLog swaps the package logger
 	log := captureLog(t)
 	secret := fmt.Errorf("insert subusers: %w", sql.ErrConnDone)
 
@@ -79,8 +80,7 @@ func TestInternalErrorsAreHiddenBehindAReference(t *testing.T) {
 	}
 }
 
-func TestMessagesWrittenForPeoplePassThrough(t *testing.T) {
-	t.Parallel()
+func TestMessagesWrittenForPeoplePassThrough(t *testing.T) { //nolint:paralleltest // captureLog swaps the package logger
 	captureLog(t)
 	cases := []struct {
 		err    error
@@ -112,8 +112,7 @@ func TestMessagesWrittenForPeoplePassThrough(t *testing.T) {
 }
 
 // Failures of background jobs are stored and shown later: same rule.
-func TestStoredFailuresDoNotLeak(t *testing.T) {
-	t.Parallel()
+func TestStoredFailuresDoNotLeak(t *testing.T) { //nolint:paralleltest // captureLog swaps the package logger
 	log := captureLog(t)
 	if got := failureText(proto.Conflict("stop the server before restoring a backup")); got != "stop the server before restoring a backup" {
 		t.Fatalf("safe message changed: %q", got)

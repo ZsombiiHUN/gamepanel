@@ -150,10 +150,12 @@ func (a *App) specFor(ctx context.Context, s store.Server) (proto.ServerSpec, er
 	if s.Startup != "" {
 		startup = s.Startup
 	}
+	env := buildEnv(egg, s.Env, s.MemoryMB, s.Port, s.UUID)
 	return proto.ServerSpec{
 		Install: inst,
 		UUID:    s.UUID, Image: image, Startup: shellStartup(startup), Stop: egg.Stop, Done: egg.Done,
-		Env: buildEnv(egg, s.Env, s.MemoryMB, s.Port), MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
+		ConfigFiles: specConfigFiles(egg.ConfigFiles, s, image, env),
+		Env:         env, MemoryMB: s.MemoryMB, CPUPct: s.CPUPct,
 		SwapMB: s.SwapMB, CPUSet: s.CPUSet, Pids: s.PidsLimit, IOWeight: s.IOWeight, DiskMB: s.DiskMB, BandwidthMbit: s.BandwidthMbit,
 		Ports: maps, NoCrashRestart: !s.CrashRestart, Suspended: s.Suspended,
 	}, nil

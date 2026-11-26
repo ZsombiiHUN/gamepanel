@@ -1936,6 +1936,7 @@ export interface components {
             webhook_id: number;
         };
         Egg: {
+            config_files: components["schemas"]["EggConfigFile"][];
             description: string;
             /** @description the default image (the first of docker_images) */
             docker_image: string;
@@ -1951,6 +1952,18 @@ export interface components {
             startup: string;
             stop: string;
             variables: components["schemas"]["EggVar"][] | null;
+        };
+        EggConfigFile: {
+            file: string;
+            find: components["schemas"]["EggFind"][];
+            /** @enum {string} */
+            parser: "properties" | "ini" | "yaml" | "yml" | "json" | "file" | "xml";
+        };
+        EggFind: {
+            /** @description absent: always set the key; "": only while its value is empty */
+            if_value?: string;
+            key: string;
+            value: string;
         };
         EggImage: {
             image: string;

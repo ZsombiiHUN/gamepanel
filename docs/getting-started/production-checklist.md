@@ -36,5 +36,5 @@ These are not built yet. Plan around them:
 | Activity and audit logs are never pruned | Watch the database size; it grows slowly |
 | Pterodactyl application API not built | Billing modules need the [GamePanel API](/server-creation#selling-servers-the-shop-api) |
 | Not verified on Podman, Windows or macOS Docker hosts | Use Linux with Docker Engine |
-| Egg `config.files` rules are not applied | Set the port in config files such as Minecraft's `server.properties` yourself. See [Eggs](/admin/eggs#ports-and-config-files) |
+| Egg `config.files` rules for XML files are not applied | Set the port in that XML file yourself. See [Eggs](/admin/eggs#config-files) |
 | No server transfer between nodes | Move servers by backup and re-upload. See [Data directory](/nodes/data-directory#moving-or-rebuilding-a-node) |

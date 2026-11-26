@@ -60,7 +60,7 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 ## What can it run?
 
 - **Minecraft, with extra care.** GamePanel ships its own eggs for Paper, Purpur, Folia, Vanilla, Fabric, Forge, NeoForge, Velocity and BungeeCord, on Java 8 to 25. They size the JVM to fit the container, write the port before every start, and check every download against its published checksum. See [Minecraft eggs](https://zsombiihun.github.io/gamepanel/admin/minecraft-eggs).
-- **Anything with a Pterodactyl egg.** The [pelican-eggs](https://github.com/pelican-eggs) library covers Steam games (Rust, ARK, Valheim and many more), plus applications, bots and databases. Eggs that pass the port on the command line, as most Steam game eggs do, work as they are. A few eggs edit config files to set the port, and with those you set it once by hand until [#86](https://github.com/ZsombiiHUN/gamepanel/issues/86) lands.
+- **Anything with a Pterodactyl egg.** The [pelican-eggs](https://github.com/pelican-eggs) library covers Steam games (Rust, ARK, Valheim and many more), plus applications, bots and databases. Eggs that pass the port on the command line work as they are, and eggs that write it into a config file (`config.files`) get it written before each start, as in Pterodactyl.
 
 ## Features
 
@@ -218,7 +218,6 @@ The browser only ever talks to the panel. Each node opens its own connection out
 These are next, roughly in this order. There are no dates, and the order may change.
 
 - [ ] **Import a Pterodactyl panel**: users, nodes, eggs, servers and files ([#95](https://github.com/ZsombiiHUN/gamepanel/issues/95)). The preview, `panel import-pterodactyl`, already works.
-- [ ] **Apply egg `config.files` rules**, so every community egg sets its own port ([#86](https://github.com/ZsombiiHUN/gamepanel/issues/86))
 - [ ] **Move a server to another node** ([#93](https://github.com/ZsombiiHUN/gamepanel/issues/93))
 - [ ] **Pterodactyl's application API**, so WHMCS, Paymenter and Blesta modules work ([#88](https://github.com/ZsombiiHUN/gamepanel/issues/88))
 - [ ] **Pterodactyl's console websocket**, for bots that stream the console ([#89](https://github.com/ZsombiiHUN/gamepanel/issues/89))

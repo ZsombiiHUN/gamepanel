@@ -25,6 +25,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/daemon/cfgfile"
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/runtime"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
@@ -1105,6 +1106,7 @@ func (d *Daemon) startClaimed(ctx context.Context, uuid string) error {
 	}
 	d.mu.Unlock()
 	d.emitState(ctx, uuid, runtime.StateStarting)
+	d.applyConfigFiles(ctx, spec)
 	if err := d.rebuildIfStale(ctx, uuid); err != nil {
 		d.emitState(ctx, uuid, runtime.StateOffline)
 		return err
@@ -1128,6 +1130,40 @@ func (d *Daemon) startClaimed(ctx context.Context, uuid string) error {
 	d.markRunning(uuid, true)
 	d.emitState(ctx, uuid, runtime.StateRunning)
 	return nil
+}
+
+// applyConfigFiles edits the egg's config files before a start. A file that
+// cannot be edited does not stop the start (Wings does the same); the owner
+// is told on the console.
+func (d *Daemon) applyConfigFiles(ctx context.Context, spec proto.ServerSpec) {
+	if len(spec.ConfigFiles) == 0 {
+		return
+	}
+	dir, err := d.dir(spec.UUID)
+	if err != nil {
+		d.log.Warn("could not open the server's files to update its config", "server", oneLine(spec.UUID), "err", err)
+		return
+	}
+	defer closeQuiet(dir)
+	iface := runtime.DefaultGateway
+	if g, ok := d.rt.(runtime.Gatewayer); ok {
+		if ip, err := g.Gateway(ctx); err == nil {
+			iface = ip
+		}
+	}
+	for _, f := range spec.ConfigFiles {
+		if err := cfgfile.Apply(dir, f, iface); err != nil {
+			d.log.Warn("could not update a config file", "server", oneLine(spec.UUID), "file", oneLine(f.Path), "err", oneLine(err.Error()))
+			d.sendConsole(spec.UUID, "\x1b[33m[gamepanel] could not update "+f.Path+": "+forPeople(err).Error()+"\x1b[0m")
+		}
+	}
+	d.cacheFor(spec.UUID).invalidate()
+}
+
+// oneLine drops line breaks from a value the panel sent before it is logged.
+// slog's text handler already escapes them; this also says so to scanners.
+func oneLine(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", ""), "\r", "")
 }
 
 // stop stops the server gracefully. It claims the server, so a stop cannot
@@ -1413,6 +1449,7 @@ func sameContainer(a, b proto.ServerSpec) bool {
 	a.NoCrashRestart, b.NoCrashRestart = false, false
 	a.Suspended, b.Suspended = false, false
 	a.StartOnCompletion, b.StartOnCompletion = false, false
+	a.ConfigFiles, b.ConfigFiles = nil, nil // edited before each start, not part of the container
 	ja, erra := json.Marshal(a)
 	jb, errb := json.Marshal(b)
 	// Specs that cannot be compared are treated as different: a rebuild is safe.

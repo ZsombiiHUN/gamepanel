@@ -19,8 +19,11 @@ Where to find eggs:
 |---|---|
 | `name`, `description` | Shown in the interface |
 | `docker_images` (v2), `images` or `docker_image` (v1) | The images a server can use. **The first one is the default**, as in Pterodactyl (for Java eggs that is usually the newest Java) |
-| `startup` | The startup command. `{{VAR}}` becomes `${VAR}` (see below) |
+| `startup` | The startup command. `{{VAR}}` becomes `${VAR}`, and the panel values below become the variable that holds them (see [Startup placeholders](#startup-placeholders)) |
 | `config.stop` | The stop command sent to the console, or `^C` to send an interrupt. Default `^C` |
+| `config.startup.done` | Console text that means the server has started: it shows **starting** until a line contains it. `regex:` entries are skipped |
+| `config.files` | Config files edited before each start, such as `server-port` in Minecraft's `server.properties`. See [Config files](#config-files) |
+| `features` | The UI offers help for some of them, such as accepting Minecraft's EULA |
 | `scripts.installation` | The install script, its container image and entrypoint (`bash` or `ash`) |
 | `variables` | Name, description, environment variable, default, `user_viewable`, `user_editable`, and `rules` |
 
@@ -28,23 +31,56 @@ The import is refused when the egg has no name, no startup command or no image, 
 
 ## What is not imported (yet)
 
-These parts of an egg are ignored. Most eggs work without them, but some need a hand:
+These parts of an egg are ignored. Most eggs work without them:
 
 | Egg field | In Pterodactyl | In GamePanel |
 |---|---|---|
-| `config.files` | Rewrites config files before each start, e.g. sets `server-port` in Minecraft's `server.properties` to the server's port | **Not done.** Set the port (and anything else the egg would have written) in the game's config file yourself. See [Ports and config files](#ports-and-config-files) |
-| `config.startup.done` | A console line that marks the server as started | Not used. A server counts as **running** as soon as its container runs |
+| `config.files` with the `xml` parser | Edits an XML config file before each start | **Not done.** Set the port in that file yourself. The egg's other config files are edited |
 | `config.logs` | Log settings | Not used |
 | `file_denylist` | Files users may not edit | Not used |
-| `features` (e.g. `eula`, `java_version`, `pid_limit`) | Helper prompts in Pterodactyl's interface | Not used. Accept a Minecraft EULA by setting `eula=true` in `eula.txt` |
-| `{{config.*}}`, `{{server.*}}` placeholders in startup | Panel values substituted into the command | Not substituted; only the server's own variables are |
+| Other `{{config.*}}` and `{{server.*}}` placeholders in startup | Panel values substituted into the command | Left as written; only the ones under [Startup placeholders](#startup-placeholders) are filled |
 
-### Ports and config files
+### Startup placeholders
+
+A startup command can use the server's variables (`{{SERVER_JARFILE}}`) and these panel values. Each becomes an environment variable, never text in the command, so a value cannot inject a shell command:
+
+| Placeholder | Becomes | Value |
+|---|---|---|
+| `{{server.build.default.port}}` | `${SERVER_PORT}` | The server's primary port |
+| `{{server.build.memory}}` | `${SERVER_MEMORY}` | The memory limit in MB |
+| `{{server.build.default.ip}}` | `${SERVER_IP}` | `0.0.0.0`: ports are published on all of the node's addresses |
+| `{{server.uuid}}` | `${P_SERVER_UUID}` | The server's id |
+
+Spaces inside the braces are allowed (`{{ server.build.memory }}`).
+
+### Config files
+
+Before each start the node edits the files in the egg's `config.files`, as Pterodactyl's Wings does. A file that does not exist yet is created, so a new Minecraft server listens on its own port from its very first start. Comments and the order of keys are kept for `properties`, `ini` and `yaml` files.
+
+| Parser | Key | Notes |
+|---|---|---|
+| `properties` | The property name | Java `.properties`, e.g. `server.properties` |
+| `ini` | `key`, or `section.key` | A missing key is added to its section |
+| `yaml`, `json` | A path such as `listeners[0].host`; `*` matches every child (`servers.*.address`) | Whole numbers and `true`/`false` are written as numbers and booleans |
+| `file` | The start of a line | Each line that starts with the key is replaced by the value |
+
+A value can use these placeholders, filled from the server's own settings:
+
+- `{{server.build.default.port}}`, `{{server.build.default.ip}}` (`0.0.0.0`), `{{server.build.memory}}`, `{{server.build.swap}}`, `{{server.build.cpu}}`, `{{server.build.disk}}`, `{{server.build.io}}`, `{{server.uuid}}`;
+- `{{server.build.env.NAME}}` or `{{env.NAME}}`: the server's variable `NAME`;
+- `{{config.docker.interface}}`: the address containers reach the node on (the Docker bridge's gateway, usually `172.17.0.1`), so a proxy can reach servers on the same node.
+
+Any other placeholder becomes empty. Unlike Wings, the node never fills one from its own configuration, so its token cannot end up in a game's files.
+
+A find value that is an object, such as `{"regex:^(127\\.0\\.0\\.1|localhost)(:\\d{1,5})?$": "{{config.docker.interface}}$2"}`, changes the key only while its current value matches: exactly, or for `regex:`, by replacing the matching part (`$1`, `$2` are its groups). A file that cannot be edited (broken YAML, say) is left as it is; the console says why and the server still starts.
+
+### Ports
 
 Each server port is published on the **same number inside the container** as outside. A game must listen on the port it was given:
 
 - Eggs whose startup passes the port on the command line (`-port {{SERVER_PORT}}`, `+port {{SERVER_PORT}}`, `--port ...`), as most Steam game eggs do, work as they are.
-- Eggs that rely on `config.files` to write the port into a config file do not. The common case is **Minecraft** (`server.properties`): set `server-port=` to the server's primary port in **Files**, then restart. For proxies such as BungeeCord or Velocity, set the bind address in `config.yml` or `velocity.toml` the same way.
+- Eggs that write the port into a config file through `config.files`, such as Minecraft's, work as they are too.
+- Eggs that need it in an XML file (see above) do not: set the port in that file yourself in **Files**, then restart.
 
 ## Variables
 
@@ -77,10 +113,12 @@ The panel always sets:
 |---|---|
 | `SERVER_MEMORY` | The server's memory limit in MB |
 | `SERVER_PORT` | The server's primary port |
+| `SERVER_IP` | `0.0.0.0`: ports are published on all of the node's addresses |
+| `P_SERVER_UUID` | The server's id |
 
 They cannot be overridden through the API, and neither can any variable the egg does not declare (so nobody can set `LD_PRELOAD` and the like).
 
-Pterodactyl also sets `SERVER_IP`, `P_SERVER_UUID`, `P_SERVER_LOCATION`, `P_SERVER_ALLOCATION_LIMIT` and `TZ`. GamePanel does **not**. An egg whose startup uses `{{SERVER_IP}}` gets an empty value; servers should listen on all addresses (`0.0.0.0`), which is what most eggs do anyway.
+Pterodactyl also sets `P_SERVER_LOCATION`, `P_SERVER_ALLOCATION_LIMIT` and `TZ`. GamePanel does **not**; an egg whose startup uses one of them gets an empty value.
 
 ## Startup and safety
 

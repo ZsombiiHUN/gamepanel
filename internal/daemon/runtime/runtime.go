@@ -77,3 +77,13 @@ type Runtime interface {
 	// List returns the UUIDs of servers this runtime already manages.
 	List(ctx context.Context) ([]string, error)
 }
+
+// Gatewayer is implemented by runtimes that know the address containers
+// reach the host on (Pterodactyl's {{config.docker.interface}}).
+type Gatewayer interface {
+	Gateway(ctx context.Context) (string, error)
+}
+
+// DefaultGateway is Docker's usual bridge gateway, used when the runtime
+// cannot say.
+const DefaultGateway = "172.17.0.1"

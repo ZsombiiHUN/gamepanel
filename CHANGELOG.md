@@ -21,6 +21,17 @@ Upgrade the panel and every node to the same version together. See
   from Pterodactyl's `.env`) and reports which users, nodes, eggs, servers,
   ports, subusers, schedules and databases would come over, what would change
   and what is left out. It writes nothing; applying comes later (#95).
+- Eggs' `config.files` are applied before each start, as Pterodactyl's Wings
+  does: Minecraft's `server.properties` gets the server's port, BungeeCord's
+  `config.yml` its bind address, and so on, for the `properties`, `ini`,
+  `yaml`, `json` and `file` parsers (#86). A missing file is created, and
+  comments and key order are kept. Values come only from the server's own
+  settings: unlike Wings, the node never fills a placeholder from its own
+  configuration.
+- Startup commands can use `{{server.build.default.port}}`,
+  `{{server.build.memory}}`, `{{server.build.default.ip}}` and
+  `{{server.uuid}}`; each becomes the environment variable that holds it
+  (#84). Servers also get Wings' `SERVER_IP` and `P_SERVER_UUID` variables.
 - Accounts can carry a bcrypt password hash from Pterodactyl (`$2y$`), so
   people moved over by the coming Pterodactyl import keep their password. The
   first sign-in replaces it with an Argon2id hash; bcrypt hashes are never
