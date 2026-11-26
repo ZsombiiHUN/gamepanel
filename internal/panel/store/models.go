@@ -347,15 +347,17 @@ type Node struct {
 	// host name; port 0 means the port the daemon reports.
 	SFTPHost string `json:"sftp_host"`
 	SFTPPort int    `json:"sftp_port"`
+	// LocationID is the location the node is in, 0 = none.
+	LocationID int64 `json:"location_id"`
 }
 
-const nodeCols = `id,name,port_start,port_end,memory_mb,disk_mb,overallocate_pct,sftp_host,sftp_port,
+const nodeCols = `id,name,port_start,port_end,memory_mb,disk_mb,overallocate_pct,sftp_host,sftp_port,COALESCE(location_id,0),
 	(SELECT COALESCE(SUM(memory_mb),0) FROM servers WHERE node_id=nodes.id),
 	(SELECT COALESCE(SUM(disk_mb),0) FROM servers WHERE node_id=nodes.id)`
 
 func scanNode(sc rowScanner) (Node, error) {
 	var n Node
-	err := sc.Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd, &n.MemoryMB, &n.DiskMB, &n.OverallocatePct, &n.SFTPHost, &n.SFTPPort, &n.AllocatedMemory, &n.AllocatedDisk)
+	err := sc.Scan(&n.ID, &n.Name, &n.PortStart, &n.PortEnd, &n.MemoryMB, &n.DiskMB, &n.OverallocatePct, &n.SFTPHost, &n.SFTPPort, &n.LocationID, &n.AllocatedMemory, &n.AllocatedDisk)
 	return n, err
 }
 
