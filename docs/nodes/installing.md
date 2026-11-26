@@ -96,7 +96,7 @@ sudo chmod 0600 /etc/gamepanel/daemon.env
 ```
 
 ::: danger Use wss://
-The default panel address is `ws://127.0.0.1:8080/daemon/connect`, which only makes sense when the daemon runs on the panel's machine. For any other node use **`wss://`** and the panel's public name. Over plain `ws://` the node's token crosses the network unencrypted, and anyone who has it can pose as the node. The daemon does not refuse `ws://` for you yet.
+The default panel address is `ws://127.0.0.1:8080/daemon/connect`, which only makes sense when the daemon runs on the panel's machine. For any other node use **`wss://`** and the panel's public name. Over plain `ws://` the node's token crosses the network unencrypted, and anyone who has it can pose as the node. The daemon refuses `ws://` to anything but this machine or a private network address (`10.x`, `192.168.x` and so on) unless `GAMEPANEL_ALLOW_INSECURE_PANEL_URL=1`.
 :::
 
 If the node **is** the panel's machine, it can talk to the panel directly: `GAMEPANEL_PANEL_URL=ws://127.0.0.1:8080/daemon/connect`.

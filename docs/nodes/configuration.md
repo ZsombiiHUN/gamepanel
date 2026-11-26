@@ -6,6 +6,7 @@ The daemon is configured only through environment variables. With systemd, put t
 |---|---|---|
 | `GAMEPANEL_NODE_TOKEN` | **required** | The token shown when the node was created. The daemon refuses to start without it |
 | `GAMEPANEL_PANEL_URL` | `ws://127.0.0.1:8080/daemon/connect` | Where to reach the panel. Use `wss://panel.example.com/daemon/connect` for any node that is not on the panel's machine. `https://panel.example.com` works too: `http(s)` becomes `ws(s)` and a bare address gets `/daemon/connect` |
+| `GAMEPANEL_ALLOW_INSECURE_PANEL_URL` | unset | `1` allows a plain `ws://` panel address that is not on this machine or a private network address. The daemon refuses one otherwise: the token, consoles and files would cross the network unencrypted |
 | `GAMEPANEL_DATA_DIR` | `./daemon-data` | Server files, server settings, local backups and the SFTP host key. See [Data directory](/nodes/data-directory) |
 | `GAMEPANEL_RUNTIME` | `docker` | `fake` runs no containers, for development and trying the panel out |
 | `GAMEPANEL_SFTP_ADDR` | `0.0.0.0:2022` | Address and port of the SFTP server; `off` turns it off. If the port is taken, the daemon logs a warning and runs without SFTP |

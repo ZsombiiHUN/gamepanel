@@ -52,13 +52,15 @@ Pterodactyl pastes variable values into the startup command, which has led to co
 - Sessions are opaque random tokens; only their hash is stored. Cookies are `HttpOnly`, `SameSite=Lax`, and over HTTPS `__Host-` prefixed and `Secure`.
 - Changes must come from the panel's own origin (checked against `Origin` and `Sec-Fetch-Site`), on top of `SameSite`.
 - Websockets check their origin, so another site cannot open a console in your name.
-- API answers are never cached. Responses carry `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and HSTS over HTTPS.
+- API answers are never cached. Responses carry `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin`, a `Permissions-Policy` that turns off device features, and HSTS over HTTPS.
+- The app is served with a strict `Content-Security-Policy`: scripts run only from the panel itself (and its one inline theme script, by hash), no plugins, no `<base>`, no framing. Console output, file contents and mod listings cannot run as script even if one slipped past React's escaping.
+- The panel closes idle keep-alive connections after two minutes.
 - Strangers get `404` for servers they cannot see, so IDs cannot be probed.
 - Rate limits on sign-in, password resets, two-factor codes and SFTP logins.
 
 ## Webhooks and database hosts
 
-Admins choose webhook addresses and database hosts, and the panel will connect to any address it can reach, including internal ones. That is by design (they are admin settings), but it means an admin API key is as powerful as an admin: give it only to systems you trust that much.
+Admins choose webhook addresses and database hosts. Webhooks cannot reach private, loopback or link-local addresses (checked on every connection, after DNS) unless the operator sets `GAMEPANEL_WEBHOOK_ALLOW_PRIVATE=1`, because a delivery records the start of the answer. Database hosts can be anywhere the panel can reach, by design. Either way an admin API key is as powerful as an admin: give it only to systems you trust that much.
 
 ## What is not protected yet
 

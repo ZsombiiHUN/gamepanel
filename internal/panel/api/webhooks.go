@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/ZsombiiHUN/gamepanel/internal/netguard"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 )
 
@@ -221,14 +223,34 @@ func (a *App) hookClient() *http.Client {
 	if a.WebhookClient != nil {
 		return a.WebhookClient
 	}
-	return defaultHookClient
+	if a.WebhookAllowPrivate {
+		return openHookClient
+	}
+	return guardedHookClient
 }
 
 // Redirects are not followed: a delivery goes where the admin pointed it.
-var defaultHookClient = &http.Client{
-	Timeout:       webhookTimeout,
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-}
+// Deliveries store the start of the answer, which admins read, so by default
+// they never reach private, loopback or link-local addresses: a webhook must
+// not turn into a way to read the panel's own network (cloud metadata, a
+// database's HTTP port). The check is made on every connection, after DNS.
+var (
+	openHookClient = &http.Client{
+		Timeout:       webhookTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	guardedHookClient = &http.Client{
+		Timeout: webhookTimeout,
+		Transport: &http.Transport{
+			Proxy:               nil,
+			DialContext:         (&net.Dialer{Timeout: 10 * time.Second, Control: netguard.Control}).DialContext,
+			TLSHandshakeTimeout: 10 * time.Second,
+			MaxIdleConnsPerHost: 4,
+			IdleConnTimeout:     90 * time.Second,
+		},
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+)
 
 // ---- install progress, from node states ----
 
@@ -304,11 +326,20 @@ type pingOut struct {
 	}
 }
 
-// checkWebhook validates an address and events and normalises them.
-func checkWebhook(b *webhookBody) error {
+// checkWebhook validates an address and events and normalises them. An
+// address that is plainly private (an IP or localhost) is refused at once
+// unless allowPrivate; names that resolve inward fail at delivery.
+func checkWebhook(b *webhookBody, allowPrivate bool) error {
 	u, err := url.Parse(strings.TrimSpace(b.URL))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
 		return huma.Error422UnprocessableEntity("the url must be an http:// or https:// address, without a user name or password in it")
+	}
+	if !allowPrivate {
+		host := strings.ToLower(u.Hostname())
+		ip := net.ParseIP(host)
+		if host == "localhost" || strings.HasSuffix(host, ".localhost") || (ip != nil && !netguard.Public(ip)) {
+			return huma.Error422UnprocessableEntity("webhooks cannot go to private or local addresses; the panel's operator can allow that with GAMEPANEL_WEBHOOK_ALLOW_PRIVATE=1")
+		}
 	}
 	b.URL = u.String()
 	seen := map[string]bool{}
@@ -339,7 +370,7 @@ func (a *App) registerWebhooks(api huma.API) {
 				return nil, err
 			}
 			b := in.Body
-			if err := checkWebhook(&b); err != nil {
+			if err := checkWebhook(&b, a.WebhookAllowPrivate); err != nil {
 				return nil, err
 			}
 			h, err := a.Store.CreateWebhook(ctx, store.Webhook{URL: b.URL, Description: strings.TrimSpace(b.Description), Events: b.Events, Enabled: b.Enabled == nil || *b.Enabled})
@@ -373,7 +404,7 @@ func (a *App) registerWebhooks(api huma.API) {
 				return nil, huma.Error404NotFound("webhook not found")
 			}
 			b := in.Body.webhookBody
-			if err := checkWebhook(&b); err != nil {
+			if err := checkWebhook(&b, a.WebhookAllowPrivate); err != nil {
 				return nil, err
 			}
 			h.URL, h.Description, h.Events = b.URL, strings.TrimSpace(b.Description), b.Events

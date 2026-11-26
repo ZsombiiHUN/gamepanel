@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
@@ -18,10 +17,10 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon/fsx"
+	"github.com/ZsombiiHUN/gamepanel/internal/netguard"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
 	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
@@ -260,8 +259,7 @@ func (d *Daemon) pull(ctx context.Context, t proto.Transfer) (proto.TransferResu
 	req.Header.Set("User-Agent", "GamePanel-daemon/"+version.Version)
 	resp, err := d.pullClient().Do(req)
 	if err != nil {
-		var blocked *blockedAddrError
-		if errors.As(err, &blocked) {
+		if errors.Is(err, netguard.ErrBlocked) {
 			return proto.TransferResult{}, proto.Invalid("that address is on a private network, which this node does not download from")
 		}
 		return proto.TransferResult{}, proto.Invalid("could not download from that address")
@@ -315,26 +313,12 @@ func pullName(resp *http.Response, u *url.URL) string {
 	return name
 }
 
-type blockedAddrError struct{ ip net.IP }
-
-func (b *blockedAddrError) Error() string { return "refusing to connect to " + b.ip.String() }
-
 // pullClient checks every address it connects to, after DNS resolution and
 // on every redirect, so neither a hostname nor a redirect can lead it inward.
 func (d *Daemon) pullClient() *http.Client {
 	dialer := &net.Dialer{Timeout: 15 * time.Second}
 	if !d.cfg.PullAllowPrivate {
-		dialer.Control = func(_, address string, _ syscall.RawConn) error {
-			host, _, err := net.SplitHostPort(address)
-			if err != nil {
-				return err
-			}
-			ip := net.ParseIP(host)
-			if ip == nil || !publicIP(ip) {
-				return &blockedAddrError{ip}
-			}
-			return nil
-		}
+		dialer.Control = netguard.Control
 	}
 	tr := &http.Transport{DialContext: dialer.DialContext, TLSHandshakeTimeout: 15 * time.Second, ResponseHeaderTimeout: time.Minute, Proxy: nil}
 	return &http.Client{Transport: tr, CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -346,41 +330,6 @@ func (d *Daemon) pullClient() *http.Client {
 		}
 		return nil
 	}}
-}
-
-// publicIP reports whether ip is a globally routable unicast address.
-func publicIP(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsMulticast() {
-		return false
-	}
-	if v4 := ip.To4(); v4 != nil {
-		switch {
-		case v4[0] == 0, // "this network"
-			v4[0] == 100 && v4[1]&0xc0 == 64,         // carrier-grade NAT 100.64/10
-			v4[0] == 192 && v4[1] == 0 && v4[2] == 0, // IETF protocol assignments
-			v4[0] == 198 && v4[1]&0xfe == 18,         // benchmarking 198.18/15
-			v4[0] >= 240:                             // reserved and broadcast
-			return false
-		}
-		return true
-	}
-	if len(ip) != net.IPv6len {
-		return false
-	}
-	switch {
-	// NAT64 (64:ff9b::/96): the gateway connects to the IPv4 address inside.
-	case ip[0] == 0x00 && ip[1] == 0x64 && ip[2] == 0xff && ip[3] == 0x9b:
-		return publicIP(ip[12:16])
-	// 6to4 (2002::/16): a relay connects to the IPv4 address inside.
-	case ip[0] == 0x20 && ip[1] == 0x02:
-		return publicIP(ip[2:6])
-	// IPv4-compatible (::/96), deprecated since RFC 4291 and never a real
-	// destination; a host with an old tunnel set up could route it to IPv4.
-	case bytes.Equal(ip[:12], make([]byte, 12)):
-		return false
-	}
-	return true
 }
 
 func (d *Daemon) transfer(ctx context.Context, typ string, raw json.RawMessage) (json.RawMessage, error) {

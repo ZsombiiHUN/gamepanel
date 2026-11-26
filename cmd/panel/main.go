@@ -135,7 +135,10 @@ func serve(st *store.Store, log *slog.Logger, args []string) error {
 	if n, err := st.CountUsers(ctx); err == nil && n == 0 {
 		log.Warn("no users yet: run `panel create-admin you@example.com` to create the first admin")
 	}
-	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	// No overall read or write timeout: uploads, downloads and websockets run
+	// for as long as they move data. Idle keep-alive connections are closed,
+	// so clients cannot hold sockets open indefinitely.
+	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	shutdown := make(chan error, 1)
 	go func() {
 		<-ctx.Done()
@@ -194,6 +197,7 @@ func configure(st *store.Store, log *slog.Logger, addr string) (api.Deps, error)
 		TrustedProxies: proxies, S3: backups,
 		PublicURL: publicURL, Signup: signup, SSO: ssoProviders(log, publicURL),
 		CookieSecure: cookieSecure, RequireMFA: requireMFA, HSTS: hsts,
+		WebhookAllowPrivate: os.Getenv("GAMEPANEL_WEBHOOK_ALLOW_PRIVATE") == "1",
 	}
 	if mailer != nil { // never a typed nil in the interface
 		deps.Mail = mailer
