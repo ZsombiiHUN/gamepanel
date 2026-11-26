@@ -17,11 +17,19 @@ You need:
 On Debian or Ubuntu, one command does every step on this page (and sets up Caddy for HTTPS):
 
 ```sh
-curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
-  | sudo bash -s -- panel --domain panel.example.com --email you@example.com
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh | sudo bash
 ```
 
-It downloads the newest release, checks it against the release's `checksums.txt`, and installs the same files, user and systemd unit described below. It prints the admin's password once. Add `--version v0.1.0` to pin a release, `--no-caddy` to bring your own proxy. Running it again is safe: it keeps an existing `panel.env` and database. Read the script first if you like; it is [`scripts/install.sh`](https://github.com/ZsombiiHUN/gamepanel/blob/main/scripts/install.sh).
+It asks what to install (the panel, a node, or both on one machine), checks the machine (memory, disk, ports 80 and 443) and whether your domain points at it, asks for the domain and the admin's email, and shows the terms you accept by installing: the [AGPL-3.0](https://github.com/ZsombiiHUN/gamepanel/blob/main/LICENSE) licence and, with Caddy, the [Let's Encrypt Subscriber Agreement](https://letsencrypt.org/repository/). It lists what it will do and waits for a yes. Then it downloads the newest release, checks it against the release's `checksums.txt`, installs the same files, user and systemd unit described below, and prints the admin's password once. Each step's output goes to `/var/log/gamepanel-install.log`; the password never does. A dated copy of the accepted terms is kept in `/etc/gamepanel/terms-accepted.txt`.
+
+To run it without questions (scripts, cloud-init), give the answers as options and add `--yes`:
+
+```sh
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
+  | sudo bash -s -- panel --domain panel.example.com --email you@example.com --yes
+```
+
+`--yes` accepts the terms (`install.sh terms` prints them) and installs Caddy if it is missing; `--accept-terms` only accepts the terms. Add `--version v0.1.0` to pin a release, `--no-caddy` to bring your own proxy. Without a terminal, colours and spinners are off; `NO_COLOR=1` turns colours off anywhere. Running it again is safe: it keeps an existing `panel.env` and database. Read the script first if you like; it is [`scripts/install.sh`](https://github.com/ZsombiiHUN/gamepanel/blob/main/scripts/install.sh).
 
 Prefer containers? See [Docker Compose](/panel/docker). The rest of this page does it by hand.
 
