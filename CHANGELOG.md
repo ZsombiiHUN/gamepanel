@@ -23,6 +23,16 @@ Upgrade the panel and every node to the same version together. See
   a failed step shows its last log lines. With a command, it asks only for
   options left out. A node install now waits until the panel accepts the
   token, and says so when it does not.
+- Run again where GamePanel is installed, the installer shows what runs there
+  and whether a newer release is out, and offers Upgrade, Repair (reinstall
+  the running version; data and settings stay), Change settings (the panel's
+  domain, HTTPS with Caddy, a node's token or panel), Add a node here, and
+  Uninstall. The same work without questions: `install.sh repair`,
+  `install.sh configure --domain|--https|--token|--panel`, and
+  `install.sh uninstall [--purge] --yes`. Uninstall keeps the database, server
+  files and settings unless asked (`--purge` copies the database to
+  `/var/backups/gamepanel` first) and never removes Docker or Caddy. See
+  [Repair, settings and uninstalling](docs/panel/managing.md).
 
 ### Changed
 
@@ -32,6 +42,12 @@ Upgrade the panel and every node to the same version together. See
   Unattended installs (cloud-init, scripts) that did not pass `--yes` must add
   it.
 - A node install starts Docker when it is installed but not running.
+
+### Fixed
+
+- Installing a node over a kept `daemon.env` ignored a new `--token` or
+  `--panel`; they now replace the old values. Installing the panel over an
+  existing one backs up its database first, as `upgrade` does.
 
 ## [0.2.0] - 2026-11-26
 

@@ -57,7 +57,7 @@ The installer walks you through it:
 4. **You accept the terms** ([AGPL-3.0](LICENSE), and Let's Encrypt's for the HTTPS certificate) and confirm the plan before anything changes.
 5. **It installs with live progress**, sets up HTTPS with Caddy on Debian and Ubuntu, and shows your admin login at the end.
 
-Running it again upgrades. For scripted installs, every option and Docker Compose, see [Install](#install).
+Run it again to upgrade, repair, change the domain or a node's token, or uninstall ([how](https://zsombiihun.github.io/gamepanel/panel/managing)). For scripted installs, every option and Docker Compose, see [Install](#install).
 
 > [!WARNING]
 > **Pre-alpha.** It works end to end and is well tested, but it has not been run in production and the API may change. Read [Status](#status) before you trust it with anything you care about.

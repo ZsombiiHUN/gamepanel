@@ -89,6 +89,7 @@ export default defineConfig({
           { text: 'Command line', link: '/panel/cli' },
           { text: 'Backing up the panel', link: '/panel/backing-up' },
           { text: 'Upgrading', link: '/panel/upgrading' },
+          { text: 'Repair, settings, uninstall', link: '/panel/managing' },
         ],
       },
       {
