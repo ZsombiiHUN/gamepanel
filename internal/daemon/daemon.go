@@ -875,6 +875,11 @@ func (d *Daemon) discard(uuid string) {
 // registry is down, say) is not fatal: the server stays stale and its next
 // start tries again, saying why on the console if it still fails.
 func (d *Daemon) provision(ctx context.Context, uuid string) {
+	// create checked the id already; checked again here, where it becomes
+	// marker paths, so that holds even if another caller appears.
+	if !uuidRe.MatchString(uuid) {
+		return
+	}
 	spec, err := d.spec(uuid)
 	if err != nil {
 		return
@@ -946,6 +951,9 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 // handOver stops an adopted server that still runs under Wings, the way
 // Wings stops it: the egg's stop command, so the game saves its world.
 func (d *Daemon) handOver(ctx context.Context, spec proto.ServerSpec) {
+	if !uuidRe.MatchString(spec.UUID) {
+		return
+	}
 	defer func() {
 		if err := os.Remove(d.handoverPath(spec.UUID)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			d.log.Warn("could not clear the Wings handover marker", "server", spec.UUID, "err", err)
