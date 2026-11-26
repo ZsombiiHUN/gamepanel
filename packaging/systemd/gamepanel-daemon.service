@@ -1,6 +1,7 @@
 # GamePanel daemon (a node). Installed by scripts/install.sh; see docs/nodes/installing.md.
-# Runs as root: it hands server folders to uid 1000, talks to Docker, and
-# enters container network namespaces for bandwidth limits.
+# Runs as root: it hands server folders to the game servers' user, talks to
+# Docker, keeps the servers' iptables rules, and enters container network
+# namespaces for bandwidth limits.
 [Unit]
 Description=GamePanel daemon
 After=docker.service network-online.target

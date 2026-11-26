@@ -20,12 +20,14 @@ For account security mapped to OWASP ASVS 5.0.0, with tests and known gaps, see 
 Each game server runs in its own Docker container with:
 
 - **every Linux capability dropped**, and `no-new-privileges`;
-- the user that owns its folder (uid 1000), not root;
+- the user that owns its folder, not root: a system user of its own (`gamepanel-game`, made by the installer), not a person's account;
 - an init process, a process limit (1024 by default) and a memory limit, with no swap unless an admin allows it;
 - only its own folder mounted;
-- its own ports published, nothing else.
+- its own ports published, nothing else;
+- a log that rotates (3 × 10 MB), so console output cannot fill the node's disk;
+- a network of its own kind: it cannot reach other servers' unpublished ports, the node's own services (SSH, the panel, SFTP, databases) or cloud metadata addresses. See [Server isolation](/nodes/isolation).
 
-Install scripts run in a separate container with the same restrictions, a 30-minute limit and at least 1 GB of memory.
+Install scripts run in a separate container with the same restrictions and network, a 30-minute limit and at least 1 GB of memory.
 
 Containers share the host kernel. A kernel bug can still let a container escape; keep nodes patched, and do not run game servers on a machine that holds anything more valuable than other game servers.
 

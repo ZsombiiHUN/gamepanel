@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,7 +33,14 @@ const (
 )
 
 // Docker implements Runtime on the Docker Engine API.
-type Docker struct{ cli *client.Client }
+type Docker struct {
+	cli *client.Client
+
+	fwMu   sync.Mutex // guards iso and serialises firewall rebuilds
+	iso    Isolation  // set by Isolate; see isolation.go
+	ipt    iptablesRunner
+	iptBin string // the iptables variant Docker uses (findIPTables)
+}
 
 func NewDocker() (*Docker, error) {
 	cli, err := client.New(client.FromEnv)
@@ -44,10 +52,25 @@ func NewDocker() (*Docker, error) {
 
 func name(uuid string) string { return namePrefix + uuid }
 
+// network is the Docker network server containers join ("" before Isolate).
+func (d *Docker) network() string {
+	d.fwMu.Lock()
+	defer d.fwMu.Unlock()
+	return d.iso.Network
+}
+
+// logConfig bounds a container's log. Docker's default json-file log never
+// shrinks and lives outside the server's disk limit, so a chatty server
+// could fill the node. The local driver rotates and compresses, and still
+// serves the console's backlog (Attach reads it).
+func logConfig() container.LogConfig {
+	return container.LogConfig{Type: "local", Config: map[string]string{"max-size": "10m", "max-file": "3"}}
+}
+
 // Gateway is the address containers reach the host on: the gateway of the
-// default bridge network, which server containers use.
+// servers' network.
 func (d *Docker) Gateway(ctx context.Context) (string, error) {
-	res, err := d.cli.NetworkInspect(ctx, "bridge", client.NetworkInspectOptions{})
+	res, err := d.cli.NetworkInspect(ctx, d.network(), client.NetworkInspectOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -93,6 +116,10 @@ func (d *Docker) tryPull(ctx context.Context, image string) error {
 func (d *Docker) Create(ctx context.Context, s Spec) error {
 	// Pull before touching the existing container: if the registry is down,
 	// the server keeps the container it has instead of being left with none.
+	netName := d.network()
+	if netName == "" {
+		return errNoIsolation
+	}
 	if err := d.pull(ctx, s.Image); err != nil {
 		return err
 	}
@@ -101,13 +128,19 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 		return err
 	}
 
-	env := make([]string, 0, len(s.Env))
+	env := make([]string, 0, len(s.Env)+1)
 	for k, v := range s.Env {
 		env = append(env, k+"="+v)
+	}
+	if _, ok := s.Env["HOME"]; !ok {
+		// The game's user usually has no entry in the image's passwd, which
+		// would leave HOME at "/", where it cannot write.
+		env = append(env, "HOME="+mountPoint)
 	}
 	sort.Strings(env)
 
 	exposed := network.PortSet{}
+	var published []string
 	bindings := network.PortMap{}
 	for _, p := range s.Ports {
 		transport := p.Proto
@@ -119,6 +152,7 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 			return err
 		}
 		exposed[port] = struct{}{}
+		published = append(published, strconv.Itoa(p.Host)+"/"+transport)
 		bindings[port] = append(bindings[port], network.PortBinding{
 			HostIP: netip.IPv4Unspecified(), HostPort: strconv.Itoa(p.Host),
 		})
@@ -140,6 +174,8 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 	hc := &container.HostConfig{
 		Binds:        []string{s.DataDir + ":" + mountPoint},
 		PortBindings: bindings,
+		NetworkMode:  container.NetworkMode(netName),
+		LogConfig:    logConfig(),
 		// Defence in depth: game servers are untrusted code.
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
@@ -184,11 +220,20 @@ func (d *Docker) Create(ctx context.Context, s Spec) error {
 			AttachStdout: true,
 			AttachStderr: true,
 			ExposedPorts: exposed,
-			Labels:       map[string]string{labelServer: s.UUID, labelBandwidth: strconv.FormatInt(s.BandwidthMbit, 10)},
+			Labels: map[string]string{
+				labelServer: s.UUID, labelBandwidth: strconv.FormatInt(s.BandwidthMbit, 10),
+				labelLayout: currentLayout, labelPorts: portsLabel(published),
+			},
 		},
 		HostConfig: hc,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	// The firewall lets servers reach the ports servers publish, so it
+	// changes with them. Failing here fails the create: a server must not run
+	// on a node whose firewall is not what the daemon thinks it is.
+	return d.syncFirewall(ctx)
 }
 
 func dirOwner(path string) (string, error) {
@@ -225,7 +270,15 @@ func (d *Docker) Remove(ctx context.Context, uuid string) error {
 	if cerrdefs.IsNotFound(err) {
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if err := d.syncFirewall(ctx); err != nil {
+		// Its ports stay open to other servers until the next rebuild (a
+		// create, or the minute check): logged, not fatal.
+		slog.Warn("could not update the servers' firewall after removing a container", "server", uuid, "err", err)
+	}
+	return nil
 }
 
 type hijacked struct {
@@ -480,6 +533,10 @@ func (d *Docker) Install(ctx context.Context, r InstallRun, out io.Writer) error
 	if !numericIDRe.MatchString(owner) || !proto.ValidEntrypoint(r.Entrypoint) {
 		return errors.New("invalid installer settings")
 	}
+	netName := d.network()
+	if netName == "" {
+		return errNoIsolation
+	}
 	ctx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
 
@@ -514,6 +571,10 @@ func (d *Docker) Install(ctx context.Context, r InstallRun, out io.Writer) error
 			CapAdd:      []string{"CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "SETUID", "SETGID", "SETFCAP", "MKNOD"},
 			SecurityOpt: []string{"no-new-privileges"},
 			Resources:   container.Resources{Memory: mem, MemorySwap: mem, PidsLimit: &pids},
+			// Install scripts download things, but get the same isolation as
+			// the game: no other servers, no node services, no metadata.
+			NetworkMode: container.NetworkMode(netName),
+			LogConfig:   logConfig(),
 		},
 	})
 	if err != nil {

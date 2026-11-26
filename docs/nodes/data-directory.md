@@ -20,9 +20,11 @@ Everything a daemon keeps is under `GAMEPANEL_DATA_DIR` (e.g. `/var/lib/gamepane
 
 ## Server files
 
-`servers/<uuid>` is bind-mounted into the server's container (as `/home/container`, the path Pterodactyl's images expect) and into the install container as `/mnt/server`. It is handed to **uid 1000**, the user most game images run as.
+`servers/<uuid>` is bind-mounted into the server's container (as `/home/container`, the path Pterodactyl's images expect) and into the install container as `/mnt/server`. It is handed to the user in `GAMEPANEL_CONTAINER_USER` (the installer makes `gamepanel-game` for it; uid 1000 when it is not set), and the game runs as that user.
 
-Do not change files here while the server runs, and keep ownership at uid 1000 when you do, or the game may not be able to write them. The file manager and SFTP take care of both.
+Do not change files here while the server runs, and keep their owner when you do, or the game may not be able to write them. The file manager and SFTP take care of both.
+
+When `GAMEPANEL_CONTAINER_USER` changes from uid 1000 to another user, each server's files that uid 1000 owns move to the new user the next time the server starts.
 
 ## Settings and markers
 

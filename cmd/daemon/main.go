@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/ZsombiiHUN/gamepanel/internal/daemon"
@@ -61,6 +63,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	if cfg.ContainerUID, cfg.ContainerGID, err = containerUser(os.Getenv("GAMEPANEL_CONTAINER_USER")); err != nil {
+		log.Error("bad GAMEPANEL_CONTAINER_USER", "err", err)
+		os.Exit(1)
+	}
+	if cfg.ContainerUID == 0 {
+		if name, ok := loginAccount(daemon.LegacyContainerID); ok {
+			log.Warn("game servers run as uid 1000, which is the login account "+name+" on this machine; "+
+				"set GAMEPANEL_CONTAINER_USER to a user of their own (docs/nodes/configuration.md)", "uid", daemon.LegacyContainerID)
+		}
+	}
 	var rt runtime.Runtime
 	switch env("GAMEPANEL_RUNTIME", "docker") {
 	case "fake":
@@ -74,6 +86,19 @@ func main() {
 		}
 		if err := d.Ping(context.Background()); err != nil {
 			log.Error("cannot reach the Docker daemon (is it running? try GAMEPANEL_RUNTIME=fake for development)", "err", err)
+			os.Exit(1)
+		}
+		iso, err := isolation()
+		if err != nil {
+			log.Error("bad network isolation settings", "err", err)
+			os.Exit(1)
+		}
+		if !iso.Firewall {
+			log.Warn("GAMEPANEL_FIREWALL=off: game servers can reach this machine's services and cloud metadata")
+		}
+		// The firewall is checked for as long as the process runs.
+		if err := d.Isolate(context.Background(), iso); err != nil {
+			log.Error("could not isolate game servers", "err", err)
 			os.Exit(1)
 		}
 		rt = d
@@ -93,6 +118,55 @@ func main() {
 		}
 	}
 	dm.Run(ctx)
+}
+
+// isolation reads the network isolation settings (see runtime.Isolation).
+func isolation() (runtime.Isolation, error) {
+	iso := runtime.Isolation{
+		Network:      env("GAMEPANEL_NETWORK", runtime.DefaultNetwork),
+		Bridge:       env("GAMEPANEL_NETWORK_BRIDGE", runtime.DefaultBridge),
+		Firewall:     os.Getenv("GAMEPANEL_FIREWALL") != "off",
+		BlockPrivate: os.Getenv("GAMEPANEL_BLOCK_PRIVATE") == "1",
+	}
+	var err error
+	iso.HostPorts, err = runtime.ParsePortRanges(os.Getenv("GAMEPANEL_HOST_PORTS"))
+	return iso, err
+}
+
+// containerUser reads GAMEPANEL_CONTAINER_USER ("uid" or "uid:gid"); "" is 0, 0.
+func containerUser(v string) (uid, gid int, err error) {
+	if v == "" {
+		return 0, 0, nil
+	}
+	us, gs, hasGID := strings.Cut(v, ":")
+	if uid, err = strconv.Atoi(us); err != nil || uid <= 0 {
+		return 0, 0, fmt.Errorf("%q: want a numeric uid other than 0, or uid:gid", v)
+	}
+	gid = uid
+	if hasGID {
+		if gid, err = strconv.Atoi(gs); err != nil || gid <= 0 {
+			return 0, 0, fmt.Errorf("%q: want a numeric gid other than 0", v)
+		}
+	}
+	return uid, gid, nil
+}
+
+// loginAccount reports the name of the account with uid in /etc/passwd when
+// it can log in (a shell other than nologin or false).
+func loginAccount(uid int) (string, bool) {
+	b, err := os.ReadFile("/etc/passwd")
+	if err != nil {
+		return "", false
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Split(line, ":")
+		if len(f) < 7 || f[2] != strconv.Itoa(uid) {
+			continue
+		}
+		shell := filepath.Base(f[6])
+		return f[0], shell != "nologin" && shell != "false" && shell != ""
+	}
+	return "", false
 }
 
 const usage = `Usage: gamepanel-daemon [command]

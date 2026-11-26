@@ -48,7 +48,7 @@ jobs:
       - run: make cover
       # The daemon usually runs as root; files it creates must still belong to the game user.
       - name: File ownership as root
-        run: sudo -E env "PATH=$PATH" go test -count=1 -run TestRootDaemon -v ./internal/daemon/fsx/
+        run: sudo -E env "PATH=$PATH" go test -count=1 -run TestRootDaemon -v ./internal/daemon/fsx/ ./internal/daemon/
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -109,6 +109,8 @@ jobs:
         with:
           go-version-file: go.mod
       - run: bash scripts/docker-smoke.sh
+      # Servers cannot reach each other, the node's services or cloud metadata.
+      - run: bash scripts/isolation-smoke.sh
   packaging:
     # The release config, the installer and both images still build.
     runs-on: ubuntu-latest
