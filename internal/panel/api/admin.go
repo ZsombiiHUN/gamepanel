@@ -12,6 +12,7 @@ import (
 
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
 	"github.com/ZsombiiHUN/gamepanel/internal/proto"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
 
 // ---- admin: nodes & eggs ----
@@ -47,6 +48,11 @@ type nodeView struct {
 	// UnknownServers are on the node but not in the panel, as the node last
 	// reported when it connected.
 	UnknownServers []string `json:"unknown_servers" nullable:"false"`
+	// Version is what the node's daemon reported when it connected ("" while
+	// offline); VersionMismatch is set when it differs from the panel's.
+	// Mixed versions are not tested: upgrade panel and nodes together.
+	Version         string `json:"version"`
+	VersionMismatch bool   `json:"version_mismatch"`
 }
 type nodeServerIn struct {
 	ID   int64  `path:"id"`
@@ -123,7 +129,11 @@ func (a *App) registerAdmin(api huma.API) {
 			}
 			out := &nodeListOut{Body: []nodeView{}}
 			for _, n := range ns {
-				out.Body = append(out.Body, nodeView{Node: n, Online: a.Hub.Online(n.ID), UnknownServers: a.unknownOn(n.ID)})
+				v := a.Hub.Version(n.ID)
+				out.Body = append(out.Body, nodeView{
+					Node: n, Online: a.Hub.Online(n.ID), UnknownServers: a.unknownOn(n.ID),
+					Version: v, VersionMismatch: v != "" && v != version.Version,
+				})
 			}
 			return out, nil
 		})

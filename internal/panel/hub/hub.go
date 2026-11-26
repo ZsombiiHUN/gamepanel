@@ -74,6 +74,7 @@ type Hub struct {
 	mu      sync.RWMutex
 	nodes   map[int64]*nodeConn
 	sftp    map[int64]int    // node -> the SFTP port its daemon reported (0 = off)
+	version map[int64]string // node -> the version its daemon reported
 	srvNode map[string]int64 // server uuid -> node, cached results of Locate
 	states  map[string]string
 	stats   map[string]proto.Stats
@@ -83,10 +84,34 @@ type Hub struct {
 
 func New(log *slog.Logger) *Hub {
 	return &Hub{
-		log: log, nodes: map[int64]*nodeConn{}, sftp: map[int64]int{}, srvNode: map[string]int64{}, RequestTimeout: DefaultRequestTimeout,
+		log: log, nodes: map[int64]*nodeConn{}, sftp: map[int64]int{}, version: map[int64]string{}, srvNode: map[string]int64{}, RequestTimeout: DefaultRequestTimeout,
 		states: map[string]string{}, stats: map[string]proto.Stats{},
 		backlog: map[string][]string{}, subs: map[string]map[*Sub]struct{}{},
 	}
+}
+
+// Version is the version a connected node's daemon reported ("" while it
+// is offline or has not said hello yet).
+func (h *Hub) Version(nodeID int64) string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.version[nodeID]
+}
+
+// Connected reports how many nodes are connected.
+func (h *Hub) Connected() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.nodes)
+}
+
+// truncateVersion keeps a reported version to a sane length: it is shown to
+// admins and comes from the node.
+func truncateVersion(v string) string {
+	if len(v) > 64 {
+		return v[:64]
+	}
+	return v
 }
 
 func (h *Hub) Online(nodeID int64) bool {
@@ -190,6 +215,7 @@ func (h *Hub) Serve(ctx context.Context, ws *websocket.Conn, nodeID int64) {
 		if h.nodes[nodeID] == nc {
 			delete(h.nodes, nodeID)
 			delete(h.sftp, nodeID)
+			delete(h.version, nodeID)
 		}
 		h.mu.Unlock()
 		nc.pmu.Lock()
@@ -242,6 +268,7 @@ func (h *Hub) route(ctx context.Context, nc *nodeConn, env proto.Envelope) {
 		h.mu.Lock()
 		if h.nodes[nc.id] == nc {
 			h.sftp[nc.id] = max(0, min(hello.SFTPPort, 65535))
+			h.version[nc.id] = truncateVersion(hello.Version)
 		}
 		h.mu.Unlock()
 		if h.OnHello != nil {

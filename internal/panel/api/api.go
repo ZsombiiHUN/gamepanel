@@ -30,6 +30,7 @@ import (
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/modrinth"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/s3"
 	"github.com/ZsombiiHUN/gamepanel/internal/panel/store"
+	"github.com/ZsombiiHUN/gamepanel/internal/version"
 )
 
 type Deps struct {
@@ -79,6 +80,9 @@ type Deps struct {
 	// WebhookAllowPrivate lets webhooks go to private, loopback and
 	// link-local addresses (GAMEPANEL_WEBHOOK_ALLOW_PRIVATE=1).
 	WebhookAllowPrivate bool
+	// MetricsToken is the bearer token /metrics wants
+	// (GAMEPANEL_METRICS_TOKEN); empty means /metrics is not served.
+	MetricsToken string
 }
 
 type App struct {
@@ -193,6 +197,7 @@ func New(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/servers/{uuid}/ws", a.consoleWS)
 	a.registerPtero(mux)
 	a.registerApplication(mux)
+	a.registerOps(mux)
 	mux.HandleFunc("GET /daemon/connect", a.daemonConnect)
 	mux.HandleFunc("POST /daemon/sftp-auth", a.sftpAuth)
 	// File transfers stream outside huma (it would buffer the bodies).
@@ -208,11 +213,11 @@ func New(d Deps) http.Handler {
 	if d.Web != nil {
 		mux.Handle("/", d.Web)
 	}
-	return a.middleware(mux)
+	return instrument(a.middleware(mux))
 }
 
 func apiConfig() huma.Config {
-	cfg := huma.DefaultConfig("GamePanel API", "0.1.0")
+	cfg := huma.DefaultConfig("GamePanel API", version.Version)
 	// No "$schema" link in every response body: it points at the schema files,
 	// which only signed-in users may read.
 	cfg.CreateHooks = nil

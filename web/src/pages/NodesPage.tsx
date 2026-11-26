@@ -333,7 +333,14 @@ export function NodesPage() {
                       return c === 0 ? t("nodesPage.noServers") : t("appShell.servers", { count: c });
                     })()}
                   </span>
+                  {n.version && <span className="ml-auto font-mono text-xs">{t("nodesPage.daemonVersion", { version: n.version })}</span>}
                 </div>
+                {n.version_mismatch && (
+                  <div role="status" className="mt-5 rounded-xl border border-warn/30 bg-warn-bg p-4 text-sm text-warn-text">
+                    <p className="font-medium">{t("nodesPage.versionMismatch", { version: n.version })}</p>
+                    <p className="mt-1">{t("nodesPage.upgradeTogether")}</p>
+                  </div>
+                )}
                 {n.unknown_servers.length > 0 && (
                   <div role="status" className="mt-5 rounded-xl border border-warn/30 bg-warn-bg p-4 text-sm text-warn-text">
                     <p className="font-medium">{t("nodesPage.unknownServers", { count: n.unknown_servers.length })}</p>

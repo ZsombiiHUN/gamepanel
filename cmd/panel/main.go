@@ -63,6 +63,10 @@ func run(args []string) error {
 		_, err = os.Stdout.Write(b)
 		return err
 	}
+	if len(args) > 0 && args[0] == "healthcheck" {
+		// For container health checks (the image has no curl); opens no database.
+		return healthcheck(env("GAMEPANEL_ADDR", "127.0.0.1:8080"))
+	}
 	if len(args) > 0 && args[0] == "import-pterodactyl" {
 		// A dry run reads only Pterodactyl's database; this panel's own
 		// database is not opened (or created).
@@ -102,6 +106,7 @@ Commands:
   reset-2fa <email>           remove an account's second factors
   reset-link <email>          print a one-time password reset link
   import-pterodactyl          show what importing a Pterodactyl panel would do
+  healthcheck                 exit 0 if the panel at GAMEPANEL_ADDR is ready (/readyz)
                               (dry run; see import-pterodactyl -h)
   openapi                     print the OpenAPI description
   version                     print the version
@@ -198,6 +203,7 @@ func configure(st *store.Store, log *slog.Logger, addr string) (api.Deps, error)
 		PublicURL: publicURL, Signup: signup, SSO: ssoProviders(log, publicURL),
 		CookieSecure: cookieSecure, RequireMFA: requireMFA, HSTS: hsts,
 		WebhookAllowPrivate: os.Getenv("GAMEPANEL_WEBHOOK_ALLOW_PRIVATE") == "1",
+		MetricsToken:        os.Getenv("GAMEPANEL_METRICS_TOKEN"),
 	}
 	if mailer != nil { // never a typed nil in the interface
 		deps.Mail = mailer
@@ -404,5 +410,27 @@ func reset2FA(st *store.Store, args []string) error {
 		fmt.Fprintln(os.Stderr, "warning: two-factor was reset, but writing the audit log failed:", err)
 	}
 	fmt.Println("Two-factor authentication disabled for", args[0])
+	return nil
+}
+
+// healthcheck asks the panel listening on addr whether it is ready. A
+// wildcard listen address is asked on loopback.
+func healthcheck(addr string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("GAMEPANEL_ADDR %q: %w", addr, err)
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host = "127.0.0.1"
+	}
+	c := &http.Client{Timeout: 5 * time.Second}
+	resp, err := c.Get("http://" + net.JoinHostPort(host, port) + "/readyz") //nolint:noctx // a one-shot command with a client timeout
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("not ready: %s", resp.Status)
+	}
 	return nil
 }

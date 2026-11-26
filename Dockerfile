@@ -26,6 +26,9 @@ ENV GAMEPANEL_DB=/data/panel.db GAMEPANEL_ADDR=0.0.0.0:8080
 VOLUME /data
 EXPOSE 8080
 USER nonroot:nonroot
+# Ready once it serves requests and its database answers (no curl here: the
+# panel asks itself).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 CMD ["/usr/local/bin/panel", "healthcheck"]
 ENTRYPOINT ["/usr/local/bin/panel"]
 
 # The daemon drives the host's Docker through its socket, so server folders
