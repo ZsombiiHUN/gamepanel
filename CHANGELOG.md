@@ -11,6 +11,28 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Added
+
+- `curl -fsSL .../install.sh | sudo bash` with no command is a guided
+  install: it asks whether to install the panel, a node or both, checks the
+  machine (memory, disk, ports, Docker) and whether the domain points at it,
+  asks only what it needs, shows the terms (AGPL-3.0, and the Let's Encrypt
+  Subscriber Agreement when Caddy gets the certificate) and the plan, and
+  waits for a yes. Steps show a spinner and their result; their output goes
+  to `/var/log/gamepanel-install.log` (the admin's password never does), and
+  a failed step shows its last log lines. With a command, it asks only for
+  options left out. A node install now waits until the panel accepts the
+  token, and says so when it does not.
+
+### Changed
+
+- The installer needs the terms accepted: on a terminal it asks; without one,
+  add `--accept-terms` or `--yes`. `install.sh terms` prints them, and a dated
+  copy of what was accepted is kept in `/etc/gamepanel/terms-accepted.txt`.
+  Unattended installs (cloud-init, scripts) that did not pass `--yes` must add
+  it.
+- A node install starts Docker when it is installed but not running.
+
 ## [0.2.0] - 2026-11-26
 
 ### Added

@@ -12,7 +12,7 @@ If you installed with [the installer](/panel/installing#the-quick-way-the-instal
 curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh | sudo bash -s -- upgrade
 ```
 
-On the panel machine it stops the panel, copies the database and key file to `/var/backups/gamepanel/pre-<version>-<time>/` together with the old binary, installs the new one and starts it. On a node it replaces the daemon and restarts it; game servers keep running. Add `--version v0.2.0` to pick a release.
+Run without `upgrade` on a terminal, the installer offers **Upgrade** as its first choice. On the panel machine it stops the panel, copies the database and key file to `/var/backups/gamepanel/pre-<version>-<time>/` together with the old binary, installs the new one and starts it. On a node it replaces the daemon and restarts it; game servers keep running. Add `--version v0.2.0` to pick a release.
 
 With Docker Compose, see [Docker Compose → Upgrading](/panel/docker#upgrading).
 

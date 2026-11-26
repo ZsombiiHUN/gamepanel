@@ -54,11 +54,17 @@ More in [Nodes and capacity](/admin/nodes).
 ## 4. Install the daemon
 
 ::: tip The quick way
-The installer does steps 2 and 4 to 6 on this page: it installs Docker if it is missing, the daemon, its settings and its service.
+The installer does steps 2 and 4 to 6 on this page: it installs (or starts) Docker if needed, the daemon, its settings and its service, then waits until the panel accepts the node's token. Run it and pick **A node**; it asks for the panel's domain and the token:
+
+```sh
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh | sudo bash
+```
+
+Or without questions:
 
 ```sh
 curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
-  | sudo bash -s -- node --panel panel.example.com --token <the token>
+  | sudo bash -s -- node --panel panel.example.com --token <the token> --yes
 ```
 
 Replacing Wings on a node you imported from Pterodactyl? Add `--adopt-wings /var/lib/pterodactyl/volumes` to keep its servers' files. See [Coming from Pterodactyl](/guides/from-pterodactyl#_3-switch-each-node).

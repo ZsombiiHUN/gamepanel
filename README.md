@@ -118,16 +118,22 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 
 ## Install
 
-On a Linux server with systemd (Debian or Ubuntu get Caddy for HTTPS too):
+On a Linux server with systemd, one command asks what to install (the panel, a node, or both), checks the machine and the domain, and shows the admin's password at the end. Debian and Ubuntu get Caddy for HTTPS too.
+
+```sh
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh | sudo bash
+```
+
+Or with no questions, for scripts and cloud-init (`--yes` accepts the [terms](#license) and installs Docker or Caddy when needed):
 
 ```sh
 # The panel
 curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
-  | sudo bash -s -- panel --domain panel.example.com --email you@example.com
+  | sudo bash -s -- panel --domain panel.example.com --email you@example.com --yes
 
 # A node (on each machine that runs game servers; the token comes from Nodes → Create node)
 curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
-  | sudo bash -s -- node --panel panel.example.com --token <token>
+  | sudo bash -s -- node --panel panel.example.com --token <token> --yes
 ```
 
 Or with containers: [`compose.yml`](compose.yml) runs the panel behind Caddy, plus an optional node ([Docker Compose guide](docs/panel/docker.md)). Release archives for linux amd64 and arm64, with checksums, are on the [releases page](https://github.com/ZsombiiHUN/gamepanel/releases); the step-by-step guide is [Installing the panel](docs/panel/installing.md).
