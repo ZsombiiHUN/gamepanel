@@ -99,10 +99,10 @@ func (d *Daemon) migrateOwner(uuid string) {
 		err = root.Lchown(".", uid, gid)
 	}
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		d.log.Warn("could not hand all of a server's files to the container user", "server", uuid, "err", err)
+		d.log.Warn("could not hand all of a server's files to the container user", "server", oneLine(uuid), "err", err)
 		return
 	}
 	if n > 0 {
-		d.log.Info("handed a server's files to the container user", "server", uuid, "uid", uid, "files", n)
+		d.log.Info("handed a server's files to the container user", "server", oneLine(uuid), "uid", uid, "files", n)
 	}
 }

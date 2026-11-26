@@ -103,13 +103,19 @@ func TestShopSellsAServer(t *testing.T) {
 		ID     int64
 		Secret string
 	}
-	json.Unmarshal(s.admin.do("POST", "/api/webhooks", map[string]any{"url": rx.URL + "/gamepanel", "events": []string{"*"}}, 201), &hook)
+	// Deliveries can start before the answer carrying the secret is read
+	// (the stack's own server finishing its install, say): the sink waits
+	// on its lock until the secret is set.
+	// (A failed request ends the test inside; the deferred unlock still runs.)
+	func() {
+		sink.mu.Lock()
+		defer sink.mu.Unlock()
+		json.Unmarshal(s.admin.do("POST", "/api/webhooks", map[string]any{"url": rx.URL + "/gamepanel", "events": []string{"*"}}, 201), &hook)
+		sink.secret = hook.Secret
+	}()
 	if !strings.HasPrefix(hook.Secret, "whsec_") {
 		t.Fatalf("secret %q", hook.Secret)
 	}
-	sink.mu.Lock()
-	sink.secret = hook.Secret
-	sink.mu.Unlock()
 
 	// 1. The customer's account, with the password they chose at checkout.
 	// A retry with the same external id gets the same account.
@@ -340,8 +346,12 @@ func TestWebhookFailuresAreRetried(t *testing.T) {
 		ID     int64
 		Secret string
 	}
-	json.Unmarshal(s.admin.do("POST", "/api/webhooks", map[string]any{"url": rx.URL, "events": []string{"server.suspended"}}, 201), &hook)
-	sink.secret = hook.Secret
+	func() { // see TestShopSellsAServer
+		sink.mu.Lock()
+		defer sink.mu.Unlock()
+		json.Unmarshal(s.admin.do("POST", "/api/webhooks", map[string]any{"url": rx.URL, "events": []string{"server.suspended"}}, 201), &hook)
+		sink.secret = hook.Secret
+	}()
 	s.admin.do("POST", "/api/webhooks", map[string]any{"url": "ftp://x", "events": []string{"*"}}, 422)
 	s.admin.do("POST", "/api/webhooks", map[string]any{"url": rx.URL, "events": []string{"server.exploded"}}, 422)
 
