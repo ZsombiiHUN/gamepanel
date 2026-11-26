@@ -48,6 +48,14 @@ Upgrade the panel and every node to the same version together. See
   runs through the same code as GamePanel's own API, so the activity log and
   webhooks see it. Each server gets a numeric id that is never reused. See
   [Pterodactyl API](docs/api/pterodactyl.md).
+- The Pterodactyl import keeps API keys and backups. With the `APP_KEY`,
+  Pterodactyl's account and application keys (`ptlc_`, `ptla_`) keep working
+  as they are, so bots and billing modules need no new key; keys limited to
+  IP addresses or to part of the application API are reported and left out.
+  Finished backups come over: `adopt-wings` takes the archives Wings kept on
+  each node (`--backups`, default `/var/lib/pterodactyl/backups`), and
+  backups in S3 are found where Pterodactyl put them once GamePanel uses the
+  same bucket.
 - Locations group nodes by data centre or region: `location_ids` on
   `POST /api/servers`, `/api/locations`, and a picker in each node's settings.
 - The Pterodactyl import keeps locations, and the ids of locations, nodes,

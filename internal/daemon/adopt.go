@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 )
 
@@ -48,6 +49,11 @@ type AdoptOptions struct {
 	// States is Wings' states.json; servers it lists as running are started
 	// again once the panel has created them here. "" = not read.
 	States string
+	// Backups is Wings' backup directory (<backup uuid>.tar.gz). Its archives
+	// move to backups/wings/ in the data directory, and each server claims
+	// its own when the panel creates it here. "" or a missing directory =
+	// none.
+	Backups string
 	// StopRunning stops servers Wings still runs when their folders must be
 	// copied (another file system): SIGINT, then SIGKILL after StopTimeout
 	// seconds. Game images often ignore the signal, so stopping them in
@@ -61,6 +67,7 @@ type AdoptOptions struct {
 // AdoptResult counts what happened, by server UUID.
 type AdoptResult struct {
 	Moved, Copied []string
+	Backups       int // backup archives taken over
 }
 
 func (d *Daemon) adoptedPath(uuid string) string {
@@ -119,7 +126,8 @@ func AdoptWings(ctx context.Context, o AdoptOptions) (AdoptResult, error) {
 		// finds the folders already moved: that is done, not an error.
 		if have, _ := os.ReadDir(filepath.Join(o.DataDir, "servers")); len(have) > 0 {
 			_, _ = fmt.Fprintf(out, "nothing left to take over in %s; %d server folder(s) are already in %s\n", o.From, len(have), o.DataDir) // progress only
-			return res, nil
+			res.Backups, err = d.adoptBackups(o.Backups, out)
+			return res, err
 		}
 		return res, fmt.Errorf("no server folders in %s", o.From)
 	}
@@ -184,7 +192,109 @@ func AdoptWings(ctx context.Context, o AdoptOptions) (AdoptResult, error) {
 		}
 		_, _ = fmt.Fprintf(out, "%s %s\n", how, id) // progress only
 	}
-	return res, nil
+	res.Backups, err = d.adoptBackups(o.Backups, out)
+	return res, err
+}
+
+// wingsBackupPath is where a backup archive taken over from Wings waits
+// until its server claims it.
+func (d *Daemon) wingsBackupPath(id string) string {
+	return filepath.Join(d.cfg.DataDir, "backups", "wings", id+".tar.gz")
+}
+
+// adoptBackups moves (or copies) Wings' backup archives to backups/wings/.
+// Wings names them by the backup's id alone, so which server one belongs to
+// is only known once the panel creates the server here (claimBackups).
+func (d *Daemon) adoptBackups(from string, out io.Writer) (int, error) {
+	if from == "" {
+		return 0, nil
+	}
+	ents, err := os.ReadDir(from)
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, e := range ents {
+		id, ok := strings.CutSuffix(e.Name(), ".tar.gz")
+		if !ok || !e.Type().IsRegular() || !uuidRe.MatchString(id) {
+			continue
+		}
+		dst := d.wingsBackupPath(id)
+		if n == 0 {
+			if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
+				return n, err
+			}
+		}
+		if err := moveFile(filepath.Join(from, e.Name()), dst); err != nil {
+			return n, fmt.Errorf("backup %s: %w", id, err)
+		}
+		n++
+	}
+	if n > 0 {
+		_, _ = fmt.Fprintf(out, "took over %d backup archive(s) from %s\n", n, from) // progress only
+	}
+	return n, nil
+}
+
+// moveFile renames a file, or across file systems copies it and removes the
+// original once the copy is complete.
+func moveFile(src, dst string) error {
+	err := os.Rename(src, dst)
+	if !errors.Is(err, syscall.EXDEV) {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer closeQuiet(in)
+	tmp := dst + ".part"
+	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close() // the copy error is what matters
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, dst); err != nil {
+		return err
+	}
+	return os.Remove(src)
+}
+
+// claimBackups puts the archives of a server's backups that came from Wings
+// where its own backups are kept. A backup without one (Wings had already
+// lost it) is left for the panel to report when it is restored.
+func (d *Daemon) claimBackups(uuid string, ids []string) int {
+	n := 0
+	for _, id := range ids {
+		if !uuidRe.MatchString(id) {
+			continue
+		}
+		src, dst := d.wingsBackupPath(id), d.backupPath(uuid, id)
+		if _, err := os.Stat(src); err != nil {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
+			d.log.Warn("could not take over a backup from Wings", "server", uuid, "backup", id, "err", err)
+			continue
+		}
+		if err := os.Rename(src, dst); err != nil {
+			d.log.Warn("could not take over a backup from Wings", "server", uuid, "backup", id, "err", err)
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 // adoptOne moves (or, across file systems, copies) one server folder and

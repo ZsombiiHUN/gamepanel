@@ -16,8 +16,10 @@ GamePanel does the same job as Pterodactyl and Pelican and reads the same eggs, 
 | **Subusers** | With their permissions mapped. A GamePanel permission that covers several of Pterodactyl's is only given when all of them were (start, stop and restart for **power**, say), so nobody can do more than before |
 | **Schedules** | With their tasks |
 | **Database hosts and databases** | With the `APP_KEY`, which their passwords are encrypted with |
+| **API keys** | With the `APP_KEY`: the same key keeps working, so Discord bots, scripts and billing modules need no change. An application key (`ptla_`) works as its administrator's API key. Not imported: keys limited to IP addresses, and application keys limited to part of the API (a GamePanel key cannot be limited that way) |
+| **Backups** | Finished ones, with name, size, lock and ignore list. `adopt-wings` moves the archives Wings kept on each node; backups in S3 work once GamePanel's [S3 storage](/panel/s3-backups) is the same bucket with no prefix, since both panels store them as `<server uuid>/<backup uuid>.tar.gz` |
 
-Not imported: activity logs, API keys, mounts and backup records (backup files stay where they are). Accounts get new ids (an admin may already be there); billing modules find them by external id or email. Read the dry run's report: it lists everything that is changed or left out, for your panel.
+Not imported: activity logs and mounts. Accounts get new ids (an admin may already be there); billing modules find them by external id or email. Read the dry run's report: it lists everything that is changed or left out, for your panel.
 
 ## Before you start
 
@@ -61,10 +63,10 @@ curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/inst
 ```
 
 - Stopping Wings leaves its game servers running.
-- `--adopt-wings` moves each server's folder into the daemon's data directory before the daemon first starts. Files keep their owner, since a server runs as whoever owns its folder, as under Wings. Nothing is reinstalled: the daemon builds each server's container and skips the egg's install script.
+- `--adopt-wings` moves each server's folder into the daemon's data directory before the daemon first starts, and Wings' local backups (`/var/lib/pterodactyl/backups`) with them. Files keep their owner, since a server runs as whoever owns its folder, as under Wings. Nothing is reinstalled: the daemon builds each server's container and skips the egg's install script.
 - When the daemon connects, it stops each server that was running under Wings the way Wings would, with the egg's stop command so the game saves its world. Then it starts the server again under GamePanel, on the same port.
 
-If `/var/lib/pterodactyl` and the daemon's data directory (`/var/lib/gamepanel-daemon`) are on different disks, the folders are copied instead of moved. Stop the servers in Pterodactyl first, because a copy of a running server's files is not safe. Delete the copies under `/var/lib/pterodactyl/volumes` once everything works. To run the takeover by hand, use `gamepanel-daemon adopt-wings --from /var/lib/pterodactyl/volumes` with the settings from `/etc/gamepanel/daemon.env`. Run it **before** the daemon first starts: a server the panel creates before its files are there is installed from scratch.
+If `/var/lib/pterodactyl` and the daemon's data directory (`/var/lib/gamepanel-daemon`) are on different disks, the folders are copied instead of moved. Stop the servers in Pterodactyl first, because a copy of a running server's files is not safe. Delete the copies under `/var/lib/pterodactyl/volumes` once everything works. To run the takeover by hand, use `gamepanel-daemon adopt-wings --from /var/lib/pterodactyl/volumes` with the settings from `/etc/gamepanel/daemon.env` (`--backups DIR` if Wings kept its backups elsewhere than next to the volumes). Run it **before** the daemon first starts: a server the panel creates before its files are there is installed from scratch.
 
 If the node's SFTP port was not 2022, set `GAMEPANEL_SFTP_ADDR=0.0.0.0:<port>` in `/etc/gamepanel/daemon.env` and restart `gamepanel-daemon`, so SFTP clients keep their address.
 
@@ -75,7 +77,7 @@ If the node's SFTP port was not 2022, set `GAMEPANEL_SFTP_ADDR=0.0.0.0:<port>` i
 - Point your domain or users at the new panel.
 - Remove Pterodactyl and Wings when you are happy. Wings' stopped containers can go with `docker rm`.
 
-**Things people notice**: SFTP logins change (the user name is `<email>.<server id>` and the password is an API key), and API keys must be made again.
+**Things people notice**: SFTP logins change: the user name is `<email>.<server id>` and the password is an API key (an imported Pterodactyl key works too).
 
 ## Names
 
@@ -121,16 +123,16 @@ To move a single server without an import:
 
 ## Tools and bots
 
-- **Client API**: tools that use Pterodactyl's client API for power, commands, files, resources and backups work with a GamePanel key. See [Pterodactyl client API](/api/pterodactyl).
+- **Client API**: tools that use Pterodactyl's client API for power, commands, files, resources and backups keep working with the key they have (imported with the `APP_KEY`), or a new GamePanel key. See [Pterodactyl client API](/api/pterodactyl).
 - **Console websocket**: not compatible.
-- **Billing modules** (WHMCS, Paymenter, Blesta): work with an admin's API key. See [Billing](#billing).
+- **Billing modules** (WHMCS, Paymenter, Blesta): keep their application key. See [Billing](#billing).
 
 ## Billing
 
 GamePanel answers the part of Pterodactyl's [application API](/api/pterodactyl#application-api) that WHMCS, Paymenter and Blesta modules use. After an import:
 
-1. Make an API key on your (admin) account: **Account → API keys**.
-2. In the billing system, change the Pterodactyl server's address to GamePanel's and its application API key to that key. Leave the products as they are.
+1. In the billing system, change the Pterodactyl server's address to GamePanel's. Leave the products as they are.
+2. Keep its application API key: an imported one works as it did. If it was not imported (no `APP_KEY`, or it was limited to some IP addresses or to part of the API), make an API key on your admin account (**Account → API keys**) and use that.
 
 Products keep working because the import keeps the ids they point at: locations, nodes, eggs and servers have the same ids as in Pterodactyl, and servers keep their external ids (the billing system's service ids). Nest ids in products are accepted as they are; GamePanel has no nests.
 

@@ -17,10 +17,11 @@
 # 3. Checks: the Pterodactyl password signs in, the server starts by itself
 #    on the same port with the same world and jar (nothing reinstalled), the
 #    egg's config file rule wrote the port, stop and start work, and the
-#    subuser and schedule came over. Then, as a billing module would through
-#    Pterodactyl's application API: the server, egg, node and location keep
-#    their Pterodactyl ids, the server is found by its external id, and
-#    suspending and unsuspending it work.
+#    subuser and schedule came over. The Pterodactyl API key a bot used
+#    still works, and the backup Wings made restores. Then, as a billing
+#    module would, with the application key it had for Pterodactyl: the
+#    server, egg, node and location keep their Pterodactyl ids, the server is
+#    found by its external id, and suspending and unsuspending it work.
 set -u
 PANEL_IMAGE=${PTERO_PANEL_IMAGE:-ghcr.io/pterodactyl/panel:latest}
 WINGS_URL=${WINGS_URL:-https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_amd64}
@@ -200,6 +201,35 @@ JAR_SUM=$(docker exec "$NODE" sha256sum "$VOL/server.jar" | cut -d' ' -f1)
 UID_SUM=$(docker exec "$NODE" sha256sum "$VOL/world/uid.dat" | cut -d' ' -f1)
 OWNER=$(docker exec "$NODE" stat -c %u "$VOL")
 
+step "Making a backup (Wings) and API keys in Pterodactyl"
+BACKUP=$(php "$BOOT"'
+$s = Pterodactyl\Models\Server::where("uuid", "'"$UUID"'")->firstOrFail();
+echo $app->make(Pterodactyl\Services\Backups\InitiateBackupService::class)->handle($s, "Before the move")->uuid;
+') || die "starting a backup"
+for _ in $(seq 120); do
+	[ "$(php "$BOOT"'echo (int) Pterodactyl\Models\Backup::where("uuid", "'"$BACKUP"'")->value("is_successful");')" = 1 ] && break
+	sleep 2
+done
+docker exec "$NODE" test -s "/var/lib/pterodactyl/backups/$BACKUP.tar.gz" || {
+	docker exec "$NODE" tail -30 /var/log/wings.log
+	die "Wings did not finish the backup"
+}
+echo "    backup $BACKUP"
+# A bot's account key and a billing module's application key, as people
+# make them in Pterodactyl (the key is the identifier and the secret).
+read -r BOT_KEY BILLING_KEY < <(php "$BOOT"'
+use Pterodactyl\Models\{ApiKey, User};
+$admin = User::where("email", "admin@example.com")->firstOrFail();
+$svc = fn () => $app->make(Pterodactyl\Services\Api\KeyCreationService::class);
+$bot = $svc()->setKeyType(ApiKey::TYPE_ACCOUNT)->handle(["user_id" => $admin->id, "memo" => "Discord bot", "allowed_ips" => []]);
+$all = array_fill_keys(["r_servers", "r_nodes", "r_allocations", "r_users", "r_locations", "r_nests", "r_eggs", "r_database_hosts", "r_server_databases"], 3);
+$billing = $svc()->setKeyType(ApiKey::TYPE_APPLICATION)->handle(["user_id" => $admin->id, "memo" => "WHMCS", "allowed_ips" => []], $all);
+echo $bot->identifier . decrypt($bot->token), " ", $billing->identifier . decrypt($billing->token), PHP_EOL;
+') || die "making API keys"
+ptero_client() { docker exec "$NODE" curl -s -H "Authorization: Bearer $BOT_KEY" -H 'Accept: application/json' "$1/api/client"; }
+ptero_client "http://$PANEL" | grep -q "$UUID" || die "the bot key does not work in Pterodactyl"
+echo "    keys ${BOT_KEY:0:16}..., ${BILLING_KEY:0:16}..."
+
 step "Installing GamePanel's panel and importing"
 docker exec -d "$NODE" sh -c 'mkdir -p /gp && cd /gp && GAMEPANEL_DB=/gp/panel.db GAMEPANEL_ADDR=127.0.0.1:18080 panel >/gp/panel.log 2>&1'
 for _ in $(seq 30); do docker exec "$NODE" curl -s -o /dev/null http://127.0.0.1:18080/ && break; sleep 1; done
@@ -221,6 +251,7 @@ sleep 2
 check "the server still runs under Wings' container until adopt-wings" 'mc >/dev/null'
 docker exec "$NODE" sh -c 'GAMEPANEL_DATA_DIR=/gp/dd daemon adopt-wings' >"$T/adopt.txt" 2>&1
 check "adopt-wings moves the server" "grep -q 'moved $UUID' $T/adopt.txt"
+check "and Wings' backup" "grep -q 'took over 1 backup' $T/adopt.txt"
 check "which keeps running from its new folder meanwhile" 'mc >/dev/null'
 docker exec "$NODE" sh -c "echo after-move >/gp/dd/servers/$UUID/written-after-move.txt"
 docker exec -d "$NODE" sh -c "GAMEPANEL_PANEL_URL=ws://127.0.0.1:18080/daemon/connect GAMEPANEL_NODE_TOKEN=$TOKEN GAMEPANEL_DATA_DIR=/gp/dd daemon >/gp/daemon.log 2>&1"
@@ -257,9 +288,22 @@ check "the schedule came over" '[ "$(api admin "$B/servers/$UUID/schedules" | jq
 check "the subuser signs in and sees the server" 'login friend "$FRIEND_PW" >/dev/null && api friend "$B/servers" | jq -e "map(.uuid) | index(\"$UUID\")" >/dev/null'
 check "Wings' container is stopped" '[ "$(docker exec $NODE docker inspect -f "{{.State.Running}}" $UUID)" = false ]'
 
-echo "billing (Pterodactyl's application API, as WHMCS calls it)"
-KEY=$(api admin -d "{\"name\":\"billing\",\"password\":\"$ADMIN_PW\"}" "$B/auth/keys" | jq -r .token)
-app() { docker exec "$NODE" curl -s -H "Authorization: Bearer $KEY" -H 'Accept: Application/vnd.pterodactyl.v1+json' -H 'content-type: application/json' -w '\n%{http_code}' "${@:2}" "$B/application/$1"; }
+echo "keys and backups"
+check "the bot's Pterodactyl API key works unchanged" 'ptero_client http://127.0.0.1:18080 | jq -e ".data[0].attributes.uuid == \"$UUID\"" >/dev/null'
+check "the backup Wings made came over" 'api admin "$B/servers/$UUID/backups" | jq -e "map(select(.uuid == \"$BACKUP\" and .status == \"ok\")) | length == 1" >/dev/null'
+docker exec "$NODE" sh -c "echo changed-after-the-move >$D/smoke-marker.txt"
+api admin -d '{"action":"stop"}' "$B/servers/$UUID/power" >/dev/null
+wait_state offline 90
+restored() { api admin "$B/servers/$UUID/backups" | jq -r ".[] | select(.uuid == \"$BACKUP\") | .restore_status"; }
+api admin -d '{}' "$B/servers/$UUID/backups/$BACKUP/restore" >/dev/null
+for _ in $(seq 120); do case $(restored) in ok | failed) break ;; esac; sleep 1; done
+check "and restores: the files are as they were in Pterodactyl" '[ "$(restored)" = ok ] && [ "$(docker exec $NODE cat $D/smoke-marker.txt)" = "$MARKER" ]'
+check "with their owner" '[ "$(docker exec $NODE stat -c %u $D/smoke-marker.txt)" = "$OWNER" ]'
+api admin -d '{"action":"start"}' "$B/servers/$UUID/power" >/dev/null
+check "and the server starts from it" 'wait_state running 120'
+
+echo "billing (Pterodactyl's application API, as WHMCS calls it, with its Pterodactyl key)"
+app() { docker exec "$NODE" curl -s -H "Authorization: Bearer $BILLING_KEY" -H 'Accept: Application/vnd.pterodactyl.v1+json' -H 'content-type: application/json' -w '\n%{http_code}' "${@:2}" "$B/application/$1"; }
 code() { tail -1; }
 body() { sed '$d'; }
 check "the server keeps its Pterodactyl id" '[ "$(app servers/$PT_SERVER | body | jq -r .attributes.uuid)" = "$UUID" ]'

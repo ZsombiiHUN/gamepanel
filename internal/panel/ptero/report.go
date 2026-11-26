@@ -36,6 +36,8 @@ func report(w *strings.Builder, src *Source, p *Plan, applying bool) {
 		{"schedules", len(src.Schedules), len(p.Schedules)},
 		{"database hosts", len(src.DBHosts), len(p.DBHosts)},
 		{"databases", len(src.Databases), len(p.Databases)},
+		{"API keys", len(src.APIKeys), len(p.APIKeys)},
+		{"backups", len(src.Backups), len(p.Backups)},
 	}
 	fmt.Fprintf(w, "  %-16s %8s %10s\n", "", "found", "imported")
 	for _, r := range rows {
@@ -99,8 +101,9 @@ func WriteApplied(out io.Writer, p *Plan, res store.ImportResult, dbPath, panelU
 	var b strings.Builder
 	w := &b
 	fmt.Fprintf(w, "\nImported into %s:\n", dbPath)
-	fmt.Fprintf(w, "  %d account(s), %d location(s), %d node(s), %d egg(s), %d server(s), %d subuser(s), %d schedule(s), %d database host(s), %d database(s).\n",
-		len(p.Users), len(p.Locations), len(p.Nodes), len(p.Eggs), len(p.Servers), len(p.Subusers), len(p.Schedules), len(p.DBHosts), len(p.Databases))
+	fmt.Fprintf(w, "  %d account(s), %d location(s), %d node(s), %d egg(s), %d server(s), %d subuser(s), %d schedule(s), %d database host(s), %d database(s), %d API key(s), %d backup(s).\n",
+		len(p.Users), len(p.Locations), len(p.Nodes), len(p.Eggs), len(p.Servers), len(p.Subusers), len(p.Schedules), len(p.DBHosts), len(p.Databases),
+		len(p.APIKeys), len(p.Backups))
 	panel := panelURL
 	if panel == "" {
 		panel = "<panel address>"

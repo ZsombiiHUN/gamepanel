@@ -81,7 +81,13 @@ func fixture() *Source {
 		},
 		DBHosts:   []DBHost{{ID: 1, Name: "db1", Host: "10.0.0.10", Port: 3306, Username: "ptero", Password: "ENC", NodeID: ni(1)}},
 		Databases: []Database{{ServerID: 100, HostID: 1, Name: "s1_db", Username: "u1", Remote: "%", Password: "ENC"}},
-		Backups:   2,
+		Backups: []Backup{
+			{ServerID: 100, UUID: "aaaaaaaa-0000-4000-8000-000000000001", Name: "Before update", IgnoredFiles: `["logs","*.tmp"]`, Disk: "wings", Bytes: 1234, Successful: true, Locked: true, CompletedAt: 1700000100, CreatedAt: 1700000000},
+			{ServerID: 100, UUID: "aaaaaaaa-0000-4000-8000-000000000002", Name: "Offsite", IgnoredFiles: `[]`, Disk: "s3", Bytes: 99, Successful: true, CompletedAt: 1700000200, CreatedAt: 1700000150},
+			{ServerID: 100, UUID: "aaaaaaaa-0000-4000-8000-000000000003", Name: "Failed", IgnoredFiles: `[]`, Disk: "wings", CreatedAt: 1700000300},
+			{ServerID: 101, UUID: "aaaaaaaa-0000-4000-8000-000000000004", Name: "Elsewhere", IgnoredFiles: `[]`, Disk: "gcs", Successful: true, CompletedAt: 1, CreatedAt: 1},
+			{ServerID: 999, UUID: "aaaaaaaa-0000-4000-8000-000000000005", Name: "Of a server not imported", IgnoredFiles: `[]`, Disk: "wings", Successful: true, CompletedAt: 1, CreatedAt: 1},
+		},
 	}
 }
 
@@ -287,6 +293,17 @@ func TestReadRealPterodactyl(t *testing.T) {
 	if len(src.Eggs) == 0 || len(src.Nests) == 0 {
 		t.Fatalf("no eggs read: %+v", src)
 	}
+	for table, got := range map[string]int{"api_keys": len(src.APIKeys), "backups WHERE deleted_at IS NULL": len(src.Backups)} {
+		var want int
+		if err := db.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&want); err != nil || got != want {
+			t.Errorf("%s: read %d, the table has %d (%v)", table, got, want, err)
+		}
+	}
+	for _, b := range src.Backups {
+		if b.UUID == "" || b.CreatedAt == 0 || b.Successful && b.CompletedAt == 0 {
+			t.Errorf("backup read badly: %+v", b)
+		}
+	}
 	var key AppKey
 	if k := os.Getenv("GAMEPANEL_TEST_PTERO_APP_KEY"); k != "" {
 		if key, err = ParseAppKey(k); err != nil {
@@ -345,5 +362,81 @@ func TestPlanNodeNamesStayWithinLimit(t *testing.T) {
 	a, b := p.Nodes[0].Name, p.Nodes[1].Name
 	if a == b || utf8.RuneCountInString(a) > 64 || utf8.RuneCountInString(b) > 64 || !utf8.ValidString(b) || !strings.HasSuffix(b, " (2)") {
 		t.Fatalf("names %q / %q", a, b)
+	}
+}
+
+// apiKeySecret is a 32-character secret as Pterodactyl makes them.
+const apiKeySecret = "abcdefghijklmnopqrstuvwxyz012345"
+
+func TestPlanAPIKeys(t *testing.T) {
+	t.Parallel()
+	k, _ := ParseAppKey(testAppKey)
+	enc := laravelEncrypt(t, k, apiKeySecret)
+	full := [9]int{3, 3, 3, 3, 3, 3, 3, 3, 3}
+	src := fixture()
+	src.APIKeys = []APIKey{
+		{ID: 1, UserID: 2, Type: keyAccount, Identifier: ns("ptlc_alicebot001"), Token: enc, Memo: ns("Discord bot"), CreatedAt: 10, LastUsedAt: 20},
+		{ID: 2, UserID: 1, Type: keyApplication, Identifier: ns("ptla_whmcs000001"), Token: enc, Memo: ns("WHMCS"), Perms: full},
+		{ID: 3, UserID: 1, Type: keyApplication, Identifier: ns("ptla_readonly001"), Token: enc, Perms: [9]int{1, 1, 1, 1, 1, 1, 1, 1, 1}},
+		{ID: 4, UserID: 2, Type: keyApplication, Identifier: ns("ptla_notadmin001"), Token: enc, Perms: full},
+		{ID: 5, UserID: 2, Type: keyAccount, Identifier: ns("ptlc_fromoffice1"), Token: enc, AllowedIPs: ns(`["203.0.113.4"]`)},
+		{ID: 6, UserID: 2, Type: keyAccount, Identifier: ns("ptlc_expired0001"), Token: enc, ExpiresAt: 1},
+		{ID: 7, UserID: 2, Type: 4, Identifier: ns("wingskey00000001"), Token: enc},
+		{ID: 8, UserID: 2, Type: keyAccount, Identifier: ns("ptlc_tampered001"), Token: "ENC"},
+		{ID: 9, UserID: 2, Type: keyAccount, Identifier: ns("legacykey0000001"), Token: enc, AllowedIPs: ns("[]")},
+		{ID: 10, UserID: 42, Type: keyAccount, Identifier: ns("ptlc_nouser00001"), Token: enc},
+	}
+	p := Build(src, Options{AppKey: k})
+	var got []string
+	for _, key := range p.APIKeys {
+		got = append(got, key.Prefix)
+		if key.Token != key.Prefix+apiKeySecret {
+			t.Errorf("%s: token %q", key.Prefix, key.Token)
+		}
+	}
+	if want := []string{"ptlc_alicebot001", "ptla_whmcs000001", "legacykey0000001"}; !slices.Equal(got, want) {
+		t.Fatalf("imported %v, want %v; notes %+v", got, want, p.Notes)
+	}
+	if a := p.APIKeys[0]; a.UserKey != 2 || a.Name != "Discord bot" || a.CreatedAt != 10 || a.LastUsedAt != 20 {
+		t.Errorf("account key: %+v", a)
+	}
+	if p.APIKeys[2].Name != "Pterodactyl key" {
+		t.Errorf("a key without a memo is named %q", p.APIKeys[2].Name)
+	}
+	for _, want := range []string{
+		"ptla_readonly001 not imported: an application key limited", "ptla_notadmin001 not imported: an application key of an account",
+		"ptlc_fromoffice1 not imported: it only works from some IP", "ptlc_tampered001 not imported: its secret", "1 expired API key", "1 internal API key",
+	} {
+		if !hasNote(p, Changed, want) && !hasNote(p, Info, want) {
+			t.Errorf("no note %q", want)
+		}
+	}
+
+	// Without the APP_KEY the secrets cannot be read: none come over, and
+	// the report says why.
+	p = Build(src, Options{})
+	if len(p.APIKeys) != 0 || !hasNote(p, Changed, "API key(s) are not imported because no --app-key") {
+		t.Errorf("without a key: %+v", p.APIKeys)
+	}
+}
+
+func TestPlanBackups(t *testing.T) {
+	t.Parallel()
+	p := Build(fixture(), Options{})
+	if len(p.Backups) != 2 {
+		t.Fatalf("backups %+v; notes %+v", p.Backups, p.Notes)
+	}
+	local, remote := p.Backups[0], p.Backups[1]
+	if local.ServerUUID != "11111111-1111-1111-1111-111111111111" || local.Disk != "local" || local.Ignore != "logs\n*.tmp" || !local.Locked ||
+		local.Size != 1234 || local.CreatedAt != 1700000000 || local.CompletedAt != 1700000100 {
+		t.Errorf("local: %+v", local)
+	}
+	if remote.Disk != "s3" || remote.Ignore != "" {
+		t.Errorf("s3: %+v", remote)
+	}
+	for _, want := range []string{"1 failed or unfinished backup", `in "gcs" storage`, "1 backup(s) are on the nodes", "1 backup(s) are in S3 storage"} {
+		if !hasNote(p, Changed, want) && !hasNote(p, Info, want) {
+			t.Errorf("no note %q", want)
+		}
 	}
 }

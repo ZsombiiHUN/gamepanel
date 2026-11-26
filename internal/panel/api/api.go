@@ -311,7 +311,7 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		if hasCookie {
 			resolve = func(ctx context.Context) (store.User, error) { return a.Store.UserBySession(ctx, tok, ip) }
 			r = r.WithContext(context.WithValue(r.Context(), sessionKey{}, tok))
-		} else if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && strings.HasPrefix(tok, store.KeyPrefix) {
+		} else if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok && store.LooksLikeAPIKey(tok) {
 			// API keys: no cookie, so no CSRF exposure; flagged so sensitive
 			// account actions can insist on a browser session.
 			resolve = func(ctx context.Context) (store.User, error) { return a.Store.UserByAPIKey(ctx, tok) }

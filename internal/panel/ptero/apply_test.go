@@ -26,7 +26,12 @@ func openStore(t *testing.T) *store.Store {
 func TestApplyFixture(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p := Build(fixture(), Options{})
+	k, _ := ParseAppKey(testAppKey)
+	src := fixture()
+	src.Users[0].UseTOTP = false // its secret is not a real payload
+	src.DBHosts, src.Databases = nil, nil
+	src.APIKeys = []APIKey{{UserID: 2, Type: keyAccount, Identifier: ns("ptlc_alicebot001"), Token: laravelEncrypt(t, k, apiKeySecret), Memo: ns("bot")}}
+	p := Build(src, Options{AppKey: k})
 	st := openStore(t)
 	res, err := st.ImportPanel(ctx, p.Import())
 	if err != nil {
@@ -64,6 +69,20 @@ func TestApplyFixture(t *testing.T) {
 	eggs, _ := st.ListEggs(ctx)
 	if len(eggs) != len(p.Eggs) {
 		t.Errorf("%d eggs, want %d", len(eggs), len(p.Eggs))
+	}
+	// The Pterodactyl key signs in as its owner, and the backups are there.
+	if u, err := st.UserByAPIKey(ctx, "ptlc_alicebot001"+apiKeySecret); err != nil || u.ID != alice.ID {
+		t.Errorf("imported key: %+v %v", u, err)
+	}
+	if keys, _ := st.ListAPIKeys(ctx, alice.ID); len(keys) != 1 || keys[0].Prefix != "ptlc_alicebot001" || keys[0].Name != "bot" {
+		t.Errorf("keys: %+v", keys)
+	}
+	backups, _ := st.ListBackups(ctx, srv.UUID)
+	if len(backups) != 2 || backups[0].Status != store.BackupOK {
+		t.Errorf("backups: %+v", backups)
+	}
+	if ids, _ := st.BackupsOnDisk(ctx, srv.UUID, "local"); len(ids) != 1 || ids[0] != "aaaaaaaa-0000-4000-8000-000000000001" {
+		t.Errorf("local backups: %v", ids)
 	}
 	scheds, _ := st.ListSchedules(ctx, srv.UUID)
 	if len(scheds) != 1 || len(scheds[0].Tasks) != 2 || scheds[0].Tasks[1].OffsetSeconds != 900 {

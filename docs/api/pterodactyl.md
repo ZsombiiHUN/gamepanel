@@ -5,7 +5,7 @@ GamePanel answers two of Pterodactyl's APIs in Pterodactyl's format, so tools wr
 - the **client API** (`/api/client`), used by Discord bots, mobile apps and scripts, with any GamePanel API key;
 - the **application API** (`/api/application`), the part billing modules use (WHMCS, Paymenter, Blesta), with an **administrator's** API key.
 
-Point the tool at your panel's address and give it a GamePanel key (`gp_...`) where it asks for a Pterodactyl key. Errors come back in Pterodactyl's error format (`{"errors":[{"code":"…","status":"422","detail":"…"}]}`); refused fields name themselves in `meta.source_field`, as Pterodactyl's `ValidationException` does.
+Point the tool at your panel's address and give it a GamePanel key (`gp_...`) where it asks for a Pterodactyl key. After an [import](/guides/from-pterodactyl), the Pterodactyl keys people had (`ptlc_...`, `ptla_...`) keep working too. Errors come back in Pterodactyl's error format (`{"errors":[{"code":"…","status":"422","detail":"…"}]}`); refused fields name themselves in `meta.source_field`, as Pterodactyl's `ValidationException` does.
 
 ## Client API
 

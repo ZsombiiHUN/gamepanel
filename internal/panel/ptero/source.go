@@ -26,8 +26,40 @@ type Source struct {
 	Tasks       []Task
 	DBHosts     []DBHost
 	Databases   []Database
-	// Counted only: not imported in this version.
-	Backups, APIKeys, Mounts int
+	APIKeys     []APIKey
+	Backups     []Backup
+	// Counted only: GamePanel has no mounts.
+	Mounts int
+}
+
+// APIKey is a row of api_keys. The key a client sends is Identifier
+// followed by the decrypted Token.
+type APIKey struct {
+	ID         int64
+	UserID     int64
+	Type       int // 1 = account (ptlc_), 2 = application (ptla_)
+	Identifier sql.NullString
+	Token      string // Laravel-encrypted
+	AllowedIPs sql.NullString
+	Memo       sql.NullString
+	LastUsedAt int64 // Unix seconds, 0 = never
+	ExpiresAt  int64 // Unix seconds, 0 = never
+	CreatedAt  int64
+	// Perms are an application key's r_* columns; 3 is read and write.
+	Perms [9]int
+}
+
+type Backup struct {
+	ServerID     int64
+	UUID         string
+	Name         string
+	IgnoredFiles string // JSON array
+	Disk         string // wings or s3
+	Bytes        int64
+	Successful   bool
+	Locked       bool
+	CompletedAt  int64 // Unix seconds, 0 = not finished
+	CreatedAt    int64
 }
 
 type Location struct {
@@ -173,6 +205,12 @@ type Database struct {
 	Password string // Laravel-encrypted
 }
 
+// unix selects a nullable timestamp column as Unix seconds, 0 for NULL, so
+// the reader needs no time zone or parseTime in the DSN.
+func unix(col string) string {
+	return "COALESCE(UNIX_TIMESTAMP(" + col + "),0)"
+}
+
 // ErrPelican means the database is Pelican's (eggs without nests), which
 // this version does not read.
 var ErrPelican = errors.New("this looks like a Pelican database (no nests table); only Pterodactyl 1.x is supported for now")
@@ -307,22 +345,34 @@ func Read(ctx context.Context, db *sql.DB) (*Source, error) {
 			return err
 		}},
 	}
+	steps = append(steps, []struct {
+		name, query string
+		scan        func(*sql.Rows) error
+	}{
+		{"API keys", `SELECT id,user_id,key_type,identifier,token,allowed_ips,memo,` + unix("last_used_at") + `,` + unix("expires_at") + `,` + unix("created_at") + `,
+			r_servers,r_nodes,r_allocations,r_users,r_locations,r_nests,r_eggs,r_database_hosts,r_server_databases FROM api_keys ORDER BY id`, func(r *sql.Rows) error {
+			var k APIKey
+			p := &k.Perms
+			err := r.Scan(&k.ID, &k.UserID, &k.Type, &k.Identifier, &k.Token, &k.AllowedIPs, &k.Memo, &k.LastUsedAt, &k.ExpiresAt, &k.CreatedAt,
+				&p[0], &p[1], &p[2], &p[3], &p[4], &p[5], &p[6], &p[7], &p[8])
+			s.APIKeys = append(s.APIKeys, k)
+			return err
+		}},
+		{"backups", `SELECT server_id,uuid,name,ignored_files,disk,bytes,is_successful,is_locked,` + unix("completed_at") + `,` + unix("created_at") + `
+			FROM backups WHERE deleted_at IS NULL ORDER BY id`, func(r *sql.Rows) error {
+			var b Backup
+			err := r.Scan(&b.ServerID, &b.UUID, &b.Name, &b.IgnoredFiles, &b.Disk, &b.Bytes, &b.Successful, &b.Locked, &b.CompletedAt, &b.CreatedAt)
+			s.Backups = append(s.Backups, b)
+			return err
+		}},
+	}...)
 	for _, st := range steps {
 		if err := q(st.name, st.query, st.scan); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range []struct {
-		dst   *int
-		query string
-	}{
-		{&s.Backups, `SELECT COUNT(*) FROM backups WHERE deleted_at IS NULL`},
-		{&s.APIKeys, `SELECT COUNT(*) FROM api_keys`},
-		{&s.Mounts, `SELECT COUNT(*) FROM mounts`},
-	} {
-		if err := tx.QueryRowContext(ctx, c.query).Scan(c.dst); err != nil {
-			return nil, fmt.Errorf("count: %w", err)
-		}
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM mounts`).Scan(&s.Mounts); err != nil {
+		return nil, fmt.Errorf("count mounts: %w", err)
 	}
 	return s, nil
 }
