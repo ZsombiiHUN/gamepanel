@@ -61,12 +61,14 @@ func (a *App) nodeAllocations(r *http.Request, n store.Node, from, limit int) ([
 	return out, total, nil
 }
 
-// hasRoom reports whether a node can take a server of that size.
+// hasRoom reports whether a node can take a server of that size, by the
+// rules a create follows: on a node that tracks disk, a server needs a disk
+// limit.
 func hasRoom(n store.Node, memory, disk int64) bool {
 	if n.MemoryMB > 0 && n.AllocatedMemory+memory > n.MemoryMB*(100+n.OverallocatePct)/100 {
 		return false
 	}
-	return n.DiskMB == 0 || n.AllocatedDisk+disk <= n.DiskMB*(100+n.OverallocatePct)/100
+	return n.DiskMB == 0 || (disk > 0 && n.AllocatedDisk+disk <= n.DiskMB*(100+n.OverallocatePct)/100)
 }
 
 func (a *App) registerAppNodes(mux *http.ServeMux) {

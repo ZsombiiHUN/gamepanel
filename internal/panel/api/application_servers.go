@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -220,7 +221,7 @@ func (a *App) registerAppServers(mux *http.ServeMux) {
 			}
 		}
 		// By id, as Pterodactyl lists them.
-		slices.SortFunc(list, func(x, y store.Server) int { return int(metas[x.UUID].ID - metas[y.UUID].ID) })
+		slices.SortFunc(list, func(x, y store.Server) int { return cmp.Compare(metas[x.UUID].ID, metas[y.UUID].ID) })
 		p := pageOf(r)
 		l, inc := a.lookups(ctx), includes(r)
 		items := []any{}

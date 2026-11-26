@@ -172,7 +172,7 @@ echo "    server $UUID"
 # The ids a billing module stored: they must still work against GamePanel.
 read -r PT_SERVER PT_EGG PT_NODE PT_LOCATION < <(php "$BOOT"'
 $s = Pterodactyl\Models\Server::where("uuid", "'"$UUID"'")->firstOrFail();
-echo $s->id, " ", $s->egg_id, " ", $s->node_id, " ", $s->node->location_id;
+echo $s->id, " ", $s->egg_id, " ", $s->node_id, " ", $s->node->location_id, PHP_EOL;
 ') || die "reading the server's ids"
 echo "    ids: server $PT_SERVER, egg $PT_EGG, node $PT_NODE, location $PT_LOCATION"
 VOL=/var/lib/pterodactyl/volumes/$UUID

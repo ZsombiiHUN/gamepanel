@@ -71,10 +71,6 @@ func (a *App) registerAppUsers(mux *http.ServeMux) {
 	h("GET /api/application/users", func(w http.ResponseWriter, r *http.Request, _ store.User) error {
 		q := r.URL.Query()
 		f := store.AccountFilter{Email: q.Get("filter[email]"), ExternalID: q.Get("filter[external_id]")}
-		if u := q.Get("filter[username]"); u != "" && f.Email == "" {
-			// No user names here: only an email can match one exactly.
-			f.Email = u
-		}
 		p := pageOf(r)
 		total, err := a.Store.CountAccounts(r.Context(), f)
 		if err != nil {

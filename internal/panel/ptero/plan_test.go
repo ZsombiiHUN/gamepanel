@@ -315,7 +315,8 @@ func TestReadRealPterodactyl(t *testing.T) {
 
 func TestPlanLocations(t *testing.T) {
 	t.Parallel()
-	src := &Source{Nests: map[int64]string{},
+	src := &Source{
+		Nests:     map[int64]string{},
 		Locations: []Location{{ID: 4, Short: "eu", Long: sql.NullString{String: "Frankfurt", Valid: true}}, {ID: 9, Short: "EU "}, {ID: 2, Short: strings.Repeat("x", 70)}},
 		Nodes:     []Node{{ID: 1, LocationID: 4, Name: "n1"}},
 	}

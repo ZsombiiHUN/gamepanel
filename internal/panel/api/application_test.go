@@ -162,3 +162,20 @@ func TestBadDecodersHaveABadField(t *testing.T) {
 		}
 	}
 }
+
+func TestHasRoom(t *testing.T) {
+	t.Parallel()
+	untracked := store.Node{}
+	if !hasRoom(untracked, 1<<20, 0) {
+		t.Fatal("a node that tracks nothing has room for anything")
+	}
+	n := store.Node{MemoryMB: 1000, DiskMB: 1000, OverallocatePct: 50, AllocatedMemory: 900, AllocatedDisk: 900}
+	for _, c := range []struct {
+		mem, disk int64
+		want      bool
+	}{{600, 600, true}, {601, 100, false}, {100, 601, false}, {100, 0, false}} {
+		if got := hasRoom(n, c.mem, c.disk); got != c.want {
+			t.Errorf("mem %d disk %d: %v", c.mem, c.disk, got)
+		}
+	}
+}
