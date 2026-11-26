@@ -28,6 +28,7 @@ func report(w *strings.Builder, src *Source, p *Plan, applying bool) {
 		found, got int
 	}{
 		{"users", len(src.Users), len(p.Users)},
+		{"locations", len(src.Locations), len(p.Locations)},
 		{"nodes", len(src.Nodes), len(p.Nodes)},
 		{"eggs", len(src.Eggs), len(p.Eggs)},
 		{"servers", len(src.Servers), len(p.Servers)},
@@ -98,8 +99,8 @@ func WriteApplied(out io.Writer, p *Plan, res store.ImportResult, dbPath, panelU
 	var b strings.Builder
 	w := &b
 	fmt.Fprintf(w, "\nImported into %s:\n", dbPath)
-	fmt.Fprintf(w, "  %d account(s), %d node(s), %d egg(s), %d server(s), %d subuser(s), %d schedule(s), %d database host(s), %d database(s).\n",
-		len(p.Users), len(p.Nodes), len(p.Eggs), len(p.Servers), len(p.Subusers), len(p.Schedules), len(p.DBHosts), len(p.Databases))
+	fmt.Fprintf(w, "  %d account(s), %d location(s), %d node(s), %d egg(s), %d server(s), %d subuser(s), %d schedule(s), %d database host(s), %d database(s).\n",
+		len(p.Users), len(p.Locations), len(p.Nodes), len(p.Eggs), len(p.Servers), len(p.Subusers), len(p.Schedules), len(p.DBHosts), len(p.Databases))
 	panel := panelURL
 	if panel == "" {
 		panel = "<panel address>"

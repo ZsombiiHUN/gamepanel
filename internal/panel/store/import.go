@@ -11,10 +11,12 @@ import (
 )
 
 // Import is a whole panel to bring in at once (from Pterodactyl). Records
-// point at each other by Key, the id they had in the other panel; Apply maps
-// those to the ids GamePanel gives them.
+// point at each other by Key, the id they had in the other panel. Locations,
+// nodes, eggs and servers keep their key as their id (the panel has none of
+// them yet); accounts get new ids, since an admin may already exist.
 type Import struct {
 	Users     []ImportUser
+	Locations []ImportLocation
 	Nodes     []ImportNode
 	Eggs      []ImportEgg
 	Servers   []ImportServer // Server.OwnerID, NodeID and EggID are keys
@@ -36,8 +38,15 @@ type ImportUser struct {
 	ExternalID   string
 }
 
+type ImportLocation struct {
+	Key   int64
+	Short string
+	Long  string
+}
+
 type ImportNode struct {
 	Key             int64
+	LocationKey     int64 // 0 = none
 	Name            string
 	PortStart       int
 	PortEnd         int
@@ -54,6 +63,7 @@ type ImportEgg struct {
 }
 
 type ImportServer struct {
+	Key    int64 // its number in the application API; 0 = the next free one
 	Server Server
 	Extra  []ServerPort // ports beyond the primary one (Port and Notes)
 }
@@ -98,7 +108,7 @@ func (e *ImportNotEmptyError) Error() string {
 // importBlockers is what an import refuses to mix with: it only creates,
 // and ids, names and ports from the other panel must not collide.
 var importBlockers = []struct{ table, what string }{
-	{"nodes", "node"}, {"servers", "server"}, {"eggs", "egg"}, {"database_hosts", "database host"},
+	{"locations", "location"}, {"nodes", "node"}, {"servers", "server"}, {"eggs", "egg"}, {"database_hosts", "database host"},
 }
 
 // ImportPanel writes a whole panel in one transaction: everything or
@@ -135,8 +145,8 @@ func (s *Store) ImportPanel(ctx context.Context, in Import) (ImportResult, error
 		return res, &ImportNotEmptyError{Found: found}
 	}
 	t := now()
-	imp := importer{s: s, tx: tx, ctx: ctx, t: t, res: &res, eggIDs: map[int64]int64{}, hostIDs: map[int64]int64{}}
-	steps := []func(Import) error{imp.users, imp.nodes, imp.eggs, imp.servers, imp.subusers, imp.schedules, imp.databases}
+	imp := importer{s: s, tx: tx, ctx: ctx, t: t, res: &res, eggIDs: map[int64]int64{}, hostIDs: map[int64]int64{}, locIDs: map[int64]bool{}}
+	steps := []func(Import) error{imp.users, imp.locations, imp.nodes, imp.eggs, imp.servers, imp.subusers, imp.schedules, imp.databases}
 	for _, step := range steps {
 		if err := step(in); err != nil {
 			return res, err
@@ -153,6 +163,7 @@ type importer struct {
 	res     *ImportResult
 	eggIDs  map[int64]int64
 	hostIDs map[int64]int64
+	locIDs  map[int64]bool
 }
 
 func (m *importer) exec(q string, a ...any) (sql.Result, error) {
@@ -183,6 +194,20 @@ func (m *importer) users(in Import) error {
 	return nil
 }
 
+func (m *importer) locations(in Import) error {
+	for _, l := range in.Locations {
+		short, long, err := checkLocation(l.Short, l.Long)
+		if err != nil {
+			return fmt.Errorf("location %s: %w", l.Short, err)
+		}
+		if _, err := m.exec(`INSERT INTO locations(id,short,long,created_at) VALUES(?,?,?,?)`, l.Key, short, long, m.t); err != nil {
+			return fmt.Errorf("location %s: %w", l.Short, locationUniqueErr(err))
+		}
+		m.locIDs[l.Key] = true
+	}
+	return nil
+}
+
 func (m *importer) nodes(in Import) error {
 	for _, n := range in.Nodes {
 		if !validSFTPHost(n.SFTPHost) {
@@ -191,13 +216,16 @@ func (m *importer) nodes(in Import) error {
 		if n.SFTPPort < 0 || n.SFTPPort > 65535 {
 			n.SFTPPort = 0 // the port the daemon reports
 		}
+		var loc any
+		if m.locIDs[n.LocationKey] {
+			loc = n.LocationKey
+		}
 		tok, h := NewToken()
-		r, err := m.exec(`INSERT INTO nodes(name,token_hash,port_start,port_end,memory_mb,disk_mb,overallocate_pct,sftp_host,sftp_port,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
-			n.Name, h, n.PortStart, n.PortEnd, n.MemoryMB, n.DiskMB, n.OverallocatePct, n.SFTPHost, n.SFTPPort, m.t)
-		if err != nil {
+		if _, err := m.exec(`INSERT INTO nodes(id,name,token_hash,port_start,port_end,memory_mb,disk_mb,overallocate_pct,sftp_host,sftp_port,location_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+			n.Key, n.Name, h, n.PortStart, n.PortEnd, n.MemoryMB, n.DiskMB, n.OverallocatePct, n.SFTPHost, n.SFTPPort, loc, m.t); err != nil {
 			return fmt.Errorf("node %s: %w", n.Name, err)
 		}
-		m.res.NodeIDs[n.Key], _ = r.LastInsertId()
+		m.res.NodeIDs[n.Key] = n.Key
 		m.res.NodeTokens[n.Key] = tok
 	}
 	return nil
@@ -209,11 +237,10 @@ func (m *importer) eggs(in Import) error {
 		if err != nil {
 			return err
 		}
-		r, err := m.exec(`INSERT INTO eggs(`+eggInsertCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, append(cols, m.t)...)
-		if err != nil {
+		if _, err := m.exec(`INSERT INTO eggs(id,`+eggInsertCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, append(append([]any{e.Key}, cols...), m.t)...); err != nil {
 			return fmt.Errorf("egg %s: %w", e.Egg.Name, err)
 		}
-		m.eggIDs[e.Key], _ = r.LastInsertId()
+		m.eggIDs[e.Key] = e.Key
 	}
 	return nil
 }
@@ -250,6 +277,12 @@ func (m *importer) servers(in Import) error {
 		env, err := json.Marshal(v.Env)
 		if err != nil {
 			return err
+		}
+		if is.Key != 0 {
+			// Before the server row: its insert trigger then keeps this number.
+			if _, err := m.exec(`INSERT INTO server_ids(id,uuid) VALUES(?,?)`, is.Key, v.UUID); err != nil {
+				return fmt.Errorf("%s: number %d: %w", of, is.Key, err)
+			}
 		}
 		if _, err := m.exec(`INSERT INTO servers(`+srvCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			v.UUID, v.Name, v.OwnerID, v.NodeID, v.EggID, v.MemoryMB, v.CPUPct, v.Port, string(env),

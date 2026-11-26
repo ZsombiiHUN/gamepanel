@@ -14,13 +14,15 @@ func sampleImport() Import {
 			{Key: 7, Email: "admin@example.com", Admin: true, PasswordHash: laravelHash, TOTPSecret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"},
 			{Key: 9, Email: "friend@example.com", PasswordHash: "", ExternalID: "cust-9"},
 		},
-		Nodes: []ImportNode{{Key: 3, Name: "Node 1", PortStart: 25565, PortEnd: 25700, MemoryMB: 8192, SFTPHost: "node1.example.com", SFTPPort: 2022}},
+		Locations: []ImportLocation{{Key: 4, Short: "eu", Long: "Frankfurt"}},
+		Nodes:     []ImportNode{{Key: 3, LocationKey: 4, Name: "Node 1", PortStart: 25565, PortEnd: 25700, MemoryMB: 8192, SFTPHost: "node1.example.com", SFTPPort: 2022}},
 		Eggs: []ImportEgg{{Key: 5, Egg: Egg{
 			Name: "Paper", DockerImage: "ghcr.io/x/java:21", Startup: "java -jar {{SERVER_JARFILE}}", Stop: "stop",
 			Variables:   []EggVar{{Env: "SERVER_JARFILE", Default: "server.jar"}},
 			ConfigFiles: []EggConfigFile{{File: "server.properties", Parser: "properties", Find: []EggFind{{Key: "server-port", Value: "{{server.build.default.port}}"}}}},
 		}}},
 		Servers: []ImportServer{{
+			Key: 12,
 			Server: Server{
 				UUID: "11111111-1111-1111-1111-111111111111", Name: "Survival", OwnerID: 7, NodeID: 3, EggID: 5, Port: 25565,
 				Env: map[string]string{"SERVER_JARFILE": "paper.jar"}, InstallStatus: InstallInstalled, CrashRestart: true, ExternalID: "order-1",
@@ -56,6 +58,31 @@ func TestImportPanel(t *testing.T) {
 	node, err := s.NodeByToken(ctx, res.NodeTokens[3])
 	if err != nil || node.Name != "Node 1" || node.SFTPHost != "node1.example.com" || node.MemoryMB != 8192 {
 		t.Fatalf("node %+v %v", node, err)
+	}
+	// Locations, nodes, eggs and servers keep Pterodactyl's ids, so a billing
+	// module's products still point at them.
+	if node.ID != 3 || node.LocationID != 4 {
+		t.Fatalf("node ids: %+v", node)
+	}
+	if l, err := s.GetLocation(ctx, 4); err != nil || l.Short != "eu" || l.Long != "Frankfurt" || l.Nodes != 1 {
+		t.Fatalf("location %+v %v", l, err)
+	}
+	if e, err := s.GetEgg(ctx, 5); err != nil || e.Name != "Paper" {
+		t.Fatalf("egg 5: %+v %v", e, err)
+	}
+	if srv, err := s.ServerByNumber(ctx, 12); err != nil || srv.Name != "Survival" {
+		t.Fatalf("server 12: %+v %v", srv, err)
+	}
+	// The next of each continues after the imported ids.
+	if n, _, err := s.CreateNode(ctx, "Node 2", 30000, 30010); err != nil || n.ID != 4 {
+		t.Fatalf("next node %+v %v", n, err)
+	}
+	next, err := s.CreateServer(ctx, Server{UUID: "22222222-2222-2222-2222-222222222222", Name: "Next", OwnerID: u0(t, s), NodeID: 3, EggID: 5, Limits: Limits{MemoryMB: 512}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, err := s.GetServerMeta(ctx, next.UUID); err != nil || m.ID != 13 {
+		t.Fatalf("next server number %+v %v", m, err)
 	}
 
 	// The Pterodactyl password works, with its second factor.
@@ -116,6 +143,16 @@ func TestImportPanel(t *testing.T) {
 	if _, err := s.ImportPanel(ctx, sampleImport()); !errors.As(err, &nonEmpty) {
 		t.Fatalf("second import: %v", err)
 	}
+}
+
+// u0 is the id of the first account, made before the import.
+func u0(t *testing.T, s *Store) int64 {
+	t.Helper()
+	var id int64
+	if err := s.DB.QueryRow(`SELECT id FROM users WHERE email='first@example.com'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 func TestImportRefusesTakenAccounts(t *testing.T) {

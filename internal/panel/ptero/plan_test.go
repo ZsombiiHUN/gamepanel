@@ -302,6 +302,38 @@ func TestReadRealPterodactyl(t *testing.T) {
 	if len(p.Eggs) != len(src.Eggs) {
 		t.Errorf("only %d of %d eggs imported: %+v", len(p.Eggs), len(src.Eggs), p.Notes)
 	}
+	// Every node is in a location (Pterodactyl requires one), and each comes over.
+	if len(p.Locations) != len(src.Locations) {
+		t.Errorf("%d of %d locations planned", len(p.Locations), len(src.Locations))
+	}
+	for _, n := range p.Nodes {
+		if !slices.ContainsFunc(p.Locations, func(l PlanLocation) bool { return l.PteroID == n.LocationID }) {
+			t.Errorf("node %q is in location %d, which is not planned", n.Name, n.LocationID)
+		}
+	}
+}
+
+func TestPlanLocations(t *testing.T) {
+	t.Parallel()
+	src := &Source{Nests: map[int64]string{},
+		Locations: []Location{{ID: 4, Short: "eu", Long: sql.NullString{String: "Frankfurt", Valid: true}}, {ID: 9, Short: "EU "}, {ID: 2, Short: strings.Repeat("x", 70)}},
+		Nodes:     []Node{{ID: 1, LocationID: 4, Name: "n1"}},
+	}
+	p := Build(src, Options{})
+	if len(p.Locations) != 3 || p.Locations[0] != (PlanLocation{PteroID: 4, Short: "eu", Long: "Frankfurt"}) {
+		t.Fatalf("locations %+v", p.Locations)
+	}
+	// Codes are unique ignoring case, and at most 60 characters.
+	if p.Locations[1].Short != "EU-2" || utf8.RuneCountInString(p.Locations[2].Short) != 60 {
+		t.Fatalf("renamed %+v", p.Locations)
+	}
+	if p.Nodes[0].LocationID != 4 {
+		t.Fatalf("node location %d", p.Nodes[0].LocationID)
+	}
+	in := p.Import()
+	if len(in.Locations) != 3 || in.Nodes[0].LocationKey != 4 {
+		t.Fatalf("import %+v", in)
+	}
 }
 
 func TestPlanNodeNamesStayWithinLimit(t *testing.T) {
