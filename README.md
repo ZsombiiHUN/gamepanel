@@ -50,7 +50,8 @@ It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterod
 ## Why GamePanel
 
 - **One binary, one SQLite file.** No PHP, no Redis, no queue workers. Back up one database and one key file.
-- **Eggs import unchanged.** Pterodactyl PTDL v1 and v2 eggs, including install scripts, work as they are.
+- **Eggs import unchanged.** Pterodactyl PTDL v1 and v2 eggs, including install scripts and config file rules, work as they are.
+- **Moves a Pterodactyl panel in one go.** Accounts keep their passwords, servers keep their UUIDs, ports and files. See [Coming from Pterodactyl](https://zsombiihun.github.io/gamepanel/guides/from-pterodactyl).
 - **The daemon dials out.** Each node opens one websocket to the panel, so a node needs no inbound control port. Uploads and downloads stream through the panel on a separate connection the node also opens itself.
 - **Safe where it matters.** File access goes through `os.Root` and is tested against hostile symlinks (the class of bug behind the Wings CVEs). Egg variables never reach a shell. Containers drop all capabilities.
 - **Light and dark.** Follows your system, or pick one; both themes pass the same accessibility checks.
@@ -217,7 +218,6 @@ The browser only ever talks to the panel. Each node opens its own connection out
 
 These are next, roughly in this order. There are no dates, and the order may change.
 
-- [ ] **Import a Pterodactyl panel**: users, nodes, eggs, servers and files ([#95](https://github.com/ZsombiiHUN/gamepanel/issues/95)). The preview, `panel import-pterodactyl`, already works.
 - [ ] **Move a server to another node** ([#93](https://github.com/ZsombiiHUN/gamepanel/issues/93))
 - [ ] **Pterodactyl's application API**, so WHMCS, Paymenter and Blesta modules work ([#88](https://github.com/ZsombiiHUN/gamepanel/issues/88))
 - [ ] **Pterodactyl's console websocket**, for bots that stream the console ([#89](https://github.com/ZsombiiHUN/gamepanel/issues/89))
@@ -231,13 +231,13 @@ Want to help with one? Issues labelled [help wanted](https://github.com/ZsombiiH
 <details>
 <summary><b>Can I move over from Pterodactyl or Pelican?</b></summary>
 
-Your eggs work as they are: import them under **Eggs**. `panel import-pterodactyl` already shows what an import of your users, nodes, servers and the rest would bring over. Applying the import is coming in [#95](https://github.com/ZsombiiHUN/gamepanel/issues/95). Until then, create the servers in GamePanel and copy their files over with SFTP. See [Coming from Pterodactyl](https://zsombiihun.github.io/gamepanel/guides/from-pterodactyl).
+From Pterodactyl, yes, in one go. `panel import-pterodactyl --apply` brings over accounts (with their passwords and two-factor), nodes, eggs, servers, subusers, schedules and databases. On each node, `install.sh node --adopt-wings` takes over the files Wings kept, so every server keeps its UUID, port and world and nothing is reinstalled. Running servers are stopped with their egg's stop command and started again under GamePanel. See [Coming from Pterodactyl](https://zsombiihun.github.io/gamepanel/guides/from-pterodactyl). From Pelican, import your eggs under **Eggs** and move servers over with SFTP.
 </details>
 
 <details>
 <summary><b>Do my nodes keep running Wings?</b></summary>
 
-No. Each node runs the GamePanel daemon instead. It is one binary, it uses Docker like Wings does, and it connects out to the panel, so the node needs no open control port.
+No. Each node runs the GamePanel daemon instead, and the daemon takes over Wings' server folders when you switch. It is one binary, it uses Docker like Wings does, and it connects out to the panel, so the node needs no open control port.
 </details>
 
 <details>

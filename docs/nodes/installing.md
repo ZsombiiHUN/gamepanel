@@ -60,6 +60,8 @@ The installer does steps 2 and 4 to 6 on this page: it installs Docker if it is 
 curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh \
   | sudo bash -s -- node --panel panel.example.com --token <the token>
 ```
+
+Replacing Wings on a node you imported from Pterodactyl? Add `--adopt-wings /var/lib/pterodactyl/volumes` to keep its servers' files. See [Coming from Pterodactyl](/guides/from-pterodactyl#_3-switch-each-node).
 :::
 
 Download the daemon for your CPU from the [releases page](https://github.com/ZsombiiHUN/gamepanel/releases) and check it, the same way as [the panel](/panel/installing#_1-get-the-binaries) but with `gamepanel-daemon_${V}_linux_$A.tar.gz`. Use the **same version as the panel**. Then:

@@ -282,6 +282,54 @@ func (d *Docker) State(ctx context.Context, uuid string) (string, error) {
 	return mapStatus(string(res.Container.State.Status)), nil
 }
 
+// WingsRunning reports whether Pterodactyl's Wings has a running container
+// for the server. Wings names a server's container by its bare UUID.
+func (d *Docker) WingsRunning(ctx context.Context, uuid string) (bool, error) {
+	res, err := d.cli.ContainerInspect(ctx, uuid, client.ContainerInspectOptions{})
+	if cerrdefs.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return res.Container.State.Running, nil
+}
+
+// StopWings stops Wings' container for the server the way Wings stops it:
+// the egg's stop command on its console, or SIGINT for "^C" (or ""). A
+// server still running after timeout seconds is killed.
+func (d *Docker) StopWings(ctx context.Context, uuid, stop string, timeout int) error {
+	wctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	defer cancel()
+	wait := d.cli.ContainerWait(wctx, uuid, client.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
+	if stop != "" && stop != "^C" {
+		res, err := d.cli.ContainerAttach(ctx, uuid, client.ContainerAttachOptions{Stream: true, Stdin: true})
+		if err != nil {
+			return err
+		}
+		_, err = res.Conn.Write([]byte(stop + "\n"))
+		res.Close()
+		if err != nil {
+			return err
+		}
+	} else if _, err := d.cli.ContainerKill(ctx, uuid, client.ContainerKillOptions{Signal: "SIGINT"}); err != nil {
+		return err
+	}
+	select {
+	case <-wait.Result:
+		return nil
+	case err := <-wait.Error:
+		if wctx.Err() == nil {
+			return err
+		}
+	}
+	_, err := d.cli.ContainerKill(ctx, uuid, client.ContainerKillOptions{Signal: "SIGKILL"})
+	if cerrdefs.IsConflict(err) { // it stopped meanwhile
+		return nil
+	}
+	return err
+}
+
 func mapStatus(s string) string {
 	switch s {
 	case "running":

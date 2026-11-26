@@ -470,6 +470,23 @@ type EggFind struct {
 }
 
 func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
+	e = eggDefaults(e)
+	cols, err := eggRow(e)
+	if err != nil {
+		return Egg{}, err
+	}
+	res, err := s.exec(ctx, `INSERT INTO eggs(`+eggInsertCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, append(cols, now())...)
+	if err != nil {
+		return Egg{}, err
+	}
+	e.ID, _ = res.LastInsertId()
+	return e, nil
+}
+
+const eggInsertCols = `name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done,config_files,created_at`
+
+// eggDefaults fills what an egg may leave out.
+func eggDefaults(e Egg) Egg {
 	if len(e.DockerImages) == 0 && e.DockerImage != "" {
 		e.DockerImages = []EggImage{{Label: e.DockerImage, Image: e.DockerImage}}
 	}
@@ -488,33 +505,21 @@ func (s *Store) CreateEgg(ctx context.Context, e Egg) (Egg, error) {
 	if e.ConfigFiles == nil {
 		e.ConfigFiles = []EggConfigFile{}
 	}
-	files, err := json.Marshal(e.ConfigFiles)
-	if err != nil {
-		return Egg{}, err
+	return e
+}
+
+// eggRow is an egg's values for eggInsertCols, without created_at.
+func eggRow(e Egg) ([]any, error) {
+	e = eggDefaults(e)
+	var enc [5]string
+	for i, v := range []any{e.DockerImages, e.Variables, e.Features, e.Done, e.ConfigFiles} {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		enc[i] = string(b)
 	}
-	feats, err := json.Marshal(e.Features)
-	if err != nil {
-		return Egg{}, err
-	}
-	done, err := json.Marshal(e.Done)
-	if err != nil {
-		return Egg{}, err
-	}
-	vars, err := json.Marshal(e.Variables)
-	if err != nil {
-		return Egg{}, err
-	}
-	imgs, err := json.Marshal(e.DockerImages)
-	if err != nil {
-		return Egg{}, err
-	}
-	res, err := s.exec(ctx, `INSERT INTO eggs(name,description,docker_image,docker_images,startup,stop,variables,install_image,install_entrypoint,install_script,features,done,config_files,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		e.Name, e.Description, e.DockerImage, string(imgs), e.Startup, e.Stop, string(vars), e.InstallImage, e.InstallEntrypoint, e.InstallScript, string(feats), string(done), string(files), now())
-	if err != nil {
-		return Egg{}, err
-	}
-	e.ID, _ = res.LastInsertId()
-	return e, nil
+	return []any{e.Name, e.Description, e.DockerImage, enc[0], e.Startup, e.Stop, enc[1], e.InstallImage, e.InstallEntrypoint, e.InstallScript, enc[2], enc[3], enc[4]}, nil
 }
 
 func scanEgg(sc rowScanner) (Egg, error) {

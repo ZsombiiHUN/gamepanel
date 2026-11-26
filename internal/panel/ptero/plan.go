@@ -69,6 +69,7 @@ type PlanNode struct {
 	MemoryMB        int64
 	DiskMB          int64
 	OverallocatePct int64
+	SFTPHost        string
 	SFTPPort        int
 	WingsDir        string // where Wings kept server files on this node
 }
@@ -198,6 +199,9 @@ func (b *builder) planUsers() {
 		b.p.Users = append(b.p.Users, pu)
 		b.users[u.ID] = true
 	}
+	if kept := len(slices.DeleteFunc(slices.Clone(b.p.Users), func(u PlanUser) bool { return u.TOTPSecret == "" })); kept > 0 {
+		b.p.note(Info, "", "%d user(s) keep two-factor; their Pterodactyl recovery codes do not carry over, so they should make new ones (Account → Security)", kept)
+	}
 	if len(noKey) > 0 {
 		b.p.note(Changed, "", "two-factor is turned off for %d user(s) because no --app-key was given: %s", len(noKey), strings.Join(noKey, ", "))
 	}
@@ -234,7 +238,7 @@ func (b *builder) planNodes() {
 			b.p.note(Info, subj, "renamed to %q (GamePanel node names are unique and at most 64 characters)", name)
 		}
 		names[strings.ToLower(name)] = true
-		pn := PlanNode{PteroID: n.ID, Name: name, SFTPPort: n.SFTPPort, WingsDir: n.Base, PortStart: 25565, PortEnd: 25665}
+		pn := PlanNode{PteroID: n.ID, Name: name, SFTPHost: n.FQDN, SFTPPort: n.SFTPPort, WingsDir: n.Base, PortStart: 25565, PortEnd: 25665}
 		if ps := ports[n.ID]; len(ps) > 0 {
 			pn.PortStart, pn.PortEnd = slices.Min(ps), slices.Max(ps)
 		}
@@ -598,9 +602,9 @@ func (b *builder) limits(subj string, s Server, l *store.Limits) {
 	l.SwapMB = max(s.Swap, -1)
 	l.CPUPct = min(s.CPU, 6400)
 	l.DiskMB = s.Disk
-	if s.IO >= 10 && s.IO <= 1000 {
-		l.IOWeight = s.IO
-	}
+	// Pterodactyl's io (block IO weight, 500 by default) is left unset:
+	// current Wings no longer applies it, and a kernel without the io.weight
+	// controller would refuse to start a container that asks for one.
 	if t := strings.ReplaceAll(s.Threads.String, " ", ""); t != "" {
 		l.CPUSet = t
 	}
@@ -852,6 +856,12 @@ func (b *builder) leftOut() {
 	}
 	if n := b.src.Locations; n > 0 {
 		b.p.note(Info, "", "locations are not imported; GamePanel picks nodes directly")
+	}
+	if len(b.p.Servers) > 0 {
+		b.p.note(Changed, "", "SFTP logins change: the user name is <email>.<first 8 characters of the server id> and the password is an API key (Account → API keys), not the Pterodactyl user name and password")
+	}
+	if len(b.p.Servers) > 0 {
+		b.p.note(Info, "", "block IO weight (io) is not imported: Wings does not apply it either; set it per server in GamePanel if you need it")
 	}
 	b.p.note(Info, "", "activity logs are not imported")
 }

@@ -826,7 +826,10 @@ func (d *Daemon) create(ctx context.Context, s proto.ServerSpec) error {
 		return err
 	}
 	// Game images typically run as a non-root user; hand over the data dir.
-	_ = os.Chown(dir, 1000, 1000)
+	// Files taken over from Wings keep the user Wings ran the server as.
+	if _, err := os.Stat(d.adoptedPath(s.UUID)); err != nil {
+		_ = os.Chown(dir, 1000, 1000)
+	}
 	// The container is built in the background, since pulling its image can
 	// take longer than the panel waits for a reply. Until it exists the server
 	// is stale, so a start, also after a daemon restart, builds it. The marker
@@ -872,11 +875,20 @@ func (d *Daemon) discard(uuid string) {
 // registry is down, say) is not fatal: the server stays stale and its next
 // start tries again, saying why on the console if it still fails.
 func (d *Daemon) provision(ctx context.Context, uuid string) {
+	// create checked the id already; checked again here, where it becomes
+	// marker paths, so that holds even if another caller appears.
+	if !uuidRe.MatchString(uuid) {
+		return
+	}
 	spec, err := d.spec(uuid)
 	if err != nil {
 		return
 	}
-	d.emitState(ctx, uuid, StateInstalling)
+	_, adoptErr := os.Stat(d.adoptedPath(uuid))
+	adopted := adoptErr == nil
+	if !adopted { // an adopted server is installed already: no install events
+		d.emitState(ctx, uuid, StateInstalling)
+	}
 	d.sendConsole(uuid, "[gamepanel] preparing the server's image "+spec.Image)
 	abs, _ := filepath.Abs(d.serverDir(uuid))
 	prepared := false
@@ -894,17 +906,33 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 		d.mu.Unlock()
 		prepared = true
 	}
-	if spec.Install == nil {
+	switch {
+	case adopted:
+		// Its files came from Wings (adopt-wings): it is installed already.
+		if err := os.WriteFile(d.installedPath(uuid), nil, 0o600); err != nil {
+			d.log.Warn("could not record an adopted server as installed", "server", uuid, "err", err)
+		}
+		if err := os.Remove(d.adoptedPath(uuid)); err != nil {
+			d.log.Warn("could not clear the adopted marker", "server", uuid, "err", err)
+		}
+		d.setInstall(uuid, "")
+		d.sendConsole(uuid, "\x1b[32m[gamepanel] kept the server's files from Pterodactyl; nothing was reinstalled\x1b[0m")
+		d.handOver(ctx, spec)
+		d.emitState(ctx, uuid, runtime.StateOffline)
+	case spec.Install == nil:
 		d.setInstall(uuid, "")
 		if prepared {
 			// Without an install script nothing else says the server is ready.
 			d.sendConsole(uuid, "\x1b[32m[gamepanel] install complete\x1b[0m")
 		}
 		d.emitState(ctx, uuid, runtime.StateOffline)
-	} else {
+	default:
 		d.runInstall(ctx, uuid)
 	}
-	if !spec.StartOnCompletion {
+	// An adopted server that Wings had running starts again, as one does
+	// after a reboot.
+	resume := adopted && !d.cfg.NoResume && d.shouldRun(uuid)
+	if !spec.StartOnCompletion && !resume {
 		return
 	}
 	if st, _ := d.installState(uuid); st != "" {
@@ -917,6 +945,33 @@ func (d *Daemon) provision(ctx context.Context, uuid string) {
 	if err := d.start(ctx, cur); err != nil {
 		d.log.Warn("could not start a new server", "server", uuid, "err", err)
 		d.sendConsole(uuid, "\x1b[31m[gamepanel] could not start the server: "+forPeople(err).Error()+"\x1b[0m")
+	}
+}
+
+// handOver stops an adopted server that still runs under Wings, the way
+// Wings stops it: the egg's stop command, so the game saves its world.
+func (d *Daemon) handOver(ctx context.Context, spec proto.ServerSpec) {
+	if !uuidRe.MatchString(spec.UUID) {
+		return
+	}
+	defer func() {
+		if err := os.Remove(d.handoverPath(spec.UUID)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			d.log.Warn("could not clear the Wings handover marker", "server", spec.UUID, "err", err)
+		}
+	}()
+	wc, ok := d.rt.(WingsContainers)
+	if _, err := os.Stat(d.handoverPath(spec.UUID)); err != nil || !ok {
+		return
+	}
+	if on, err := wc.WingsRunning(ctx, spec.UUID); err != nil || !on {
+		return
+	}
+	d.sendConsole(spec.UUID, "[gamepanel] stopping the server under Wings ("+spec.Stop+"), to start it here")
+	// Longer than a normal stop: this happens once, and a large world can
+	// take a while to save.
+	if err := wc.StopWings(ctx, spec.UUID, spec.Stop, 120); err != nil {
+		d.log.Warn("could not stop the server under Wings", "server", spec.UUID, "err", err)
+		d.sendConsole(spec.UUID, "\x1b[31m[gamepanel] could not stop the server under Wings: "+err.Error()+"\x1b[0m")
 	}
 }
 
