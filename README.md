@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://zsombiihun.github.io/gamepanel/"><b>Documentation</b></a> ·
-  <a href="#install"><b>Install</b></a> ·
+  <a href="#quick-start"><b>Install</b></a> ·
   <a href="#try-it-from-source"><b>Try it</b></a> ·
   <a href="https://zsombiihun.github.io/gamepanel/guides/compare"><b>Compare</b></a> ·
   <a href="https://github.com/ZsombiiHUN/gamepanel/discussions"><b>Discussions</b></a> ·
@@ -40,6 +40,24 @@
 GamePanel has two parts. The **panel** is one Go binary that serves the API and the web UI. The **daemon** runs on each machine that hosts servers and drives Docker. You manage everything from the browser: start and stop servers, watch the console, edit files, take backups, and share access.
 
 It is a simpler, stricter alternative to [Pterodactyl](https://github.com/pterodactyl/panel) and Pelican. It reads their egg files as they are, so the games you already run keep working. See [how it compares](https://zsombiihun.github.io/gamepanel/guides/compare), including where it is still behind.
+
+## Quick start
+
+One command on a fresh Linux server:
+
+```sh
+curl -fsSL https://github.com/ZsombiiHUN/gamepanel/releases/latest/download/install.sh | sudo bash
+```
+
+The installer walks you through it:
+
+1. **Pick what to install** with the arrow keys: the panel, a node, or both on one machine.
+2. **It checks the server**: memory, disk, ports, Docker, and whether your domain points at it.
+3. **It asks only what it needs**: the domain, the admin's email, a node's token.
+4. **You accept the terms** ([AGPL-3.0](LICENSE), and Let's Encrypt's for the HTTPS certificate) and confirm the plan before anything changes.
+5. **It installs with live progress**, sets up HTTPS with Caddy on Debian and Ubuntu, and shows your admin login at the end.
+
+Running it again upgrades. For scripted installs, every option and Docker Compose, see [Install](#install).
 
 > [!WARNING]
 > **Pre-alpha.** It works end to end and is well tested, but it has not been run in production and the API may change. Read [Status](#status) before you trust it with anything you care about.
