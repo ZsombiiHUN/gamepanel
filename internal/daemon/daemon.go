@@ -1457,6 +1457,11 @@ func (d *Daemon) update(ctx context.Context, s proto.ServerSpec) (proto.UpdateRe
 			m.spec, m.stale = s, true
 		}
 		d.mu.Unlock()
+		// A suspension stops the server now, whatever else changed with it;
+		// the new container is built when it is next started.
+		if s.Suspended && !old.Suspended {
+			go d.stopSuspended(context.WithoutCancel(ctx), s)
+		}
 		return proto.UpdateResult{Pending: true}, nil
 	}
 	abs, _ := filepath.Abs(d.serverDir(s.UUID))
@@ -1507,6 +1512,7 @@ func sameContainer(a, b proto.ServerSpec) bool {
 	a.NoCrashRestart, b.NoCrashRestart = false, false
 	a.Suspended, b.Suspended = false, false
 	a.StartOnCompletion, b.StartOnCompletion = false, false
+	a.Backups, b.Backups = nil, nil         // read once, when the server is created
 	a.ConfigFiles, b.ConfigFiles = nil, nil // edited before each start, not part of the container
 	ja, erra := json.Marshal(a)
 	jb, errb := json.Marshal(b)

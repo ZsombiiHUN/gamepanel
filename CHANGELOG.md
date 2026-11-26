@@ -69,6 +69,9 @@ Upgrade the panel and every node to the same version together. See
 
 ### Fixed
 
+- Suspending a running server now stops it even when the suspension comes
+  with other changes, such as a new image. Before, such a server kept running
+  until its next restart.
 - Errors from the Pterodactyl client API now carry the status as a number
   (`"status": "404"`), as Pterodactyl's do, instead of its text.
 - After a restart, a server could be left without a console, and a stop sent
