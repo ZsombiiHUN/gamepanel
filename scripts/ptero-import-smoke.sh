@@ -310,7 +310,10 @@ check "the server keeps its Pterodactyl id" '[ "$(app servers/$PT_SERVER | body 
 check "and is found by its external id" '[ "$(app servers/external/whmcs-1001 | body | jq -r .attributes.id)" = "$PT_SERVER" ]'
 check "the egg keeps its id, with its variables" 'app "eggs/$PT_EGG?include=variables" | body | jq -e ".attributes.name == \"Paper\" and (.attributes.relationships.variables.data | length > 0)" >/dev/null'
 check "the node keeps its id and location" '[ "$(app nodes/$PT_NODE | body | jq -r .attributes.location_id)" = "$PT_LOCATION" ]'
-check "suspending it (invoice overdue) stops it" '[ "$(app servers/$PT_SERVER/suspend -X POST | code)" = 204 ] && wait_state offline 90'
+SUSPEND=$(app servers/$PT_SERVER/suspend -X POST)
+check "suspending it (invoice overdue) stops it" '[ "$(echo "$SUSPEND" | code)" = 204 ] && wait_state offline 90'
+[ "$(echo "$SUSPEND" | code)" = 204 ] || echo "       suspend answered: $SUSPEND"
+echo "       state after suspending: $(state)"
 check "unsuspending it lets it start again" '[ "$(app servers/$PT_SERVER/unsuspend -X POST | code)" = 204 ] && [ "$(api admin -o /dev/null -w "%{http_code}" -d "{\"action\":\"start\"}" "$B/servers/$UUID/power")" = 202 ] && wait_state running 120'
 
 if [ $fail -ne 0 ]; then

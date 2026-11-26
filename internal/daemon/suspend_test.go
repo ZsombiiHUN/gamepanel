@@ -87,3 +87,44 @@ func TestASuspendedServerStaysStopped(t *testing.T) {
 		t.Fatal("a suspended server was started at the end of its install")
 	}
 }
+
+// Suspending a running server stops it even when the suspension arrives with
+// other changes: a server imported from Pterodactyl was created with its
+// backup ids, which later specs no longer carry, and a suspension that came
+// with a new image is still a suspension.
+func TestSuspendStopsWhateverElseChanged(t *testing.T) {
+	t.Parallel()
+	for name, change := range map[string]func(created, sus *proto.ServerSpec){
+		"backup ids sent on create": func(created, _ *proto.ServerSpec) {
+			created.Backups = []string{"aaaaaaaa-0000-4000-8000-000000000001"}
+		},
+		"new image": func(_, sus *proto.ServerSpec) { sus.Image = "img2" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rt := runtime.NewFake()
+			d := newTestDaemon(t, rt)
+			id := uuidN(1)
+			ctx := context.Background()
+			spec := proto.ServerSpec{UUID: id, Image: "img", Startup: "run", MemoryMB: 128}
+			created, sus := spec, spec
+			sus.Suspended = true
+			change(&created, &sus)
+			if err := d.create(ctx, created); err != nil {
+				t.Fatal(err)
+			}
+			if !eventually(5*time.Second, provisioned(d, id)) {
+				t.Fatal("never provisioned")
+			}
+			if _, err := d.dispatch(ctx, req(proto.ReqServerPower, proto.Power{UUID: id, Action: "start"})); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.dispatch(ctx, req(proto.ReqServerUpdate, sus)); err != nil {
+				t.Fatal(err)
+			}
+			if !eventually(5*time.Second, func() bool { st, _ := rt.State(ctx, id); return st == runtime.StateOffline }) {
+				t.Fatal("still running after the suspension")
+			}
+		})
+	}
+}
