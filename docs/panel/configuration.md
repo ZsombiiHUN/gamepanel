@@ -23,6 +23,7 @@ Generate a key with `openssl rand -hex 32`. If you switch from the key file to `
 |---|---|---|
 | `GAMEPANEL_TRUSTED_PROXIES` | unset | Comma-separated IPs or CIDRs of your reverse proxies, e.g. `127.0.0.1,::1`. Only requests from these may set `X-Forwarded-For` and `X-Forwarded-Proto`. The proxy must also keep the `Host` header |
 | `GAMEPANEL_COOKIE_SECURE` | unset | `1` makes the panel behave as if every browser came over HTTPS. Not needed when HTTPS reaches the panel directly or through a trusted proxy |
+| `GAMEPANEL_WEBHOOK_ALLOW_PRIVATE` | unset | `1` lets webhooks go to private, loopback and link-local addresses. Off by default: deliveries record the start of the answer, so a webhook pointed inward would let anyone with an admin key read the panel's own network (cloud metadata, internal services) |
 | `GAMEPANEL_HSTS` | `host` | `host`: `Strict-Transport-Security` for the panel's host only. `subdomains` adds `includeSubDomains`. `preload` also adds `preload` with a two-year `max-age`. Only sent over HTTPS |
 
 See [Reverse proxy and HTTPS](/panel/reverse-proxy).

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -94,7 +95,7 @@ func (h *hookSink) count(name string) (n int) {
 
 func TestShopSellsAServer(t *testing.T) {
 	t.Parallel()
-	s := newStackWith(t, func(d *api.Deps) { d.WebhookTick = 50 * time.Millisecond }, nil)
+	s := newStackWith(t, func(d *api.Deps) { d.WebhookTick = 50 * time.Millisecond; d.WebhookAllowPrivate = true }, nil)
 	sink := &hookSink{t: t}
 	rx := httptest.NewServer(sink)
 	t.Cleanup(rx.Close)
@@ -331,7 +332,7 @@ func TestShopPicksANode(t *testing.T) {
 // A receiver that fails is tried again later; the log says why it failed.
 func TestWebhookFailuresAreRetried(t *testing.T) {
 	t.Parallel()
-	s := newStackWith(t, func(d *api.Deps) { d.WebhookTick = 50 * time.Millisecond }, nil)
+	s := newStackWith(t, func(d *api.Deps) { d.WebhookTick = 50 * time.Millisecond; d.WebhookAllowPrivate = true }, nil)
 	sink := &hookSink{t: t, fail: 1}
 	rx := httptest.NewServer(sink)
 	t.Cleanup(rx.Close)
@@ -374,4 +375,41 @@ func TestWebhookFailuresAreRetried(t *testing.T) {
 	}
 	// A pending delivery cannot be "retried"; a finished one can.
 	s.admin.do("POST", "/api/webhooks/"+itoa(hook.ID)+"/deliveries/"+itoa(log[0].ID)+"/retry", nil, 404)
+}
+
+// Without GAMEPANEL_WEBHOOK_ALLOW_PRIVATE, webhooks cannot point at private
+// or local addresses: plain ones are refused, and names that resolve inward
+// fail at delivery, with the reason recorded.
+func TestWebhooksStayOffPrivateAddresses(t *testing.T) {
+	t.Parallel()
+	s := newStackWith(t, func(d *api.Deps) { d.WebhookTick = 50 * time.Millisecond }, nil)
+	for _, u := range []string{"http://127.0.0.1:9/x", "http://localhost/x", "https://10.0.0.5/", "http://169.254.169.254/latest/meta-data/", "http://[::1]/", "http://[::ffff:127.0.0.1]/", "http://app.localhost/"} {
+		s.admin.do("POST", "/api/webhooks", map[string]any{"url": u, "events": []string{"*"}}, 422)
+	}
+	// A name that resolves to loopback passes the first check and is
+	// stopped when the delivery connects.
+	var hook struct{ ID int64 }
+	json.Unmarshal(s.admin.do("POST", "/api/webhooks", map[string]any{"url": "http://localtest.me:1/", "events": []string{"*"}}, 201), &hook)
+	s.admin.do("POST", fmt.Sprintf("/api/webhooks/%d/ping", hook.ID), nil, 202)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var ds []struct {
+			Error string `json:"last_error"`
+		}
+		json.Unmarshal(s.admin.do("GET", fmt.Sprintf("/api/webhooks/%d/deliveries", hook.ID), nil, 200), &ds)
+		if len(ds) > 0 && strings.Contains(ds[0].Error, "non-public") {
+			return
+		}
+		if len(ds) > 0 && ds[0].Error != "" && !strings.Contains(ds[0].Error, "non-public") {
+			// localtest.me may not resolve here (no DNS): nothing to check.
+			if strings.Contains(ds[0].Error, "no such host") || strings.Contains(ds[0].Error, "server misbehaving") {
+				t.Skip("no DNS for localtest.me")
+			}
+			t.Fatalf("delivery failed for another reason: %s", ds[0].Error)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no blocked delivery recorded: %+v", ds)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }

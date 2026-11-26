@@ -99,7 +99,13 @@ export const test = base.extend<{ panel: Panel }>({
   storageState: async ({}, use) => use(path.join(STATE, "admin.json")),
   page: async ({ page }, use) => {
     trackNetwork(page);
+    // Every test also checks that nothing on its pages broke the panel's Content-Security-Policy.
+    const blocked: string[] = [];
+    page.on("console", (m) => {
+      if (m.type() === "error" && /Content.Security.Policy/i.test(m.text())) blocked.push(m.text());
+    });
     await use(page);
+    expect(blocked, "Content-Security-Policy violations").toEqual([]);
   },
   panel: async ({ baseURL }, use) => {
     const ready = readState();

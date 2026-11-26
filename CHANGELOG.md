@@ -28,6 +28,18 @@ Upgrade the panel and every node to the same version together. See
 - Container logs rotate (local driver, 3 × 10 MB). Docker's default log grew
   without limit, outside the server's disk limit, so a server printing a lot
   could fill the node's disk.
+- The app is served with a strict Content-Security-Policy (scripts only from
+  the panel and its inline theme script by hash; no plugins, `<base>` or
+  framing), plus `Cross-Origin-Opener-Policy: same-origin` and a
+  `Permissions-Policy`.
+- Webhooks no longer reach private, loopback or link-local addresses (cloud
+  metadata, internal services): plain ones are refused when saved, and names
+  that resolve inward fail at delivery. `GAMEPANEL_WEBHOOK_ALLOW_PRIVATE=1`
+  allows them.
+- The daemon refuses a plain `ws://` panel address unless it is on the node
+  or a private network address (`GAMEPANEL_ALLOW_INSECURE_PANEL_URL=1`
+  overrides).
+- The panel closes idle keep-alive connections after two minutes.
 
 ### Upgrade notes
 
@@ -41,6 +53,10 @@ Upgrade the panel and every node to the same version together. See
 - `install.sh upgrade` creates the `gamepanel-game` user and sets
   `GAMEPANEL_CONTAINER_USER`. Manual and Docker Compose installs should set
   it themselves (docs/nodes/configuration.md).
+- A node set to `ws://` with a public address or a host name stops
+  connecting: use `wss://` (or `https://`).
+- A webhook to a private address stops delivering until
+  `GAMEPANEL_WEBHOOK_ALLOW_PRIVATE=1` is set.
 
 ## [0.2.1] - 2026-11-26
 

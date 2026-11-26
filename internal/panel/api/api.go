@@ -76,6 +76,9 @@ type Deps struct {
 	// due retries are looked for (default 5 s). Webhooks run with SchedulerCtx.
 	WebhookClient *http.Client
 	WebhookTick   time.Duration
+	// WebhookAllowPrivate lets webhooks go to private, loopback and
+	// link-local addresses (GAMEPANEL_WEBHOOK_ALLOW_PRIVATE=1).
+	WebhookAllowPrivate bool
 }
 
 type App struct {
@@ -266,6 +269,10 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "same-origin")
+		// No other site's window keeps a handle on the panel's, and the
+		// panel asks for no device features.
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()")
 		secure := a.isSecure(r)
 		if secure {
 			// Browsers that have seen the panel over HTTPS never try plain HTTP

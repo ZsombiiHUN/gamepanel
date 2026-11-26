@@ -58,6 +58,10 @@ func main() {
 		os.Exit(1)
 	}
 	cfg.PanelURL = panelURL
+	if err := daemon.CheckPanelTransport(panelURL, os.Getenv("GAMEPANEL_ALLOW_INSECURE_PANEL_URL") == "1"); err != nil {
+		log.Error("refusing an unencrypted panel connection", "err", err)
+		os.Exit(1)
+	}
 	if cfg.Token == "" {
 		log.Error("GAMEPANEL_NODE_TOKEN is required (create a node in the panel to get one)")
 		os.Exit(1)
