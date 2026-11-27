@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -37,6 +38,10 @@ import (
 //     addresses (169.254.0.0/16: cloud metadata services hand out
 //     credentials and boot scripts there) and, with BlockPrivate, private
 //     networks. Replies to connections from those networks still go out.
+//     It also drops connections to ports other containers publish on the
+//     node (a database, Portainer, the panel run by Compose): Docker DNATs
+//     those before INPUT, so GAMEPANEL-INPUT never sees them. Other game
+//     servers' published ports and HostPorts stay reachable.
 //
 // The chains are rebuilt whenever a container is created or removed, and
 // checked every minute, so a firewall reload (ufw, firewalld) that drops the
@@ -359,6 +364,23 @@ func firewallRules(iso Isolation, published []string) string {
 	w("-A %s -j DROP", chainInput)
 	w("-A %s -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN", chainForward)
 	w("-A %s -d 169.254.0.0/16 -j DROP", chainForward)
+	// A port another container publishes on the node is DNATed to that
+	// container before INPUT, so it passes here instead: only other game
+	// servers (back into the bridge) and HostPorts stay reachable that way.
+	bridge := cmp.Or(iso.Bridge, DefaultBridge)
+	w("-A %s -m conntrack --ctstate DNAT -o %s -j RETURN", chainForward, bridge)
+	for _, r := range iso.HostPorts {
+		dport := strconv.Itoa(r.From)
+		if r.To != r.From {
+			dport += ":" + strconv.Itoa(r.To)
+		}
+		for _, proto := range []string{"tcp", "udp"} {
+			if r.Proto == "" || r.Proto == proto {
+				w("-A %s -p %s -m conntrack --ctstate DNAT --ctorigdstport %s -j RETURN", chainForward, proto, dport)
+			}
+		}
+	}
+	w("-A %s -m conntrack --ctstate DNAT -j DROP", chainForward)
 	if iso.BlockPrivate {
 		for _, cidr := range privateRanges {
 			w("-A %s -d %s -j DROP", chainForward, cidr)

@@ -42,9 +42,10 @@ Upgrade the panel and every node to the same version together. See
 - Game servers are isolated from each other and from the node. Every server
   and install container joins a `gamepanel0` network with inter-container
   traffic off, and the daemon keeps iptables chains so servers cannot reach
-  the node's own services (SSH, the panel, SFTP, databases) or cloud metadata
-  (`169.254.0.0/16`). Servers still reach the internet, and other servers'
-  published ports at the node's address (proxies). New settings:
+  the node's own services (SSH, the panel, SFTP, databases), ports that other
+  containers publish on the node, or cloud metadata (`169.254.0.0/16`).
+  Servers still reach the internet, and other servers' published ports at the
+  node's address (proxies). New settings:
   `GAMEPANEL_FIREWALL`, `GAMEPANEL_HOST_PORTS`, `GAMEPANEL_BLOCK_PRIVATE`,
   `GAMEPANEL_NETWORK`. See [Server isolation](docs/nodes/isolation.md).
 - Game servers run as a system user of their own (`GAMEPANEL_CONTAINER_USER`;
