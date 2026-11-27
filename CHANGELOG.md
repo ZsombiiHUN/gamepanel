@@ -66,6 +66,12 @@ Upgrade the panel and every node to the same version together. See
   or a private network address (`GAMEPANEL_ALLOW_INSECURE_PANEL_URL=1`
   overrides).
 - The panel closes idle keep-alive connections after two minutes.
+- Copying a file, or compressing files, at a path under a file
+  (`server.properties/x`) or under a symlink that leads out of the server's
+  folder no longer makes the daemon loop forever. Each such request kept a
+  CPU core busy until the daemon restarted, and any user who can write a
+  server's files could send it. Such paths are now refused with a clear
+  message.
 
 ### Upgrade notes
 

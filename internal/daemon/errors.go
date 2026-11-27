@@ -42,6 +42,10 @@ func forPeople(err error) error {
 	case strings.Contains(err.Error(), "io.weight"):
 		// runc, on a kernel without the io controller's weight file.
 		return proto.Invalid("this node cannot apply an IO weight; set the server's IO weight to 0 and start it again")
+	case strings.Contains(err.Error(), "path escapes from parent"):
+		// os.Root refusing a symlink that leads out of the server's folder
+		// (its error is not exported, so it is matched by text).
+		return proto.Invalid("that path goes through a link that leads outside the server's files")
 	case strings.Contains(err.Error(), "unsafe path in archive"):
 		return proto.Invalid("the archive contains unsafe paths and was not extracted")
 	case strings.Contains(err.Error(), "damaged") || strings.Contains(err.Error(), "not a gzip"):

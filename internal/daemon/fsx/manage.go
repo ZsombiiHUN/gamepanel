@@ -63,7 +63,11 @@ func (d *Dir) CopyName(p string) string {
 			suffix = fmt.Sprintf(" copy %d", n)
 		}
 		cand := path.Join(dir, stem+suffix+ext)
-		if _, err := d.root.Lstat(cand); errors.Is(err, fs.ErrNotExist) {
+		// Any error ends the search, not only "does not exist": a parent
+		// that is a file (ENOTDIR) or a symlink leading out of the root
+		// fails every candidate the same way, and the copy that follows
+		// reports it.
+		if _, err := d.root.Lstat(cand); err != nil {
 			return "/" + cand
 		}
 	}
@@ -229,8 +233,8 @@ func (d *Dir) Compress(dir string, paths []string, format string, limit int64) (
 	stamp := time.Now().UTC().Format("2006-01-02-150405")
 	out := path.Join(base, "archive-"+stamp+ext)
 	for n := 2; ; n++ {
-		if _, err := d.root.Lstat(out); errors.Is(err, fs.ErrNotExist) {
-			break
+		if _, err := d.root.Lstat(out); err != nil {
+			break // as in CopyName: the create below reports any other error
 		}
 		out = path.Join(base, fmt.Sprintf("archive-%s-%d%s", stamp, n, ext))
 	}
