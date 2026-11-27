@@ -130,7 +130,7 @@ func isolation() (runtime.Isolation, error) {
 		Network:      env("GAMEPANEL_NETWORK", runtime.DefaultNetwork),
 		Bridge:       env("GAMEPANEL_NETWORK_BRIDGE", runtime.DefaultBridge),
 		Firewall:     os.Getenv("GAMEPANEL_FIREWALL") != "off",
-		BlockPrivate: os.Getenv("GAMEPANEL_BLOCK_PRIVATE") == "1",
+		BlockPrivate: os.Getenv("GAMEPANEL_BLOCK_PRIVATE") != "0",
 	}
 	var err error
 	iso.HostPorts, err = runtime.ParsePortRanges(os.Getenv("GAMEPANEL_HOST_PORTS"))

@@ -20,12 +20,12 @@ func TestIsolationSettings(t *testing.T) {
 	t.Setenv("GAMEPANEL_FIREWALL", "")
 	t.Setenv("GAMEPANEL_HOST_PORTS", "3306/tcp")
 	iso, err := isolation()
-	if err != nil || !iso.Firewall || iso.Network != "gamepanel0" || iso.Bridge != "gp0" || len(iso.HostPorts) != 1 || iso.BlockPrivate {
+	if err != nil || !iso.Firewall || iso.Network != "gamepanel0" || iso.Bridge != "gp0" || len(iso.HostPorts) != 1 || !iso.BlockPrivate {
 		t.Fatalf("defaults: %+v %v", iso, err)
 	}
 	t.Setenv("GAMEPANEL_FIREWALL", "off")
-	t.Setenv("GAMEPANEL_BLOCK_PRIVATE", "1")
-	if iso, _ := isolation(); iso.Firewall || !iso.BlockPrivate {
+	t.Setenv("GAMEPANEL_BLOCK_PRIVATE", "0")
+	if iso, _ := isolation(); iso.Firewall || iso.BlockPrivate {
 		t.Fatalf("off: %+v", iso)
 	}
 	t.Setenv("GAMEPANEL_HOST_PORTS", "nope")
