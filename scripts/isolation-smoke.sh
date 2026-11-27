@@ -13,6 +13,8 @@
 #   - a port another container publishes on the node (a database run by
 #     Compose, say), on its own network or docker0 must be unreachable,
 #     unless it is in GAMEPANEL_HOST_PORTS
+#   - a machine on a private network (10.99.0.2, another namespace) must be
+#     unreachable, and reachable with GAMEPANEL_BLOCK_PRIVATE=0
 #
 # The same checks run once more with GAMEPANEL_FIREWALL=off, where the
 # blocked ones must succeed: that proves the checks can fail. Needs: docker, go.
@@ -48,6 +50,12 @@ ip netns add meta && ip link add gpm0 type veth peer name gpm1 && ip link set gp
   ip netns exec meta ip addr add 169.254.169.254/24 dev gpm1 && ip netns exec meta ip link set gpm1 up &&
   ip netns exec meta ip link set lo up || { echo "cannot make the metadata namespace"; exit 1; }
 ip netns exec meta python3 -m http.server 80 --bind 169.254.169.254 >/dev/null 2>&1 &
+# Another machine on the node's private network, the same way.
+ip netns add lan && ip link add gpl0 type veth peer name gpl1 && ip link set gpl1 netns lan &&
+  ip addr add 10.99.0.1/24 dev gpl0 && ip link set gpl0 up &&
+  ip netns exec lan ip addr add 10.99.0.2/24 dev gpl1 && ip netns exec lan ip link set gpl1 up &&
+  ip netns exec lan ip link set lo up || { echo "cannot make the private network namespace"; exit 1; }
+ip netns exec lan python3 -m http.server 80 --bind 10.99.0.2 >/dev/null 2>&1 &
 # Something on the node that servers may reach (GAMEPANEL_HOST_PORTS) and
 # something they may not.
 python3 -m http.server 13306 >/dev/null 2>&1 &
@@ -117,6 +125,8 @@ check "another container's published port is unreachable (node address)" '! reac
 check "another container's published port is unreachable (gateway)" '! reach $A http://$(gw):15432/'
 check "a docker0 container's published port is unreachable" '! reach $A http://$NODE_IP:15433/'
 check "another container's port in GAMEPANEL_HOST_PORTS is reachable" 'reach $A http://$NODE_IP:13309/'
+check "a machine on a private network is unreachable" '! reach $A http://10.99.0.2/'
+check "a machine on a private network is reachable from the node" 'curl -sf -m 3 http://10.99.0.2/ >/dev/null'
 check "the internet is reachable" 'reach $A http://example.com/ || reach $A http://1.1.1.1/'
 check "outside, the published port is reachable" 'curl -sf -m 3 http://$NODE_IP:$(port $A)/ >/dev/null'
 
@@ -124,6 +134,12 @@ echo "restarting the daemon"
 stop_daemon; env_daemon
 check "the firewall jumps are not duplicated" '[ "$(iptables -S INPUT | grep -c GAMEPANEL-INPUT)" = 1 ] && [ "$(iptables -S DOCKER-USER | grep -c GAMEPANEL-FORWARD)" = 1 ]'
 check "a deleted server's ports close to the others" 'C=$(new_server c); wait_state $C offline; P=$(port $C); iptables -S GAMEPANEL-INPUT | grep -q "dport $P " && c -X DELETE $B/servers/$C >/dev/null && sleep 2 && ! iptables -S GAMEPANEL-INPUT | grep -q "dport $P "'
+
+echo "GAMEPANEL_BLOCK_PRIVATE=0"
+stop_daemon; env_daemon GAMEPANEL_BLOCK_PRIVATE=0
+check "a machine on a private network is reachable" 'reach $A http://10.99.0.2/'
+check "cloud metadata stays unreachable" '! reach $A http://169.254.169.254/'
+check "the panel stays unreachable" '! reach $A http://$(gw):18093/'
 
 echo "control: GAMEPANEL_FIREWALL=off (the blocked checks must now pass)"
 stop_daemon

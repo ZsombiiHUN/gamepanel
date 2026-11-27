@@ -124,7 +124,9 @@ type Isolation struct {
 	// HostPorts are node ports servers may connect to besides the ones
 	// servers publish (a database for the servers, say).
 	HostPorts []PortRange
-	// BlockPrivate also drops traffic from servers to private networks.
+	// BlockPrivate also drops traffic from servers to private networks
+	// (on unless GAMEPANEL_BLOCK_PRIVATE=0). Other servers' published ports
+	// stay reachable: their DNAT exception comes first.
 	BlockPrivate bool
 }
 

@@ -43,9 +43,10 @@ Upgrade the panel and every node to the same version together. See
   and install container joins a `gamepanel0` network with inter-container
   traffic off, and the daemon keeps iptables chains so servers cannot reach
   the node's own services (SSH, the panel, SFTP, databases), ports that other
-  containers publish on the node, or cloud metadata (`169.254.0.0/16`).
-  Servers still reach the internet, and other servers' published ports at the
-  node's address (proxies). New settings:
+  containers publish on the node, cloud metadata (`169.254.0.0/16`), or
+  private networks (10/8, 172.16/12, 192.168/16, 100.64/10: the node's LAN,
+  a provider's private network). Servers still reach the internet, and other
+  servers' published ports at the node's address (proxies). New settings:
   `GAMEPANEL_FIREWALL`, `GAMEPANEL_HOST_PORTS`, `GAMEPANEL_BLOCK_PRIVATE`,
   `GAMEPANEL_NETWORK`. See [Server isolation](docs/nodes/isolation.md).
 - Game servers run as a system user of their own (`GAMEPANEL_CONTAINER_USER`;
@@ -79,6 +80,9 @@ Upgrade the panel and every node to the same version together. See
 - The daemon needs `iptables` and refuses to start when it cannot set up the
   firewall. Where it cannot see Docker's network (Docker Desktop, rootless
   Docker), set `GAMEPANEL_FIREWALL=off`.
+- Game servers can no longer reach private networks. A server that uses a
+  database or another service on one (another machine on the LAN, a
+  provider's private network) needs `GAMEPANEL_BLOCK_PRIVATE=0` on its node.
 - Servers can no longer reach services on the node. A database on the node
   that servers use needs `GAMEPANEL_HOST_PORTS=3306/tcp` (its port).
 - Running servers keep their old container until they next start; each is

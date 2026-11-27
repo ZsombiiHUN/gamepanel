@@ -13,7 +13,7 @@ A node runs servers of different owners side by side, and treats every one of th
 | The node's services: SSH, the panel, SFTP, anything listening on the node | **No**, unless listed in `GAMEPANEL_HOST_PORTS` |
 | Ports other Docker containers publish on the node (a database, Portainer, the panel run by Compose) | **No**, unless listed in `GAMEPANEL_HOST_PORTS` |
 | Cloud metadata (`169.254.169.254` and the rest of `169.254.0.0/16`) | **No** |
-| Private networks (10/8, 172.16/12, 192.168/16, 100.64/10) | Yes, unless `GAMEPANEL_BLOCK_PRIVATE=1` |
+| Private networks (10/8, 172.16/12, 192.168/16, 100.64/10): other machines on the node's LAN or a provider's private network | **No**, unless `GAMEPANEL_BLOCK_PRIVATE=0` |
 
 Players reach servers exactly as before.
 
@@ -22,7 +22,7 @@ Players reach servers exactly as before.
 - Every server and install container joins one Docker network, `gamepanel0` (host interface `gp0`), created by the daemon with inter-container traffic turned off (`com.docker.network.bridge.enable_icc=false`).
 - The daemon keeps two iptables chains for traffic from `gp0`:
   - `GAMEPANEL-INPUT`, jumped to from `INPUT`: lets servers open the ports servers publish and those in `GAMEPANEL_HOST_PORTS`, and drops everything else addressed to the node.
-  - `GAMEPANEL-FORWARD`, jumped to from Docker's `DOCKER-USER`: drops link-local addresses and, with `GAMEPANEL_BLOCK_PRIVATE=1`, private networks. Replies to connections that came from those networks still go out. It also drops connections to ports other containers publish on the node: Docker redirects those to the container before `INPUT`, so `GAMEPANEL-INPUT` never sees them. Other servers' published ports and `GAMEPANEL_HOST_PORTS` stay reachable.
+  - `GAMEPANEL-FORWARD`, jumped to from Docker's `DOCKER-USER`: drops link-local addresses and private networks (unless `GAMEPANEL_BLOCK_PRIVATE=0`). Replies to connections that came from those networks still go out. It also drops connections to ports other containers publish on the node: Docker redirects those to the container before `INPUT`, so `GAMEPANEL-INPUT` never sees them. Other servers' published ports and `GAMEPANEL_HOST_PORTS` stay reachable.
 - The chains are rebuilt whenever a server's container is created or deleted, and checked every minute, so a firewall reload (`ufw reload`, `firewall-cmd --reload`) that removes the jumps is repaired.
 
 The daemon uses whichever iptables (`iptables`, `iptables-legacy` or `iptables-nft`) has Docker's `DOCKER-USER` chain.
@@ -43,7 +43,7 @@ A MySQL or MariaDB on the node, installed there or run in a Docker container tha
 GAMEPANEL_HOST_PORTS=3306/tcp
 ```
 
-Point servers at the node's address or at the network's gateway (`{{config.docker.interface}}` in eggs). A database on another machine needs nothing.
+Point servers at the node's address or at the network's gateway (`{{config.docker.interface}}` in eggs). A database on another machine needs nothing when servers reach it at a public address. On a private network (the node's LAN, a provider's private network) it needs `GAMEPANEL_BLOCK_PRIVATE=0`, which lets servers reach every machine there.
 
 ## Upgrading from 0.2
 
