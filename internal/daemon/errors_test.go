@@ -22,6 +22,7 @@ func TestCommonFailuresAreDescribedForPeople(t *testing.T) {
 	}{
 		{&fs.PathError{Op: "openat", Path: "world/level.dat", Err: fs.ErrNotExist}, proto.CodeNotFound},
 		{&fs.PathError{Op: "mkdirat", Path: "plugins", Err: fs.ErrExist}, proto.CodeConflict},
+		{&fs.PathError{Op: "openat", Path: "plugins/out/x.yml", Err: errors.New("path escapes from parent")}, proto.CodeInvalid},
 		{errors.New("OCI runtime create failed: openat2 /sys/fs/cgroup/docker/5a77/io.weight: no such file or directory"), proto.CodeInvalid},
 		{fmt.Errorf("read: %w", &fs.PathError{Op: "read", Path: "logs", Err: errors.New("is a directory")}), ""},
 	} {
