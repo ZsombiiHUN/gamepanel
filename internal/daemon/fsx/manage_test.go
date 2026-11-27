@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 func newDir(t *testing.T) (*Dir, string) {
@@ -266,5 +267,36 @@ func TestListReportsModeAndLinks(t *testing.T) {
 	}
 	if byName["start.sh"] != 0o750 || !links["link"] || links["start.sh"] {
 		t.Fatalf("modes %v links %v", byName, links)
+	}
+}
+
+// A copy or archive name is looked for only while candidates can be checked:
+// under a file (ENOTDIR) or a symlink that leads out, every Lstat fails the
+// same way, and the search must end instead of spinning forever.
+func TestFreeNameSearchEndsOnErrors(t *testing.T) {
+	d, root := newDir(t)
+	mustWrite(t, d, "server.properties", "motd=hi")
+	if err := os.Symlink(t.TempDir(), filepath.Join(root, "out")); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, p := range []string{"server.properties/x", "out/x.txt"} {
+			to := d.CopyName(p)
+			if err := d.Copy(p, to, func(int64) error { return nil }); err == nil {
+				t.Errorf("copy %s: want an error", p)
+			}
+		}
+		for _, base := range []string{"server.properties", "out"} {
+			if _, err := d.Compress(base, []string{base + "/x"}, "tar.gz", 0); err == nil {
+				t.Errorf("compress in %s: want an error", base)
+			}
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the free-name search did not end")
 	}
 }
