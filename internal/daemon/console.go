@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bufio"
 	"context"
 	"strconv"
 	"sync"
@@ -124,4 +125,70 @@ func (d *Daemon) sendConsole(uuid string, lines ...string) {
 		c.Lines = lines
 	}
 	_ = d.send(context.Background(), proto.Envelope{Type: proto.EvtConsole, Data: proto.Marshal(c)})
+}
+
+// detach forgets the console of a run that has ended, as soon as the runtime
+// reports the exit: input then fails at once ("not running") instead of being
+// written to the dead run's stream, and the next run's attach is not skipped
+// while the old stream is still draining.
+func (d *Daemon) detach(uuid string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if m := d.servers[uuid]; m != nil {
+		m.attached, m.stdin = false, nil
+		m.attachGen++
+	}
+}
+
+// attach streams a server's console to the panel and keeps its stdin handle.
+// It is idempotent: both the power handler and the runtime event watcher may
+// call it for the same run, and only the first starts a reader.
+func (d *Daemon) attach(ctx context.Context, uuid string) {
+	d.mu.Lock()
+	m := d.servers[uuid]
+	if m == nil || m.attached {
+		d.mu.Unlock()
+		return
+	}
+	m.attached = true
+	m.attachGen++
+	gen := m.attachGen
+	d.mu.Unlock()
+
+	// The stream must outlive the request or session that started it: it ends
+	// when the container stops, not when the panel connection drops.
+	r, w, err := d.rt.Attach(context.WithoutCancel(ctx), uuid)
+	if err != nil {
+		d.log.Warn("attach failed", "server", uuid, "err", err)
+		d.mu.Lock()
+		if m.attachGen == gen {
+			m.attached = false
+		}
+		d.mu.Unlock()
+		return
+	}
+	d.mu.Lock()
+	if m.attachGen == gen {
+		m.stdin = w
+	}
+	d.mu.Unlock()
+	go func() {
+		defer r.Close()
+		defer func() {
+			d.mu.Lock()
+			if m.attachGen == gen {
+				m.attached, m.stdin = false, nil
+			}
+			d.mu.Unlock()
+		}()
+		out := d.newConsole(uuid)
+		defer out.Close()
+		sc := bufio.NewScanner(r)
+		sc.Buffer(make([]byte, 64<<10), 1<<20)
+		for sc.Scan() {
+			l := sc.Text()
+			out.Line(l)
+			d.sawLine(ctx, uuid, m, l)
+		}
+	}()
 }

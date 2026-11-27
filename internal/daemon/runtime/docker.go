@@ -276,7 +276,8 @@ func (d *Docker) Remove(ctx context.Context, uuid string) error {
 	if err := d.syncFirewall(ctx); err != nil {
 		// Its ports stay open to other servers until the next rebuild (a
 		// create, or the minute check): logged, not fatal.
-		slog.Warn("could not update the servers' firewall after removing a container", "server", uuid, "err", err)
+		slog.Warn("could not update the servers' firewall after removing a container",
+			"server", strings.ReplaceAll(strings.ReplaceAll(uuid, "\n", ""), "\r", ""), "err", err)
 	}
 	return nil
 }
