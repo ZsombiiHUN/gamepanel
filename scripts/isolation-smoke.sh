@@ -10,6 +10,9 @@
 #   - a port listed in GAMEPANEL_HOST_PORTS       must be reachable
 #   - a "cloud metadata" service at 169.254.169.254 (a network namespace
 #     routed from the host, like a real one)      must be unreachable
+#   - a port another container publishes on the node (a database run by
+#     Compose, say), on its own network or docker0 must be unreachable,
+#     unless it is in GAMEPANEL_HOST_PORTS
 #
 # The same checks run once more with GAMEPANEL_FIREWALL=off, where the
 # blocked ones must succeed: that proves the checks can fail. Needs: docker, go.
@@ -49,6 +52,14 @@ ip netns exec meta python3 -m http.server 80 --bind 169.254.169.254 >/dev/null 2
 # something they may not.
 python3 -m http.server 13306 >/dev/null 2>&1 &
 python3 -m http.server 13307 >/dev/null 2>&1 &
+# Other containers publishing ports on the node: on their own network, on
+# docker0, and one whose port is in GAMEPANEL_HOST_PORTS.
+web(){ echo "mkdir -p /w && echo hi >/w/index.html && exec httpd -f -p 9999 -h /w"; }
+docker network create other >/dev/null &&
+  docker run -d --name other-net --network other -p 15432:9999 $IMAGE sh -c "$(web)" >/dev/null &&
+  docker run -d --name other-bridge -p 15433:9999 $IMAGE sh -c "$(web)" >/dev/null &&
+  docker run -d --name other-allowed --network other -p 13309:9999 $IMAGE sh -c "$(web)" >/dev/null ||
+  { echo "cannot start the other containers"; exit 1; }
 
 T=/tmp/gp; mkdir -p $T; export GAMEPANEL_DB=$T/p.db
 PW=$(panel create-admin admin@example.com | awk '/password:/{print $2}')
@@ -60,7 +71,7 @@ TOK=$(c -d '{"name":"local","port_start":25600,"port_end":25610}' $B/nodes | pyt
 DP=
 start_daemon(){
   GAMEPANEL_PANEL_URL=ws://127.0.0.1:18093/daemon/connect GAMEPANEL_NODE_TOKEN=$TOK GAMEPANEL_SFTP_ADDR=off \
-    GAMEPANEL_DATA_DIR=$T/dd GAMEPANEL_CONTAINER_USER=2500:2600 GAMEPANEL_HOST_PORTS=13306/tcp "$@" daemon >>$T/daemon.log 2>&1 &
+    GAMEPANEL_DATA_DIR=$T/dd GAMEPANEL_CONTAINER_USER=2500:2600 GAMEPANEL_HOST_PORTS=13306,13309/tcp "$@" daemon >>$T/daemon.log 2>&1 &
   DP=$!
   sleep 2
 }
@@ -101,6 +112,11 @@ check "the panel on the node is unreachable (gateway)" '! reach $A http://$(gw):
 check "a port in GAMEPANEL_HOST_PORTS is reachable" 'reach $A http://$(gw):13306/'
 check "a node port not listed is unreachable" '! reach $A http://$(gw):13307/'
 check "cloud metadata is unreachable" '! reach $A http://169.254.169.254/'
+check "another container's published port is reachable from the node" 'curl -sf -m 3 http://$NODE_IP:15432/ >/dev/null'
+check "another container's published port is unreachable (node address)" '! reach $A http://$NODE_IP:15432/'
+check "another container's published port is unreachable (gateway)" '! reach $A http://$(gw):15432/'
+check "a docker0 container's published port is unreachable" '! reach $A http://$NODE_IP:15433/'
+check "another container's port in GAMEPANEL_HOST_PORTS is reachable" 'reach $A http://$NODE_IP:13309/'
 check "the internet is reachable" 'reach $A http://example.com/ || reach $A http://1.1.1.1/'
 check "outside, the published port is reachable" 'curl -sf -m 3 http://$NODE_IP:$(port $A)/ >/dev/null'
 
@@ -115,6 +131,7 @@ iptables -D INPUT -i gp0 -j GAMEPANEL-INPUT; iptables -D DOCKER-USER -i gp0 -j G
 env_daemon GAMEPANEL_FIREWALL=off
 check "the panel is reachable without the firewall" 'reach $A http://$(gw):18093/'
 check "metadata is reachable without the firewall" 'reach $A http://169.254.169.254/'
+check "another container's published port is reachable without the firewall" 'reach $A http://$NODE_IP:15432/'
 check "the other server's unpublished port stays unreachable (Docker's ICC setting alone)" '! reach $A http://$(ip_of $Bs):9999/'
 
 stop_daemon

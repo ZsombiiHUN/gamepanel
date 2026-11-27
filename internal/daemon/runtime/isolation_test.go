@@ -52,6 +52,10 @@ func TestFirewallRules(t *testing.T) {
 		"-A GAMEPANEL-INPUT -p tcp --dport 9000:9010 -j ACCEPT",
 		"-A GAMEPANEL-INPUT -p udp --dport 9000:9010 -j ACCEPT",
 		"-A GAMEPANEL-FORWARD -d 169.254.0.0/16 -j DROP",
+		"-A GAMEPANEL-FORWARD -m conntrack --ctstate DNAT -o gp0 -j RETURN",
+		"-A GAMEPANEL-FORWARD -p tcp -m conntrack --ctstate DNAT --ctorigdstport 3306 -j RETURN",
+		"-A GAMEPANEL-FORWARD -p udp -m conntrack --ctstate DNAT --ctorigdstport 9000:9010 -j RETURN",
+		"-A GAMEPANEL-FORWARD -m conntrack --ctstate DNAT -j DROP",
 		"COMMIT",
 	} {
 		if !strings.Contains(rules, want+"\n") {
@@ -69,6 +73,11 @@ func TestFirewallRules(t *testing.T) {
 	// The drop comes after every accept.
 	if i, j := strings.LastIndex(rules, "-j ACCEPT"), strings.Index(rules, "-A GAMEPANEL-INPUT -j DROP"); j < i {
 		t.Errorf("the input drop is not last:\n%s", rules)
+	}
+	// Ports other containers publish on the node: the drop comes after the
+	// exceptions for game servers and HostPorts.
+	if i, j := strings.LastIndex(rules, "--ctstate DNAT --ctorigdstport"), strings.Index(rules, "--ctstate DNAT -j DROP"); j < i || strings.Index(rules, "DNAT -o gp0 -j RETURN") > j {
+		t.Errorf("the DNAT drop is not after its exceptions:\n%s", rules)
 	}
 	// Replies to connections from private networks must still leave.
 	priv := firewallRules(Isolation{BlockPrivate: true}, nil)
