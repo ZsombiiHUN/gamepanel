@@ -11,6 +11,8 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-28
+
 ### Added
 
 - `/healthz` (the panel serves requests) and `/readyz` (and its database
@@ -277,7 +279,8 @@ tested, but it has not run in production yet.
   `[gamepanel] install complete` on its console, like one that has.
 - "Backups kept" counted "of 20" in English in every language.
 
-[Unreleased]: https://github.com/ZsombiiHUN/gamepanel/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/ZsombiiHUN/gamepanel/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ZsombiiHUN/gamepanel/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/ZsombiiHUN/gamepanel/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ZsombiiHUN/gamepanel/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/ZsombiiHUN/gamepanel/compare/v0.1.0...v0.1.1
