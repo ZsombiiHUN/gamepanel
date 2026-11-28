@@ -6,7 +6,7 @@ import { invalidates, keys, meQuery, serversQuery } from "../api/queries";
 import { SearchInput } from "../components/SearchInput";
 import { useSearchText } from "../hooks/useSearchText";
 import { Empty, ErrorBox, Meter, ServerIcon, Spinner, StateBadge } from "../components/ui";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatUsage } from "../lib/format";
 import { countGroups, GROUPS, groupLabel, groupOf, matchesServer, shownState, sortServers, summarize, type Group } from "../lib/servers";
 import { useTranslation } from "react-i18next";
 
@@ -48,18 +48,16 @@ function ServerCard({ s }: { s: ServerView }) {
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         {live && <Meter label={t("common.cpu")} text={`${live.cpu_pct.toFixed(0)}%`} pct={cpuPct} />}
-        {live && (
-          <Meter
-            label={t("common.memory")}
-            text={`${formatBytes(live.mem_bytes)} / ${formatBytes(s.memory_mb * 1024 * 1024)}`}
-            pct={memPct}
-          />
-        )}
+        {live && <Meter label={t("common.memory")} text={formatUsage(live.mem_bytes, s.memory_mb * 1024 * 1024)} pct={memPct} />}
         {s.stats && (
           <div className={live ? "" : "col-span-2"}>
             <Meter
               label={t("common.disk")}
-              text={`${formatBytes(s.stats.disk_bytes)} / ${s.disk_mb ? formatBytes(s.disk_mb * 1024 * 1024) : t("usage.noLimit")}`}
+              text={
+                s.disk_mb
+                  ? formatUsage(s.stats.disk_bytes, s.disk_mb * 1024 * 1024)
+                  : `${formatBytes(s.stats.disk_bytes)} / ${t("usage.noLimit")}`
+              }
               pct={diskPct}
             />
           </div>

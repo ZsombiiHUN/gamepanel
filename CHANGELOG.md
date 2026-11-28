@@ -11,6 +11,12 @@ Upgrade the panel and every node to the same version together. See
 
 ## [Unreleased]
 
+### Fixed
+
+- Server cards no longer cut off memory and disk use at common window widths
+  ("1.8 / 2.0 GiB" names the unit once; a value that still does not fit moves
+  under its label).
+
 ## [0.3.0] - 2026-11-28
 
 ### Added

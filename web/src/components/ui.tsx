@@ -289,9 +289,10 @@ export function Meter({ label, text, pct, warnAt = 85 }: { label: string; text: 
   const w = pct === null ? 0 : Math.max(0, Math.min(100, pct));
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex justify-between gap-2 text-[12.5px]">
+      {/* A value too long for the line wraps under the label instead of being cut off. */}
+      <div className="flex flex-wrap justify-between gap-x-2 text-[12.5px]">
         <span className="text-zinc-500">{label}</span>
-        <span className={`truncate font-mono text-xs ${warn ? "text-warn-text" : "text-zinc-200"}`}>{text}</span>
+        <span className={`ml-auto max-w-full truncate font-mono text-xs ${warn ? "text-warn-text" : "text-zinc-200"}`}>{text}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-[3px] bg-line" role="presentation">
         <div

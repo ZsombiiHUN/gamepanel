@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes, joinPath, parentPath } from "./format";
+import { formatBytes, formatUsage, joinPath, parentPath } from "./format";
 
 describe("formatBytes", () => {
   it.each([
@@ -31,4 +31,12 @@ describe("paths", () => {
     expect(parentPath("/a")).toBe("/");
     expect(parentPath("/")).toBe("/");
   });
+});
+
+describe("formatUsage", () => {
+  it.each([
+    [1.8 * 1024 ** 3, 2 * 1024 ** 3, "1.8 / 2.0 GiB"],
+    [359 * 1024 ** 2, 8 * 1024 ** 3, "359 MiB / 8.0 GiB"],
+    [-1, 1024, "- / 1.0 KiB"],
+  ])("%d of %d -> %s", (used, limit, out) => expect(formatUsage(used, limit)).toBe(out));
 });
