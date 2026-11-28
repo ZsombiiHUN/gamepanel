@@ -90,4 +90,6 @@ export default tseslint.config(
 		files: ["e2e/**/*.ts", "playwright.config.ts", "vite.config.ts", "eslint.config.js"],
 		rules: { "react-hooks/rules-of-hooks": "off" },
 	},
+	// Plain Node helper scripts: no tsconfig, so lint them without type information.
+	{ files: ["scripts/**/*.mjs"], ...tseslint.configs.disableTypeChecked },
 );

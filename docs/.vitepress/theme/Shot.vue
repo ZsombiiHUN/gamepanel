@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // A screenshot of the panel that follows the site's theme: <Shot name="console" alt="..." />
 // shows public/screenshots/console-dark.webp or console-light.webp. To retake
-// them, run the e2e test panel (internal/e2e/testpanel) and capture 1440×900 at 2×.
+// them, run web/scripts/docs-screenshots.mjs against a panel with a real game
+// server (not the e2e test panel, whose fake runtime shows "[fake]" output).
 import { withBase } from 'vitepress'
 
 defineProps<{ name: string; alt: string }>()
